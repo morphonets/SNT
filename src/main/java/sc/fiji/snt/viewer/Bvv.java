@@ -1956,6 +1956,14 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
+     * @see AbstractBigViewer#resyncCalibrationFromActiveSource()
+     */
+    @Override
+    public void resyncCalibrationFromActiveSource() {
+        if (tracer != null) tracer.syncChannelFromActiveSource();
+    }
+
+    /**
      * Updates the viewer display to reflect changes in rendered trees and paths.
      * This method should be called after modifying the collection of rendered objects
      * to ensure the display is synchronized.

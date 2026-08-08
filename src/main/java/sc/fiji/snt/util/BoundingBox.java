@@ -413,6 +413,32 @@ public class BoundingBox implements Cloneable {
 		this.originOpposite = originOpposite;
 	}
 
+	/**
+	 * Grows this box outward on every side by the specified calibrated
+	 * (world-unit) amounts, keeping its centroid fixed. Unlike a fixed
+	 * pixel-count margin, this scales sensibly with anisotropic spacing (e.g., a
+	 * large Z spacing common in light-sheet/expansion data would make a fixed
+	 * pixel margin either negligible or huge depending on the axis).
+	 *
+	 * @param xPad the calibrated padding added on both sides of X
+	 * @param yPad the calibrated padding added on both sides of Y
+	 * @param zPad the calibrated padding added on both sides of Z
+	 * @throws IllegalArgumentException If origin/originOpposite have not been set
+	 */
+	public void expand(final double xPad, final double yPad, final double zPad) {
+		if (origin == null || originOpposite == null) {
+			throw new IllegalArgumentException("Origin has not been set");
+		}
+		final double minX = Math.min(origin.x, originOpposite.x) - xPad;
+		final double maxX = Math.max(origin.x, originOpposite.x) + xPad;
+		final double minY = Math.min(origin.y, originOpposite.y) - yPad;
+		final double maxY = Math.max(origin.y, originOpposite.y) + yPad;
+		final double minZ = Math.min(origin.z, originOpposite.z) - zPad;
+		final double maxZ = Math.max(origin.z, originOpposite.z) + zPad;
+		origin = new PointInImage(minX, minY, minZ);
+		originOpposite = new PointInImage(maxX, maxY, maxZ);
+	}
+
 	public boolean hasDimensions() {
 		return origin.distanceSquaredTo(originOpposite) > 0;
 	}

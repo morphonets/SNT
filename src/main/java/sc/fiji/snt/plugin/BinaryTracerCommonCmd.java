@@ -259,6 +259,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
         }
 
         if (snt.accessToValidImageData()) {
+            warnIfMaterializedCropActive();
             maskChoices.addFirst(IMG_TRACED_DUP_CHOICE);
             maskChoices.addFirst(IMG_TRACED_SEC_LAYER_CHOICE);
             originalChoices.addFirst(IMG_TRACED_CHOICE);

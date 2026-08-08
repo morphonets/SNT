@@ -160,6 +160,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         if (imp == null && img == null) {
             error("No valid image data available.");
         }
+        warnIfMaterializedCropActive();
         if (snt != null && snt.isStreamMode()) {
             outputChoice = OUTPUT_BOOKMARK;
             final MutableModuleItem<String> outputItem = getInfo().getMutableInput("outputChoice", String.class);

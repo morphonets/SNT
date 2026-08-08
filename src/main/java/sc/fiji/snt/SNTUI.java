@@ -55,6 +55,7 @@ import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.*;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
@@ -1075,9 +1076,115 @@ public class SNTUI extends JDialog {
     }
 
     private void updateRebuildCanvasButton() {
+        // Defensive: this is reached via SwingUtilities.invokeLater(...) from ImageListener#imageClosed, queued when
+        // this session's xy/xz/zy image is closed. During exitRequested(), closing those happens before plugin is
+        // nulled. Without this guard, plugin.isStreamMode() below throws a NPE on the EDT right after quitting SNT
+        // with a materialized crop (or any main image) open
+        if (plugin == null) return;
+        if (plugin.isStreamMode()) {
+            // Stream mode: No display canvas concept: We materialize a pixel-backed crop from streamed source instead
+            rebuildCanvasButton.setText("Materialize Region");
+            return;
+        }
         final ImagePlus imp = plugin.getImagePlus();
         final String label = (imp == null || !plugin.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
         rebuildCanvasButton.setText(label);
+    }
+
+    /**
+     * Materializes a real, pixel-backed crop of the streamed source in place as this session's own
+     * Display Canvas (Stream mode only), per {@link SNT#materializeDisplayCanvas(BoundingBox)}.
+     * Scoped to the current path selection if one exists ({@link PathAndFillManager#getSelectedPaths()}),
+     * otherwise to every loaded path, mirroring "Create Canvas"'s own classic-mode behavior of always
+     * using every loaded path, since there is no notion of a "selection"
+     */
+    private void materializeDisplayCanvas() {
+        Collection<Path> paths = pathAndFillManager.getSelectedPaths();
+        if (paths == null || paths.isEmpty()) paths = pathAndFillManager.getPaths();
+        if (paths.isEmpty()) {
+            guiUtils.error("No paths exist to materialize a region from.");
+            return;
+        }
+        // Calibration otherwise only gets (re)read from the active BVV/BDV: without this, plugin.getCalibration()
+        // can still be whatever BigDataLoaderCmd's best-effort fallback produced at load time (or the ardwired default
+        // of 1), even though the viewer itself is rendering with the correct, real voxel  size. Resync now, before the
+        // dialog's own live estimate and the actual crop both read it
+        final AbstractBigViewer activeViewer = getActiveBigViewer();
+        if (activeViewer != null) activeViewer.resyncCalibrationFromActiveSource();
+        final MaterializeRegionDialog dialog = new MaterializeRegionDialog(this, plugin);
+        if (!dialog.succeeded()) return;
+        final BoundingBox box = dialog.getResolvedBoundingBox();
+        if (!plugin.isSpacingKnownFromSource()) {
+            warnIfCalibrationUnverified();
+        }
+        // Reuses the dialog's own last estimate (exactly what is about to be read) rather than  recomputing it here,
+        // so this can never disagree with what the dialog's status line just  showed the user
+        if (dialog.getEstimatedBytes() >= MaterializeRegionDialog.LARGE_MATERIALIZATION_WARN_BYTES) {
+            warnOnLargeMaterialization();
+        }
+
+        changeState(LOADING);
+        showStatus("Materializing region...", false);
+        // The actual read (plugin.buildMaterializedCrop(box)) can be disk-/network-bound and slow; running it in
+        // doInBackground() keeps the EDT free instead of freezing for the read's duration. installMaterializedCrop(...)
+        // below touches Swing/AWT state (ImageWindow show/toFront, initialize()) and must stay on the EDT - done()
+        // always runs there, so no explicit dispatching is needed for it.
+        //
+        // A free EDT means the rebuildCanvasButton stays clickable during the read: without this guard, a second click
+        // could launch a second overlapping background read/install, with the two done() calls racing on the EDT
+        rebuildCanvasButton.setEnabled(false);
+        final AbstractBigViewer viewer = getActiveBigViewer();
+        if (viewer != null) viewer.updateStatus("Materializing region...", 0, -1);
+        new SwingWorker<SNT.MaterializedCrop, Void>() {
+            @Override
+            protected SNT.MaterializedCrop doInBackground() {
+                return plugin.buildMaterializedCrop(box);
+            }
+
+            @Override
+            protected void done() {
+                if (viewer != null) viewer.updateStatus("", 0, 0); // 0 nSteps hides the bar
+                try {
+                    plugin.installMaterializedCrop(get());
+                    arrangeCanvases(false);
+                    showStatus("Region materialized...", true);
+                } catch (final Exception ex) {
+                    // get() wraps whatever doInBackground() threw in an ExecutionException; unwrap so
+                    // the message matches what the synchronous call used to show.
+                    final Throwable cause = (ex.getCause() != null) ? ex.getCause() : ex;
+                    guiUtils.error(cause.getMessage(), "Cannot Materialize Region");
+                } finally {
+                    rebuildCanvasButton.setEnabled(true);
+                    resetState();
+                }
+            }
+        }.execute();
+    }
+
+    private void warnOnLargeMaterialization() {
+        if (plugin.getPrefs().getTemp("materialize-skipnag", false)) {
+            return;
+        }
+        final Boolean skipnag = guiUtils.getPersistentWarning("The materialized image exceeds " +
+                MaterializeRegionDialog.LARGE_MATERIALIZATION_WARN_BYTES_STRING
+                + ". Depending on streaming speeds this may take a while. "
+                + "Please wait until the image is assembled in RAM.", "Long Operation");
+        if (skipnag != null) plugin.getPrefs().setTemp("materialize-skipnag", skipnag);
+    }
+
+    /*
+     * Called only when SNT#isSpacingKnownFromSource() is false, i.e. the streamed source itself never reported real
+     * voxel dimensions and SNT#getCalibration() had to fall back to a loaded Path's own calibration
+     */
+    private void warnIfCalibrationUnverified() {
+        if (plugin.getPrefs().getTemp("materialize-calibration-skipnag", false)) {
+            return;
+        }
+        final Boolean skipnag = guiUtils.getPersistentWarning("The pixel size of the streamed data could not be "
+                + "determined automatically. The calibration of loaded paths is being used instead: verify it "
+                + "actually matches the currently loaded dataset, otherwise the materialized region may be read "
+                + "from the wrong location.", "Unverified Calibration");
+        if (skipnag != null) plugin.getPrefs().setTemp("materialize-calibration-skipnag", skipnag);
     }
 
     /**
@@ -1744,7 +1851,7 @@ public class SNTUI extends JDialog {
 
         final String bLabel = (plugin.getSinglePane()) ? "Display" : "Rebuild";
         final JButton refreshPanesButton = new JButton(bLabel + " ZY/XZ Views");
-        refreshPanesButton.setEnabled(!plugin.isStreamMode());
+        refreshPanesButton.setEnabled(!plugin.isStreamMode()); // TODO: probably fine to remain enabled but not tested yet
         registerInCommandFinder(refreshPanesButton, "Display/Rebuild ZY/XZ Views", "Options Tab");
         refreshPanesButton.addActionListener(e -> {
             final boolean noImageData = !plugin.accessToValidImageData();
@@ -1792,6 +1899,10 @@ public class SNTUI extends JDialog {
         rebuildCanvasButton.addActionListener(e -> {
             if (pathAndFillManager.size() == 0) {
                 guiUtils.error("No paths exist to compute a display canvas.");
+                return;
+            }
+            if (plugin.isStreamMode()) {
+                materializeDisplayCanvas();
                 return;
             }
 
@@ -1863,12 +1974,8 @@ public class SNTUI extends JDialog {
     }
 
     private boolean okToCreateCanvas(final String promptMsg) {
-        if (plugin.isStreamMode()) {
-            // The placeholder canvas here is just an editing convenience; its calibration must always mirror the live
-            // Bvv/Bdv source (see SNT#getPixelWidth()/getPixelHeight()/getPixelDepth(), which the tethered viewer's
-            // own calibration is built from). Resetting spacing would desync PathAndFillManager/Path calibration
-            return true;
-        }
+        // Stream mode does not reach here: rebuildCanvasButton click handler branches to  materializeDisplayCanvas()
+        // before this method is called
         final boolean nag = plugin.getPrefs().getTemp("pathscaling-nag", true);
         boolean reset = plugin.getPrefs().getTemp("pathscaling", true);
         if (nag) {
@@ -5815,12 +5922,21 @@ public class SNTUI extends JDialog {
                 SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
                 return;
             }
-            // Case 2: Image assembled from cached data was closed: nullify it
+            // Case 2: A materialized crop was closed (see SNT#materializeDisplayCanvas(BoundingBox)):
+            // restore the full streamed source so BDV/BVV tracing (blocked while a crop is open, see
+            // SNT#isMaterializedCrop()) and any "whole dataset" command work again. Checked before Case 4
+            // below, which would otherwise also match (a crop's own ctSlice3d is non-null too) and
+            // incorrectly offer to "reopen from cached data" using the crop's own small pixel data
+            else if (plugin.isMaterializedCrop(imp)) {
+                plugin.dematerializeDisplayCanvas();
+                listener.tracingImageID = 0;
+            }
+            // Case 3: Image assembled from cached data was closed: nullify it
             else if (plugin.isCachedData(imp)) {
                 plugin.flushSecondaryData();
                 listener.tracingImageID = 0; // reset image; ids are always negative
             }
-            // Case 3: Main image closed but cached data exists
+            // Case 4: Main image closed but cached data exists
             else if (imp.getID() == listener.tracingImageID && plugin.ctSlice3d != null) {
                 // IJ quirk: imp == plugin.getImagePlus() fails. Use unique id instead
                 if (!plugin.getPrefs().getTemp("ignore-close-" + imp.getID(), false)
@@ -5835,7 +5951,7 @@ public class SNTUI extends JDialog {
                 // Either no cached data, or user chose to discard
                 listener.tracingImageID = 0; // reset
             }
-            // Case 4: unrelated, Non-SNT image
+            // Case 5: unrelated, Non-SNT image
             else {
                 return;
             }

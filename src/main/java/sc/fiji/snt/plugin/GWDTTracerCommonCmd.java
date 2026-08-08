@@ -296,6 +296,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             noValidImgError();
             return;
         }
+        warnIfMaterializedCropActive();
         resolveInput("imgFileChoice");
         final MutableModuleItem<String> imgChoiceItem = getInfo().getMutableInput("imgChoice", String.class);
         final List<String> choices = new ArrayList<>();

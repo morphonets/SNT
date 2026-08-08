@@ -269,6 +269,21 @@ public abstract class AbstractBigViewer {
     public abstract void updateStatus(String message, int step, int nSteps);
 
     /**
+     * Forces {@code snt}'s image metadata (dimensions, calibration, pixel data, channel/frame) to be
+     * re-read from this viewer's currently active {@code Source}, the same resync {@link AbstractTracer}
+     * performs on its own before starting a new path (see {@code AbstractTracer#syncChannelFromActiveSource()}).
+     * <p>
+     * That resync is otherwise only triggered by the first click of a new path, so {@code snt}'s
+     * calibration can be stale (or still at whatever {@code BigDataLoaderCmd}'s best-effort fallback
+     * produced at load time) for anything that reads it beforehand - such as {@code
+     * SNT#buildMaterializedCrop(BoundingBox)}. Callers that need calibration to reflect exactly what
+     * this viewer is currently rendering, before the user has traced anything, should call this first.
+     * <p>
+     * A no-op if no tracer has been created yet, or if the active source can't be resolved.
+     */
+    public abstract void resyncCalibrationFromActiveSource();
+
+    /**
      * Docks a component at the bottom of a {@link bdv.ui.CardPanel}, below all cards, without a
      * card header. Uses MigLayout's {@code "dock south"} constraint. If the CardPanel's container
      * layout ever changes away from MigLayout this degrades gracefully: the component simply
@@ -1484,6 +1499,14 @@ public abstract class AbstractBigViewer {
         /** Click-handling logic, formerly {@code mouseClicked(MouseEvent)}; see {@link #mouseReleased} */
         private void handleClick(final MouseEvent e) {
             if (!tracingEnabled) {
+                return;
+            }
+            if (snt.isMaterializedCrop()) {
+                // A materialized crop (see SNT#materializeDisplayCanvas(BoundingBox)) has overwritten
+                // snt's pixel data with the crop's own (small) region, but this viewer's own rendering
+                // still shows the full, unaffected volume - tracing here would silently search/snap
+                // against the wrong (and likely out-of-bounds) pixel data with no visual feedback
+                showViewerMessage("Tracing unavailable while materialized crop open");
                 return;
             }
 

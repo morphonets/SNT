@@ -831,8 +831,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final double[] p = new double[3];
             tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
                     last_y_in_pane_precise, plane, p);
+            // p[] is a pane-local pixel index; correct against the active canvas offset before
+            // comparing to existing paths' true-world node coordinates (see SNT#getActiveCanvasPixelOffset()).
+            final PointInCanvas offset = tracerPlugin.getActiveCanvasPixelOffset();
             final PathAndFillManager.NodeRef ref = pathAndFillManager
-                    .nearestJoinNodeRefOnSelectedPaths(p[0], p[1], p[2]);
+                    .nearestJoinNodeRefOnSelectedPaths(p[0] - offset.x, p[1] - offset.y, p[2] - offset.z);
             if (ref != null) {
                 centerPath = ref.path();
                 centerIndex = ref.index();
@@ -1904,10 +1907,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             }
             selectNearestPathToMousePointer(false);
             tracerPlugin.mouseMovedTo(last_x_in_pane_precise, last_y_in_pane_precise, plane, true, true);
-            // Verify a valid join point exists before committing
+            // Verify a valid join point exists before committing. p[] is a pane-local pixel index;
+            // correct against the active canvas offset before comparing to existing paths' true-world
+            // node coordinates (see SNT#getActiveCanvasPixelOffset())
             final double[] p = new double[3];
             tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise, last_y_in_pane_precise, plane, p);
-            final PointInImage joinPoint = pathAndFillManager.nearestJoinPointOnSelectedPaths(p[0], p[1], p[2]);
+            final PointInCanvas forkOffset = tracerPlugin.getActiveCanvasPixelOffset();
+            final PointInImage joinPoint = pathAndFillManager.nearestJoinPointOnSelectedPaths(
+                    p[0] - forkOffset.x, p[1] - forkOffset.y, p[2] - forkOffset.z);
             if (joinPoint == null) {
                 canvasWarning("No fork point found. Move cursor closer to a path node");
                 return true;

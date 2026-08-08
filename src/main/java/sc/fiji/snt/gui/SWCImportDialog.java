@@ -35,8 +35,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.text.NumberFormat;
-import java.util.Arrays;
 
 /**
  * Implements a dialog for importing SWC files.
@@ -47,8 +45,8 @@ public class SWCImportDialog extends JDialog {
 
 	private final FilePicker filePicker;
 	private final PreviewArea previewArea;
-	private final BoxPanel offsetPanel;
-	private final BoxPanel scalingPanel;
+	private final XYZFieldsPanel offsetPanel;
+	private final XYZFieldsPanel scalingPanel;
 	private final JButton okButton;
 	private final JButton cancelButton;
 	private final JCheckBox replaceExistingPathsCheckbox;
@@ -77,8 +75,8 @@ public class SWCImportDialog extends JDialog {
 		replaceExistingPathsCheckbox = new JCheckBox("Replace existing paths?", replaceExistingPaths);
 		replaceExistingPathsCheckbox
 				.addItemListener(e -> replaceExistingPaths = replaceExistingPathsCheckbox.isSelected());
-		offsetPanel = new BoxPanel("X axis ", "Y axis", "Z axis");
-		scalingPanel = new BoxPanel("X axis", "Y axis", "Z axis", "Radius");
+		offsetPanel = new XYZFieldsPanel("X axis ", "Y axis", "Z axis");
+		scalingPanel = new XYZFieldsPanel("X axis", "Y axis", "Z axis", "Radius");
 		loadBoxPanelPrefs(ui.getPrefs(), worldOriginOffset);
 		previewArea = new PreviewArea();
 		filePicker = new FilePicker(FilePicker.OPEN_DIALOG,
@@ -143,21 +141,19 @@ public class SWCImportDialog extends JDialog {
 	}
 
 	private void loadBoxPanelPrefs(final SNTPrefs prefs, final double[] worldOriginOffset) {
-		final JFormattedTextField[] offsetFields = offsetPanel.fields;
 		if (usingSessionOffset) {
-			offsetFields[0].setText(String.valueOf(worldOriginOffset[0]));
-			offsetFields[1].setText(String.valueOf(worldOriginOffset[1]));
-			offsetFields[2].setText(String.valueOf(worldOriginOffset[2]));
+			offsetPanel.getField(0).setText(String.valueOf(worldOriginOffset[0]));
+			offsetPanel.getField(1).setText(String.valueOf(worldOriginOffset[1]));
+			offsetPanel.getField(2).setText(String.valueOf(worldOriginOffset[2]));
 		} else {
-			offsetFields[0].setText(prefs.get("swci.xoff", "0"));
-			offsetFields[1].setText(prefs.get("swci.yoff", "0"));
-			offsetFields[2].setText(prefs.get("swci.zoff", "0"));
+			offsetPanel.getField(0).setText(prefs.get("swci.xoff", "0"));
+			offsetPanel.getField(1).setText(prefs.get("swci.yoff", "0"));
+			offsetPanel.getField(2).setText(prefs.get("swci.zoff", "0"));
 		}
-		final JFormattedTextField[] scalingFields = scalingPanel.fields;
-		scalingFields[0].setText(prefs.get("swci.xscl", "1"));
-		scalingFields[1].setText(prefs.get("swci.yscl", "1"));
-		scalingFields[2].setText(prefs.get("swci.zscl", "1"));
-		scalingFields[3].setText(prefs.get("swci.rscl", "1"));
+		scalingPanel.getField(0).setText(prefs.get("swci.xscl", "1"));
+		scalingPanel.getField(1).setText(prefs.get("swci.yscl", "1"));
+		scalingPanel.getField(2).setText(prefs.get("swci.zscl", "1"));
+		scalingPanel.getField(3).setText(prefs.get("swci.rscl", "1"));
 	}
 	
 	private void loadFieldPrefs(final SNTPrefs prefs) {
@@ -229,47 +225,6 @@ public class SWCImportDialog extends JDialog {
 
 	public boolean isAssumePixelCoordinates() {
 		return assumePixelCoordinates;
-	}
-
-	private static class BoxPanel extends JPanel {
-
-		final JFormattedTextField[] fields;
-
-		BoxPanel(final String... labels) {
-			fields = new JFormattedTextField[labels.length];
-			setLayout(new GridBagLayout());
-			final GridBagConstraints c = new GridBagConstraints();
-			c.gridx = 0;
-			c.gridy = 0;
-			c.weighty = 0;
-			final int[] pos = { 0 };
-			Arrays.stream(labels).forEach(label -> {
-				if (pos[0] > 2) {
-					c.gridx = 0;
-					c.gridy++;
-					c.insets.top = 10;
-				}
-				c.gridx++;
-				c.weightx = 0;
-				add(new JLabel(label + " "), c);
-				c.gridx++;
-				c.weightx = 0.5;
-				fields[pos[0]] = getField();
-				add(fields[pos[0]], c);
-				pos[0]++;
-			});
-		}
-
-		JFormattedTextField getField() {
-			final JFormattedTextField field = new JFormattedTextField(NumberFormat.getNumberInstance());
-			field.setColumns(8);
-			return field;
-		}
-
-		final double getValue(final int field, final double defaultValue) {
-			return (fields[field].getText() == null || fields[field].getText().isBlank()) ? defaultValue
-					: Double.parseDouble(fields[field].getText());
-		}
 	}
 
 	private class PreviewArea extends JTextArea implements DocumentListener {

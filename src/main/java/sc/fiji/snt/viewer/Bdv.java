@@ -577,6 +577,14 @@ public class Bdv extends AbstractBigViewer {
         });
     }
 
+    /**
+     * @see AbstractBigViewer#resyncCalibrationFromActiveSource()
+     */
+    @Override
+    public void resyncCalibrationFromActiveSource() {
+        if (tracer != null) tracer.syncChannelFromActiveSource();
+    }
+
     @Override
     public void syncOverlays() {
         if (pathOverlay != null) pathOverlay.updatePaths();

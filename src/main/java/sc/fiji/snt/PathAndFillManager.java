@@ -201,6 +201,18 @@ public class PathAndFillManager extends DefaultHandler implements
         boundingBox.setOrigin(new PointInImage(0, 0, 0));
         boundingBox.setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
         boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
+        // Retroactively fix any already-loaded Path's own spacing the moment the session's calibration
+        // becomes verified/updated (this method is called from every SNT#setImageMetadata(...) call,
+        // the single choke point all calibration updates funnel through)/  Only when spacingKnownFromSource:
+        // otherwise the session's own  fields are themselves still an unverified default (1,1,1), and a Path's
+        // own calibration (e.g.  from a .traces file) may be more trustworthy - same reasoning SNT#getCalibration()
+        // already applies. Skipped while a materialized crop is active: its own local calibration is already
+        // correctly stamped by SNT#installMaterializedCrop(...), which owns this for that case (and must
+        // still do so independently
+        if (plugin.isSpacingKnownFromSource() && !plugin.isMaterializedCrop()) {
+            final Calibration cal = plugin.getCalibration();
+            getPaths().forEach(p -> p.setSpacing(cal));
+        }
     }
 
     public void assignSpatialSettings(final ImagePlus imp) {

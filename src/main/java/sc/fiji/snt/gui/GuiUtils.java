@@ -1724,8 +1724,6 @@ public class GuiUtils {
 	}
 
 	private String getWrappedText(final JComponent c, final String text) {
-		if (text.startsWith("<")) return text; // <HTML>
-		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
 		final int max;
 		if (parent == null) {
 			max = 600;
@@ -1735,7 +1733,22 @@ public class GuiUtils {
 			final int screenW = parent.getGraphicsConfiguration().getBounds().width;
 			max = Math.min(parent.getWidth(), screenW / 3);
 		}
-		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" + text;
+		return getWrappedText(c, text, max);
+	}
+
+	/**
+	 * Wraps {@code text} in an HTML {@code <div>} capped at {@code maxWidth}, so a long line wraps onto further lines
+	 * instead of being clipped or silently growing its container. No-op if {@code text} already looks like HTML.
+	 *
+	 * @param c the component the text will be displayed in (used only for font metrics)
+	 * @param text the text to wrap
+	 * @param maxWidth the maximum width, in pixels, of the wrapped text
+	 * @return the (possibly) HTML-wrapped text
+	 */
+	public static String getWrappedText(final JComponent c, final String text, final int maxWidth) {
+		if (text.startsWith("<")) return text; // already HTML
+		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
+		return "<html><body><div style='width:" + Math.min(width, maxWidth) + ";'>" + text;
 	}
 
 	public void blinkingError(final JComponent blinkingComponent,

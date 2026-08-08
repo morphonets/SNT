@@ -270,6 +270,15 @@ public class SNT extends MultiDThreePanes implements
 	protected int channel;
 	protected int frame;
 	/*
+	 * True once x_spacing/y_spacing/z_spacing have been set from a source that actually reported real voxel dimensions
+	 * (setImageMetadata(...) called with all three spacing args > 0), as opposed to staying at their hardwired default
+	 * of 1 because a streamed N5/Zarr source's own  getVoxelDimensions() returned null
+	 * (see BigDataLoaderCmd#applyFallbackCalibration). getCalibration() uses this to decide whether
+	 * this session's own spacing fields can be trusted outright, or whether falling back to a loaded Path's own
+	 * calibration is warranted
+	 */
+	private boolean spacingKnownFromSource;
+	/*
 	 * World-space origin offset (calibrated units), applied on top of voxelIndex * spacing.
 	 * Non-zero only when the loaded image's own coordinate frame is not anchored at world
 	 * (0,0,0) - e.g. a BigDataViewer/N5 Source whose sourceTransform carries a translation
@@ -281,6 +290,18 @@ public class SNT extends MultiDThreePanes implements
 	/* all tracing and filling-related functions are performed on the Imgs */
 	@SuppressWarnings("rawtypes")
 	RandomAccessibleInterval ctSlice3d;
+
+	/*
+	 * A cached reference to the ORIGINAL, full-resolution Stream-mode source data, kept alongside ctSlice3d so that
+	 * materializeDisplayCanvas(BoundingBox) can always crop from the pristine source, not from a previous crop.
+	 * ctSlice3d itself gets overwritten with the (small) crop's own pixel data every time initialize(ImagePlus) runs
+	 * (see materializeDisplayCanvas). without this separate reference, re-materializing after closing/discarding
+	 * a crop would progressively crop from the last crop instead of the full source, shrinking the result on every
+	 * call. Set once, lazily, the first  time materializeDisplayCanvas runs against a genuine (not-yet-materialized)
+	 * Stream-mode source; left null otherwise
+	 */
+	@SuppressWarnings("rawtypes")
+	private RandomAccessibleInterval streamedSourceData;
 
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
@@ -586,7 +607,7 @@ public class SNT extends MultiDThreePanes implements
 					"One dimension of the calibration information was zero: (" + x_spacing +
 							"," + y_spacing + "," + z_spacing + ")");
 		}
-		if (accessToValidImageData() && !isDisplayCanvas(sourceImage)) {
+		if (accessToValidImageData() && !isDisplayCanvas(sourceImage) && !isMaterializedCrop(sourceImage)) {
 			pathAndFillManager.assignSpatialSettings(sourceImage);
 			if (sourceImage.getOriginalFileInfo() != null) {
 				final String dir = sourceImage.getOriginalFileInfo().directory;
@@ -740,6 +761,101 @@ public class SNT extends MultiDThreePanes implements
 		return imp != null && "SNT Display Canvas\n".equals(imp.getInfoProperty());
 	}
 
+	/*
+	 * Single source of truth for "the pixel offset (in the current xy canvas's own local grid) of (0,0,0) in whatever
+	 * true/world grid Path node coordinates are stored in". Kept in sync with the  identical value
+	 * assembleDisplayCanvases()/installMaterializedCrop() already set on every Path's own canvasOffset, and reset to
+	 * 0 by dematerializeDisplayCanvas(). Exists so  pixel-based tracing interactions that must compare against a
+	 * Path's own (true-world) node coordinates (e.g. clickForTrace, mouseMovedTo's join-point lookup, etc.) can correct
+	 * a raw pane-pixel index back to the true grid before doing so. Without this, those interactions silently used the
+	 * crop-local pixel index as if it were the true.
+	 */
+	private PointInCanvas activeCanvasPixelOffset = new PointInCanvas(0, 0, 0);
+
+	PointInCanvas getActiveCanvasPixelOffset() {
+		return activeCanvasPixelOffset;
+	}
+
+	/**
+	 * Keep {@link #activeCanvasPixelOffset} and every currently-loaded {@link Path}'s own {@code canvasOffset} (and,
+	 * optionally, its own spacing) in sync with each other,  used by {@link #assembleDisplayCanvases()}
+	 * {@link #installMaterializedCrop(MaterializedCrop)} and  {@link #dematerializeDisplayCanvas()}.
+	 *
+	 * @param offset  the new canvasOffset for every loaded Path, and the new  {@link #activeCanvasPixelOffset}
+	 * @param calOrNull if non-null, also stamps every loaded Path's own spacing (see
+	 *                  {@link Path#setSpacing(Calibration)}) from this calibration. Pass null when only the
+	 *                  offset is changing (e.g. {@link #assembleDisplayCanvases()}, where per-Path spacing
+	 *                  is already correct - it's what the canvas's own bounding box was aggregated from -
+	 *                  or {@link #dematerializeDisplayCanvas()}, where it should already match the restored
+	 *                  stream source).
+	 */
+	private void syncActivePathCanvasState(final PointInCanvas offset, final Calibration calOrNull) {
+		for (final Path p : pathAndFillManager.getPaths()) {
+			p.setCanvasOffset(offset);
+			if (calOrNull != null) p.setSpacing(calOrNull);
+		}
+		activeCanvasPixelOffset = offset;
+	}
+
+	/*
+	 * Tags an eagerly-materialized pixel crop (see materializeDisplayCanvas(BoundingBox)) as such. Unlike
+	 * isDisplayCanvas, this must NOT be read by accessToValidImageData(), TracerCanvas's active-C/T-position filtering,
+	 * or SNTUI's placeholder-only UI/close handling: a materialized crop is a real, valid image, not a blank
+	 * placeholder. Its only purpose is to let  setFieldsFromImage skip pathAndFillManager.assignSpatialSettings(...)
+	 * for this image, since a crop's own (small) dimensions must never be pushed into a PathAndFillManager that may be
+	 * shared with the session it was materialized from.
+	 */
+	private void setIsMaterializedCrop(final ImagePlus imp) {
+		assert imp != null;
+		imp.setProperty("Info", "SNT Materialized Crop\n");
+	}
+
+	public boolean isMaterializedCrop(final ImagePlus imp) {
+		return imp != null && "SNT Materialized Crop\n".equals(imp.getInfoProperty());
+	}
+
+	/**
+	 * @return true if this stream session's own XY canvas is currently a materialized crop (see
+	 * {@link #materializeDisplayCanvas(BoundingBox)}), i.e. {@link #ctSlice3d} holds the crop's own (small) pixel data
+	 * rather  than the full Stream-mode source. Checked by  {@link sc.fiji.snt.viewer.AbstractBigViewer}'s click-tracer
+	 * to refuse tracing against stale pixel data while its own rendering still shows the full (unaffected) volume, and
+	 * by pixel-scoped commands to warn that they will run against the crop's bounds only.
+	 */
+	public boolean isMaterializedCrop() {
+		return isMaterializedCrop(xy);
+	}
+
+	/*
+	 * Reverts a materialized crop back to a plain Stream-mode session: restores  ctSlice3d to the original
+	 * streamedSourceData cached by materializeDisplayCanvas(BoundingBox), resets every Path's canvasOffset back to 0
+	 * and clears this session's own XY canvas bookkeeping (nullifyCanvases(false). Called by SNTUI when the crop's
+	 * ImagePlus window is closed, so BDV/BVV  tracing (blocked by isMaterializedCrop() while a crop is open) and any
+	 * "whole dataset" command work correctly again.
+	 *
+	 * canvasOffset reset: installMaterializedCrop(...) sets every Path's  canvasOffset to -voxelMin so node coordinates
+	 * line up with the crop's local pixel grid. Without resetting it here, paths would keep carrying
+	 * the closed crop's offset while nominally back in plain Stream mode silently corrupting any canvasOffset-consuming
+	 * code that runs before a new crop (or "Create Canvas") re-establishes it.
+	 *
+	 * Fragile ordering!!: re-materializing while a crop is already open closes the old crop's window using the
+	 * initialize(ImagePlus)/nullifyCanvases(true) flow (installMaterializedCrop). That close() synchronously fires
+	 * SNTUI's ImageListener, which  matches isMaterializedCrop(xy) (still true) and  calls this method NESTED,
+	 * mid-install, then immediately overwritten again by the *new* crop's own
+	 * setFieldsFromImage(...)/loadDatasetFromImagePlus(...) once initialize(ImagePlus) resumes. Ends
+	 * up correct only because the ordering  works, but  reordering initialize(ImagePlus)'s internals could break this.
+	 */
+	void dematerializeDisplayCanvas() {
+		if (!isMaterializedCrop(xy)) return;
+		if (streamedSourceData != null) {
+			ctSlice3d = streamedSourceData;
+			width = (int) ctSlice3d.dimension(0);
+			height = (int) ctSlice3d.dimension(1);
+			depth = (int) ctSlice3d.dimension(2);
+		}
+		syncActivePathCanvasState(new PointInCanvas(0, 0, 0), null);
+		nullifyCanvases(false);
+	}
+
 	private void setIsCachedData(final ImagePlus imp) {
 		assert imp != null;
 		// NB: somehow setProperty/getProperty does not work with virtual stacks,
@@ -798,9 +914,7 @@ public class SNT extends MultiDThreePanes implements
 		final PointInCanvas canvasOffset = new PointInCanvas(-unscaledOrigin.x +
 				(double) XY_PADDING / 2, -unscaledOrigin.y + (double) XY_PADDING / 2, -unscaledOrigin.z +
 				(double) Z_PADDING / 2);
-		for (final Path p : pathAndFillManager.getPaths()) {
-			p.setCanvasOffset(canvasOffset);
-		}
+		syncActivePathCanvasState(canvasOffset, null);
 
 		// Create image
 		imageType = ImagePlus.GRAY8;
@@ -811,6 +925,320 @@ public class SNT extends MultiDThreePanes implements
 		y_spacing = box.ySpacing;
 		z_spacing = box.zSpacing;
 		spacing_units = box.getUnit();
+	}
+
+	/**
+	 * Estimates the number of bytes required to materialize a crop of the given voxel dimensions from  this session's
+	 * streamed source (see {@link #materializeDisplayCanvas(BoundingBox)}), using the source's actual pixel type.
+	 *
+	 * @param width  the crop's width, in voxels
+	 * @param height the crop's height, in voxels
+	 * @param depth  the crop's depth, in voxels
+	 * @return the estimated byte count, or -1 if no streamed source is available to estimate from
+	 * @see #isStreamMode()
+	 */
+	@SuppressWarnings("rawtypes")
+	public long estimateMaterializationBytes(final long width, final long height, final long depth) {
+		final RandomAccessibleInterval source = (streamedSourceData != null) ? streamedSourceData : ctSlice3d;
+		if (source == null) return -1;
+		@SuppressWarnings("unchecked") final RandomAccess<? extends RealType<?>> access = source.randomAccess();
+		final int type = getImagePlusType(access.get());
+		final int bytesPerPixel = switch (type) {
+			case ImagePlus.GRAY16 -> 2;
+			case ImagePlus.GRAY32, ImagePlus.COLOR_RGB -> 4;
+			default -> 1;
+		};
+		return width * height * depth * bytesPerPixel;
+	}
+
+	/**
+	 * @return the number of bytes currently available for a {@link #materializeDisplayCanvas(BoundingBox)} call, i.e.
+	 * {@code MEM_FRACTION} of free heap. {@link Long#MAX_VALUE} if the JVM's max memory cannot be determined.
+	 * @see #isStreamMode()
+	 */
+	public long getMaterializationMemoryBudget() {
+		final double MEM_FRACTION = 0.8d;
+		final long memMax = ij.IJ.maxMemory();
+		if (memMax <= 0) return Long.MAX_VALUE;
+		final long memInUse = ij.IJ.currentMemory();
+		return (long) (MEM_FRACTION * (memMax - memInUse));
+	}
+
+	/**
+	 * @return this session's current spatial calibration (pixel width/height/depth and unit), for
+	 *         converting between pixel and world/calibrated coordinates without affecting world origin: see
+	 *         {@link #setWorldOriginOffset(double, double, double)} for the separate mechanism that handles a
+	 *         non-zero-anchored source.
+	 *         <p>
+	 *         Calibration is trusted from initialized ImagePlus (traditional mode) or from the stream source in Stream
+	 *         mode ({@link #isSpacingKnownFromSource()}); If the streamed N5/Zarr source whose own
+	 *         {@code getVoxelDimensions()} returned null (see {@code BigDataLoaderCmd#applyFallbackCalibration} ),
+	 *         this falls back to a representative loaded {@link Path}'s own calibration.
+	 *         <p>
+	 *         That fallback is inherently a guess SNT cannot verify: nothing guarantees a loaded Path
+	 *         (e.g. imported from an SWC/traces file) was actually traced against the currently streamed
+	 *         source, so its calibration could be wrong for this data. Callers driving user-facing
+	 *         operations should warn accordingly, see {@code SNTUI#materializeDisplayCanvas()}'s use of
+	 *         {@link #isSpacingKnownFromSource()}.
+	 */
+	public Calibration getCalibration() {
+		final Calibration cal = new Calibration();
+		if (spacingKnownFromSource) {
+			// This session's own spacing is verified to have come from the streamed source itself - always
+			// prefer it, even if a loaded Path's own (possibly foreign/mismatched) calibration disagrees.
+			cal.pixelWidth = x_spacing;
+			cal.pixelHeight = y_spacing;
+			cal.pixelDepth = z_spacing;
+			cal.setUnit(spacing_units);
+			return cal;
+		}
+		// Source did not report real voxel dimensions: fall back to a representative loaded Path's own
+		// calibration when available (see this method's own javadoc caveat), else this session's (default) fields.
+		final Path referencePath = pathAndFillManager.getPaths().stream().findFirst().orElse(null);
+		final Calibration pathCal = (referencePath == null) ? null : referencePath.getCalibration();
+		cal.pixelWidth = (pathCal != null && pathCal.pixelWidth > 0) ? pathCal.pixelWidth : x_spacing;
+		cal.pixelHeight = (pathCal != null && pathCal.pixelHeight > 0) ? pathCal.pixelHeight : y_spacing;
+		cal.pixelDepth = (pathCal != null && pathCal.pixelDepth > 0) ? pathCal.pixelDepth : z_spacing;
+		cal.setUnit((pathCal != null && pathCal.getUnit() != null) ? pathCal.getUnit() : spacing_units);
+		return cal;
+	}
+
+	/**
+	 * @return true if {@link #getCalibration()} can trust this session's own spacing fields
+	 *         outright (the streamed source itself reported real voxel dimensions at some point); false if it
+	 *         instead has to fall back to a loaded Path's own (unverifiable) calibration, or this session's
+	 *         hardwired 1-unit default. Used by {@code SNTUI} to warn before an operation that depends on this
+	 *         calibration being correct (e.g. materializing a region), since SNT itself cannot confirm that a
+	 *         loaded Path was actually traced against the currently streamed source.
+	 */
+	public boolean isSpacingKnownFromSource() {
+		return spacingKnownFromSource;
+	}
+
+	/**
+	 * The result of {@link #resolveVoxelBounds(BoundingBox, Calibration)}: a world-space region resolved and clamped to
+	 * voxel-index bounds within this session's streamed source.
+	 *
+	 * @param min     the resolved region's minimum voxel index, per axis (inclusive)
+	 * @param max     the resolved region's maximum voxel index, per axis (inclusive)
+	 * @param clamped {@code true} if the requested region had to be trimmed on at least one side to
+	 *                fit within the loaded source's own extent (e.g. padding, or a fixed-size/center
+	 *                region, pushed past an edge) - i.e. the resolved region is smaller than what was
+	 *                asked for, though never empty (an empty result throws instead, see below)
+	 */
+	public record VoxelBounds(long[] min, long[] max, boolean clamped) {
+	}
+
+	/**
+	 * Resolves a world-space region to voxel-index bounds within this session's streamed source,
+	 * clamping to the source's own extent - a requested region can partially or fully exceed the
+	 * loaded volume (e.g. from padding, or a fixed-size/center region placed near or past an edge).
+	 * Shared by {@link #materializeDisplayCanvas(BoundingBox)} (which performs the actual read) and
+	 * {@code MaterializeRegionDialog}'s live estimate (which needs to preview the REAL, possibly
+	 * smaller, result before the user commits to it), so the two can never disagree about what a
+	 * given region will actually produce.
+	 *
+	 * @param worldBox the requested region, in the same (uncalibrated, world-origin-offset-free)
+	 *                 coordinate frame as Path node coordinates - see
+	 *                 {@link #materializeDisplayCanvas(BoundingBox)}'s own {@code worldBox} javadoc
+	 * @param cal      the calibration to convert {@code worldBox} with - normally
+	 *                 {@link #getCalibration()}, passed in explicitly so a caller that
+	 *                 already computed it (e.g. to also build the crop's own output {@link Calibration})
+	 *                 does not need to compute it twice
+	 * @return the resolved, clamped voxel bounds
+	 * @throws IllegalStateException    if this session has no loaded pixel data (not in Stream mode, or
+	 *                                  the source is unavailable)
+	 * @throws IllegalArgumentException if {@code worldBox} does not overlap the loaded source at all
+	 */
+	public VoxelBounds resolveVoxelBounds(final BoundingBox worldBox, final Calibration cal) {
+		if (streamedSourceData == null) {
+			// First call against a genuine Stream-mode source: cache it before initialize(ImagePlus)
+			// (in materializeDisplayCanvas) overwrites ctSlice3d with the crop's own (small) pixel data.
+			// Every subsequent call - including from repeated live-preview calls, or after a crop is
+			// closed/discarded - resolves against this pristine reference instead of whatever ctSlice3d
+			// currently holds; without this, re-materializing the same selection repeatedly would crop
+			// from the previous crop instead of the original source, shrinking the result each time
+			if (ctSlice3d == null) {
+				throw new IllegalStateException("No streamed pixel data available to materialize from");
+			}
+			streamedSourceData = ctSlice3d;
+		}
+		final RandomAccessibleInterval<?> source = streamedSourceData;
+
+		// Coordinate -> voxel-index conversion, in source's own (raw source) grid. Deliberately does NOT subtract
+		// getWorldOriginOffset(): unlike GWDT-traced paths (which get that offset baked into node.x via
+		// GWDTTracerCommonCmd.applyWorldOriginOffsetIfAny right after tracing), manually-traced/A*-searched/imported
+		// paths do not. Since that is the majority/default case for paths already in pathAndFillManager today, this
+		// mirrors assembleDisplayCanvases() above (which also never touches getWorldOriginOffset(), deriving
+		// canvasOffset purely from the paths' own bounding box) rather than assuming an offset-corrected frame.
+		// If a selection mixes GWDT-corrected paths with uncorrected ones, this will be off for the corrected subset
+		// until that separate issue is fixed session-wide
+		final PointInImage lo = worldBox.origin();
+		final PointInImage hi = worldBox.originOpposite();
+		final long[] voxelMin = new long[3];
+		final long[] voxelMax = new long[3];
+		voxelMin[0] = (long) Math.floor(Math.min(lo.x, hi.x) / cal.pixelWidth);
+		voxelMin[1] = (long) Math.floor(Math.min(lo.y, hi.y) / cal.pixelHeight);
+		voxelMin[2] = (long) Math.floor(Math.min(lo.z, hi.z) / cal.pixelDepth);
+		voxelMax[0] = (long) Math.ceil(Math.max(lo.x, hi.x) / cal.pixelWidth);
+		voxelMax[1] = (long) Math.ceil(Math.max(lo.y, hi.y) / cal.pixelHeight);
+		voxelMax[2] = (long) Math.ceil(Math.max(lo.z, hi.z) / cal.pixelDepth);
+		boolean clamped = false;
+		for (int d = 0; d < 3; d++) {
+			final long clampedMin = Math.max(voxelMin[d], source.min(d));
+			final long clampedMax = Math.min(voxelMax[d], source.max(d));
+			if (clampedMin != voxelMin[d] || clampedMax != voxelMax[d]) clamped = true;
+			voxelMin[d] = clampedMin;
+			voxelMax[d] = clampedMax;
+			if (voxelMax[d] < voxelMin[d]) {
+				throw new IllegalArgumentException("Requested crop does not overlap the loaded source");
+			}
+		}
+		return new VoxelBounds(voxelMin, voxelMax, clamped);
+	}
+
+	/**
+	 * The read-only, EDT-independent half of materializing a region, produced by
+	 * {@link #buildMaterializedCrop(BoundingBox)} and consumed by
+	 * {@link #installMaterializedCrop(MaterializedCrop)}.
+	 *
+	 * @param imp      the eagerly-copied, calibrated, {@link #setIsMaterializedCrop(ImagePlus) tagged}
+	 *                 crop, not yet installed as this session's canvas
+	 * @param voxelMin the crop's minimum voxel index in the source's own grid, per axis - needed by
+	 *                 {@link #installMaterializedCrop(MaterializedCrop)} to position every {@link Path}
+	 *                 relative to the crop's local grid
+	 */
+	public record MaterializedCrop(ImagePlus imp, long[] voxelMin) {
+	}
+
+	/**
+	 * Reads and builds a bounded pixel region of this Stream-mode session's source into a real,
+	 * eagerly-copied {@link ImagePlus}, without installing it as this session's canvas yet - see
+	 * {@link #installMaterializedCrop(MaterializedCrop)} for that half, and
+	 * {@link #materializeDisplayCanvas(BoundingBox)} for the combined convenience call most callers
+	 * want. Split out specifically so the (potentially slow, disk-/network-bound) read can run off
+	 * the EDT: unlike {@link #installMaterializedCrop(MaterializedCrop)}, this method touches no
+	 * Swing/AWT state (no {@code ImageWindow}, no {@link #initialize(ImagePlus)}) and is safe to call
+	 * from a background thread
+	 *
+	 * @param worldBox the region to materialize, in the same (uncalibrated
+	 *                 world-origin-offset-free) coordinate frame as Path node
+	 *                 coordinates - i.e. plain {@code voxelIndex * spacing}, matching
+	 *                 {@link #ctSlice3d}'s own raw grid directly, NOT this session's
+	 *                 {@link #getWorldOriginOffset()}-corrected frame (see
+	 *                 {@link #resolveVoxelBounds(BoundingBox, Calibration)}'s own note). Typically the
+	 *                 (padded) bounding box of a path selection.
+	 * @return the built crop, ready for {@link #installMaterializedCrop(MaterializedCrop)}
+	 * @throws IllegalStateException    if this session has no loaded pixel data
+	 *                                  (not in Stream mode, or the source is unavailable)
+	 * @throws IllegalArgumentException if {@code worldBox} does not overlap the
+	 *                                  loaded source, or the requested crop exceeds the
+	 *                                  materialization memory budget
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public MaterializedCrop buildMaterializedCrop(final BoundingBox worldBox) {
+		// Spacing for the coordinate conversion below: see getCalibration() for why this may come from
+		// a Path's own calibration rather than this session's fields. Path#getXUnscaledDouble()/
+		// getYUnscaledDouble()/getZUnscaledDouble() divide by that per-Path value, not this session's -
+		// so installMaterializedCrop()'s own canvasOffset must be computed with the exact same value, or
+		// paths land at the wrong position. For an anisotropic mismatch this is not a uniform shift: for
+		// a diagonally-oriented structure it can look like a flipped/scaled start point rather than an
+		// obvious offset. Reused below to stamp the crop's own output Calibration too, so the two can
+		// never disagree (this used to be a real, separate bug: the crop's pixel data was read using
+		// this calibration, but the resulting ImagePlus was stamped with plain getCalibration()'s old,
+		// non-fallback-aware value - fine when they matched, silently wrong when they didn't).
+		final Calibration cal = getCalibration();
+
+		// Coordinate -> voxel-index conversion (deliberately NOT subtracting getWorldOriginOffset(), see
+		// resolveVoxelBounds() for the full reasoning plus clamping to the loaded source's own extent (padding,
+		// or a fixed-size/center region, can overshoot it)
+		final VoxelBounds bounds = resolveVoxelBounds(worldBox, cal);
+		final long[] voxelMin = bounds.min();
+		final long[] voxelMax = bounds.max();
+		final RandomAccessibleInterval source = streamedSourceData;
+
+		// Pre-flight memory check. Mirrors assembleDisplayCanvases() above, but sized from the actual
+		// crop dimensions/bit-depth, not a fixed 1-byte/pixel GRAY8 guess: a materialized crop is a
+		// real image. Uses the same estimateMaterializationBytes(...)/ getMaterializationMemoryBudget() pair
+		// MaterializeRegionDialog's live estimate calls, so they won't disagree
+		final long cropWidth = voxelMax[0] - voxelMin[0] + 1;
+		final long cropHeight = voxelMax[1] - voxelMin[1] + 1;
+		final long cropDepth = voxelMax[2] - voxelMin[2] + 1;
+		final long memNeeded = estimateMaterializationBytes(cropWidth, cropHeight, cropDepth);
+		final long memAvailable = getMaterializationMemoryBudget();
+		if (memNeeded > memAvailable) {
+			throw new IllegalArgumentException(String.format(
+					"Selection bounding box (%.2f GB) exceeds the materialization budget (%.2f GB available); "
+							+ "select fewer/shorter paths, or reduce padding.",
+					memNeeded / 1e9, memAvailable / 1e9));
+		}
+
+		// Crop + eager copy. raiToImp() alone is a *lazy* ImageJFunctions.wrap(...): duplicate() forces
+		// IJ1 to allocate  real ImageProcessor arrays and copy every pixel
+		final RandomAccessibleInterval cropView = Views.interval(source, new FinalInterval(voxelMin, voxelMax));
+		final ImagePlus cropImp = ImgUtils.raiToImp(cropView, "Materialized Crop").duplicate();
+		cropImp.setTitle("Materialized Region");
+		cropImp.resetDisplayRange();
+		cropImp.setCalibration(cal);
+		setIsMaterializedCrop(cropImp);
+		return new MaterializedCrop(cropImp, voxelMin);
+	}
+
+	/**
+	 * Installs a crop built by {@link #buildMaterializedCrop(BoundingBox)} as this session's own XY
+	 * canvas, in place, the same mechanism {@link #rebuildDisplayCanvases()} uses for the blank
+	 * placeholder, but with real pixel data instead of an empty image. This allows right-click
+	 * editing (extend/fork/join/delete nodes, wired into {@link InteractiveTracerCanvas}) real pixel
+	 * context in Stream mode, where BDV/BVV have no equivalent context menu.
+	 * <p>
+	 * Touches Swing/AWT state ({@link #initialize(ImagePlus)}, showing/fronting the {@code
+	 * ImageWindow}) and so, unlike {@link #buildMaterializedCrop(BoundingBox)}, MUST be called on the
+	 * EDT.
+	 * <p>
+	 * Deliberately scoped to editing, not tracing: this reuses the normal {@link #initialize(ImagePlus)} pipeline,
+	 * which also replaces {@link #ctSlice3d} with the crop's own (small) pixel data. A* search/GWDT tracing initiated
+	 * after materializing is therefore scoped to the crop's own bounds, not the full streamed volume, until a different
+	 * region is materialized (or the session is reconnected). There is no path for pixel edits to write back into the
+	 * canonical streamed source: only geometry/paths persist, pixel edits are local to this session.
+	 *
+	 * @param crop the crop to install, from {@link #buildMaterializedCrop(BoundingBox)}
+	 */
+	public void installMaterializedCrop(final MaterializedCrop crop) {
+		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip
+		// pathAndFillManager.assignSpatialSettings(...), which would otherwise reset every Path's canvasOffset to zero
+		// and overwrite their spacing. No new world origin offset is needed either
+		initialize(crop.imp());
+
+		// Position every Path relative to the crop's own local pixel grid: its own (0,0,0) is voxelMin in the full
+		// dataset's grid, not the dataset's own origin. Paths outside these bounds simply will not render on the
+		// (small) crop canvas, same as any other image only showing what falls within its own dimensions.
+		// Also (re)stamp every Path's own spacing from the crop's calibration: the classic 2D canvas draws nodes via
+		// PathNodeCanvas#getScreenCoordinateX/Y: it reads each Path's OWN x_spacing/y_spacing/z_spacing field, not
+		// this session's. setFieldsFromImage() above deliberately skips assignSpatialSettings() for a tagged
+		// materialized crop (see comment above), so a Path  that still carries whatever spacing it had at
+		// import (e.g. the SWC-import default of 1,1,1) would be off. BVV/BDV are unaffected
+		// (they draw from a Path's raw node coordinates directly, never consulting its per-Path spacing)
+		final long[] voxelMin = crop.voxelMin();
+		final PointInCanvas canvasOffset = new PointInCanvas(-voxelMin[0], -voxelMin[1], -voxelMin[2]);
+		syncActivePathCanvasState(canvasOffset, crop.imp().getCalibration());
+
+		if (xy != null && !xy.isVisible()) xy.show();
+		if (xy != null && xy.getWindow() != null) xy.getWindow().toFront();
+	}
+
+	/**
+	 * Convenience call combining {@link #buildMaterializedCrop(BoundingBox)} and
+	 * {@link #installMaterializedCrop(MaterializedCrop)} - reads the region and installs it as this  session's canvas,
+	 * in one (synchronous, EDT-blocking if called from the EDT) call. Fine for scripts and other non-interactive
+	 * callers; a UI wanting to keep the interface responsive during a potentially slow read should instead call the
+	 * two halves directly, backgrounding {@link #buildMaterializedCrop(BoundingBox)}.
+	 *
+	 * @param worldBox see {@link #buildMaterializedCrop(BoundingBox)}
+	 * @throws IllegalStateException see {@link #buildMaterializedCrop(BoundingBox)}
+	 * @throws IllegalArgumentException see {@link #buildMaterializedCrop(BoundingBox)}
+	 */
+	public void materializeDisplayCanvas(final BoundingBox worldBox) {
+		installMaterializedCrop(buildMaterializedCrop(worldBox));
 	}
 
 	@Override
@@ -1138,7 +1566,7 @@ public class SNT extends MultiDThreePanes implements
 			try {
 				// FIXME: interrupting a search can fail if the search is waiting on a get() call for a
 				//  DiskCachedCellImg. The search thread only checks itself for interruption at the start of each iteration
-				//  of the main while-loop. Increasing the timeout is just a temporary band-aid until we find a
+				//  of the main while-loop. Increasing the timeout is just a temporary Band-Aid until we find a
 				//  proper solution...
 				final long timeout = 10L;
 				final boolean terminated = tracerThreadPool.awaitTermination(timeout, TimeUnit.SECONDS);
@@ -1687,8 +2115,11 @@ public class SNT extends MultiDThreePanes implements
 
 		PointInImage pim = null;
 		if (joining) {
-			// find the nearest node to this cursor position
-			pim = pathAndFillManager.nearestJoinPointOnSelectedPaths(x, y, z);
+			// find the nearest node to this cursor position. x,y,z are pane-local pixel indices;
+			// existing paths' node coordinates are stored in the true/world grid (see
+			// getActiveCanvasPixelOffset()'s javadoc), so correct before comparing.
+			pim = pathAndFillManager.nearestJoinPointOnSelectedPaths(x - activeCanvasPixelOffset.x,
+					y - activeCanvasPixelOffset.y, z - activeCanvasPixelOffset.z);
 		}
 		else if (editing && !editingPath.isEditableNodeLocked()) {
 			// find the nearest node to this cursor 2D position.
@@ -1704,9 +2135,12 @@ public class SNT extends MultiDThreePanes implements
 			}
 		}
 		if (pim != null) {
-			x = pim.x / x_spacing;
-			y = pim.y / y_spacing;
-			z = pim.z / z_spacing;
+			// pim came from an existing path's true-world node coordinates; convert back to this
+			// canvas's own local pixel indices (inverse of the correction above) for the cross-hair
+			// sync/status-message/labelData lookups below, which all expect local pixel space
+			x = pim.x / x_spacing + activeCanvasPixelOffset.x;
+			y = pim.y / y_spacing + activeCanvasPixelOffset.y;
+			z = pim.z / z_spacing + activeCanvasPixelOffset.z;
 			setCursorTextAllPanes((joining) ? " Fork Point" : null);
 		}
 		else {
@@ -2938,9 +3372,15 @@ public class SNT extends MultiDThreePanes implements
 		final double[] p = new double[3];
 		findPointInStackPrecise(x_in_pane_precise, y_in_pane_precise, plane, p);
 
-		final double world_x = p[0] * x_spacing;
-		final double world_y = p[1] * y_spacing;
-		final double world_z = p[2] * z_spacing;
+		// p[] is a pane-local pixel index (0,0,0 at the current xy canvas's own top-left corner), which
+		// only equals the true grid Path node coordinates are stored in when activeCanvasPixelOffset is zero
+		// (no materialized crop/Display Canvas active, or one whose origin happens to sit at (0,0,0)).
+		// Correcting here, once, fixes both new-node creation below and the join-point lookup nested
+		// inside the 3-arg clickForTrace() overload (which compares against existing paths' true-world
+		// node coordinates).
+		final double world_x = (p[0] - activeCanvasPixelOffset.x) * x_spacing;
+		final double world_y = (p[1] - activeCanvasPixelOffset.y) * y_spacing;
+		final double world_z = (p[2] - activeCanvasPixelOffset.z) * z_spacing;
 
 		clickForTrace(world_x, world_y, world_z, join);
 	}
@@ -4658,6 +5098,10 @@ public class SNT extends MultiDThreePanes implements
 		if (xSpacing > 0) this.x_spacing = xSpacing;
 		if (ySpacing > 0) this.y_spacing = ySpacing;
 		if (zSpacing > 0) this.z_spacing = zSpacing;
+		// Only a fully-known triple counts: every current caller (BigDataLoaderCmd, Bdv, Bvv) reports
+		// all three axes from the same VoxelDimensions object, so a partial report is not expected in
+		// practice; treating it as "still unverified" is the conservative choice if it ever happens.
+		if (xSpacing > 0 && ySpacing > 0 && zSpacing > 0) spacingKnownFromSource = true;
 		if (units != null && !units.isBlank()) this.spacing_units = SNTUtils.getSanitizedUnit(units);
 		// Propagate the (possibly corrected) dimensions/spacing to pathAndFillManager's own copy/BoundingBox,
 		// otherwise anything reading spacing through that route stays stuck at whatever was set at construction time.
@@ -4924,14 +5368,5 @@ public class SNT extends MultiDThreePanes implements
 			case "zy" -> MultiDThreePanes.ZY_PLANE;
 			default -> throw new IllegalArgumentException("Unrecognized view");
 		};
-	}
-
-	public Calibration getCalibration() {
-		final Calibration calibration = new Calibration();
-		calibration.pixelWidth = x_spacing;
-		calibration.pixelHeight = y_spacing;
-		calibration.pixelDepth = z_spacing;
-		calibration.setUnit(spacing_units);
-		return calibration;
 	}
 }

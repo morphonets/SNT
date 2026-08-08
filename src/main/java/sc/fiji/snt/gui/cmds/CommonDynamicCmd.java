@@ -283,6 +283,22 @@ public class CommonDynamicCmd extends DynamicCommand {
 		return seeds;
 	}
 
+	/**
+	 * Warns the user that this command will run against the currently materialized crop's (small)
+	 * pixel data, not the full Stream-mode dataset it was cut from - see
+	 * {@link SNT#materializeDisplayCanvas(sc.fiji.snt.util.BoundingBox)}. A no-op if no crop is
+	 * currently materialized. Subclasses whose command reads pixel data directly (GWDT tracing, soma
+	 * detection, binary-image autotracing, etc.) should call this from their own init(), after
+	 * {@code snt} has been set by {@link #init(boolean)}.
+	 */
+	protected void warnIfMaterializedCropActive() {
+		if (snt != null && snt.isMaterializedCrop()) {
+			msg("<HTML>This command will run on the materialized crop only.<br>"
+					+ "To run it on the full dataset, close the crop's window and re-run.",
+					"Materialized Crop Active");
+		}
+	}
+
 	protected void notifyExternalDataLoaded() { //TODO: Implement listener
 		// If a display canvas is being used notify plugin
 		snt.updateDisplayCanvases();
