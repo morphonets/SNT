@@ -423,10 +423,17 @@ public class PathAndFillManager extends DefaultHandler implements
                 selectedPathsSet.add(pathToSelect);
             });
         }
+        // Listeners typically defer their handling (e.g. PathManagerUI wraps it in
+        // SwingUtilities.invokeLater), so a stable snapshot must be handed out here,
+        // not the live selectedPathsSet field: a subsequent setSelected(...) call
+        // (from another thread, or another listener sharing this manager) can
+        // clear()/add() into selectedPathsSet before a deferred listener finishes
+        // iterating it, causing a ConcurrentModificationException
+        final Set<Path> selectedPathsSnapshot = new LinkedHashSet<>(selectedPathsSet);
         for (final PathAndFillListener pafl : listeners) {
             if (pafl != sourceOfMessage)
                 // The source of the message already knows the states:
-                pafl.setSelectedPaths(selectedPathsSet, this);
+                pafl.setSelectedPaths(selectedPathsSnapshot, this);
         }
         if (plugin != null) {
             // Selection changes don't add/remove/edit any path, so viewers that support a cheaper
