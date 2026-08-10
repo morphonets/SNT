@@ -4291,7 +4291,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         void updatePaths(final Collection<Tree> trees) {
-            this.trees = new ArrayList<>(trees);
+            this.trees = new ArrayList<>(trees.stream().filter(Objects::nonNull).toList());
             // Only drop cache entries for trees that are new or structurally changed (path/node
             // count differs from last time); an untouched tree keeps its cached screen data across
             // this sync, instead of every tree in the scene being recomputed on every single edit
