@@ -200,9 +200,9 @@ public class MaterializeRegionDialog extends JDialog {
 		c.fill = GridBagConstraints.HORIZONTAL;
 		c.weightx = 1;
 
-		add(section("Bounding box dimensions", sizeCombo, sizeFields), c);
+		add(section("Bounding Box Dimensions", sizeCombo, sizeFields), c);
 		c.gridy++;
-		add(section("Bounding box center", centerCombo, centerFields), c);
+		add(section("Bounding Box Center", centerCombo, centerFields), c);
 		c.gridy++;
 		add(section("Padding", null, paddingFields), c);
 		c.gridy++;

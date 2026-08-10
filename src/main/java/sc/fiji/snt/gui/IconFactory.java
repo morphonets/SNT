@@ -97,6 +97,7 @@ public class IconFactory {
         GAUGE('\uf624', true), //
         RESIZE('\uf424', true), //
         COPY('\uf0c5', false), //
+        CROP('\uf565', true),
         CROSSHAIR('\uf05b', true), //
         CSV('\uf6dd', true), //
         CUBE('\uf1b2', true), //

@@ -1189,11 +1189,18 @@ public class SNT extends MultiDThreePanes implements
 					memNeeded / 1e9, memAvailable / 1e9));
 		}
 
-		// Crop + eager copy. raiToImp() alone is a *lazy* ImageJFunctions.wrap(...): duplicate() forces
-		// IJ1 to allocate  real ImageProcessor arrays and copy every pixel
 		final RandomAccessibleInterval cropView = Views.interval(source, new FinalInterval(voxelMin, voxelMax));
-		final ImagePlus cropImp = ImgUtils.raiToImp(cropView, "Materialized Crop").duplicate();
-		cropImp.setTitle("Materialized Region");
+		// Crop + eager copy. raiToImp() alone is a *lazy* ImageJFunctions.wrap(...): duplicate() forces
+		// IJ1 to allocate  real ImageProcessor arrays and copy every pixel. Without the duplicate call the virtual
+		// image is not writable and e.g., any subsequent pixel operations will either fail or will be silently ignored
+		final ImagePlus cropImp = ImgUtils.raiToImp(cropView, "Materialized Region").duplicate();
+		cropImp.setTitle("Materialized Region"); // duplication has changed image title
+		final double[] worldOriginOffset = getWorldOriginOffset();
+		// Image subtitle already lists cal.unit, so no need to include it in the origin label
+		ImpUtils.setSliceLabels(cropImp.getStack(), String.format("Origin: [%.2f,%.2f,%.2f]",
+				voxelMin[0] * cal.pixelWidth + worldOriginOffset[0],
+				voxelMin[1] * cal.pixelHeight + worldOriginOffset[1],
+				voxelMin[2] * cal.pixelDepth + worldOriginOffset[2]));
 		cropImp.resetDisplayRange();
 		cropImp.setCalibration(cal);
 		setIsMaterializedCrop(cropImp);
@@ -1845,8 +1852,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean uiReadyForModeChange() {
+		// STREAMING is Stream mode's own "ready to trace"/"tracing paused" state: WAITING_TO_START_PATH
+		// and TRACING_PAUSED are both redirected to it by SNTUI#changeState(int) while isStreamMode() true
 		return isUIready() && (getUIState() == SNTUI.WAITING_TO_START_PATH ||
-				getUIState() == SNTUI.TRACING_PAUSED);
+				getUIState() == SNTUI.TRACING_PAUSED || getUIState() == SNTUI.STREAMING);
 	}
 
 	protected Path getEditingPath() {

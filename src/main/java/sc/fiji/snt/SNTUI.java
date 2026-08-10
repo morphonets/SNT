@@ -96,9 +96,12 @@ public class SNTUI extends JDialog {
 
     /* UI */
     private JCheckBox showPathsSelected;
+    private JPanel showPathsSelectedRow; // required by updateMaterializationDependentControls()
     protected CheckboxSpinner partsNearbyCSpinner;
     protected JCheckBox useSnapWindow;
+    private JPanel tracingOptionsPanel; // required by updateMaterializationDependentControls()
     private JCheckBox onlyActiveCTposition;
+    private JLabel activeCTposBadge; // See updateActiveCTposBadge()
     protected JSpinner snapWindowXYsizeSpinner;
     protected JSpinner snapWindowZsizeSpinner;
     private JButton showOrHidePathList;
@@ -111,6 +114,8 @@ public class SNTUI extends JDialog {
     private JButton completePath;
     private JButton rebuildCanvasButton;
     private JCheckBox debugCheckBox;
+    private JCheckBox canvasCheckBox;
+    private JPanel canvasCheckBoxRow; // see materializedCropBadge()
     private JButton workspaceIndicator;
     private JSpinner assignDiameterSpinner;
     private JCheckBox confirmTemporarySegmentsCheckbox;
@@ -133,8 +138,9 @@ public class SNTUI extends JDialog {
     private JButton secLayerActionButton;
     private CheckboxSpinner secLayerImgOverlayCSpinner;
 
-    // UI controls promoted from Options tab for quick-toggle access
-    private JCheckBox diametersCheckBox;
+    // UI controls promoted from Options tab
+    private JCheckBox diametersCheckBox; // used for for quick-toggle access
+    private JPanel optionsPanel; // Options tab group holding diametersCheckBox and its sub-panels. //
 
     private final SNTCommandFinder commandFinder;
     private ActiveWorker activeWorker;
@@ -394,7 +400,7 @@ public class SNTUI extends JDialog {
         ++c2.gridy;
         InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
         ++c2.gridy;
-        tab2.add(pathOptionsPanel(), c2);
+        tab2.add(optionsPanel = pathOptionsPanel(), c2);
         ++c2.gridy;
         InternalUtils.addSeparatorWithURL(tab2, "Misc:", true, c2);
         ++c2.gridy;
@@ -1084,11 +1090,75 @@ public class SNTUI extends JDialog {
         if (plugin.isStreamMode()) {
             // Stream mode: No display canvas concept: We materialize a pixel-backed crop from streamed source instead
             rebuildCanvasButton.setText("Materialize Region");
+            rebuildCanvasButton.setIcon(IconFactory.buttonIcon(GLYPH.CROP, 1f));
             return;
         }
         final ImagePlus imp = plugin.getImagePlus();
         final String label = (imp == null || !plugin.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
         rebuildCanvasButton.setText(label);
+        rebuildCanvasButton.setIcon(null);
+    }
+
+    private JLabel materializedCropBadge(final float badgeScaling) {
+        final JLabel badge = new JLabel(IconFactory.get(GLYPH.CROP, GuiUtils.uiFontSize() * badgeScaling, IconFactory.defaultColor()));
+        badge.setDisabledIcon(IconFactory.get(GLYPH.CROP, GuiUtils.uiFontSize(), GuiUtils.getDisabledComponentColor()));
+        badge.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        return badge;
+    }
+
+    /**
+     * Refreshes the enabled state of controls that require a real, paintable ImagePlus canvas: Classic mode always has
+     * such a canvas; in Stream mode these apply exclusively to a materialized crop ({@link SNT#isMaterializedCrop()}),
+     * never to the live Bvv/Bdv scene, so this is does nothing outside Stream mode
+     */
+    private void updateMaterializationDependentControls() {
+        if (plugin == null || !plugin.isStreamMode()) return;
+        final boolean enable = plugin.isMaterializedCrop();
+        if (showPathsSelectedRow != null) GuiUtils.enableComponents(showPathsSelectedRow, enable);
+        else showPathsSelected.setEnabled(enable);
+        partsNearbyCSpinner.setEnabled(enable && isStackAvailable());
+        if (optionsPanel != null) GuiUtils.enableComponents(optionsPanel, enable);
+        if (canvasCheckBoxRow != null) GuiUtils.enableComponents(canvasCheckBoxRow, enable);
+        else if (canvasCheckBox != null) canvasCheckBox.setEnabled(enable);
+        if (tracingOptionsPanel != null) {
+            GuiUtils.enableComponents(tracingOptionsPanel, enable);
+            // Re-apply on top of the blanket enable above: a 2D crop still has no Z to snap within
+            snapWindowZsizeSpinner.setEnabled(enable && isStackAvailable());
+        }
+        updateActiveCTposBadge();
+    }
+
+    /** Icon + tooltip describing what "Only paths from active channel/frame" currently does. */
+    private record ActiveCTposHint(Icon icon, Icon disabledIcon, String tooltip) {}
+
+    /**
+     * Unlike the other Path Display Filters, "Only paths from active channel/frame" is not disabled in Stream mode: it
+     * always filters the live Bvv/Bdv scene by timepoint, and also filters a materialized crop's own canvas by channel
+     * and timepoint if one exists. Channel is deliberately not part of the Bvv/Bdv half (see {@code Bvv#drawOverlays}):
+     * BDV/BVV composite channel sources simultaneously.
+     */
+    private ActiveCTposHint activeCTposHint() {
+        if (plugin.isMaterializedCrop()) {
+            return new ActiveCTposHint(
+                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.defaultColor()),
+                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, GuiUtils.getDisabledComponentColor()),
+                    "Filters by timepoint on the live Bvv/Bdv scene, and by channel and timepoint on "
+                            + "the materialized crop's canvas");
+        }
+        return new ActiveCTposHint(
+                IconFactory.get(GLYPH.STREAM, GuiUtils.uiFontSize(), IconFactory.defaultColor()),
+                IconFactory.get(GLYPH.STREAM, GuiUtils.uiFontSize(), GuiUtils.getDisabledComponentColor()),
+                "Filters by timepoint on the live Bvv/Bdv scene.\n" +
+                        "Channel has no effect here: use the viewer's Source panel to isolate channels)");
+    }
+
+    /** Refreshes {@link #activeCTposBadge} for the current materialization state. Does nothing outside Stream mode. */
+    private void updateActiveCTposBadge() {
+        if (activeCTposBadge == null) return;
+        final ActiveCTposHint hint = activeCTposHint();
+        activeCTposBadge.setIcon(hint.icon());
+        activeCTposBadge.setDisabledIcon(hint.disabledIcon());
+        activeCTposBadge.setToolTipText(hint.tooltip());
     }
 
     /**
@@ -1099,12 +1169,7 @@ public class SNTUI extends JDialog {
      * using every loaded path, since there is no notion of a "selection"
      */
     private void materializeDisplayCanvas() {
-        Collection<Path> paths = pathAndFillManager.getSelectedPaths();
-        if (paths == null || paths.isEmpty()) paths = pathAndFillManager.getPaths();
-        if (paths.isEmpty()) {
-            guiUtils.error("No paths exist to materialize a region from.");
-            return;
-        }
+
         // Calibration otherwise only gets (re)read from the active BVV/BDV: without this, plugin.getCalibration()
         // can still be whatever BigDataLoaderCmd's best-effort fallback produced at load time (or the ardwired default
         // of 1), even though the viewer itself is rendering with the correct, real voxel  size. Resync now, before the
@@ -1147,8 +1212,9 @@ public class SNTUI extends JDialog {
                 try {
                     plugin.installMaterializedCrop(get());
                     arrangeCanvases(false);
+                    updateMaterializationDependentControls();
                     showStatus("Region materialized...", true);
-                } catch (final Exception ex) {
+                } catch (final Throwable ex) {
                     // get() wraps whatever doInBackground() threw in an ExecutionException; unwrap so
                     // the message matches what the synchronous call used to show.
                     final Throwable cause = (ex.getCause() != null) ? ex.getCause() : ex;
@@ -1497,6 +1563,7 @@ public class SNTUI extends JDialog {
             disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
             applyBvvControlRestrictions();
+            updateMaterializationDependentControls();
             quitMenuItem.setEnabled(true);
         }
 
@@ -1554,7 +1621,10 @@ public class SNTUI extends JDialog {
         @Override
         public void enter() {
             updateStatusText("Fitting volumes around selected paths...");
-            if (plugin.isStreamMode()) applyBvvControlRestrictions();
+            if (plugin.isStreamMode()) {
+                applyBvvControlRestrictions();
+                updateMaterializationDependentControls();
+            }
         }
 
         @Override
@@ -1897,7 +1967,7 @@ public class SNTUI extends JDialog {
         registerInCommandFinder(rebuildCanvasButton, "Create/Rebuild Canvas", "Options Tab");
         updateRebuildCanvasButton();
         rebuildCanvasButton.addActionListener(e -> {
-            if (pathAndFillManager.size() == 0) {
+            if (pathAndFillManager.size() == 0 && !plugin.isStreamMode()) {
                 guiUtils.error("No paths exist to compute a display canvas.");
                 return;
             }
@@ -1944,7 +2014,7 @@ public class SNTUI extends JDialog {
         invertLutButton.addActionListener(e -> {
             final ImagePlus imp = plugin.getImagePlus();
             if (imp == null) {
-                guiUtils.error((plugin.isStreamMode()) ? "No canvas exists." : "No image available.", "No Image Exists");
+                guiUtils.error((plugin.isStreamMode()) ? "No materialized region exists." : "No image available.", "No Image Exists");
             } else if (plugin.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
                 switch(imp.getProcessor().get(0, 0)) {
                     case 0 -> imp.getProcessor().set(128);
@@ -2115,7 +2185,16 @@ public class SNTUI extends JDialog {
         diametersCheckBox = new JCheckBox("Draw diameters", plugin.getDrawDiameters());
         registerInCommandFinder(diametersCheckBox, "Toggle Draw Diameters", "Options Tab");
         diametersCheckBox.addItemListener(e -> plugin.setDrawDiameters(e.getStateChange() == ItemEvent.SELECTED));
-        intPanel.add(diametersCheckBox, gdb);
+        if (plugin.isStreamMode()) {
+            // In Stream mode this only affects a materialized crop's canvas, never the
+            // live Bvv/Bdv scene. Flag that scope with the same badge used elsewhere
+            final JPanel diametersRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            diametersRow.add(diametersCheckBox);
+            diametersRow.add(materializedCropBadge(.9f));
+            intPanel.add(diametersRow, gdb);
+        } else {
+            intPanel.add(diametersCheckBox, gdb);
+        }
         ++gdb.gridy;
 
         // Indent sub-panels to align their labels with the checkbox icon
@@ -2167,7 +2246,8 @@ public class SNTUI extends JDialog {
         c.gridx = 2;
         p.add(resetButton);
         GuiUtils.addTooltip(p, "<html>Diameter assigned to path nodes via Ctrl+scroll wheel on the canvas.<br>"
-                + "Set to 0 or Reset to disable.");
+                + "Set to 0 or Reset to disable."
+                + (plugin.isStreamMode() ? "<br>In Stream mode, applies only to a materialized crop." : ""));
         return p;
     }
 
@@ -2214,7 +2294,8 @@ public class SNTUI extends JDialog {
         c.fill = GridBagConstraints.NONE;
         c.gridx = 2;
         p.add(defaultsButton);
-        GuiUtils.addTooltip(p, "The scaling factor for path nodes");
+        GuiUtils.addTooltip(p, "The scaling factor for path nodes"
+                + (plugin.isStreamMode() ? ". In Stream mode, applies only to a materialized crop." : ""));
         return p;
     }
 
@@ -2242,7 +2323,8 @@ public class SNTUI extends JDialog {
         c.fill = GridBagConstraints.NONE;
         c.gridx = 2;
         p.add(defTransparencyButton);
-        GuiUtils.addTooltip(p, "Rendering opacity (0-100%) for diameters and segments connecting path nodes");
+        GuiUtils.addTooltip(p, "Rendering opacity (0-100%) for diameters and segments connecting path nodes"
+                + (plugin.isStreamMode() ? ". In Stream mode, applies only to a materialized crop." : ""));
         return p;
     }
 
@@ -2273,7 +2355,8 @@ public class SNTUI extends JDialog {
         p.add(defaultOutOfBoundsButton);
         GuiUtils.addTooltip(p, "The opacity (0-100%) of path segments that are out-of-plane. "
                 + "Only considered when tracing 3D images and the visibility filter is "
-                + "<i>Only nodes within # nearby Z-slices</i>");
+                + "<i>Only nodes within # nearby Z-slices</i>"
+                + (plugin.isStreamMode() ? "<br>In Stream mode, applies only to a materialized crop." : ""));
         return p;
     }
 
@@ -2385,7 +2468,7 @@ public class SNTUI extends JDialog {
     }
     private JPanel miscPanel() {
         // auto-grab focus of image window
-        final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
+        canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
                 plugin.getPrefs().isCanvasAutoActivationEnabled());
         canvasCheckBox.setEnabled(!plugin.isStreamMode());
         registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
@@ -2394,7 +2477,9 @@ public class SNTUI extends JDialog {
                 Whether the image window should be brought to front as soon as the mouse pointer enters it.
                 This may be needed to ensure single key shortcuts work as expected when tracing,
                 but may hijack cursor too eagerly from other windows.
-                """);
+                """
+                + (plugin.isStreamMode() ? "In Stream mode, applies only to a materialized crop, "
+                        + "not to the live Bvv/Bdv scene." : ""));
         canvasCheckBox.addItemListener(e -> plugin.getPrefs().setCanvasAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
         // nag level
         final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
@@ -2422,7 +2507,14 @@ public class SNTUI extends JDialog {
         miscPanel.add(extraColorsPanel(), gdb);
         ++gdb.gridy;
         gdb.insets = new Insets(0, 0, 0, 0);
-        miscPanel.add(canvasCheckBox, gdb);
+        if (plugin.isStreamMode()) {
+            canvasCheckBoxRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            canvasCheckBoxRow.add(canvasCheckBox);
+            canvasCheckBoxRow.add(materializedCropBadge(.9f));
+            miscPanel.add(canvasCheckBoxRow, gdb);
+        } else {
+            miscPanel.add(canvasCheckBox, gdb);
+        }
         ++gdb.gridy;
         miscPanel.add(askUserConfirmationCheckBox, gdb);
         ++gdb.gridy;
@@ -3128,6 +3220,8 @@ public class SNTUI extends JDialog {
         completePath.addActionListener(listener);
         final JButton abortButton = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel(InternalUtils.hotKeyLabel("Cancel/Esc", "C"), "Esc"));
         abortButton.addActionListener(e -> abortCurrentOperation());
+        if (plugin.isStreamMode())
+            statusText.setIcon(IconFactory.get(GLYPH.STREAM, statusText.getFont().getSize(), statusText.getForeground()));
         return InternalUtils.statusPanel(statusText, keepSegment, junkSegment, completePath, abortButton);
     }
 
@@ -4166,23 +4260,31 @@ public class SNTUI extends JDialog {
                 plugin.showOnlySelectedPaths);
         showPathsSelected.addItemListener(listener);
 
-        final JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        row1.add(showPathsSelected);
+        showPathsSelectedRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        showPathsSelectedRow.add(showPathsSelected);
+        if (plugin.isStreamMode()) showPathsSelectedRow.add(materializedCropBadge(.9f));
 
         partsNearbyCSpinner = new CheckboxSpinner(new JCheckBox(InternalUtils.hotKeyLabel("2. Only nodes within ", "2")),
                 GuiUtils.integerSpinner(1, 1, 80, 1, true));
         partsNearbyCSpinner.appendLabel("Z-slices");
         partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
+        if (plugin.isStreamMode()) {
+            partsNearbyCSpinner.appendIcon(GLYPH.CROP, "Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        }
         partsNearbyCSpinner.getCheckBox().addItemListener(e -> plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
                 (int) partsNearbyCSpinner.getValue()));
         partsNearbyCSpinner.getSpinner().addChangeListener(e -> plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue()));
 
         final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel(
-                plugin.isStreamMode() ? "Only paths from active frame" : "3. Only paths from active channel/frame",
-                "3"), plugin.showOnlyActiveCTposPaths);
+                "3. Only paths from active channel/frame", "3"), plugin.showOnlyActiveCTposPaths);
         row3.add(onlyActiveCTposition);
         onlyActiveCTposition.addItemListener(listener);
+        if (plugin.isStreamMode()) {
+            activeCTposBadge = new JLabel();
+            row3.add(activeCTposBadge);
+            updateActiveCTposBadge();
+        }
 
         registerInCommandFinder(showPathsSelected, "Path Visibility Filter: 1. Only Selected Paths", "Main Tab");
         ScriptRecorder.setRecordingCall(showPathsSelected, "snt.getUI().setVisibilityFilter(\"selected\", {STATE})");
@@ -4193,7 +4295,7 @@ public class SNTUI extends JDialog {
 
         final JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.add(row1);
+        panel.add(showPathsSelectedRow);
         panel.add(partsNearbyCSpinner);
         panel.add(row3);
         return panel;
@@ -4259,7 +4361,7 @@ public class SNTUI extends JDialog {
 
     private JPanel snappingPanel() {
 
-        final JPanel tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         useSnapWindow = new JCheckBox(InternalUtils.hotKeyLabel("Enable Snapping within XY", "S"), plugin.snapCursor);
         registerInCommandFinder(useSnapWindow, "Toggle Cursor Snapping", "Main Tab");
         useSnapWindow.addItemListener(listener);
@@ -4282,6 +4384,7 @@ public class SNTUI extends JDialog {
         tracingOptionsPanel.add(snapWindowZsizeSpinner);
         GuiUtils.addTooltip(tracingOptionsPanel, "Whether the mouse pointer should snap to the brightest voxel "
                 + "searched within the specified neighborhood (in pixels). When Z=0 snapping occurs in 2D.");
+        if (plugin.isStreamMode()) tracingOptionsPanel.add(materializedCropBadge(1.1f));
         // ensure same alignment of all other panels using defaultGbc
         final JPanel container = new JPanel(new GridBagLayout());
         container.add(tracingOptionsPanel, GuiUtils.defaultGbc());
@@ -4592,7 +4695,6 @@ public class SNTUI extends JDialog {
 
         // Quick Toggles dropdown
         final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f, quickTogglesMenu() );
-        quickToggles.setEnabled(!plugin.isStreamMode());
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4627,18 +4729,32 @@ public class SNTUI extends JDialog {
                 e -> showPathsSelected.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('1'));
         selPaths.setEnabled(showPathsSelected.isEnabled());
+        if (plugin.isStreamMode()) {
+            IconFactory.assignIcon(selPaths, GLYPH.CROP);
+            selPaths.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        }
         menu.add(selPaths);
         final JCheckBoxMenuItem nearbyZ = GuiUtils.MenuItems.checkboxMenuItem("Only Nearby Z-slices",
                 partsNearbyCSpinner.isSelected(),
                 e -> partsNearbyCSpinner.getCheckBox().setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('2'));
         nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled());
+        if (plugin.isStreamMode()) {
+            IconFactory.assignIcon(nearbyZ, GLYPH.CROP);
+            nearbyZ.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        }
         menu.add(nearbyZ);
         final JCheckBoxMenuItem activeCT = GuiUtils.MenuItems.checkboxMenuItem("Only Active Channel/Frame",
                 onlyActiveCTposition.isSelected(),
                 e -> onlyActiveCTposition.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('3'));
         activeCT.setEnabled(onlyActiveCTposition.isEnabled());
+        if (plugin.isStreamMode()) {
+            final ActiveCTposHint hint = activeCTposHint();
+            activeCT.setIcon(hint.icon());
+            activeCT.setDisabledIcon(hint.disabledIcon());
+            activeCT.setToolTipText(hint.tooltip());
+        }
         menu.add(activeCT);
 
         // Rendering
@@ -4647,10 +4763,17 @@ public class SNTUI extends JDialog {
                 diametersCheckBox.isSelected(),
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 null);
-        IconFactory.assignIcon(diameters, GLYPH.DOTCIRCLE);
+        diameters.setEnabled(diametersCheckBox.isEnabled());
+        if (plugin.isStreamMode()) {
+            // Composite icon: DOTCIRCLE (what the toggle does) + CROP (scope: materialized crop only)
+            diameters.setIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
+            diameters.setDisabledIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, GuiUtils.getDisabledComponentColor()));
+            diameters.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        } else {
+            IconFactory.assignIcon(diameters, GLYPH.DOTCIRCLE);
+        }
         menu.add(diameters);
 
-        // Tracing Toggles
         GuiUtils.addSeparator(menu, "Tracing:");
         final JCheckBoxMenuItem snap = GuiUtils.MenuItems.checkboxMenuItem("Cursor Auto-snapping",
                 useSnapWindow.isSelected(),
@@ -4664,7 +4787,14 @@ public class SNTUI extends JDialog {
                 },
                 KeyStroke.getKeyStroke('S'));
         snap.setEnabled(useSnapWindow.isEnabled());
-        IconFactory.assignIcon(snap, GLYPH.POINTER);
+        if (plugin.isStreamMode()) {
+            // Composite icon: POINTER (what the toggle does) + CROP (scope: materialized crop only)
+            snap.setIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
+            snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, GuiUtils.getDisabledComponentColor()));
+            snap.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        } else {
+            IconFactory.assignIcon(snap, GLYPH.POINTER);
+        }
         menu.add(snap);
         final JCheckBoxMenuItem secLayer = GuiUtils.MenuItems.checkboxMenuItem("Secondary Layer",
                 secLayerActivateCheckbox.isSelected(),
@@ -4683,8 +4813,8 @@ public class SNTUI extends JDialog {
         final JCheckBoxMenuItem pauseTracing = GuiUtils.MenuItems.checkboxMenuItem("Pause Tracing",
                 plugin.tracingHalted,
                 e -> {
-                    if (!accessToTracingCanvas()) {
-                       noValidImageDataError();
+                    if (!plugin.isStreamMode() && !accessToTracingCanvas()) {
+                        noValidImageDataError();
                     } else {
                         plugin.pauseTracing(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
                     }
@@ -4703,24 +4833,45 @@ public class SNTUI extends JDialog {
                 null);
         IconFactory.assignIcon(stopSNT, '\uf04d', true, IconFactory.defaultColor());
         menu.add(stopSNT);
+
+        if (plugin.isStreamMode()) {
+            List.of(pauseTracing, stopSNT).forEach( jmi -> {
+                jmi.setEnabled(false);
+                jmi.setToolTipText("Not available in Stream mode.\n" +
+                        "The equivalent action remains available from the image contextual menu of a materialized crop.");
+            });
+        }
+
         menu.addPopupMenuListener(new PopupMenuListener() {
             @Override
             public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
                 selPaths.setSelected(showPathsSelected.isSelected());
+                selPaths.setEnabled(showPathsSelected.isEnabled() && currentState != SNT_PAUSED);
                 nearbyZ.setSelected(partsNearbyCSpinner.isSelected());
                 nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled() && currentState != SNT_PAUSED);
                 activeCT.setSelected(onlyActiveCTposition.isSelected());
                 activeCT.setEnabled(onlyActiveCTposition.isEnabled() && currentState != SNT_PAUSED);
+                if (plugin.isStreamMode()) {
+                    // Re-derived on every open: materialization may have changed since construction
+                    final ActiveCTposHint hint = activeCTposHint();
+                    activeCT.setIcon(hint.icon());
+                    activeCT.setDisabledIcon(hint.disabledIcon());
+                    activeCT.setToolTipText(hint.tooltip());
+                }
                 diameters.setSelected(diametersCheckBox.isSelected());
+                diameters.setEnabled(diametersCheckBox.isEnabled() && currentState != SNT_PAUSED);
                 snap.setSelected(useSnapWindow.isSelected());
+                snap.setEnabled(useSnapWindow.isEnabled() && currentState != SNT_PAUSED);
+                if (plugin.isStreamMode()) {
+                    // Re-derived on every open: materialization may have changed since construction
+                    snap.setIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
+                    snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, GuiUtils.getDisabledComponentColor()));
+                }
                 secLayer.setSelected(secLayerActivateCheckbox.isSelected());
-                secLayer.setEnabled(secLayerActivateCheckbox.isEnabled());
+                secLayer.setEnabled(secLayerActivateCheckbox.isEnabled() && currentState != SNT_PAUSED);
                 pauseTracing.setSelected(currentState == TRACING_PAUSED);
                 stopSNT.setSelected(currentState == SNT_PAUSED);
-                // disable all but the pause SNT toggle
-                List.of(selPaths, diameters, snap, secLayer, pauseTracing).forEach( jCheckBoxMenuItem -> {
-                    jCheckBoxMenuItem.setEnabled(currentState != SNT_PAUSED);
-                });
+                pauseTracing.setEnabled(!plugin.isStreamMode() && currentState != SNT_PAUSED);
             }
 
             @Override
@@ -5938,8 +6089,9 @@ public class SNTUI extends JDialog {
             }
             // Case 4: Main image closed but cached data exists
             else if (imp.getID() == listener.tracingImageID && plugin.ctSlice3d != null) {
-                // IJ quirk: imp == plugin.getImagePlus() fails. Use unique id instead
-                if (!plugin.getPrefs().getTemp("ignore-close-" + imp.getID(), false)
+                // IJ quirk: imp == plugin.getImagePlus() fails. Use unique id instead. Prompt user only when
+                // in 'traditional' mode
+                if (!plugin.isStreamMode() && !plugin.getPrefs().getTemp("ignore-close-" + imp.getID(), false)
                         && guiUtils.getConfirmation("The tracing image was closed. " +
                         "Reopen from cached data to continue editing?", "Continue Tracing?")) {
                     plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
@@ -5956,7 +6108,10 @@ public class SNTUI extends JDialog {
                 return;
             }
             plugin.pauseTracing(!plugin.accessToValidImageData(), false);
-            SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
+            SwingUtilities.invokeLater(() -> {
+                updateRebuildCanvasButton();
+                updateMaterializationDependentControls();
+            });
         }
 
         /*

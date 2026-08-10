@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -35,6 +35,7 @@ public class CheckboxSpinner extends JPanel {
 	private final JCheckBox checkbox;
 	private final JSpinner spinner;
 	private JLabel label;
+	private JLabel iconLabel;
 
 	public CheckboxSpinner(final JCheckBox checkbox, final JSpinner numericSpinner) {
 		super(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -49,10 +50,25 @@ public class CheckboxSpinner extends JPanel {
 		add(label);
 	}
 
+	/**
+	 * Appends a small trailing icon with an optional tooltip.
+	 *
+	 * @param glyph the glyph of the icon to append
+	 * @param tooltip tooltip text, or null for none
+	 */
+	public void appendIcon(final IconFactory.GLYPH glyph, final String tooltip) {
+		iconLabel = new JLabel("  ");
+		label.setIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), IconFactory.defaultColor()));
+		label.setDisabledIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), GuiUtils.getDisabledComponentColor()));
+		label.setHorizontalTextPosition(SwingConstants.LEADING);
+		if (tooltip != null) iconLabel.setToolTipText(tooltip);
+		add(iconLabel);
+	}
+
 	public void setSpinnerMinMax(final int min, final int max) {
 		((SpinnerNumberModel) spinner.getModel()).setMinimum(min);
 		((SpinnerNumberModel) spinner.getModel()).setMaximum(max);
-		final int value = ((Number) getValue()).intValue(); 
+		final int value = ((Number) getValue()).intValue();
 		if (value < min)
 			spinner.setValue(min);
 		else if (value > max)
@@ -89,6 +105,7 @@ public class CheckboxSpinner extends JPanel {
 			label.setForeground(fg);
 			label.setEnabled(b);
 		}
+		if (iconLabel != null) iconLabel.setEnabled(b);
 	}
 
 	@Override
