@@ -832,10 +832,11 @@ public class SNT extends MultiDThreePanes implements
 	 * ImagePlus window is closed, so BDV/BVV  tracing (blocked by isMaterializedCrop() while a crop is open) and any
 	 * "whole dataset" command work correctly again.
 	 *
-	 * canvasOffset reset: installMaterializedCrop(...) sets every Path's  canvasOffset to -voxelMin so node coordinates
-	 * line up with the crop's local pixel grid. Without resetting it here, paths would keep carrying
-	 * the closed crop's offset while nominally back in plain Stream mode silently corrupting any canvasOffset-consuming
-	 * code that runs before a new crop (or "Create Canvas") re-establishes it.
+	 * canvasOffset reset: installMaterializedCrop(...) sets every Path's canvasOffset to -voxelMin, corrected
+	 * for getWorldOriginOffset(), so node coordinates line up with the crop's local pixel grid. Without resetting
+	 * it here, paths would keep carrying the closed crop's offset while nominally back in plain Stream mode
+	 * silently corrupting any canvasOffset-consuming code that runs before a new crop (or "Create Canvas")
+	 * re-establishes it.
 	 *
 	 * Fragile ordering!!: re-materializing while a crop is already open closes the old crop's window using the
 	 * initialize(ImagePlus)/nullifyCanvases(true) flow (installMaterializedCrop). That close() synchronously fires
@@ -1038,9 +1039,11 @@ public class SNT extends MultiDThreePanes implements
 	 * smaller, result before the user commits to it), so the two can never disagree about what a
 	 * given region will actually produce.
 	 *
-	 * @param worldBox the requested region, in the same (uncalibrated, world-origin-offset-free)
-	 *                 coordinate frame as Path node coordinates - see
-	 *                 {@link #materializeDisplayCanvas(BoundingBox)}'s own {@code worldBox} javadoc
+	 * @param worldBox the requested region, in the same (uncalibrated) coordinate frame as Path node coordinates, i.e.,
+	 *                 already corrected for {@link #getWorldOriginOffset()} if that offset is non-zero, matching how
+	 *                 Paths reaching {@link #pathAndFillManager} are now uniformly built (see
+	 *                 {@link #applyWorldOriginOffsetIfAny(Path)}). This method subtracts that offset itself before
+	 *                 converting to the source's own raw voxel grid. See {@link #materializeDisplayCanvas(BoundingBox)}
 	 * @param cal      the calibration to convert {@code worldBox} with - normally
 	 *                 {@link #getCalibration()}, passed in explicitly so a caller that
 	 *                 already computed it (e.g. to also build the crop's own output {@link Calibration})
@@ -1065,24 +1068,33 @@ public class SNT extends MultiDThreePanes implements
 		}
 		final RandomAccessibleInterval<?> source = streamedSourceData;
 
-		// Coordinate -> voxel-index conversion, in source's own (raw source) grid. Deliberately does NOT subtract
-		// getWorldOriginOffset(): unlike GWDT-traced paths (which get that offset baked into node.x via
-		// GWDTTracerCommonCmd.applyWorldOriginOffsetIfAny right after tracing), manually-traced/A*-searched/imported
-		// paths do not. Since that is the majority/default case for paths already in pathAndFillManager today, this
-		// mirrors assembleDisplayCanvases() above (which also never touches getWorldOriginOffset(), deriving
-		// canvasOffset purely from the paths' own bounding box) rather than assuming an offset-corrected frame.
-		// If a selection mixes GWDT-corrected paths with uncorrected ones, this will be off for the corrected subset
-		// until that separate issue is fixed session-wide
+		// Coordinate -> voxel-index conversion, in source's own (raw source) grid. Subtracts getWorldOriginOffset() 1st
+		// Every Path reaching pathAndFillManager is offset-corrected: GWDT-traced ones via
+		// GWDTTracerCommonCmd.applyWorldOriginOffsetIfAny, manually-traced/A*-searched ones via
+		// SNT#applyWorldOriginOffsetIfAny(Path) (see autoTraceSync/runHeadlessTrace/ finishedPath())
+		// So a Path's node coordinates are in that corrected frame, not the source's raw voxel*spacing grid. A
+		// selection mixing newly-built paths with paths loaded from an older session/file that predates this correction
+		// will still be off for whichever subset doesn't match.
+		// There is no per-Path record of which frame its coordinates are actually in
+		final double[] worldOriginOffset = getWorldOriginOffset();
 		final PointInImage lo = worldBox.origin();
 		final PointInImage hi = worldBox.originOpposite();
 		final long[] voxelMin = new long[3];
 		final long[] voxelMax = new long[3];
-		voxelMin[0] = (long) Math.floor(Math.min(lo.x, hi.x) / cal.pixelWidth);
-		voxelMin[1] = (long) Math.floor(Math.min(lo.y, hi.y) / cal.pixelHeight);
-		voxelMin[2] = (long) Math.floor(Math.min(lo.z, hi.z) / cal.pixelDepth);
-		voxelMax[0] = (long) Math.ceil(Math.max(lo.x, hi.x) / cal.pixelWidth);
-		voxelMax[1] = (long) Math.ceil(Math.max(lo.y, hi.y) / cal.pixelHeight);
-		voxelMax[2] = (long) Math.ceil(Math.max(lo.z, hi.z) / cal.pixelDepth);
+		voxelMin[0] = (long) Math.floor((Math.min(lo.x, hi.x) - worldOriginOffset[0]) / cal.pixelWidth);
+		voxelMin[1] = (long) Math.floor((Math.min(lo.y, hi.y) - worldOriginOffset[1]) / cal.pixelHeight);
+		voxelMin[2] = (long) Math.floor((Math.min(lo.z, hi.z) - worldOriginOffset[2]) / cal.pixelDepth);
+		voxelMax[0] = (long) Math.ceil((Math.max(lo.x, hi.x) - worldOriginOffset[0]) / cal.pixelWidth);
+		voxelMax[1] = (long) Math.ceil((Math.max(lo.y, hi.y) - worldOriginOffset[1]) / cal.pixelHeight);
+		voxelMax[2] = (long) Math.ceil((Math.max(lo.z, hi.z) - worldOriginOffset[2]) / cal.pixelDepth);
+		if (SNTUtils.isDebugMode()) {
+			SNTUtils.log("resolveVoxelBounds: worldBox lo=(" + lo.x + "," + lo.y + "," + lo.z + ") hi=(" + hi.x + ","
+					+ hi.y + "," + hi.z + ") cal=(" + cal.pixelWidth + "," + cal.pixelHeight + "," + cal.pixelDepth
+					+ " " + cal.getUnit() + ") worldOriginOffset=" + java.util.Arrays.toString(getWorldOriginOffset())
+					+ " rawVoxelMin=" + java.util.Arrays.toString(voxelMin) + " rawVoxelMax="
+					+ java.util.Arrays.toString(voxelMax) + " sourceMin=(" + source.min(0) + "," + source.min(1) + ","
+					+ source.min(2) + ") sourceMax=(" + source.max(0) + "," + source.max(1) + "," + source.max(2) + ")");
+		}
 		boolean clamped = false;
 		for (int d = 0; d < 3; d++) {
 			final long clampedMin = Math.max(voxelMin[d], source.min(d));
@@ -1104,9 +1116,10 @@ public class SNT extends MultiDThreePanes implements
 	 *
 	 * @param imp      the eagerly-copied, calibrated, {@link #setIsMaterializedCrop(ImagePlus) tagged}
 	 *                 crop, not yet installed as this session's canvas
-	 * @param voxelMin the crop's minimum voxel index in the source's own grid, per axis - needed by
-	 *                 {@link #installMaterializedCrop(MaterializedCrop)} to position every {@link Path}
-	 *                 relative to the crop's local grid
+	 * @param voxelMin the crop's minimum voxel index in the source's own (raw, world-origin-offset-free)
+	 *                 grid, per axis - needed by {@link #installMaterializedCrop(MaterializedCrop)}, together
+	 *                 with {@link #getWorldOriginOffset()}, to position every {@link Path} relative to the
+	 *                 crop's local grid
 	 */
 	public record MaterializedCrop(ImagePlus imp, long[] voxelMin) {
 	}
@@ -1121,13 +1134,12 @@ public class SNT extends MultiDThreePanes implements
 	 * Swing/AWT state (no {@code ImageWindow}, no {@link #initialize(ImagePlus)}) and is safe to call
 	 * from a background thread
 	 *
-	 * @param worldBox the region to materialize, in the same (uncalibrated
-	 *                 world-origin-offset-free) coordinate frame as Path node
-	 *                 coordinates - i.e. plain {@code voxelIndex * spacing}, matching
-	 *                 {@link #ctSlice3d}'s own raw grid directly, NOT this session's
-	 *                 {@link #getWorldOriginOffset()}-corrected frame (see
-	 *                 {@link #resolveVoxelBounds(BoundingBox, Calibration)}'s own note). Typically the
-	 *                 (padded) bounding box of a path selection.
+	 * @param worldBox the region to materialize, in the same (uncalibrated) coordinate frame as Path node coordinates,
+	 *                 i.e., already corrected for {@link #getWorldOriginOffset()} if that offset is non-zero, matching
+	 *                 how Paths reaching {@link #pathAndFillManager} are built (see
+	 *                 {@link #resolveVoxelBounds(BoundingBox, Calibration)} which subtracts that offset before
+	 *                 converting to {@link #ctSlice3d}'s own raw voxel grid). Typically, the (padded) bounding box of a
+	 *                 path selection.
 	 * @return the built crop, ready for {@link #installMaterializedCrop(MaterializedCrop)}
 	 * @throws IllegalStateException    if this session has no loaded pixel data
 	 *                                  (not in Stream mode, or the source is unavailable)
@@ -1148,6 +1160,10 @@ public class SNT extends MultiDThreePanes implements
 		// this calibration, but the resulting ImagePlus was stamped with plain getCalibration()'s old,
 		// non-fallback-aware value - fine when they matched, silently wrong when they didn't).
 		final Calibration cal = getCalibration();
+		if (SNTUtils.isDebugMode()) {
+			SNTUtils.log("buildMaterializedCrop called: worldBox: " + worldBox + " >> spacingKnownFromSource: "
+					+ spacingKnownFromSource);
+		}
 
 		// Coordinate -> voxel-index conversion (deliberately NOT subtracting getWorldOriginOffset(), see
 		// resolveVoxelBounds() for the full reasoning plus clamping to the loaded source's own extent (padding,
@@ -1218,9 +1234,20 @@ public class SNT extends MultiDThreePanes implements
 		// materialized crop (see comment above), so a Path  that still carries whatever spacing it had at
 		// import (e.g. the SWC-import default of 1,1,1) would be off. BVV/BDV are unaffected
 		// (they draw from a Path's raw node coordinates directly, never consulting its per-Path spacing)
+		// voxelMin is in raw source-voxel-index space (world origin offset already subtracted, see
+		// resolveVoxelBounds()), but a Path's own node coordinates (pim.x/y/z, read directly by
+		// PathNodeCanvas#getScreenCoordinateX/Y) carry that offset baked in as a translation (see
+		// GWDTTracerCommonCmd#applyWorldOriginOffsetIfAny / SNT#applyWorldOriginOffsetIfAny(Path)), so
+		// that they align with BDV/BVV's real-world frame. Left uncorrected, canvasOffset and pim.x/y/z
+		// would be in two different frames
 		final long[] voxelMin = crop.voxelMin();
-		final PointInCanvas canvasOffset = new PointInCanvas(-voxelMin[0], -voxelMin[1], -voxelMin[2]);
-		syncActivePathCanvasState(canvasOffset, crop.imp().getCalibration());
+		final double[] originOffset = getWorldOriginOffset();
+		final Calibration cropCal = crop.imp().getCalibration();
+		final PointInCanvas canvasOffset = new PointInCanvas(
+				-voxelMin[0] - originOffset[0] / cropCal.pixelWidth,
+				-voxelMin[1] - originOffset[1] / cropCal.pixelHeight,
+				-voxelMin[2] - originOffset[2] / cropCal.pixelDepth);
+		syncActivePathCanvasState(canvasOffset, cropCal);
 
 		if (xy != null && !xy.isVisible()) xy.show();
 		if (xy != null && xy.getWindow() != null) xy.getWindow().toFront();
@@ -3086,6 +3113,27 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * Shifts a single freshly-built Path by this session's current {@link #getWorldOriginOffset()}, if any.
+	 * Manual tracing and A* search do not go through {@code GWDTTracerCommonCmd#applyWorldOriginOffsetIfAny}, which
+	 * does the same thing for GWDT-traced {@link Tree}s right after tracing. Without this, such Paths would be
+	 * shape-correct but uniformly mispositioned relative to GWDT-traced ones and relative to what BDV/BVV render
+	 * (see {@link #autoTraceSync}, {@link #runHeadlessTrace}, {@link #finishedPath()}, the 3 places a manually/A*-built
+	 * Path is considered "finished"). Must be called once, right after a Path finishes being built, before it reaches
+	 * {@link #pathAndFillManager} or is exported and NOT re-applied on load, since the offset is a transient,
+	 * per-session correction, fully baked into node coordinates before the Path is ever persisted
+	 *
+	 * @param path the freshly-built Path to correct in place
+	 */
+	private void applyWorldOriginOffsetIfAny(final Path path) {
+		final double[] offset = getWorldOriginOffset();
+		if (offset[0] == 0 && offset[1] == 0 && offset[2] == 0) return;
+		for (int i = 0; i < path.size(); i++) {
+			final PointInImage node = path.getNodeWithoutChecks(i);
+			path.moveNode(i, node.x + offset[0], node.y + offset[1], node.z + offset[2]);
+		}
+	}
+
+	/**
 	 * Variant of {@link #autoTraceSync(List, PointInImage)} that uses a frozen
 	 * {@link SearchSettingsSnapshot} instead of the live cost function/data structure/secondary-image
 	 * settings, so every segment of every path in a long-running batch (e.g. {@code AStarRefiner})
@@ -3120,6 +3168,7 @@ public class SNT extends MultiDThreePanes implements
 			fullPath.setBranchFrom(forkPoint.getPath(), forkPoint);
 		}
 		fullPath.setCTposition(channel, frame);
+		applyWorldOriginOffsetIfAny(fullPath);
 		return fullPath;
 	}
 
@@ -3206,6 +3255,7 @@ public class SNT extends MultiDThreePanes implements
 			fullPath.setBranchFrom(forkPoint.getPath(), forkPoint);
 		}
 		fullPath.setCTposition(channel, frame);
+		applyWorldOriginOffsetIfAny(fullPath);
 		return fullPath;
 	}
 
@@ -3268,6 +3318,10 @@ public class SNT extends MultiDThreePanes implements
 			currentPath.sanitizeRadii(true); // interpolates everything in between
 		}
 		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null) {
+			// Interactive manual/A* tracing builds currentPath incrementally over many clicks (unlike autoTraceSync/
+			// runHeadlessTrace's single-shot construction), so this is the point it is considered "finished": every
+			// node it will ever have already exists, and it is about to reach pathAndFillManager for the 1st time
+			applyWorldOriginOffsetIfAny(currentPath);
 			pathAndFillManager.addPath(currentPath, true, false, false);
 			// Hook 3: Run holistic plausibility check on completed path
 			if (ui != null && ui.getPlausibilityMonitor().isEnabled()) {
@@ -5089,6 +5143,15 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public void setImageMetadata(final int width, final int height, final int depth, final double xSpacing,
 			final double ySpacing, final double zSpacing, final String units) {
+		if (SNTUtils.isDebugMode()) {
+			final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
+			SNTUtils.log("setImageMetadata called from " + caller.getClassName() + "." + caller.getMethodName() + "("
+					+ caller.getLineNumber() + "): width=" + width + " height=" + height + " depth=" + depth
+					+ " xSpacing=" + xSpacing + " ySpacing=" + ySpacing + " zSpacing=" + zSpacing + " units=" + units
+					+ " >> spacingKnownFromSource (before this call): " + spacingKnownFromSource
+					+ " ; current x/y/z_spacing (before this call): " + this.x_spacing + "/" + this.y_spacing + "/"
+					+ this.z_spacing);
+		}
 		if (width > 0) this.width = width;
 		if (height > 0) this.height = height;
 		if (depth > 0) {

@@ -1037,26 +1037,46 @@ public abstract class AbstractBigViewer {
     }
 
     /**
-     * Prompts the user for voxel spacing and updates calibration.
+     * Prompts the user for voxel spacing and its physical unit, and updates calibration.
+     * <p>
+     * Confirming here also propagates to {@code snt} via {@link SNT#setImageMetadata}.Dimensions are left untouched
+     * (passed as 0, which {@code setImageMetadata} treats as "no change").
      *
      * @param parent component used to anchor the dialog
      */
     protected void showCalibrationDialog(final java.awt.Component parent) {
         final double[] curCal = getCalibration();
-        final Number[] defaults = {
+        final double[] defaultSpacing = {
                 curCal != null && curCal.length > 0 ? curCal[0] : 1.0,
                 curCal != null && curCal.length > 1 ? curCal[1] : 1.0,
                 curCal != null && curCal.length > 2 ? curCal[2] : 1.0
         };
-        final GuiUtils gu = new GuiUtils(SwingUtilities.getWindowAncestor(parent));
-        final Number[] result = gu.getThreeNumbers(
-                "Voxel spacing (" + GuiUtils.micrometer() + "):",
-                "Set Calibration", defaults, new String[]{"X", "Y", "Z"}, 4);
-        if (result == null) return;
-        final double[] spacing = { result[0].doubleValue(), result[1].doubleValue(), result[2].doubleValue() };
-        setCalibration(spacing, GuiUtils.micrometer());
-        SNTUtils.log("Calibration overridden: " + spacing[0] + "x" + spacing[1] + "x" + spacing[2]
-                + " " + GuiUtils.micrometer());
+        final String[] labels = {"X", "Y", "Z"};
+        final JPanel panel = new JPanel(new FlowLayout());
+        panel.add(new JLabel("Voxel spacing:"));
+        final JSpinner[] spinners = new JSpinner[3];
+        for (int i = 0; i < 3; i++) {
+            panel.add(new JLabel(labels[i]));
+            spinners[i] = GuiUtils.doubleSpinner(defaultSpacing[i], 0.0001, 100000, 0.001, 4);
+            panel.add(spinners[i]);
+        }
+        panel.add(new JLabel("Unit"));
+        final JTextField unitField = new JTextField(getPhysicalUnit(), 6);
+        panel.add(unitField);
+        final int result = JOptionPane.showConfirmDialog(SwingUtilities.getWindowAncestor(parent), panel,
+                "Set Calibration", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+        final double[] spacing = {
+                ((Number) spinners[0].getValue()).doubleValue(),
+                ((Number) spinners[1].getValue()).doubleValue(),
+                ((Number) spinners[2].getValue()).doubleValue()
+        };
+        final String unit = BoundingBox.sanitizedUnit(unitField.getText());
+        setCalibration(spacing, unit);
+        if (snt != null) {
+            snt.setImageMetadata(0, 0, 0, spacing[0], spacing[1], spacing[2], unit);
+        }
+        SNTUtils.log("Calibration overridden: " + spacing[0] + "x" + spacing[1] + "x" + spacing[2] + " " + unit);
     }
 
     /**
