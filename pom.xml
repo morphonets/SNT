@@ -153,7 +153,7 @@
 		<annotations.version>26.1.0</annotations.version>
 		<fastutil.version>8.5.19</fastutil.version>
 		<flatlaf-jide-oss.version>3.7.2</flatlaf-jide-oss.version>
-		<font-awesome.version>6.7.2</font-awesome.version>
+		<font-awesome.version>7.3.0</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
