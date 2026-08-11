@@ -105,6 +105,7 @@ public class MaterializeRegionDialog extends JDialog {
 	private final XYZFieldsPanel centerFields; // calibrated units
 	private final XYZFieldsPanel paddingFields; // calibrated units
 	private final JLabel statusLabel;
+	private final JCheckBox fastMaterializationCheckBox;
 	private final JButton okButton;
 	private final JButton cancelButton;
 
@@ -122,6 +123,12 @@ public class MaterializeRegionDialog extends JDialog {
 		centerFields = new XYZFieldsPanel("X (" + unit + ")", "Y (" + unit + ")", "Z (" + unit + ")");
 		paddingFields = new XYZFieldsPanel("X (" + unit + ")", "Y (" + unit + ")", "Z (" + unit + ")");
 		statusLabel = new JLabel();
+		fastMaterializationCheckBox = new JCheckBox("Fast materialization");
+		fastMaterializationCheckBox.setToolTipText("<HTML><div WIDTH=500>Copies the crop's pixel data in a single, " +
+				"multithreaded pass, instead of the slower (but more thoroughly tested) two-pass copy used otherwise." +
+				"<br>" +
+				"Falls back to the slow copy automatically if the fast one fails for any reason. Uncheck if a " +
+				"materialized crop is ever suspected of being wrong.");
 		loadPrefs(ui.getPrefs());
 
 		if (pathAndFillManager().getSelectedPaths().isEmpty()) {
@@ -206,8 +213,9 @@ public class MaterializeRegionDialog extends JDialog {
 		c.gridy++;
 		add(section("Padding", null, paddingFields), c);
 		c.gridy++;
+		add(fastMaterializationCheckBox, c);
+		c.gridy++;
 		c.insets.top = 10;
-		statusLabel.setFont(statusLabel.getFont().deriveFont(Font.PLAIN, statusLabel.getFont().getSize() - 1f));
 		add(statusLabel, c);
 		c.gridy++;
 		c.insets.top = 14;
@@ -420,12 +428,14 @@ public class MaterializeRegionDialog extends JDialog {
 		paddingFields.setValue(0, Double.parseDouble(prefs.get("mrd.xpad", "10")));
 		paddingFields.setValue(1, Double.parseDouble(prefs.get("mrd.ypad", "10")));
 		paddingFields.setValue(2, Double.parseDouble(prefs.get("mrd.zpad", "10")));
+		fastMaterializationCheckBox.setSelected(prefs.isFastCropMaterializationEnabled());
 	}
 
 	private void savePrefs(final SNTPrefs prefs) {
 		prefs.set("mrd.xpad", "" + paddingFields.getValue(0, 10));
 		prefs.set("mrd.ypad", "" + paddingFields.getValue(1, 10));
 		prefs.set("mrd.zpad", "" + paddingFields.getValue(2, 10));
+		prefs.setFastCropMaterialization(fastMaterializationCheckBox.isSelected());
 	}
 
 	/**

@@ -1190,14 +1190,27 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		final RandomAccessibleInterval cropView = Views.interval(source, new FinalInterval(voxelMin, voxelMax));
-		// Crop + eager copy. raiToImp() alone is a *lazy* ImageJFunctions.wrap(...): duplicate() forces
-		// IJ1 to allocate  real ImageProcessor arrays and copy every pixel. Without the duplicate call the virtual
-		// image is not writable and e.g., any subsequent pixel operations will either fail or will be silently ignored
-		final ImagePlus cropImp = ImgUtils.raiToImp(cropView, "Materialized Region").duplicate();
-		cropImp.setTitle("Materialized Region"); // duplication has changed image title
+		// Crop + eager copy. raiToImp() alone is a *lazy* ImageJFunctions.wrap(...); without an eager copy the
+		// virtual image is not writable and e.g. any subsequent pixel operations will either fail or will be
+		// silently ignored. raiToImp().duplicate() gets there but copies every slice TWICE, single-threaded
+		// (once when the virtual stack projects it, once more when duplicate()'s ip.crop() copies it again).
+		// raiToImpFast() does the same eager, writable copy in one, potentially multithreaded, pass; see
+		// SNTPrefs#isFastCropMaterializationEnabled()
+		// any failure here (e.g. an unsupported pixel type) falls back to the slow path.
+		ImagePlus fastCropImp = null;
+		if (getPrefs().isFastCropMaterializationEnabled()) {
+			try {
+				fastCropImp = ImgUtils.raiToImpFast(cropView, "Materialized Region");
+			} catch (final Throwable t) {
+				SNTUtils.log("raiToImpFast() failed (" + t + "); falling back to raiToImp().duplicate()");
+			}
+		}
+		final ImagePlus cropImp = (fastCropImp != null) ? fastCropImp
+				: ImgUtils.raiToImp(cropView, "Materialized Region").duplicate();
+		cropImp.setTitle("Materialized Region"); // duplication/raiToImpFast may not preserve title
 		final double[] worldOriginOffset = getWorldOriginOffset();
 		// Image subtitle already lists cal.unit, so no need to include it in the origin label
-		ImpUtils.setSliceLabels(cropImp.getStack(), String.format("Origin: [%.2f,%.2f,%.2f]",
+		ImpUtils.setSliceLabels(cropImp.getStack(), String.format("Origin: %.2f,%.2f,%.2f", // will be flanked by ()
 				voxelMin[0] * cal.pixelWidth + worldOriginOffset[0],
 				voxelMin[1] * cal.pixelHeight + worldOriginOffset[1],
 				voxelMin[2] * cal.pixelDepth + worldOriginOffset[2]));
@@ -1227,6 +1240,19 @@ public class SNT extends MultiDThreePanes implements
 	 * @param crop the crop to install, from {@link #buildMaterializedCrop(BoundingBox)}
 	 */
 	public void installMaterializedCrop(final MaterializedCrop crop) {
+		// Cancel any A* search still in flight on the classic canvas before this method proceeds to
+		// swap ctSlice3d/activeCanvasPixelOffset below: createSearch() captures img=getLoadedData() once,
+		// by reference, when a search is constructed, so a still-running search keeps reading the OLD
+		// (pre-crop) data safely rather than crashing, and confirmTemporary() inverts its result using
+		// the offset stamped on the in-progress currentPath at start time, not this method's new one -
+		// so the immediate result stays self-consistent even without this call. What is NOT safe is
+		// leaving that search (and the temporaryPath/currentPath state it feeds) running across the
+		// swap: once installed, this session's canvas, spacing and per-Path canvasOffset are all the
+		// crop's, and a currentPath finished afterward via finishedPath() would still carry whatever
+		// (now-superseded) canvasOffset it started with. Simplest to just not let that race happen.
+		// BDV/BVV tracing is unaffected either way - see getStreamedOrLoadedData()/manualTraceHeadless(),
+		// which never read the live, crop-local activeCanvasPixelOffset/getLoadedData() in the first place
+		cancelSearch(false);
 		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip
 		// pathAndFillManager.assignSpatialSettings(...), which would otherwise reset every Path's canvasOffset to zero
 		// and overwrite their spacing. No new world origin offset is needed either

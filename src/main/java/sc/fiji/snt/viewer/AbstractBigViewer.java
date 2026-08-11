@@ -1521,14 +1521,6 @@ public abstract class AbstractBigViewer {
             if (!tracingEnabled) {
                 return;
             }
-            if (snt.isMaterializedCrop()) {
-                // A materialized crop (see SNT#materializeDisplayCanvas(BoundingBox)) has overwritten
-                // snt's pixel data with the crop's own (small) region, but this viewer's own rendering
-                // still shows the full, unaffected volume - tracing here would silently search/snap
-                // against the wrong (and likely out-of-bounds) pixel data with no visual feedback
-                showViewerMessage("Tracing unavailable while materialized crop open");
-                return;
-            }
 
             // AWT's click count keeps incrementing for any click that lands within the platform's multi-click
             // time/distance window of the previous one. Treating >=2 as "finish" ensures fast multiple clicking

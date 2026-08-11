@@ -44,6 +44,9 @@ import net.imglib2.img.Img;
 import net.imglib2.img.ImgView;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.img.imageplus.ImagePlusImg;
+import net.imglib2.img.imageplus.ImagePlusImgFactory;
+import net.imglib2.exception.ImgLibException;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.logic.BitType;
@@ -52,6 +55,7 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
+import net.imglib2.util.Util;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.scijava.Context;
@@ -663,6 +667,46 @@ public class ImgUtils {
             axisCorrected = Views.permute(Views.addDimension(rai, 0, 0), 2, 3);
 
         return ImageJFunctions.wrap(axisCorrected, title);
+    }
+
+    /**
+     * Faster, single-copy alternative to {@code raiToImp(rai, title).duplicate()}. That combination routes
+     * through a lazy {@link net.imglib2.img.display.imagej.ImageJVirtualStack} (which performs a full copy
+     * of every slice on first/every access) and then {@link ImagePlus#duplicate()} (which performs a SECOND
+     * full, single-threaded copy of every stack slice. For large crops this double-copy, single-threaded path
+     * may be quite heavy.
+     * <p>
+     * This method instead copies {@code rai} directly into an {@link ImagePlusImg}-backed destination, in one
+     * pass, optionally multithreaded via {@link LoopBuilder}. {@link ImagePlusImg}'s own per-plane pixel arrays
+     * ARE the {@link ImagePlus}'s eventual {@code ImageStack} slice arrays (see {@code ByteImagePlus} and its
+     * siblings), so {@link ImagePlusImg#getImagePlus()} needs no further copy.
+     * <p>
+     * Only pixel types {@link ImagePlusImg} can back with a real {@link ImagePlus} are supported: in practice
+     * {@code byte}/{@code short}/{@code int}/{@code float} {@link NativeType}s, i.e. everything
+     * {@link #raiToImp(RandomAccessibleInterval, String)} is normally called with here. Anything else throws
+     * {@link ImgLibException}; callers wanting a guaranteed-to-work fallback should catch it and fall back to
+     * {@code raiToImp(rai, title).duplicate()}.
+     *
+     * @param rai   same contract as {@link #raiToImp(RandomAccessibleInterval, String)}
+     * @param title the title for the returned ImagePlus
+     * @param <T>   the pixel type; must be {@link NativeType} (required by {@link ImagePlusImgFactory})
+     * @return an eagerly-populated, real (non-virtual) ImagePlus, built in a single copy pass
+     * @throws ImgLibException if {@code rai}'s pixel type has no {@link ImagePlus}-backed
+     *                         {@link ImagePlusImg} representation
+     */
+    public static <T extends NativeType<T>> ImagePlus raiToImpFast(final RandomAccessibleInterval<T> rai,
+                                                                     final String title) throws ImgLibException {
+        RandomAccessibleInterval<T> axisCorrected = rai;
+        if (rai.numDimensions() == 3)
+            axisCorrected = Views.permute(Views.addDimension(rai, 0, 0), 2, 3);
+
+        final ImagePlusImgFactory<T> factory = new ImagePlusImgFactory<>(Util.getTypeFromInterval(axisCorrected));
+        final ImagePlusImg<T, ?> dest = factory.create(axisCorrected);
+        LoopBuilder.setImages(axisCorrected, dest).multiThreaded().forEachPixel((in, out) -> out.set(in));
+
+        final ImagePlus imp = dest.getImagePlus();
+        imp.setTitle(title);
+        return imp;
     }
 
     /**

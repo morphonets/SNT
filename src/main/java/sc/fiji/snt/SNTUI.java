@@ -1211,6 +1211,7 @@ public class SNTUI extends JDialog {
                 if (viewer != null) viewer.updateStatus("", 0, 0); // 0 nSteps hides the bar
                 try {
                     plugin.installMaterializedCrop(get());
+                    pauseTracing(true);
                     arrangeCanvases(false);
                     updateMaterializationDependentControls();
                     showStatus("Region materialized...", true);

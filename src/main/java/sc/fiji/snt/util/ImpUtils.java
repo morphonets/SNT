@@ -349,6 +349,12 @@ public class ImpUtils {
         return set;
     }
 
+    public static void setSliceLabels(final ImageStack stack, final String commonLabel) {
+        for (int slice = 1; slice <= stack.size(); slice++) {
+            stack.setSliceLabel(commonLabel, slice);
+        }
+    }
+
     public static Dataset toDataset(final ImagePlus imp) {
         final ConvertService convertService = SNTUtils.getContext().getService(ConvertService.class);
         return convertService.convert(imp, Dataset.class);

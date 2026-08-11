@@ -106,6 +106,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String VERSION_CHECK = "tracing.snt.version";
 	private static final String WORKSPACE_KEY = "tracing.snt.workspace";
 	private static final String NEXT_IMG_FILTER_KEY = "tracing.snt.nextimg";
+	private static final String FAST_CROP_MATERIALIZATION_KEY = "tracing.snt.fastcropmat";
 
 	/** recent directory */
 	private static File recentDir;
@@ -735,6 +736,21 @@ public class SNTPrefs { // TODO: Adopt PrefService
 			return;
 		}
 		setNextImgExtensions(Arrays.asList(csvString.split("[,\\s]+")));
+	}
+
+	/**
+	 * @return whether {@link SNT#buildMaterializedCrop(sc.fiji.snt.util.BoundingBox)} should attempt the
+	 *         faster, single-copy {@link sc.fiji.snt.util.ImgUtils#raiToImpFast} path before falling back to
+	 *         {@link sc.fiji.snt.util.ImgUtils#raiToImp}+{@link ij.ImagePlus#duplicate()}.
+	 *         Default: {@code true}.
+	 */
+	public boolean isFastCropMaterializationEnabled() {
+		return getBoolean(FAST_CROP_MATERIALIZATION_KEY, true);
+	}
+
+	/** @param enable see {@link #isFastCropMaterializationEnabled()} */
+	public void setFastCropMaterialization(final boolean enable) {
+		set(FAST_CROP_MATERIALIZATION_KEY, enable);
 	}
 
 	public boolean getDisplayCustomPathColors() {
