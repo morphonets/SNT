@@ -300,8 +300,20 @@ public abstract class SearchThread extends AbstractSearch {
                 }
 
                 boolean fromStart = true;
-                if (bidirectional) fromStart = open_from_goal.size() > open_from_start
-                        .size();
+                if (bidirectional) {
+                    // Prefer whichever side still has candidates: if one side's frontier has been fully
+                    // exhausted (e.g., an unreachable/out-of-bounds goal never expands past its seed node),
+                    // size()-based balancing below would keep selecting the empty side forever (0 is never
+                    // > a positive size), hitting the open_queue.isEmpty() "continue" below on every loop
+                    // with no way to recover - an infinite busy-loop that only ends via the timeout check
+                    final boolean startEmpty = open_from_start.isEmpty();
+                    final boolean goalEmpty = open_from_goal.isEmpty();
+                    if (startEmpty != goalEmpty) {
+                        fromStart = goalEmpty;
+                    } else {
+                        fromStart = open_from_goal.size() > open_from_start.size();
+                    }
+                }
 
                 final AddressableHeap<DefaultSearchNode, Void> open_queue = fromStart ? open_from_start
                         : open_from_goal;
