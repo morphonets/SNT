@@ -88,8 +88,21 @@ public abstract class AbstractBigViewer {
     /**
      * Trees currently rendered in this viewer, keyed by unique display label.
      * Insertion order is preserved so the first-added tree stays first.
+     * <p>
+     * {@code SNT#updateTracingViewers(boolean, boolean)} fires off a brand new background {@code
+     * Thread} for every {@code syncPathManagerList()} call, with no coordination between successive
+     * calls - during active interactive tracing (many calls in quick succession) more than one of
+     * these can run at the same time. All reads/writes of this plain, non-thread-safe {@link
+     * LinkedHashMap} (here, {@link #addTree(Tree, boolean)}, {@link #removeTree(String)}, {@link
+     * #clearAllTrees()}, {@link #syncPathManagerList()}, {@link #getRenderedTrees()}) must go through
+     * {@link #renderedTreesLock} to avoid a {@link java.util.ConcurrentModificationException}
+     * (previously reachable when tracing on a materialized crop, which generates the required
+     * high rate of {@code updateTracingViewers()} calls).
      */
     protected final Map<String, Tree> renderedTrees = new LinkedHashMap<>();
+
+    /** Guards all access to {@link #renderedTrees} (and {@link #syncedPathManagerLabels}) */
+    private final Object renderedTreesLock = new Object();
 
     /**
      * Labels of the trees rendered by the last {@link #syncPathManagerList()} call. Needed because
@@ -149,17 +162,22 @@ public abstract class AbstractBigViewer {
         final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
         final java.util.Set<String> currentLabels = trees.stream().map(Tree::getLabel)
                 .collect(java.util.stream.Collectors.toSet());
-        // A tree that has been entirely deleted from the Path Manager no longer appears in getTrees() at all,
-        // so it would never be matched by the  "refresh existing labels" step. Prune it here by diffing against
-        // what was last rendered
-        final java.util.Set<String> stale = new java.util.HashSet<>(syncedPathManagerLabels);
-        stale.removeAll(currentLabels);
-        stale.forEach(renderedTrees.keySet()::remove);
-        // Force a refresh of the trees that do still exist, so edits (nodes, color, selection) are picked up
-        // rather than just additions/removals
-        currentLabels.forEach(renderedTrees.keySet()::remove);
-        syncedPathManagerLabels.clear();
-        syncedPathManagerLabels.addAll(currentLabels);
+        // See renderedTreesLock: this method can run concurrently with another instance of
+        // itself (or addTree()/removeTree()/clearAllTrees()/getRenderedTrees()) on a different
+        // background thread - guard every touch of renderedTrees/syncedPathManagerLabels
+        synchronized (renderedTreesLock) {
+            // A tree that has been entirely deleted from the Path Manager no longer appears in getTrees() at all,
+            // so it would never be matched by the  "refresh existing labels" step. Prune it here by diffing against
+            // what was last rendered
+            final java.util.Set<String> stale = new java.util.HashSet<>(syncedPathManagerLabels);
+            stale.removeAll(currentLabels);
+            stale.forEach(renderedTrees.keySet()::remove);
+            // Force a refresh of the trees that do still exist, so edits (nodes, color, selection) are picked up
+            // rather than just additions/removals
+            currentLabels.forEach(renderedTrees.keySet()::remove);
+            syncedPathManagerLabels.clear();
+            syncedPathManagerLabels.addAll(currentLabels);
+        }
         if (trees.isEmpty()) {
             syncOverlays();
             return false;
@@ -493,8 +511,13 @@ public abstract class AbstractBigViewer {
     protected void addTree(final Tree tree, final boolean syncNow) {
         if (tree == null || tree.isEmpty())
             throw new IllegalArgumentException("Tree cannot be null or empty");
-        final String label = getUniqueLabel(tree);
-        renderedTrees.put(label, tree);
+        // See renderedTreesLock: getUniqueLabel() also reads renderedTrees, so it must be
+        // inside the same lock as the put() below, or a concurrent mutation could hand out a label
+        // that collides with one just added by another thread
+        synchronized (renderedTreesLock) {
+            final String label = getUniqueLabel(tree);
+            renderedTrees.put(label, tree);
+        }
         if (syncNow) syncOverlays();
     }
 
@@ -562,24 +585,37 @@ public abstract class AbstractBigViewer {
      * @return true if a tree with that label existed and was removed
      */
     public boolean removeTree(final String treeLabel) {
-        final boolean existed = renderedTrees.remove(treeLabel) != null;
+        final boolean existed;
+        synchronized (renderedTreesLock) {
+            existed = renderedTrees.remove(treeLabel) != null;
+        }
         if (existed) syncOverlays();
         return existed;
     }
 
     /** Removes all rendered trees from the overlay. */
     public void clearAllTrees() {
-        renderedTrees.clear();
+        synchronized (renderedTreesLock) {
+            renderedTrees.clear();
+        }
         syncOverlays();
     }
 
     /**
-     * Returns an unmodifiable view of the currently rendered trees.
+     * Returns a snapshot of the currently rendered trees (insertion order). Deliberately an
+     * independent copy, not a live view over {@link #renderedTrees} - see {@link #renderedTreesLock}'s
+     * javadoc: a live view (the previous behavior) is vulnerable to a {@link
+     * java.util.ConcurrentModificationException} if another thread mutates {@link #renderedTrees}
+     * while this collection is being iterated, which for a caller like {@code
+     * Bvv.OverlayRenderer#updatePaths(Collection)} (iterating well after this method returns) is a
+     * real, previously-observed race during active interactive tracing.
      *
      * @return collection of rendered trees (insertion order)
      */
     public Collection<Tree> getRenderedTrees() {
-        return Collections.unmodifiableCollection(renderedTrees.values());
+        synchronized (renderedTreesLock) {
+            return List.copyOf(renderedTrees.values());
+        }
     }
 
     /**
