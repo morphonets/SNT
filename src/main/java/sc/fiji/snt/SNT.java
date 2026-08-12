@@ -949,6 +949,29 @@ public class SNT extends MultiDThreePanes implements
 		nullifyCanvases(false);
 	}
 
+	/**
+	 * Returns the dimensions of the full loaded image/dataset, even while a materialized crop
+	 * (see {@link #materializeDisplayCanvas(BoundingBox)}) is installed as this session's own
+	 * canvas. Unlike {@link #width}/{@link #height}/{@link #depth}, which temporarily reflect
+	 * the crop's own (small) size for as long as it stays open (see {@link #installMaterializedCrop}),
+	 * this always resolves against {@link #streamedSourceData} (the pristine, pre-crop source)
+	 * when one is cached, falling back to width/height/depth otherwise (i.e. no crop is open, or
+	 * this is a classic/non-streamed session where streamedSourceData is never populated).
+	 * <p>
+	 * Intended for callers that need the true dataset extent regardless of any transient crop,
+	 * e.g. {@link PathAndFillManager#writeXML} when writing the {@code <imagesize>} element of a
+	 * .traces file.
+	 *
+	 * @return {@code {width, height, depth}} of the full dataset
+	 */
+	public int[] getFullImageDimensions() {
+		if (isMaterializedCrop() && streamedSourceData != null) {
+			return new int[]{(int) streamedSourceData.dimension(0), (int) streamedSourceData.dimension(1),
+					(int) streamedSourceData.dimension(2)};
+		}
+		return new int[]{width, height, depth};
+	}
+
 	private void setIsCachedData(final ImagePlus imp) {
 		assert imp != null;
 		// NB: somehow setProperty/getProperty does not work with virtual stacks,
@@ -1129,6 +1152,34 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * @return this session's main streamed source, caching it from {@link #ctSlice3d} on first call -
+	 *         see {@link #streamedSourceData}'s own javadoc for why
+	 * @throws IllegalStateException if no streamed pixel data is available
+	 */
+	@SuppressWarnings("rawtypes")
+	private RandomAccessibleInterval resolveMainStreamedSource() {
+		if (streamedSourceData == null) {
+			if (ctSlice3d == null) {
+				throw new IllegalStateException("No streamed pixel data available to materialize from");
+			}
+			streamedSourceData = ctSlice3d;
+		}
+		return streamedSourceData;
+	}
+
+	/**
+	 * @return {@link #getSecondaryData()}, never null
+	 * @throws IllegalStateException if no secondary image is currently loaded
+	 */
+	private RandomAccessibleInterval<?> resolveSecondarySourceOrFail() {
+		final RandomAccessibleInterval<?> secondary = getSecondaryData();
+		if (secondary == null) {
+			throw new IllegalStateException("No secondary image data available to materialize from");
+		}
+		return secondary;
+	}
+
+	/**
 	 * Resolves a world-space region to voxel-index bounds within this session's streamed source,
 	 * clamping to the source's own extent - a requested region can partially or fully exceed the
 	 * loaded volume (e.g. from padding, or a fixed-size/center region placed near or past an edge).
@@ -1152,19 +1203,22 @@ public class SNT extends MultiDThreePanes implements
 	 * @throws IllegalArgumentException if {@code worldBox} does not overlap the loaded source at all
 	 */
 	public VoxelBounds resolveVoxelBounds(final BoundingBox worldBox, final Calibration cal) {
-		if (streamedSourceData == null) {
-			// First call against a genuine Stream-mode source: cache it before initialize(ImagePlus)
-			// (in materializeDisplayCanvas) overwrites ctSlice3d with the crop's own (small) pixel data.
-			// Every subsequent call - including from repeated live-preview calls, or after a crop is
-			// closed/discarded - resolves against this pristine reference instead of whatever ctSlice3d
-			// currently holds; without this, re-materializing the same selection repeatedly would crop
-			// from the previous crop instead of the original source, shrinking the result each time
-			if (ctSlice3d == null) {
-				throw new IllegalStateException("No streamed pixel data available to materialize from");
-			}
-			streamedSourceData = ctSlice3d;
-		}
-		final RandomAccessibleInterval<?> source = streamedSourceData;
+		return resolveVoxelBounds(worldBox, cal, false);
+	}
+
+	/**
+	 * As {@link #resolveVoxelBounds(BoundingBox, Calibration)}, but resolving against either this
+	 * session's main streamed source or its secondary (filtered) image - see
+	 * {@link #buildMaterializedCrop(BoundingBox, boolean)}.
+	 *
+	 * @param useSecondary if true, resolves against {@link #getSecondaryData()} instead of the main
+	 *                      streamed source
+	 * @throws IllegalStateException if {@code useSecondary} is true but no secondary image is loaded
+	 */
+	public VoxelBounds resolveVoxelBounds(final BoundingBox worldBox, final Calibration cal,
+			final boolean useSecondary) {
+		final RandomAccessibleInterval<?> source = useSecondary ? resolveSecondarySourceOrFail()
+				: resolveMainStreamedSource();
 
 		// Coordinate -> voxel-index conversion, in source's own (raw source) grid. Subtracts getWorldOriginOffset() 1st
 		// Every Path reaching pathAndFillManager is offset-corrected: GWDT-traced ones via
@@ -1247,6 +1301,18 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public MaterializedCrop buildMaterializedCrop(final BoundingBox worldBox) {
+		return buildMaterializedCrop(worldBox, false);
+	}
+
+	/**
+	 * As {@link #buildMaterializedCrop(BoundingBox)}, but reading from either this session's main
+	 * streamed source or its secondary (filtered) image.
+	 *
+	 * @param useSecondary if true, crops {@link #getSecondaryData()} instead of the main streamed source
+	 * @throws IllegalStateException if {@code useSecondary} is true but no secondary image is loaded
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public MaterializedCrop buildMaterializedCrop(final BoundingBox worldBox, final boolean useSecondary) {
 		// Spacing for the coordinate conversion below: see getCalibration() for why this may come from
 		// a Path's own calibration rather than this session's fields. Path#getXUnscaledDouble()/
 		// getYUnscaledDouble()/getZUnscaledDouble() divide by that per-Path value, not this session's -
@@ -1259,17 +1325,17 @@ public class SNT extends MultiDThreePanes implements
 		// non-fallback-aware value - fine when they matched, silently wrong when they didn't).
 		final Calibration cal = getCalibration();
 		if (SNTUtils.isDebugMode()) {
-			SNTUtils.log("buildMaterializedCrop called: worldBox: " + worldBox + " >> spacingKnownFromSource: "
-					+ spacingKnownFromSource);
+			SNTUtils.log("buildMaterializedCrop called: worldBox: " + worldBox + " useSecondary: " + useSecondary
+					+ " >> spacingKnownFromSource: " + spacingKnownFromSource);
 		}
 
 		// Coordinate -> voxel-index conversion (deliberately NOT subtracting getWorldOriginOffset(), see
 		// resolveVoxelBounds() for the full reasoning plus clamping to the loaded source's own extent (padding,
 		// or a fixed-size/center region, can overshoot it)
-		final VoxelBounds bounds = resolveVoxelBounds(worldBox, cal);
+		final VoxelBounds bounds = resolveVoxelBounds(worldBox, cal, useSecondary);
 		final long[] voxelMin = bounds.min();
 		final long[] voxelMax = bounds.max();
-		final RandomAccessibleInterval source = streamedSourceData;
+		final RandomAccessibleInterval source = useSecondary ? resolveSecondarySourceOrFail() : resolveMainStreamedSource();
 
 		// Pre-flight memory check. Mirrors assembleDisplayCanvases() above, but sized from the actual
 		// crop dimensions/bit-depth, not a fixed 1-byte/pixel GRAY8 guess: a materialized crop is a
@@ -1414,7 +1480,16 @@ public class SNT extends MultiDThreePanes implements
 	 * @throws IllegalArgumentException see {@link #buildMaterializedCrop(BoundingBox)}
 	 */
 	public void materializeDisplayCanvas(final BoundingBox worldBox) {
-		installMaterializedCrop(buildMaterializedCrop(worldBox));
+		materializeDisplayCanvas(worldBox, false);
+	}
+
+	/**
+	 * As {@link #materializeDisplayCanvas(BoundingBox)}, but reading from either this session's main
+	 * streamed source or its secondary (filtered) image - see
+	 * {@link #buildMaterializedCrop(BoundingBox, boolean)}.
+	 */
+	public void materializeDisplayCanvas(final BoundingBox worldBox, final boolean useSecondary) {
+		installMaterializedCrop(buildMaterializedCrop(worldBox, useSecondary));
 	}
 
 	@Override

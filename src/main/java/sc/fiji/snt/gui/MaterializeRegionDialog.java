@@ -58,6 +58,9 @@ public class MaterializeRegionDialog extends JDialog {
 	private static final String SIZE_AUTO_SELECTED = "Auto-bounds: Selected paths";
 	private static final String SIZE_OTHER = "Other...";
 
+	private static final String SCOPE_MAIN = "Main image (CT position being traced)";
+	private static final String SCOPE_SECONDARY = "Secondary layer";
+
 	// To add a preset: Add one entry here
 	private static final Map<String, int[]> SIZE_PRESETS = new LinkedHashMap<>();
 	static {
@@ -99,6 +102,7 @@ public class MaterializeRegionDialog extends JDialog {
 	private BoundingBox allPathsBox;
 	private BoundingBox selectedPathsBox;
 
+	private final JComboBox<String> scopeCombo;
 	private final JComboBox<String> sizeCombo;
 	private final XYZFieldsPanel sizeFields; // pixel units
 	private final JComboBox<String> centerCombo;
@@ -112,6 +116,13 @@ public class MaterializeRegionDialog extends JDialog {
 	public MaterializeRegionDialog(final SNTUI ui, final SNT plugin) {
 		super(ui, "Materialize Region...", true);
 		this.plugin = plugin;
+
+		final List<String> scopeItems = new ArrayList<>(List.of(SCOPE_MAIN));
+		if (plugin.isSecondaryDataAvailable()) scopeItems.add(SCOPE_SECONDARY);
+		scopeCombo = new JComboBox<>(scopeItems.toArray(new String[0]));
+		scopeCombo.setToolTipText("<HTML><div WIDTH=500>Which data source to crop pixel data from. " +
+				"To materialize a different channel, frame, or dataset, first make it the one being traced " +
+				"(i.e., switch the active source in BDV/BVV and start a path on it), then reopen this dialog.");
 
 		final List<String> sizeItems = new ArrayList<>(List.of(SIZE_AUTO_ALL, SIZE_AUTO_SELECTED));
 		sizeItems.addAll(SIZE_PRESETS.keySet());
@@ -153,6 +164,7 @@ public class MaterializeRegionDialog extends JDialog {
 			dispose();
 		});
 
+		scopeCombo.addActionListener(e -> updateEstimate());
 		sizeCombo.addActionListener(e -> sizeChoiceChanged());
 		centerCombo.addActionListener(e -> centerChoiceChanged());
 		sizeFields.addChangeListener(this::updateEstimate);
@@ -195,8 +207,8 @@ public class MaterializeRegionDialog extends JDialog {
 
 	private void assembleDialog() {
 		final JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 3));
-		buttonsPanel.add(okButton);
 		buttonsPanel.add(cancelButton);
+		buttonsPanel.add(okButton);
 
 		setLayout(new GridBagLayout());
 		final GridBagConstraints c = new GridBagConstraints();
@@ -213,6 +225,8 @@ public class MaterializeRegionDialog extends JDialog {
 		c.gridy++;
 		add(section("Padding", null, paddingFields), c);
 		c.gridy++;
+		add(section("Scope", scopeCombo, null), c);
+		c.gridy++;
 		add(fastMaterializationCheckBox, c);
 		c.gridy++;
 		c.insets.top = 10;
@@ -227,7 +241,7 @@ public class MaterializeRegionDialog extends JDialog {
 		panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(title),
 				BorderFactory.createEmptyBorder(2, 2, 2, 2)));
 		if (combo != null) panel.add(combo, BorderLayout.NORTH);
-		panel.add(fields, BorderLayout.CENTER);
+		if (fields != null) panel.add(fields, BorderLayout.CENTER);
 		return panel;
 	}
 
@@ -281,7 +295,7 @@ public class MaterializeRegionDialog extends JDialog {
 			final Calibration cal = plugin.getCalibration();
 			final SNT.VoxelBounds voxelBounds;
 			try {
-				voxelBounds = plugin.resolveVoxelBounds(box, cal);
+				voxelBounds = plugin.resolveVoxelBounds(box, cal, isSecondaryLayerScope());
 			} catch (final IllegalStateException | IllegalArgumentException ex) {
 				setStatus(ex.getMessage(), GuiUtils.errorColor());
 				okButton.setEnabled(false);
@@ -335,7 +349,7 @@ public class MaterializeRegionDialog extends JDialog {
 						dimsMsg, bytesNeeded / 1e9, bytesAvailable / 1e9), GuiUtils.errorColor());
 				okButton.setEnabled(false);
 			} else {
-				setStatus(String.format("%s, ~%.2f GB. Reads and copies pixel data into memory.", dimsMsg,
+				setStatus(String.format("%s, ~%.2f GB. Pixel data will be copied into memory.", dimsMsg,
 						bytesNeeded / 1e9), normalColor);
 				okButton.setEnabled(true);
 			}
@@ -452,6 +466,14 @@ public class MaterializeRegionDialog extends JDialog {
 	 */
 	public BoundingBox getResolvedBoundingBox() {
 		return resolvedBox;
+	}
+
+	/**
+	 * @return true if "Scope" is set to the secondary (filtered) image, false for the main streamed
+	 *         source (the default, and the only option when no secondary image is loaded).
+	 */
+	public boolean isSecondaryLayerScope() {
+		return SCOPE_SECONDARY.equals(scopeCombo.getSelectedItem());
 	}
 
 	/**

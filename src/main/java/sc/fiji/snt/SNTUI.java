@@ -1179,6 +1179,7 @@ public class SNTUI extends JDialog {
         final MaterializeRegionDialog dialog = new MaterializeRegionDialog(this, plugin);
         if (!dialog.succeeded()) return;
         final BoundingBox box = dialog.getResolvedBoundingBox();
+        final boolean useSecondary = dialog.isSecondaryLayerScope();
         if (!plugin.isSpacingKnownFromSource()) {
             warnIfCalibrationUnverified();
         }
@@ -1203,7 +1204,7 @@ public class SNTUI extends JDialog {
         new SwingWorker<SNT.MaterializedCrop, Void>() {
             @Override
             protected SNT.MaterializedCrop doInBackground() {
-                return plugin.buildMaterializedCrop(box);
+                return plugin.buildMaterializedCrop(box, useSecondary);
             }
 
             @Override
@@ -3999,6 +4000,7 @@ public class SNTUI extends JDialog {
         hideViewsMenu.setEnabled(!plugin.isStreamMode());
         viewMenu.add(hideViewsMenu);
         final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
+        showImpMenuItem.setEnabled(!plugin.isStreamMode());
         showImpMenuItem.addActionListener(e -> {
             if (noSecondaryDataAvailableError())
                 return;

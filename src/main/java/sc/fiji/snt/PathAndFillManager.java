@@ -200,7 +200,10 @@ public class PathAndFillManager extends DefaultHandler implements
         spacing_units = plugin.spacing_units;
         boundingBox.setOrigin(new PointInImage(0, 0, 0));
         boundingBox.setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
-        boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
+        // NB: not plugin.width/height/depth directly -- those temporarily reflect a materialized
+        // crop's own (small) size while one is open (see SNT#getFullImageDimensions() javadoc)
+        final int[] fullDims = plugin.getFullImageDimensions();
+        boundingBox.setDimensions(fullDims[0], fullDims[1], fullDims[2]);
         // Retroactively fix any already-loaded Path's own spacing the moment the session's calibration
         // becomes verified/updated (this method is called from every SNT#setImageMetadata(...) call,
         // the single choke point all calibration updates funnel through)/  Only when spacingKnownFromSource:
@@ -1466,8 +1469,13 @@ public class PathAndFillManager extends DefaultHandler implements
                     y_spacing + "\" " + "z=\"" + z_spacing + "\" " + "units=\"" +
                     spacing_units + "\"/>");
 
-            if (plugin != null) pw.println("  <imagesize width=\"" + plugin.width +
-                    "\" height=\"" + plugin.height + "\" depth=\"" + plugin.depth + "\"/>");
+            if (plugin != null) {
+                // NB: not plugin.width/height/depth directly -- those temporarily reflect a materialized
+                // crop's own (small) size while one is open (see SNT#getFullImageDimensions() javadoc)
+                final int[] fullDims = plugin.getFullImageDimensions();
+                pw.println("  <imagesize width=\"" + fullDims[0] +
+                        "\" height=\"" + fullDims[1] + "\" depth=\"" + fullDims[2] + "\"/>");
+            }
 
             for (final Path p : allPaths) {
                 writePathToXML(pw, p);
@@ -1613,11 +1621,17 @@ public class PathAndFillManager extends DefaultHandler implements
                     final int parsed_depth = Integer.parseInt(attributes.getValue("depth"));
                     boundingBox.setOrigin(new PointInImage(0, 0, 0));
                     boundingBox.setDimensions(parsed_width, parsed_height, parsed_depth);
-                    if (plugin != null && (parsed_width != plugin.width ||
-                            parsed_height != plugin.height || parsed_depth != plugin.depth)) {
-                        SNTUtils.warn(
-                                "The image size in the traces file didn't match - it's probably for another image");
-                        checkForAppropriateImageDimensions();
+                    if (plugin != null) {
+                        // NB: not plugin.width/height/depth directly -- those temporarily reflect a
+                        // materialized crop's own (small) size while one is open (see
+                        // SNT#getFullImageDimensions() javadoc)
+                        final int[] fullDims = plugin.getFullImageDimensions();
+                        if (parsed_width != fullDims[0] || parsed_height != fullDims[1]
+                                || parsed_depth != fullDims[2]) {
+                            SNTUtils.warn(
+                                    "The image size in the traces file didn't match - it's probably for another image");
+                            checkForAppropriateImageDimensions();
+                        }
                     }
                 } catch (final NumberFormatException e) {
                     SNTUtils.error("Invalid traces file?", e);
@@ -3146,17 +3160,33 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     private void checkForAppropriateImageDimensions() {
-        if (plugin != null && plugin.getImagePlus() != null) {
+        // NB: plugin.getImagePlus() covers traditional (incl. Display Canvas) mode; accessToValidImageData()
+        // additionally covers stream mode (BDV/BVV), where width/height/depth are set but no ImagePlus exists
+        if (plugin != null && (plugin.getImagePlus() != null || plugin.accessToValidImageData())) {
             // If a plugin exists, warn user if its image cannot render imported nodes
+            // NB: not plugin.width/height/depth directly -- those temporarily reflect a materialized
+            // crop's own (small) size while one is open (see SNT#getFullImageDimensions() javadoc)
+            final int[] fullDims = plugin.getFullImageDimensions();
             final BoundingBox pluginBoundingBox = new BoundingBox();
             pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
-            pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
+            pluginBoundingBox.setDimensions(fullDims[0], fullDims[1], fullDims[2]);
             if (!pluginBoundingBox.contains(boundingBox)) {
                 plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
                 SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
                         + "adjust import options or resize current image canvas");
             }
         }
+    }
+
+    /**
+     * Publicly triggers the same "does the loaded image accommodate these nodes" check
+     * that {@link #load} and {@link #addTrees} perform automatically. Useful for callers
+     * (e.g. stream-mode importers) that add {@link Tree}s one at a time via
+     * {@link #addTree(Tree, String)}, which intentionally skips this check since it assumes
+     * a currently-traced image is large enough to contain the tree
+     */
+    public void validateImageDimensions() {
+        checkForAppropriateImageDimensions();
     }
 
     /*

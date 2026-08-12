@@ -647,6 +647,21 @@ public abstract class AbstractBigViewer {
         return cal;
     }
 
+    /**
+     * Returns the world-space bounding box of the primary loaded volume, assuming
+     * an origin at (0,0,0), i.e., no {@link sc.fiji.snt.SNT#getWorldOriginOffset()
+     * world-origin offset} or per-source transform is factored in.
+     *
+     * @return the volume's bounding box, or null if dimensions/calibration are not yet known
+     */
+    public BoundingBox getBoundingBox() {
+        if (dims == null || cal == null) return null;
+        final BoundingBox box = new BoundingBox();
+        box.setOrigin(new PointInImage(0, 0, 0));
+        box.setOriginOpposite(new PointInImage(dims[0] * cal[0], dims[1] * cal[1], dims[2] * cal[2]));
+        return box;
+    }
+
     /** Returns the physical unit string, or null if not set. */
     public String getCalUnit() {
         return calUnit;

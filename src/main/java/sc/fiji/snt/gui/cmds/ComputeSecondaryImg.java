@@ -388,6 +388,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				//mmi.setDescription("Scale(s) are being chosen in palette");
 				break;
 			case PALETTE_WAITING:
+				setMaterializedCropVisible(false); // so that it is not ambiguous where to click when 'choosing visually'
 				if (snt.isStreamMode())
 					mmi.setLabel("Press 'P' Over a  Representative Structure...");
 				else
@@ -423,6 +424,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			});
 		}
 
+	}
+
+	private void setMaterializedCropVisible(final boolean visible) {
+		if (snt.isStreamMode() && snt.isMaterializedCrop()) {
+            final ij.gui.ImageWindow win = snt.getImagePlus().getWindow();
+			if (win != null) SwingUtilities.invokeLater(() -> win.setVisible(visible));
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -817,6 +825,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 							if (ui != null) {
 								ui.setSigmaPaletteListener(null);
 								ui.changeState(SNTUI.READY);
+								setMaterializedCropVisible(true); // in case crop was hidden during 'visual pick'
 							}
 						}
 
