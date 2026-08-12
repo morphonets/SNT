@@ -922,10 +922,11 @@ public abstract class AbstractBigViewer {
 
         /**
          * Reads the world position currently under the cursor and feeds it to {@link
-         * SNTUI#launchSigmaPaletteAround(int, int, int)}, mirroring {@code InteractiveTracerCanvas}'s
-         * classic-mode click handling for {@link SNTUI#WAITING_FOR_SIGMA_POINT_I}. Does nothing
-         * _unless_ the Sigma palette is actually waiting for a point (i.e., "Select visually..." was
-         * just pressed in the Compute Secondary Image dialog)
+         * SNTUI#launchSigmaPaletteAroundStreamed(int, int, int)}, mirroring {@code
+         * InteractiveTracerCanvas}'s classic-mode click handling for {@link
+         * SNTUI#WAITING_FOR_SIGMA_POINT_I}. Does nothing _unless_ the Sigma palette is actually
+         * waiting for a point (i.e., "Select visually..." was just pressed in the Compute Secondary
+         * Image dialog)
          *
          */
         Action pickSigmaPointAction() {
@@ -938,11 +939,18 @@ public abstract class AbstractBigViewer {
                     }
                     final RealPoint pos = new RealPoint(3);
                     getGlobalMouseCoordinates(pos);
-                    final int x = (int) Math.round(pos.getDoublePosition(0) / snt.getPixelWidth());
-                    final int y = (int) Math.round(pos.getDoublePosition(1) / snt.getPixelHeight());
-                    // +1: launchSigmaPaletteAround expects a 1-based Z-slice index (see ImagePlus#getZ())
-                    final int z = (int) Math.round(pos.getDoublePosition(2) / snt.getPixelDepth()) + 1;
-                    snt.getUI().launchSigmaPaletteAround(x, y, z);
+                    // pos is a true-world coordinate (like resolveClickWorldPosition()); BDV/BVV's own
+                    // rendering always shows the full, uncropped volume regardless of what the classic
+                    // canvas has materialized, so this must stay crop-independent too, same as the rest
+                    // of BDV/BVV tracing this session - getDefaultCanvasPixelOffset() paired with
+                    // launchSigmaPaletteAroundStreamed() (which reads getBdvTracingData()), not the live,
+                    // possibly crop-local getActiveCanvasPixelOffset()/getLoadedData()
+                    final sc.fiji.snt.util.PointInCanvas offset = snt.getDefaultCanvasPixelOffset();
+                    final int x = (int) Math.round(pos.getDoublePosition(0) / snt.getPixelWidth() + offset.x);
+                    final int y = (int) Math.round(pos.getDoublePosition(1) / snt.getPixelHeight() + offset.y);
+                    // +1: launchSigmaPaletteAroundStreamed expects a 1-based Z-slice index (see ImagePlus#getZ())
+                    final int z = (int) Math.round(pos.getDoublePosition(2) / snt.getPixelDepth() + offset.z) + 1;
+                    snt.getUI().launchSigmaPaletteAroundStreamed(x, y, z);
                 }
             };
         }
@@ -1805,6 +1813,14 @@ public abstract class AbstractBigViewer {
             // A single node is treated as a single-point soma
             if (tempPath.size() == 0 && previousNode != null) tempPath.addNode(previousNode);
             if (tempPath.size() == 1) tempPath.setSWCType(Path.SWC_SOMA);
+
+            // tempPath's own canvasOffset defaults to (0,0,0): it is either the very first segment's
+            // own Path object (SNT#runHeadlessTrace() already stamps that with activeCanvasPixelOffset,
+            // but only as of when that segment completed) or later segments merged in via Path#add(),
+            // which does not copy canvasOffset at all. Re-stamp here, from the live value, right before
+            // committing, so this path renders correctly on the classic canvas (crop or not) regardless
+            // of how many segments/clicks it took, or whether materialization changed state in between
+            tempPath.setCanvasOffset(snt.getActiveCanvasPixelOffset());
 
             // Add path to path manager and reset
             snt.getPathAndFillManager().addPath(tempPath);

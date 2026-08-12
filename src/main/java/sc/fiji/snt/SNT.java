@@ -306,6 +306,19 @@ public class SNT extends MultiDThreePanes implements
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
 
+	/*
+	 * Global statistics for streamedSourceData, computed lazily (see getStreamedOrLoadedStats()) the
+	 * first time a crop-independent (BDV/BVV) search needs them. stats itself gets overwritten with a
+	 * materialized crop's own (smaller) statistics every time loadDatasetFromImagePlus() runs against
+	 * it, so a crop-independent search normalizing its cost function against stats while a crop is
+	 * materialized would search the full volume but calibrate against the crop's statistics instead.
+	 * Never reset once computed: the full streamed source's own pixel data does not change for the
+	 * lifetime of the session (unlike stats, which legitimately changes every time a different crop is
+	 * materialized), so there is nothing that would ever make a cached value here stale
+	 */
+	private final ImageStatistics streamedStats = new ImageStatistics();
+	private boolean streamedStatsComputed;
+
 	/* filter type */
 	protected FilterType filterType = FilterType.TUBENESS;
 
@@ -360,6 +373,13 @@ public class SNT extends MultiDThreePanes implements
 	private byte[][] labelData;
 
 	private volatile boolean lastStartPointSet = false;
+
+	// True while currentPath is a brand-new path being built from scratch (see startPath()), false while it is an
+	// existing, already-finished path being extended (see replaceCurrentPath()). The 2 cases need opposite offset
+	// handling in confirmTemporary()/undoLastSegment(): a new path's nodes are still in the intermediate "world -
+	// worldOriginOffset" frame until finishedPath() completes them, while an extended path's pre-existing nodes are
+	// already complete world, se cropRelativeCanvasOffset()
+	private boolean currentPathIsNew = true;
 
 	protected double last_start_point_x;
 	protected double last_start_point_y;
@@ -552,6 +572,11 @@ public class SNT extends MultiDThreePanes implements
 
 		if (accessToValidImageData()) {
 			pathAndFillManager.assignSpatialSettings(imgPlus);
+			// assignSpatialSettings() just zeroed every existing Path's own canvasOffset (a new image resets the
+			// paths' coordinate frame). Keep activeCanvasPixelOffset in sync  with that, or tracing against this new
+			// image would silently use whatever offset was left over from before (e.g. a worldOriginOffset set for an
+			// unrelated prior source)
+			syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
 			final String source = imgPlus.getSource();
 			if (source != null && !source.isEmpty()) {
 				final File sourceFile = new File(source);
@@ -609,6 +634,9 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (accessToValidImageData() && !isDisplayCanvas(sourceImage) && !isMaterializedCrop(sourceImage)) {
 			pathAndFillManager.assignSpatialSettings(sourceImage);
+			// See setFieldsFromImgPlus()'s identical fix: assignSpatialSettings() just zeroed every
+			// existing Path's own canvasOffset - keep activeCanvasPixelOffset in sync with that
+			syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
 			if (sourceImage.getOriginalFileInfo() != null) {
 				final String dir = sourceImage.getOriginalFileInfo().directory;
 				final String name = sourceImage.getOriginalFileInfo().fileName;
@@ -650,12 +678,20 @@ public class SNT extends MultiDThreePanes implements
 			cancelPath();
 			return;
 		}
-		// Restore last_start_point to the new last node
+		// Restore last_start_point to the new last node. For a brand-new path (currentPathIsNew),
+		// currentPath is still in-progress (applyWorldOriginOffsetIfAny() has not run yet), so its
+		// nodes are in the same pre-final "world - worldOriginOffset" state confirmTemporary() leaves
+		// them in. We use cropRelativeCanvasOffset(), not currentPath.getCanvasOffset() or this double-subtracts
+		// worldOriginOffset once last_start_point_x/y/z is next used to seed a search. When extending
+		// an existing path instead, confirmTemporary() already made every merged node complete world
+		// (confirmedSegmentSizes is cleared in replaceCurrentPath(), so undo can never reach back past
+		// the extension point into the path's own original, pre-existing nodes). recovering the
+		// active-grid pixel index from a complete-world node needs the FULL offset instead
 		final PointInImage last = currentPath.lastNode();
-		final PointInCanvas offset = currentPath.getCanvasOffset();
-		last_start_point_x = last.x / x_spacing + offset.x;
-		last_start_point_y = last.y / y_spacing + offset.y;
-		last_start_point_z = last.z / z_spacing + offset.z;
+		final PointInCanvas recoveryOffset = currentPathIsNew ? cropRelativeCanvasOffset() : activeCanvasPixelOffset;
+		last_start_point_x = last.x / x_spacing + recoveryOffset.x;
+		last_start_point_y = last.y / y_spacing + recoveryOffset.y;
+		last_start_point_z = last.z / z_spacing + recoveryOffset.z;
 		lastStartPointSet = true;
 		setPathUnfinished(true);
 		changeUIState(SNTUI.PARTIAL_PATH);
@@ -772,8 +808,62 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	private PointInCanvas activeCanvasPixelOffset = new PointInCanvas(0, 0, 0);
 
-	PointInCanvas getActiveCanvasPixelOffset() {
+	/**
+	 * @return the pixel offset (in whatever grid {@link #ctSlice3d}/{@link #getLoadedData()} is
+	 *         currently indexed by - the crop-local grid when a materialized crop is active, or
+	 *         the raw streamed source's own voxel grid otherwise) of (0,0,0) in the true/world grid
+	 *         {@link Path} node coordinates are stored in
+	 */
+	public PointInCanvas getActiveCanvasPixelOffset() {
 		return activeCanvasPixelOffset;
+	}
+
+	/**
+	 * Public wrapper around {@link #defaultCanvasPixelOffset()}, for callers outside this class that
+	 * need the crop-independent baseline offset even while a materialized crop is active on the
+	 * classic 2D canvas - e.g. a BDV/BVV interaction that should behave the same regardless of what
+	 * the classic canvas currently has materialized, mirroring how {@link #createSearch(double,
+	 * double, double, double, double, double, SearchSettingsSnapshot, boolean)}'s
+	 * {@code useStreamedSource} parameter picks between the two.
+	 *
+	 * @return the same value as {@link #getActiveCanvasPixelOffset()} whenever no crop is
+	 *         materialized; the crop-independent baseline otherwise
+	 */
+	public PointInCanvas getDefaultCanvasPixelOffset() {
+		return defaultCanvasPixelOffset();
+	}
+
+	/**
+	 * The baseline {@link #activeCanvasPixelOffset} whenever no materialized crop is active: converts a
+	 * true-world coordinate into {@link #streamedSourceData}/{@link #ctSlice3d}'s own raw voxel-index grid
+	 * (see {@link #getWorldOriginOffset()}'s contract, {@code world = voxelIndex * spacing + offset}, so
+	 * {@code voxelIndex = world/spacing - offset/spacing}). All-zero when the source has no world origin
+	 * offset (the common case).
+	 */
+	private PointInCanvas defaultCanvasPixelOffset() {
+		final double[] o = getWorldOriginOffset();
+		return new PointInCanvas(-o[0] / x_spacing, -o[1] / y_spacing, -o[2] / z_spacing);
+	}
+
+	/**
+	 * The crop-only portion of {@link #activeCanvasPixelOffset}: everything in it except the
+	 * {@link #getWorldOriginOffset()} correction that {@link #defaultCanvasPixelOffset()} already
+	 * contributes on its own. Zero whenever no materialized crop is active ({@code
+	 * activeCanvasPixelOffset == defaultCanvasPixelOffset()} in that case).
+	 * <p>
+	 * {@link #applyWorldOriginOffsetIfAny(Path)} is the single, dedicated place
+	 * {@link #getWorldOriginOffset()} gets added to a freshly-built Path's node coordinates.
+	 * {@link #confirmTemporary(boolean)}, {@link #finishedPath()}'s single-point/soma branch, and
+	 * {@link #autoTraceSync(List, PointInImage, SearchSettingsSnapshot)} must therefore correct raw
+	 * search-thread output ({@code asPath()}: {@code pixelIndex * spacing}, where {@code pixelIndex}
+	 * was computed using the FULL live {@link #activeCanvasPixelOffset}) by only this crop-relative
+	 * portion, not the full offset - subtracting the full offset here would double-count
+	 * {@link #getWorldOriginOffset()} once {@link #applyWorldOriginOffsetIfAny(Path)} runs afterward.
+	 */
+	private PointInCanvas cropRelativeCanvasOffset() {
+		final PointInCanvas def = defaultCanvasPixelOffset();
+		return new PointInCanvas(activeCanvasPixelOffset.x - def.x, activeCanvasPixelOffset.y - def.y,
+				activeCanvasPixelOffset.z - def.z);
 	}
 
 	/**
@@ -833,10 +923,12 @@ public class SNT extends MultiDThreePanes implements
 	 * "whole dataset" command work correctly again.
 	 *
 	 * canvasOffset reset: installMaterializedCrop(...) sets every Path's canvasOffset to -voxelMin, corrected
-	 * for getWorldOriginOffset(), so node coordinates line up with the crop's local pixel grid. Without resetting
-	 * it here, paths would keep carrying the closed crop's offset while nominally back in plain Stream mode
-	 * silently corrupting any canvasOffset-consuming code that runs before a new crop (or "Create Canvas")
-	 * re-establishes it.
+	 * for getWorldOriginOffset(), so node coordinates line up with the crop's local pixel grid. Resetting to
+	 * defaultCanvasPixelOffset() here (not a flat (0,0,0)) restores the same world-origin-offset correction
+	 * for the restored streamedSourceData's own raw grid - without it, paths would keep carrying the closed
+	 * crop's offset while nominally back in plain Stream mode, and any canvasOffset-consuming code (BDV/BVV
+	 * tracing included, via startPath()/testPathTo()) would silently search/compare against the wrong voxel
+	 * index on any dataset with a non-zero world origin offset, until a new crop re-establishes it.
 	 *
 	 * Fragile ordering!!: re-materializing while a crop is already open closes the old crop's window using the
 	 * initialize(ImagePlus)/nullifyCanvases(true) flow (installMaterializedCrop). That close() synchronously fires
@@ -853,7 +945,7 @@ public class SNT extends MultiDThreePanes implements
 			height = (int) ctSlice3d.dimension(1);
 			depth = (int) ctSlice3d.dimension(2);
 		}
-		syncActivePathCanvasState(new PointInCanvas(0, 0, 0), null);
+		syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
 		nullifyCanvases(false);
 	}
 
@@ -872,7 +964,13 @@ public class SNT extends MultiDThreePanes implements
 	private void assembleDisplayCanvases() {
 		nullifyCanvases(true);
 		if (pathAndFillManager.size() == 0) {
-			// not enough information to proceed. Assemble a dummy canvas instead
+			// not enough information to proceed. Assemble a dummy canvas instead. No Paths to loop over
+			// yet, but activeCanvasPixelOffset must still be established now (not left at its (0,0,0)
+			// field default): with zero loaded paths this is also the state of a freshly-opened Stream-mode
+			// session, and BDV/BVV tracing (which funnels into startPath()/testPathTo(), both of which add
+			// activeCanvasPixelOffset to convert a true-world coordinate into a raw source voxel index) can
+			// start well before any Path exists or any crop is materialized
+			syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
 			xy = ImpUtils.create("Display Canvas", 1, 1, 1, 8);
 			setFieldsFromImage(xy);
 			setIsDisplayCanvas(xy);
@@ -1281,6 +1379,24 @@ public class SNT extends MultiDThreePanes implements
 				-voxelMin[1] - originOffset[1] / cropCal.pixelHeight,
 				-voxelMin[2] - originOffset[2] / cropCal.pixelDepth);
 		syncActivePathCanvasState(canvasOffset, cropCal);
+
+		// The classic canvas's "Materialize Region"/"Create Canvas" button is not disabled while a path is mid-trace
+		// (PARTIAL_PATH), so this method can run with lastStartPointSet still true. last_start_point_x/y/z was computed
+		// against whatever activeCanvasPixelOffset/x_spacing was live before the swap above: recompute it now, the same
+		// way confirmTemporary() does, or the  next click's testPathTo() would seed its search from a start point in
+		// the OLD frame against an end point in the NEW one
+		if (lastStartPointSet && currentPath != null && currentPath.size() > 0) {
+			final PointInImage last = currentPath.lastNode();
+			final PointInCanvas recoveryOffset = currentPathIsNew ? cropRelativeCanvasOffset() : activeCanvasPixelOffset;
+			last_start_point_x = last.x / x_spacing + recoveryOffset.x;
+			last_start_point_y = last.y / y_spacing + recoveryOffset.y;
+			last_start_point_z = last.z / z_spacing + recoveryOffset.z;
+		}
+		// An already-completed-but-unconfirmed segment preview was also built against the OLD frame and would confirm
+		// into the wrong place if kept - discard it rather than risk it being silently accepted afterward
+		if (temporaryPath != null) {
+			temporaryPath = null; // direct field access: canvas is about to be rebuilt/repainted anyway
+		}
 
 		if (xy != null && !xy.isVisible()) xy.show();
 		if (xy != null && xy.getWindow() != null) xy.getWindow().toFront();
@@ -1818,6 +1934,12 @@ public class SNT extends MultiDThreePanes implements
 						SNTUtils.error("Scripted path yielded a null result.");
 					return;
 				}
+				// result's nodes are raw search output (crop-local pixel * spacing, no worldOriginOffset baked in yet
+				// (see applyWorldOriginOffsetIfAny()), same convention confirmTemporary() corrects for). Without this
+				// stamp the live preview renders using canvasOffset(0,0,0) (Path's default), landing near
+				// the crop's own pixel-index origin instead of the clicked location whenever activeCanvasPixelOffset is
+				// non-zero (i.e. tracing on a materialized crop)
+				result.setCanvasOffset(currentPathIsNew ? cropRelativeCanvasOffset() : activeCanvasPixelOffset);
 				setTemporaryPath(result);
 				// Hook 2: Run plausibility checks on candidate segment
 				if (ui != null && ui.getPlausibilityMonitor().isEnabled() && currentPath != null) {
@@ -2220,7 +2342,13 @@ public class SNT extends MultiDThreePanes implements
 			statusMessage = "Node " + editingPath.getEditableNodeIndex() + ", ";
 		}
 
-		statusMessage += String.format("World: (%.2f, %.2f, %.2f);", ix * x_spacing, iy * y_spacing, iz * z_spacing);
+		// ix/iy/iz are local canvas-pixel indices (crop-local when a crop is materialized);
+		// subtract activeCanvasPixelOffset to report the true-world coordinate, same
+		// convention as getActiveCanvasPixelOffset()'s javadoc
+		statusMessage += String.format("World: (%.2f, %.2f, %.2f);",
+				(ix - activeCanvasPixelOffset.x) * x_spacing,
+				(iy - activeCanvasPixelOffset.y) * y_spacing,
+				(iz - activeCanvasPixelOffset.z) * z_spacing);
 		if (labelData != null) {
 			final byte b = labelData[iz][iy * width + ix];
 			final int m = b & 0xFF;
@@ -2402,9 +2530,24 @@ public class SNT extends MultiDThreePanes implements
 		final int y_start = (int) Math.round(last_start_point_y);
 		final int z_start = (int) Math.round(last_start_point_z);
 
-		final int x_end = (int) Math.round(real_x_end / x_spacing);
-		final int y_end = (int) Math.round(real_y_end / y_spacing);
-		final int z_end = (int) Math.round(real_z_end / z_spacing);
+		// last_start_point_x/y/z already include activeCanvasPixelOffset (see e.g. finishedPath()/
+		// undoPoint()), so x_end/y_end/z_end must too, or the two ends of the search land in different
+		// frames whenever a materialized crop's canvasOffset is non-zero: real_x_end/y_end/z_end is
+		// either a true-world coordinate (plain click, see clickForTrace()) or an existing Path's own
+		// raw node coordinate (joinPoint.x/y/z), neither of which is crop-local pixel space on its own
+		final int x_end = (int) Math.round(real_x_end / x_spacing + activeCanvasPixelOffset.x);
+		final int y_end = (int) Math.round(real_y_end / y_spacing + activeCanvasPixelOffset.y);
+		final int z_end = (int) Math.round(real_z_end / z_spacing + activeCanvasPixelOffset.z);
+
+		if (SNTUtils.isDebugMode()) {
+			SNTUtils.log("testPathTo: world_x/y/z=(" + world_x + "," + world_y + "," + world_z + ") joinPoint="
+					+ joinPoint + " real_end=(" + real_x_end + "," + real_y_end + "," + real_z_end + ") "
+					+ "activeCanvasPixelOffset=(" + activeCanvasPixelOffset.x + "," + activeCanvasPixelOffset.y + ","
+					+ activeCanvasPixelOffset.z + ") worldOriginOffset=" + java.util.Arrays.toString(getWorldOriginOffset())
+					+ " last_start_point=(" + last_start_point_x + "," + last_start_point_y + "," + last_start_point_z
+					+ ") >> start=(" + x_start + "," + y_start + "," + z_start + ") end=(" + x_end + "," + y_end + ","
+					+ z_end + ")");
+		}
 
 		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
 			tracerThreadPool = Executors.newSingleThreadExecutor();
@@ -2463,7 +2606,11 @@ public class SNT extends MultiDThreePanes implements
 
 		final double[] p = new double[3];
 		findPointInStackPrecise(x_in_pane, y_in_pane, plane, p);
-		testPathTo(p[0] * x_spacing, p[1] * y_spacing, p[2] * z_spacing, null);
+		// p[] is a pane-local pixel index in the current active grid (crop-local when materialized,
+		// see mouseMovedTo()) - subtract activeCanvasPixelOffset before scaling to true world, or
+		// testPathTo() re-adds it on top of an already-offset value (see its own x_end/y_end/z_end)
+		testPathTo((p[0] - activeCanvasPixelOffset.x) * x_spacing, (p[1] - activeCanvasPixelOffset.y) * y_spacing,
+				(p[2] - activeCanvasPixelOffset.z) * z_spacing, null);
 		// NB: no changeUIState: stays in PARTIAL_PATH
 	}
 
@@ -2547,14 +2694,50 @@ public class SNT extends MultiDThreePanes implements
 										final double world_z_end,
 										final SearchSettingsSnapshot settings)
 	{
-		return createSearch(
-				(int) Math.round(world_x_start / x_spacing),
-				(int) Math.round(world_y_start / y_spacing),
-				(int) Math.round(world_z_start / z_spacing),
-				(int) Math.round(world_x_end / x_spacing),
-				(int) Math.round(world_y_end / y_spacing),
-				(int) Math.round(world_z_end / z_spacing),
-				settings);
+		return createSearch(world_x_start, world_y_start, world_z_start, world_x_end, world_y_end, world_z_end,
+				settings, false);
+	}
+
+	/**
+	 * @param useStreamedSource if true, resolves the world-to-pixel offset via {@link
+	 *          #defaultCanvasPixelOffset()} (stable across materialization) and searches {@link
+	 *          #getStreamedOrLoadedData()} instead of the live {@link #activeCanvasPixelOffset}/{@link
+	 *          #getLoadedData()} (crop-local while a crop is materialized). Set by BDV/BVV's own
+	 *          headless tracing (see {@link #autoTraceHeadless(List, PointInImage,
+	 *          SearchProgressCallback, Consumer)}), whose rendering always shows the full, unaffected
+	 *          volume regardless of what the classic canvas currently has materialized.
+	 */
+	private AbstractSearch createSearch(final double world_x_start,
+										final double world_y_start,
+										final double world_z_start,
+										final double world_x_end,
+										final double world_y_end,
+										final double world_z_end,
+										final SearchSettingsSnapshot settings,
+										final boolean useStreamedSource)
+	{
+		// world_x/y/z_start/end are true-world coordinates (see runHeadlessTrace()'s SNTPoint start/end,
+		// sourced from e.g. BDV/BVV's own getGlobalMouseCoordinates()). Converting to a pixel index needs
+		// an offset into whichever grid will actually be searched: the live activeCanvasPixelOffset (the
+		// crop-local pixel grid when a materialized crop is active, or defaultCanvasPixelOffset()'s raw
+		// streamed source grid otherwise), or, when useStreamedSource is set, always
+		// defaultCanvasPixelOffset() paired with getStreamedOrLoadedData() - see that method's javadoc
+		final PointInCanvas offset = useStreamedSource ? defaultCanvasPixelOffset() : activeCanvasPixelOffset;
+		final int x_start = (int) Math.round(world_x_start / x_spacing + offset.x);
+		final int y_start = (int) Math.round(world_y_start / y_spacing + offset.y);
+		final int z_start = (int) Math.round(world_z_start / z_spacing + offset.z);
+		final int x_end = (int) Math.round(world_x_end / x_spacing + offset.x);
+		final int y_end = (int) Math.round(world_y_end / y_spacing + offset.y);
+		final int z_end = (int) Math.round(world_z_end / z_spacing + offset.z);
+		if (SNTUtils.isDebugMode()) {
+			SNTUtils.log("createSearch(double...): world_start=(" + world_x_start + "," + world_y_start + ","
+					+ world_z_start + ") world_end=(" + world_x_end + "," + world_y_end + "," + world_z_end
+					+ ") useStreamedSource=" + useStreamedSource + " offset=(" + offset.x + "," + offset.y + ","
+					+ offset.z + ") worldOriginOffset="
+					+ java.util.Arrays.toString(getWorldOriginOffset()) + " >> start=(" + x_start + "," + y_start
+					+ "," + z_start + ") end=(" + x_end + "," + y_end + "," + z_end + ")");
+		}
+		return createSearch(x_start, y_start, z_start, x_end, y_end, z_end, settings, useStreamedSource);
 	}
 
 	/* This method uses the plugin's current search parameters to construct an isolated A* search instance using
@@ -2618,13 +2801,37 @@ public class SNT extends MultiDThreePanes implements
 																final int z_end,
 																final SearchSettingsSnapshot settings)
 	{
+		return createSearch(x_start, y_start, z_start, x_end, y_end, z_end, settings, false);
+	}
+
+	/**
+	 * @param useStreamedSource if true, searches {@link #getStreamedOrLoadedData()} instead of {@link
+	 *          #getLoadedData()} for the primary image (secondary/filtered-image tracing is already
+	 *          crop-independent - see {@link #secondaryData} - so this only affects the non-secondary
+	 *          case). See {@link #createSearch(double, double, double, double, double, double,
+	 *          SearchSettingsSnapshot, boolean)}.
+	 */
+	private <T extends RealType<T>> AbstractSearch createSearch(final int x_start,
+																final int y_start,
+																final int z_start,
+																final int x_end,
+																final int y_end,
+																final int z_end,
+																final SearchSettingsSnapshot settings,
+																final boolean useStreamedSource)
+	{
 		final boolean useSecondary = (settings != null) ? settings.useSecondary : isTracingOnSecondaryImageActive();
 		final CostType effCostType = (settings != null) ? settings.costType : costType;
 		final SearchImageType effSearchImageType = (settings != null) ? settings.searchImageType : searchImageType;
 
-		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData() : getLoadedData();
+		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData()
+				: (useStreamedSource ? getStreamedOrLoadedData() : getLoadedData());
 
-		ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
+		// getStreamedOrLoadedStats(): stats gets overwritten with a materialized crop's own (smaller) statistics,
+		// which would miscalibrate a search over the full streamed source. Only matters when isUseSubVolumeStats is off
+		// below computes fresh sub-volume-local statistics from img itself either way, already correctly source-aware
+		ImageStatistics imgStats = useSecondary ? statsSecondary
+				: (useStreamedSource ? getStreamedOrLoadedStats() : stats);
 		if (isUseSubVolumeStats)
 		{
 			SNTUtils.log("Computing local statistics...");
@@ -2696,10 +2903,23 @@ public class SNT extends MultiDThreePanes implements
 		// effSearchImageType is honored instead of whatever searchImageType currently is live.
 		// timeoutSeconds=0, reportEveryMilliseconds=1000 match the defaults the SNT-aware
 		// constructors above use internally (see AbstractSearch(SNT, RandomAccessibleInterval)).
+		//
+		// NB: deliberately NOT getCalibration() here: x_start/y_start/z_start/x_end/y_end/z_end above
+		// (and createSearch(double...), which computed them) always use the raw x_spacing/y_spacing/
+		// z_spacing fields. getCalibration() can legitimately return something else when
+		// !isSpacingKnownFromSource() (falls back to a loaded Path's own calibration) - passing that
+		// here would give this search's own internal xSep/ySep/zSep a different scale than the pixel
+		// indices it was just seeded with, corrupting asPath()'s pixelIndex*spacing conversion by a
+		// factor of calibration/x_spacing
+		final Calibration searchCal = new Calibration();
+		searchCal.pixelWidth = x_spacing;
+		searchCal.pixelHeight = y_spacing;
+		searchCal.pixelDepth = z_spacing;
+		searchCal.setUnit(spacing_units);
 		return switch (searchType) {
 			case ASTAR -> new TracerThread(
 					img,
-					getCalibration(),
+					searchCal,
 					x_start,
 					y_start,
 					z_start,
@@ -2713,7 +2933,7 @@ public class SNT extends MultiDThreePanes implements
 					heuristic);
 			case NBASTAR -> new BiSearch(
 					img,
-					getCalibration(),
+					searchCal,
 					x_start,
 					y_start,
 					z_start,
@@ -2735,19 +2955,42 @@ public class SNT extends MultiDThreePanes implements
 			// Just ignore the request to confirm a path (there isn't one):
 			return;
 
-		// If currentPath has a non-zero canvas offset (display canvas scenario),
-		// adjust temporaryPath node coordinates to match currentPath's coordinate system
-		// before merging. Search threads produce nodes in pixel * spacing space, but
-		// extended paths store nodes as (pixel - offset) * spacing.
-		final PointInCanvas offset = currentPath.getCanvasOffset();
-		if (offset.x != 0 || offset.y != 0 || offset.z != 0) {
+		// Adjust temporaryPath node coordinates before merging: testPathTo() built it in pixel * spacing space, using
+		// whichever activeCanvasPixelOffset was live when that search started. Read the LIVE offset here too, not
+		// currentPath.getCanvasOffset() (a value captured once, back at startPath()/replaceCurrentPath() time): the two
+		// are normally identical, but can drift if a crop is materialized/re-materialized while this path is still
+		// unconfirmed - the search that just produced temporaryPath always used the live offset (see testPathTo()).
+		//
+		// Only the CROP-RELATIVE portion of that offset is subtracted here for a brand-new path (see
+		// cropRelativeCanvasOffset()'s javadoc), not the full offset: applyWorldOriginOffsetIfAny() is
+		// the single place getWorldOriginOffset() gets added, right before this path reaches
+		// pathAndFillManager (see finishedPath()) - subtracting the full offset here would leave nodes
+		// already complete, and applyWorldOriginOffsetIfAny() would then double-count that offset.
+		//
+		// currentPath is different when extending an EXISTING, already-finished path (see
+		// replaceCurrentPath(), currentPathIsNew): its pre-existing nodes are already complete world,
+		// and finishedPath() will NOT call applyWorldOriginOffsetIfAny() on it (its ID is already
+		// registered) - so the newly merged nodes must be made complete world right here, by
+		// subtracting the FULL offset instead, or they are left stuck at world - worldOriginOffset
+		// forever (a permanent discontinuity from the path's own pre-existing nodes)
+		final PointInCanvas offset = activeCanvasPixelOffset;
+		final PointInCanvas nodeCorrection = currentPathIsNew ? cropRelativeCanvasOffset() : offset;
+		if (nodeCorrection.x != 0 || nodeCorrection.y != 0 || nodeCorrection.z != 0) {
 			for (int i = 0; i < temporaryPath.size(); i++) {
 				final PointInImage node = temporaryPath.getNodeWithoutChecks(i);
-				node.x -= offset.x * x_spacing;
-				node.y -= offset.y * y_spacing;
-				node.z -= offset.z * z_spacing;
+				node.x -= nodeCorrection.x * x_spacing;
+				node.y -= nodeCorrection.y * y_spacing;
+				node.z -= nodeCorrection.z * z_spacing;
 			}
 		}
+		// Keep currentPath's own canvasOffset fresh too, so its in-progress rendering/hit-testing
+		// (Path#getXUnscaledDouble/Y/Z, indexNearestToCanvasPosition2D) stay correct even if it was
+		// started under a different offset - not just the final stamp in finishedPath(). For a
+		// brand-new path (still in the intermediate frame above) this must be the crop-relative
+		// portion only, matching nodeCorrection, not the full live offset - see confirmTemporary()'s
+		// canvasOffset-displacement fix; an extended path's nodes are already complete world, so the
+		// full offset is correct there (and should already match what the path was stamped with)
+		currentPath.setCanvasOffset(nodeCorrection);
 
 		final int sizeBefore = currentPath.size();
 		currentPath.add(temporaryPath);
@@ -2765,10 +3008,14 @@ public class SNT extends MultiDThreePanes implements
 			currentPath.setRadius(manualRadius, currentPath.size() - 1);
 		}
 
+		// last_start_point_x/y/z must be the pixel index in the CURRENT active grid (matching
+		// x_start/x_end's own convention in testPathTo()); since last.x/y/z were only corrected by
+		// nodeCorrection above, recovering that same pixel index needs nodeCorrection added back
+		// (whichever of cropOffset/full-offset that was, per currentPathIsNew)
 		final PointInImage last = currentPath.lastNode();
-		last_start_point_x = last.x / x_spacing + offset.x;
-		last_start_point_y = last.y / y_spacing + offset.y;
-		last_start_point_z = last.z / z_spacing + offset.z;
+		last_start_point_x = last.x / x_spacing + nodeCorrection.x;
+		last_start_point_y = last.y / y_spacing + nodeCorrection.y;
+		last_start_point_z = last.z / z_spacing + nodeCorrection.z;
 
 		{
 			setTemporaryPath(null);
@@ -3197,6 +3444,19 @@ public class SNT extends MultiDThreePanes implements
 				SNTUtils.log("Trace result was null.");
 				return null;
 			}
+			// createSearch(...settings) above is crop-aware (does not use useStreamedSource), so
+			// pathResult's raw nodes are missing both the crop-relative and worldOriginOffset
+			// components (see cropRelativeCanvasOffset()'s javadoc). Correct only the crop-relative
+			// portion here; applyWorldOriginOffsetIfAny() completes the rest, once, below
+			final PointInCanvas segCropOffset = cropRelativeCanvasOffset();
+			if (segCropOffset.x != 0 || segCropOffset.y != 0 || segCropOffset.z != 0) {
+				for (int j = 0; j < pathResult.size(); j++) {
+					final PointInImage node = pathResult.getNodeWithoutChecks(j);
+					node.x -= segCropOffset.x * x_spacing;
+					node.y -= segCropOffset.y * y_spacing;
+					node.z -= segCropOffset.z * z_spacing;
+				}
+			}
 			fullPath.add(pathResult);
 		}
 		if (forkPoint != null) {
@@ -3204,14 +3464,22 @@ public class SNT extends MultiDThreePanes implements
 		}
 		fullPath.setCTposition(channel, frame);
 		applyWorldOriginOffsetIfAny(fullPath);
+		// See runHeadlessTrace()'s equivalent stamp: canvasOffset defaults to (0,0,0) on a freshly
+		// created Path and nothing else sets it before this returns
+		fullPath.setCanvasOffset(activeCanvasPixelOffset);
 		return fullPath;
 	}
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint,
 			final SearchProgressCallback progressCallback, final Consumer<Future<?>> onSubmit) {
+		// useStreamedSource=true: this overload is BDV/BVV's own headless entry point (see autoTrace(
+		// SNTPoint, SNTPoint, PointInImage, SearchProgressCallback, Consumer), its only caller), whose
+		// rendering always shows the full, unaffected volume - it must keep tracing correctly regardless
+		// of whether a crop happens to be materialized on the classic canvas at the same time. See
+		// getStreamedOrLoadedData()/createSearch(..., boolean)
 		return runHeadlessTrace(pointList, forkPoint, (start, end) -> createSearch(
 				start.getX(), start.getY(), start.getZ(),
-				end.getX(), end.getY(), end.getZ()), progressCallback, onSubmit);
+				end.getX(), end.getY(), end.getZ(), null, true), progressCallback, onSubmit);
 	}
 
 	/**
@@ -3221,9 +3489,29 @@ public class SNT extends MultiDThreePanes implements
 	 * double, double)}. See {@link #manualTrace(SNTPoint, SNTPoint, PointInImage)}.
 	 */
 	private Path manualTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		// This is BDV/BVV's own headless entry point (manualTrace()'s only caller), so - same reasoning
+		// as autoTraceHeadless()'s useStreamedSource=true branch above - always use
+		// defaultCanvasPixelOffset() (stable across materialization), not the live, possibly crop-local
+		// activeCanvasPixelOffset. The goal must also be checked against the full streamed source's own
+		// dimensions, not plugin.getWidth()/getHeight()/getDepth() (the crop's own smaller canvas while
+		// one is installed) - see the ManualTracerThread overload below
+		final PointInCanvas offset = defaultCanvasPixelOffset();
+		final RandomAccessibleInterval<?> src = getStreamedOrLoadedData();
+		// NB: src can be genuinely 2-dimensional (a single-Z-slice source, with its size-1 Z axis
+		// already dropped by getStreamedOrLoadedData()/getLoadedData()'s Views.dropSingletonDimensions()),
+		// in which case dimension(2) would throw - default depth to 1 (matching plugin.getDepth()'s own
+		// convention for a single-slice image) rather than treating it as "unknown" (0)
+		final long boundsWidth = (src == null) ? 0 : src.dimension(0);
+		final long boundsHeight = (src == null) ? 0 : src.dimension(1);
+		final long boundsDepth = (src == null) ? 0 : (src.numDimensions() > 2 ? src.dimension(2) : 1);
 		return runHeadlessTrace(pointList, forkPoint, (start, end) -> new ManualTracerThread(this,
-				start.getX() / x_spacing, start.getY() / y_spacing, start.getZ() / z_spacing,
-				end.getX() / x_spacing, end.getY() / y_spacing, end.getZ() / z_spacing), null, null);
+				start.getX() / x_spacing + offset.x,
+				start.getY() / y_spacing + offset.y,
+				start.getZ() / z_spacing + offset.z,
+				end.getX() / x_spacing + offset.x,
+				end.getY() / y_spacing + offset.y,
+				end.getZ() / z_spacing + offset.z,
+				boundsWidth, boundsHeight, boundsDepth), null, null);
 	}
 
 	/**
@@ -3291,6 +3579,11 @@ public class SNT extends MultiDThreePanes implements
 		}
 		fullPath.setCTposition(channel, frame);
 		applyWorldOriginOffsetIfAny(fullPath);
+		// Stamp with the live activeCanvasPixelOffset so this path renders correctly if a caller adds it
+		// to pathAndFillManager as-is (see finishedPath()'s equivalent stamp). Callers that instead merge
+		// this into a larger, already-existing Path (e.g. AbstractBigViewer's tempPath, via Path#add(),
+		// which does not copy canvasOffset) should stamp that outer Path themselves right before adding it
+		fullPath.setCanvasOffset(activeCanvasPixelOffset);
 		return fullPath;
 	}
 
@@ -3300,6 +3593,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		lastStartPointSet = true;
+		currentPathIsNew = false;
 		selectPath(path, false);
 		setPathUnfinished(true);
 		setCurrentPath(path);
@@ -3334,8 +3628,14 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		if (justFirstPoint()) {
-			final PointInImage p = new PointInImage(last_start_point_x * x_spacing,
-					last_start_point_y * y_spacing, last_start_point_z * z_spacing);
+			// last_start_point_x/y/z are pixel indices in the current active grid (see
+			// confirmTemporary()); subtract only the crop-relative portion here, leaving
+			// world - worldOriginOffset, which applyWorldOriginOffsetIfAny() below completes
+			final PointInCanvas cropOffset = cropRelativeCanvasOffset();
+			final PointInImage p = new PointInImage(
+					(last_start_point_x - cropOffset.x) * x_spacing,
+					(last_start_point_y - cropOffset.y) * y_spacing,
+					(last_start_point_z - cropOffset.z) * z_spacing);
 			p.onPath = currentPath;
 			currentPath.addPointDouble(p.x, p.y, p.z);
 			currentPath.setSWCType(Path.SWC_SOMA);
@@ -3357,6 +3657,14 @@ public class SNT extends MultiDThreePanes implements
 			// runHeadlessTrace's single-shot construction), so this is the point it is considered "finished": every
 			// node it will ever have already exists, and it is about to reach pathAndFillManager for the 1st time
 			applyWorldOriginOffsetIfAny(currentPath);
+			// A freshly created Path's own canvasOffset defaults to (0,0,0) (see startPath()) and is never
+			// touched while it is being built - only syncActivePathCanvasState() keeps it in sync, and that
+			// only loops over paths already IN pathAndFillManager. Stamp it here, from the live
+			// activeCanvasPixelOffset, right before this path reaches pathAndFillManager for the first time,
+			// so it renders correctly on the classic canvas alongside every other currently-loaded path
+			// (all sharing this same, current value) regardless of what canvasOffset was in effect when this
+			// path was started - even if a re-materialization happened while it was still being built
+			currentPath.setCanvasOffset(activeCanvasPixelOffset);
 			pathAndFillManager.addPath(currentPath, true, false, false);
 			// Hook 3: Run holistic plausibility check on completed path
 			if (ui != null && ui.getPlausibilityMonitor().isEnabled()) {
@@ -3373,9 +3681,14 @@ public class SNT extends MultiDThreePanes implements
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		updateTracingViewers(true);
 		if (getUI() != null && getUI().getRecorder(false) != null) {
+			// Read the true-world end coordinate from the just-added path's own last node, not
+			// last_start_point_x/y/z: that variable is a pre-applyWorldOriginOffsetIfAny() pixel
+			// index in whatever grid was active when the path was last extended (see testPathTo()),
+			// and would misreport this comment whenever getWorldOriginOffset() is non-zero
+			final Path finishedPathRef = pathAndFillManager.getPath(pathAndFillManager.size() - 1);
+			final PointInImage lastNode = finishedPathRef.lastNode();
 			final String cmmnt = String.format("  (%3f,%.3f,%.3f)\nEnd of new path [%s]",
-					last_start_point_x * x_spacing,	last_start_point_y * y_spacing, last_start_point_z * z_spacing,
-					pathAndFillManager.getPath(pathAndFillManager.size()-1).getName());
+					lastNode.x, lastNode.y, lastNode.z, finishedPathRef.getName());
 			getUI().getRecorder(false).recordComment(cmmnt);
 		}
 	}
@@ -3471,6 +3784,14 @@ public class SNT extends MultiDThreePanes implements
 		final double world_y = (p[1] - activeCanvasPixelOffset.y) * y_spacing;
 		final double world_z = (p[2] - activeCanvasPixelOffset.z) * z_spacing;
 
+		if (SNTUtils.isDebugMode()) {
+			SNTUtils.log("clickForTrace(pane): x_in_pane_precise=" + x_in_pane_precise + " y_in_pane_precise="
+					+ y_in_pane_precise + " plane=" + plane + " >> p=(" + p[0] + "," + p[1] + "," + p[2]
+					+ ") activeCanvasPixelOffset=(" + activeCanvasPixelOffset.x + "," + activeCanvasPixelOffset.y
+					+ "," + activeCanvasPixelOffset.z + ") >> world=(" + world_x + "," + world_y + "," + world_z
+					+ ")");
+		}
+
 		clickForTrace(world_x, world_y, world_z, join);
 	}
 
@@ -3479,8 +3800,11 @@ public class SNT extends MultiDThreePanes implements
 	{
 		double min_dist = Double.POSITIVE_INFINITY;
 		for (FillerThread fillerThread : fillerSet) {
-			final double distance = fillerThread.getDistanceAtPoint(world_x / x_spacing,
-					world_y / y_spacing, world_z / z_spacing);
+			// getDistanceAtPoint() looks up its own search's pixel-index grid directly (seeded from
+			// source-path nodes via Path#getXUnscaled(), i.e. node/spacing + canvasOffset - the live,
+			// crop-local activeCanvasPixelOffset grid), not world/spacing alone
+			final double distance = fillerThread.getDistanceAtPoint(world_x / x_spacing + activeCanvasPixelOffset.x,
+					world_y / y_spacing + activeCanvasPixelOffset.y, world_z / z_spacing + activeCanvasPixelOffset.z);
 			if (distance > 0 && distance < min_dist) {
 				min_dist = distance;
 			}
@@ -3534,6 +3858,7 @@ public class SNT extends MultiDThreePanes implements
 
 		setPathUnfinished(true);
 		lastStartPointSet = true;
+		currentPathIsNew = true;
 		startNodeRadius = manualRadius; // -1 if not set, that's fine
 		confirmedSegmentSizes.clear(); // just in case of abnormal prior state
 
@@ -3565,10 +3890,23 @@ public class SNT extends MultiDThreePanes implements
 			}
 			ballColor = Color.GREEN;
 		}
-		// offset is irrelevant: newly created paths always have canvasOffset = (0,0,0)
-		last_start_point_x = real_last_start_x / x_spacing;
-		last_start_point_y = real_last_start_y / y_spacing;
-		last_start_point_z = real_last_start_z / z_spacing;
+		// NB: the new Path's own canvasOffset field is irrelevant here (always (0,0,0) on a freshly
+		// created Path), but activeCanvasPixelOffset is not: real_last_start_x/y/z is a true-world
+		// coordinate (world_x/y/z, or an existing Path's own joinPoint.x/y/z), while last_start_point_x/y/z
+		// must be crop-local pixel space, same convention as x_start/y_start/z_start in testPathTo() and
+		// the "continue an existing path" assignments above (see e.g. confirmTemporary()). Missing this
+		// term left the very first search of a new path seeded in the wrong frame on a materialized crop
+		last_start_point_x = real_last_start_x / x_spacing + activeCanvasPixelOffset.x;
+		last_start_point_y = real_last_start_y / y_spacing + activeCanvasPixelOffset.y;
+		last_start_point_z = real_last_start_z / z_spacing + activeCanvasPixelOffset.z;
+		if (SNTUtils.isDebugMode()) {
+			SNTUtils.log("startPath: world_x/y/z=(" + world_x + "," + world_y + "," + world_z + ") joinPoint="
+					+ joinPoint + " real_last_start=(" + real_last_start_x + "," + real_last_start_y + ","
+					+ real_last_start_z + ") activeCanvasPixelOffset=(" + activeCanvasPixelOffset.x + ","
+					+ activeCanvasPixelOffset.y + "," + activeCanvasPixelOffset.z + ") worldOriginOffset="
+					+ java.util.Arrays.toString(getWorldOriginOffset()) + " >> last_start_point=("
+					+ last_start_point_x + "," + last_start_point_y + "," + last_start_point_z + ")");
+		}
 
 		addSphere(startBallName, real_last_start_x, real_last_start_y,
 				real_last_start_z, ballColor, x_spacing * ballRadiusMultiplier);
@@ -3841,6 +4179,74 @@ public class SNT extends MultiDThreePanes implements
 	@SuppressWarnings("unchecked")
 	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
 		return (ctSlice3d == null) ? null : Views.dropSingletonDimensions(ctSlice3d);
+	}
+
+	/**
+	 * The primary image data BDV/BVV's own crop-independent tracing should search (see the
+	 * {@code useStreamedSource} parameter of {@link #createSearch(int, int, int, int, int, int,
+	 * SearchSettingsSnapshot, boolean)} and {@link #manualTraceHeadless(List, PointInImage)}): the
+	 * original, full streamed source cached by the first materialized crop this session ever built
+	 * ({@link #streamedSourceData}), or, if none has been built yet, simply {@link #getLoadedData()}
+	 * - equivalent in that case, since {@link #ctSlice3d} has never been swapped for anything else.
+	 * Pairs with {@link #defaultCanvasPixelOffset()}: BDV/BVV's own rendering always shows the full,
+	 * unaffected volume regardless of whatever crop is materialized on the classic canvas, so its
+	 * tracing must search this data with that offset, not {@link #getLoadedData()} with the live,
+	 * possibly crop-local {@link #activeCanvasPixelOffset}.
+	 *
+	 * @return the full, uncropped primary image data, or null if none is loaded
+	 */
+	@SuppressWarnings("unchecked")
+	private <T extends RealType<T>> RandomAccessibleInterval<T> getStreamedOrLoadedData() {
+		// NB: streamedSourceData is cached as a raw reference to ctSlice3d (see resolveVoxelBounds()),
+		// without getLoadedData()'s own Views.dropSingletonDimensions(). Apply it here too, or a session
+		// that has materialized at least one crop would search a differently-shaped RAI (e.g. for a
+		// single-Z-slice source) than one that never has, or than the classic canvas's own getLoadedData()
+		return (streamedSourceData != null) ? Views.dropSingletonDimensions(streamedSourceData) : getLoadedData();
+	}
+
+	/**
+	 * Non-generic wrapper around {@link #getStreamedOrLoadedData()}, for callers outside this
+	 * class that need BDV/BVV's own crop-independent view of the pixel data currently being traced -
+	 * e.g. the Sigma preview palette (see {@code AbstractBigViewer#pickSigmaPointAction()}), which
+	 * must show data around the point actually clicked in BDV/BVV, not clamped to whatever (possibly
+	 * smaller) crop happens to be materialized on the classic canvas at the same time. Pair with
+	 * {@link #getDefaultCanvasPixelOffset()} for converting a click into a pixel index into this data.
+	 *
+	 * @return the same data as {@link #getStreamedOrLoadedData()}
+	 */
+	public RandomAccessibleInterval<?> getBdvTracingData() {
+		return getStreamedOrLoadedData();
+	}
+
+	/**
+	 * The global image statistics a crop-independent (BDV/BVV) search should normalize its cost
+	 * function against, paired with {@link #getStreamedOrLoadedData()}. {@link #stats} itself gets
+	 * overwritten with a materialized crop's own (smaller) statistics every time {@code
+	 * loadDatasetFromImagePlus()} runs against it (see {@link #installMaterializedCrop}), so a search
+	 * over the full streamed source would otherwise normalize against the wrong (crop-sized)
+	 * statistics while a crop happens to be materialized. Computed lazily, once, the first time it is
+	 * needed - the full source's own pixel data never changes for the lifetime of the session, so
+	 * there is nothing that could make a cached value here stale.
+	 *
+	 * @return the full, uncropped primary image's own global statistics
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private ImageStatistics getStreamedOrLoadedStats() {
+		if (streamedSourceData == null) {
+			// No crop has ever been materialized this session: getStreamedOrLoadedData() == getLoadedData(),
+			// so the regular stats field (computed from that same data - see loadDatasetFromImagePlus())
+			// is already correct; nothing to compute separately
+			return stats;
+		}
+		if (!streamedStatsComputed) {
+			// Raw type, matching how loadDatasetFromImagePlus() itself calls computeImgStats(ctSlice3d, ...):
+			// computeImgStats() expects an Iterable<T>, which a directly-parameterized
+			// RandomAccessibleInterval<T> does not satisfy, but a raw one is accepted unchecked
+			final RandomAccessibleInterval raw = getStreamedOrLoadedData();
+			computeImgStats(raw, streamedStats);
+			streamedStatsComputed = true;
+		}
+		return streamedStats;
 	}
 
 	public ImgPlus<?> getLoadedDataAsImg(final boolean secondaryLayer) {
@@ -4713,7 +5119,13 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log(" Detected: x=" + p[0] + ", y=" + p[1] + ", z=" + p[2] + ", value=" + stats.max);
 		setZPositionAllPanes(p[0], p[1], p[2]);
 		if (!tracingHalted) { // click only if tracing
-			clickForTrace(p[0] * x_spacing, p[1] * y_spacing, p[2] * z_spacing, join);
+			// p[] indexes directly into ctSlice3d/secondaryData (see access above) - a crop-local
+			// pixel index, same convention as mouseMovedTo()'s pane coordinates. Subtract
+			// activeCanvasPixelOffset before scaling to true world, or the 4-arg clickForTrace()
+			// (which expects true world, see its own 3-arg pane overload) re-adds it on top
+			clickForTrace((p[0] - activeCanvasPixelOffset.x) * x_spacing,
+					(p[1] - activeCanvasPixelOffset.y) * y_spacing,
+					(p[2] - activeCanvasPixelOffset.z) * z_spacing, join);
 		}
 	}
 
@@ -5187,11 +5599,17 @@ public class SNT extends MultiDThreePanes implements
 					+ " ; current x/y/z_spacing (before this call): " + this.x_spacing + "/" + this.y_spacing + "/"
 					+ this.z_spacing);
 		}
-		if (width > 0) this.width = width;
-		if (height > 0) this.height = height;
-		if (depth > 0) {
-			this.depth = depth;
-			this.singleSlice = depth == 1;
+		// While a crop is materialized, width/height/depth describe the crop's own (smaller) canvas, matching its
+		// actual ctSlice3d - not the full source BDV/BVV's own syncChannelFromActiveSource() reports here on every
+		// channel switch. Overwriting them would desync plugin.getWidth()/getHeight()/getDepth() from the classic
+		// canvas's real data without touching ctSlice3d itself (see setImageData())
+		if (!isMaterializedCrop()) {
+			if (width > 0) this.width = width;
+			if (height > 0) this.height = height;
+			if (depth > 0) {
+				this.depth = depth;
+				this.singleSlice = depth == 1;
+			}
 		}
 		if (xSpacing > 0) this.x_spacing = xSpacing;
 		if (ySpacing > 0) this.y_spacing = ySpacing;
@@ -5202,7 +5620,7 @@ public class SNT extends MultiDThreePanes implements
 		if (xSpacing > 0 && ySpacing > 0 && zSpacing > 0) spacingKnownFromSource = true;
 		if (units != null && !units.isBlank()) this.spacing_units = SNTUtils.getSanitizedUnit(units);
 		// Propagate the (possibly corrected) dimensions/spacing to pathAndFillManager's own copy/BoundingBox,
-		// otherwise anything reading spacing through that route stays stuck at whatever was set at construction time.
+		// otherwise anything reading spacing through that route stays stuck at whatever was set at construction time
 		pathAndFillManager.syncSpatialSettingsWithPlugin();
 	}
 
@@ -5247,6 +5665,14 @@ public class SNT extends MultiDThreePanes implements
 		this.originOffsetX = xOffset;
 		this.originOffsetY = yOffset;
 		this.originOffsetZ = zOffset;
+		// BigDataLoaderCmd calls this (via applyWorldOriginOffset()) AFTER snt.initialize(null) has already
+		// run assembleDisplayCanvases() with pathAndFillManager empty, which stamped activeCanvasPixelOffset
+		// from a still-zero offset (this method hadn't been called yet). Refresh it now that the real offset
+		// is known, unless a materialized crop is active - that owns activeCanvasPixelOffset itself (see
+		// installMaterializedCrop()) and setWorldOriginOffset() is not expected to run while one is open anyway
+		if (!isMaterializedCrop()) {
+			syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
+		}
 	}
 
 	/**
@@ -5277,7 +5703,24 @@ public class SNT extends MultiDThreePanes implements
 	 *             the dimensions/calibration set via {@link #setImageMetadata}
 	 */
 	public void setImageData(final RandomAccessibleInterval<?> data) {
-		this.ctSlice3d = data;
+		if (isMaterializedCrop()) {
+			// A materialized crop owns ctSlice3d/activeCanvasPixelOffset for the classic 2D canvas
+			// (see installMaterializedCrop()). BDV/BVV's own crop-independent tracing calls this
+			// method every time the active source/channel changes (see AbstractTracer#
+			// syncChannelFromActiveSource()) - it must not clobber the crop's own pixel data.
+			// Route it to streamedSourceData instead, which getStreamedOrLoadedData() already
+			// prefers over ctSlice3d/getLoadedData() for crop-independent (useStreamedSource) search
+			streamedSourceData = data;
+		} else {
+			this.ctSlice3d = data;
+			// No crop is active, so any previously-cached streamedSourceData (from a since-closed
+			// crop) is stale relative to this new data too - drop it; getStreamedOrLoadedData()
+			// falls back to getLoadedData() (i.e. this ctSlice3d) until a future crop repopulates it
+			streamedSourceData = null;
+		}
+		// Either way, this is new pixel data - any cached streamedStats (see getStreamedOrLoadedStats())
+		// was computed against whatever streamedSourceData held before and is now stale
+		streamedStatsComputed = false;
 	}
 
 	/**

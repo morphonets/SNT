@@ -30,6 +30,7 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.CostPalette;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 
 import java.util.Collection;
@@ -140,13 +141,18 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
         return (snt.getPathAndFillManager().size() == 0) ? null : snt.getPathAndFillManager().getPath(snt.getPathAndFillManager().size() - 1);
     }
 
-    private static PointInImage pointFromRoi(final PointRoi pr, final int i, final ImagePlus imp) {
+    // fp.xpoints/ypoints and slice are pixel coordinates on imp's own grid - the crop-local grid when
+    // a materialized crop is active, or the raw streamed source's own voxel grid otherwise (see
+    // SNT#getActiveCanvasPixelOffset()). Subtracting the offset before scaling converts to the true-world
+    // coordinate CostPalette/PointInImage expect (same convention as Path node coordinates)
+    private PointInImage pointFromRoi(final PointRoi pr, final int i, final ImagePlus imp) {
         final FloatPolygon fp = pr.getFloatPolygon();
         final ij.measure.Calibration cal = imp.getCalibration();
         final int slice = (pr.getPointPosition(i) > 0) ? pr.getPointPosition(i) : imp.getZ();
+        final PointInCanvas offset = snt.getActiveCanvasPixelOffset();
         return new PointInImage(
-                fp.xpoints[i] * cal.pixelWidth,
-                fp.ypoints[i] * cal.pixelHeight,
-                (slice - 1) * cal.pixelDepth); // 1-based index
+                (fp.xpoints[i] - offset.x) * cal.pixelWidth,
+                (fp.ypoints[i] - offset.y) * cal.pixelHeight,
+                ((slice - 1) - offset.z) * cal.pixelDepth); // 1-based index
     }
 }

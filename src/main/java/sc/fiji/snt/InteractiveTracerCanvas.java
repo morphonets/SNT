@@ -1487,9 +1487,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         if (!warningLocations.isEmpty()) {
             final int ringRadius = Math.max(10, (int) (12 * getMagnification() / 4));
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, pulseAlpha));
+            // loc is a true-world coordinate; convert to this canvas's own local pixel grid the same way
+            // Path#getXUnscaledDouble()/PathNodeCanvas do, or these rings render off the path they are meant to
+            // highlight whenever activeCanvasPixelOffset is non-zero
+            final PointInCanvas ringOffset = tracerPlugin.getActiveCanvasPixelOffset();
             for (final PointInImage loc : warningLocations) {
-                final int sx = myScreenXD(loc.x / tracerPlugin.x_spacing);
-                final int sy = myScreenYD(loc.y / tracerPlugin.y_spacing);
+                final int sx = myScreenXD(loc.x / tracerPlugin.x_spacing + ringOffset.x);
+                final int sy = myScreenYD(loc.y / tracerPlugin.y_spacing + ringOffset.y);
                 // Dark outline ring
                 g.setColor(Color.BLACK);
                 g.setStroke(new BasicStroke(3f));
@@ -1520,15 +1524,21 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         final double xSpacing = tracerPlugin.x_spacing;
         final double ySpacing = tracerPlugin.y_spacing;
         final double zSpacing = tracerPlugin.z_spacing;
+        // path.canvasOffset (not tracerPlugin.getActiveCanvasPixelOffset()): matches the convention
+        // PathNodeCanvas#getScreenCoordinateX/Y uses for this same Path's normal rendering - the two
+        // should be numerically identical for any path currently in pathAndFillManager, but using the
+        // Path's own field keeps this correct even in the same edge cases that invariant protects against
+        final PointInCanvas offset = path.canvasOffset;
         int prevSx = Integer.MIN_VALUE, prevSy = Integer.MIN_VALUE;
         for (int i = 0; i < path.size(); i++) {
             final PointInImage p = path.getNodeWithoutChecks(i);
-            // Skip nodes far from current Z slice (tolerance: ±2 slices)
-            final int nodeSlice = (int) Math.round(p.z / zSpacing);
+            // Skip nodes far from current Z slice (tolerance: ±2 slices). sliceZeroIndexed is a local
+            // canvas pixel index, so nodeSlice must be corrected by offset.z to compare against it
+            final int nodeSlice = (int) Math.round(p.z / zSpacing + offset.z);
             if (just_near_slices && Math.abs(nodeSlice - sliceZeroIndexed) > Math.max(eitherSide, 2))
                 continue;
-            final int sx = myScreenXD(p.x / xSpacing);
-            final int sy = myScreenYD(p.y / ySpacing);
+            final int sx = myScreenXD(p.x / xSpacing + offset.x);
+            final int sy = myScreenYD(p.y / ySpacing + offset.y);
             if (prevSx != Integer.MIN_VALUE) {
                 g.drawLine(prevSx, prevSy, sx, sy);
             }

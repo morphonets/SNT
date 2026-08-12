@@ -49,11 +49,33 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		final double start_x, final double start_y, final double start_z,
 		final double goal_x, final double goal_y, final double goal_z)
 	{
-		// NB: width/height/depth are 0 when the plugin has no known image dimensions (e.g., SNT started against a
-		// BigDataViewer/SpimData source without pixel-level metadata). That is "unknown bounds", not a 0-size volume,
-		// so the check is skipped in that case rather than rejecting every goal
-		final boolean boundsKnown = plugin.getWidth() > 0 && plugin.getHeight() > 0 && plugin.getDepth() > 0;
-		if (boundsKnown && (goal_x > plugin.getWidth() || goal_y > plugin.getHeight() || goal_z > plugin.getDepth()))
+		this(plugin, start_x, start_y, start_z, goal_x, goal_y, goal_z,
+				plugin.getWidth(), plugin.getHeight(), plugin.getDepth());
+	}
+
+	/**
+	 * Variant that checks the goal against explicit bounds instead of {@code plugin}'s own current
+	 * {@code getWidth()}/{@code getHeight()}/{@code getDepth()}. Needed by headless, crop-independent
+	 * callers (see {@code SNT#manualTraceHeadless}, used by BDV/BVV's manual-trace toggle) whose pixel
+	 * indices are expressed in a grid that is not necessarily {@code plugin}'s own current canvas grid
+	 * (e.g. the full streamed source, while a smaller crop is materialized on the classic canvas) -
+	 * checking against {@code plugin}'s own, possibly smaller, current dimensions would then wrongly
+	 * reject a perfectly valid goal.
+	 *
+	 * @param boundsWidth the width of the grid start_x/goal_x are expressed in, or 0 if unknown
+	 * @param boundsHeight the height of the grid start_y/goal_y are expressed in, or 0 if unknown
+	 * @param boundsDepth the depth of the grid start_z/goal_z are expressed in, or 0 if unknown
+	 */
+	public ManualTracerThread(final SNT plugin,
+		final double start_x, final double start_y, final double start_z,
+		final double goal_x, final double goal_y, final double goal_z,
+		final long boundsWidth, final long boundsHeight, final long boundsDepth)
+	{
+		// NB: bounds are 0 when unknown (e.g., SNT started against a BigDataViewer/SpimData source without
+		// pixel-level metadata). That is "unknown bounds", not a 0-size volume, so the check is skipped in
+		// that case rather than rejecting every goal
+		final boolean boundsKnown = boundsWidth > 0 && boundsHeight > 0 && boundsDepth > 0;
+		if (boundsKnown && (goal_x > boundsWidth || goal_y > boundsHeight || goal_z > boundsDepth))
 			throw new IllegalArgumentException("Out-of bounds goal");
 		this.start_x = start_x * plugin.getPixelWidth();
 		this.start_y = start_y * plugin.getPixelHeight();

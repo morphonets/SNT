@@ -656,8 +656,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			return;
 		}
 		final Calibration cal = inputImp.getCalibration();
+		// inputImp (snt.getImagePlus()) is the crop-local grid of a materialized crop, or the raw
+		// streamed source's own voxel grid otherwise; Path nodes are true-world coordinates, so
+		// getActiveCanvasPixelOffset() must be added after scaling (see SpectralSimilarity#nodeToPixelCoords)
+		final sc.fiji.snt.util.PointInCanvas offset = sntService.getInstance().getActiveCanvasPixelOffset();
 		cachedReferenceColor = SpectralSimilarity.averageColorFromPaths(
-				img4d, new ArrayList<>(paths), cal.pixelWidth, cal.pixelHeight, cal.pixelDepth);
+				img4d, new ArrayList<>(paths), cal.pixelWidth, cal.pixelHeight, cal.pixelDepth,
+				offset.x, offset.y, offset.z);
 		final StringBuilder sb = new StringBuilder("<HTML>Average color from ").append(paths.size())
 				.append(" path(s):<br><br>");
 		for (int c = 0; c < cachedReferenceColor.length; c++) {
@@ -700,9 +705,12 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			for (final Path p : selectedPaths) {
 				resolvedPaths.add(p.getUseFitted() && p.getFitted() != null ? p.getFitted() : p);
 			}
+			// See computeAndDisplayAverageColor() for why getActiveCanvasPixelOffset() is needed here
+			final sc.fiji.snt.util.PointInCanvas offset = snt.getActiveCanvasPixelOffset();
 			refColor = SpectralSimilarity.averageColorFromPaths(
 					img4d, resolvedPaths,
-					cal.pixelWidth, cal.pixelHeight, cal.pixelDepth);
+					cal.pixelWidth, cal.pixelHeight, cal.pixelDepth,
+					offset.x, offset.y, offset.z);
 			SNTUtils.log("Spectral similarity: reference color = " + Arrays.toString(refColor)
 					+ " (from " + selectedPaths.size() + " selected path(s))");
 		}

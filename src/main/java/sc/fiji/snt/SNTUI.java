@@ -5779,6 +5779,31 @@ public class SNTUI extends JDialog {
      * @param z 1-based Z-slice index, matching {@link ImagePlus#getZ()}'s convention
      */
     public void launchSigmaPaletteAround(final int x, final int y, final int z) {
+        // Bounds sourced from the RAI backing the data being traced (see SNT#getLoadedData()) rather
+        // than plugin.getImagePlus(), so this also works in Stream mode, where no ImagePlus/canvas
+        // exists. This is the crop-local grid while a crop is materialized - correct here, since x/y/z
+        // (and this method's classic-canvas caller) are themselves expressed in that same local grid
+        launchSigmaPaletteAroundData(x, y, z, plugin.getLoadedData());
+    }
+
+    /**
+     * Crop-independent counterpart of {@link #launchSigmaPaletteAround(int, int, int)}: sources its
+     * bounds from {@link SNT#getBdvTracingData()} instead of {@link SNT#getLoadedData()}, so a
+     * BDV/BVV click that lands outside a materialized crop's (smaller) bounds still previews the
+     * region actually clicked, instead of silently clamping to the crop's edge. See {@code
+     * AbstractBigViewer.Actions#pickSigmaPointAction()}, which pairs this with {@link
+     * SNT#getDefaultCanvasPixelOffset()} to convert the click.
+     *
+     * @param x pixel X position (0-based), in {@link SNT#getBdvTracingData()}'s own grid
+     * @param y pixel Y position (0-based), in {@link SNT#getBdvTracingData()}'s own grid
+     * @param z 1-based Z-slice index, matching {@link ImagePlus#getZ()}'s convention
+     */
+    public void launchSigmaPaletteAroundStreamed(final int x, final int y, final int z) {
+        launchSigmaPaletteAroundData(x, y, z, plugin.getBdvTracingData());
+    }
+
+    private void launchSigmaPaletteAroundData(final int x, final int y, final int z,
+            final RandomAccessibleInterval<?> data) {
 
         final int either_side_xy = 40;
         final int either_side_z = 15;
@@ -5789,11 +5814,8 @@ public class SNTUI extends JDialog {
         int z_min = z - either_side_z; // 1-based index
         int z_max = z + either_side_z; // 1-based index
 
-        // Bounds sourced from the RAI backing the data being traced (see SNT#getLoadedData()) rather
-        // than plugin.getImagePlus(), so this also works in Stream mode, where no ImagePlus/canvas
-        // exists. SigmaPalette itself is already mode-agnostic (its image comes from
+        // SigmaPalette itself is already mode-agnostic (its image comes from
         // SNT#getLoadedDataAsImp(), a lazy wrap that works the same way regardless of mode)
-        final RandomAccessibleInterval<?> data = plugin.getLoadedData();
         final int originalWidth = (int) data.dimension(0);
         final int originalHeight = (int) data.dimension(1);
         final int originalDepth = (data.numDimensions() > 2) ? (int) data.dimension(2) : 1;

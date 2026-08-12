@@ -27,7 +27,6 @@ import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 import ij.gui.Roi;
 import ij.gui.StackWindow;
-import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
@@ -152,13 +151,12 @@ public class CostPalette extends Thread {
     }
 
     private void computeBounds() {
-        final Calibration cal = image.getCalibration();
-        final int sx = (int) Math.round(startWorld.x / cal.pixelWidth);
-        final int sy = (int) Math.round(startWorld.y / cal.pixelHeight);
-        final int sz = (int) Math.round(startWorld.z / Math.max(1e-9, cal.pixelDepth));
-        final int ex = (int) Math.round(endWorld.x / cal.pixelWidth);
-        final int ey = (int) Math.round(endWorld.y / cal.pixelHeight);
-        final int ez = (int) Math.round(endWorld.z / Math.max(1e-9, cal.pixelDepth));
+        final int sx = voxelX(startWorld);
+        final int sy = voxelY(startWorld);
+        final int sz = voxelZ(startWorld);
+        final int ex = voxelX(endWorld);
+        final int ey = voxelY(endWorld);
+        final int ez = voxelZ(endWorld);
         x_min = clamp(Math.min(sx, ex) - PROBE_PADDING, 0, image.getWidth() - 1);
         int x_max = clamp(Math.max(sx, ex) + PROBE_PADDING, 0, image.getWidth() - 1);
         y_min = clamp(Math.min(sy, ey) - PROBE_PADDING, 0, image.getHeight() - 1);
@@ -245,16 +243,22 @@ public class CostPalette extends Thread {
         return n == 0 ? Double.NaN : sum / n;
     }
 
+    // p is a true-world coordinate (Path node convention); image (snt.getLoadedDataAsImp()) wraps
+    // snt.getLoadedData()/ctSlice3d directly, so its own pixel grid is whatever
+    // snt.getActiveCanvasPixelOffset() currently corrects for (crop-local when a crop is
+    // materialized, the raw streamed source's own voxel grid otherwise), same conversion as
+    // SNT#createSearch(double...)/testPathTo()
     private int voxelX(final PointInImage p) {
-        return (int) Math.round(p.x / image.getCalibration().pixelWidth);
+        return (int) Math.round(p.x / image.getCalibration().pixelWidth + snt.getActiveCanvasPixelOffset().x);
     }
 
     private int voxelY(final PointInImage p) {
-        return (int) Math.round(p.y / image.getCalibration().pixelHeight);
+        return (int) Math.round(p.y / image.getCalibration().pixelHeight + snt.getActiveCanvasPixelOffset().y);
     }
 
     private int voxelZ(final PointInImage p) {
-        return (int) Math.round(p.z / Math.max(1e-9, image.getCalibration().pixelDepth));
+        return (int) Math.round(p.z / Math.max(1e-9, image.getCalibration().pixelDepth)
+                + snt.getActiveCanvasPixelOffset().z);
     }
 
     private void buildAndDisplay() {
