@@ -140,7 +140,7 @@ public class SNTUI extends JDialog {
 
     // UI controls promoted from Options tab
     private JCheckBox diametersCheckBox; // used for for quick-toggle access
-    private JPanel optionsPanel; // Options tab group holding diametersCheckBox and its sub-panels. //
+    private final JPanel optionsPanel; // Options tab group holding diametersCheckBox and its sub-panels. //
 
     private final SNTCommandFinder commandFinder;
     private ActiveWorker activeWorker;
@@ -1398,7 +1398,7 @@ public class SNTUI extends JDialog {
         states.put(CALCULATING_HESSIAN_II,simpleState(CALCULATING_HESSIAN_II,"Calculating Hessian (II Image)..",         "Computing Hessian (secondary image)...", true, null));
         states.put(WAITING_FOR_SIGMA_POINT_I, simpleState(WAITING_FOR_SIGMA_POINT_I, "Click on a representative structure...", "Adjusting Hessian (main image)...", false, null));
         states.put(WAITING_FOR_SIGMA_CHOICE,  simpleState(WAITING_FOR_SIGMA_CHOICE,  "Close 'Pick Sigma &amp; Max' to continue...", null, false, null));
-        states.put(LOADING, simpleState(LOADING, "Loading...", null, true, null));
+        states.put(LOADING, simpleState(LOADING, "Loading data...", null, true, null));
         states.put(SAVING,  simpleState(SAVING,  "Saving...",  null, true, null));
         states.put(EDITING, new EditingState());
         states.put(SNT_PAUSED, new SntPausedState());
@@ -2079,24 +2079,32 @@ public class SNTUI extends JDialog {
         if (plugin.getPrefs().getTemp(SNTPrefs.RESIZE_REQUIRED, false)) {
             final boolean nag = plugin.getPrefs().getTemp("canvasResize-nag", true);
             if (nag) {
-                final StringBuilder sb = new StringBuilder("Some nodes are being displayed outside the image canvas. To visualize them you can:<ul>");
-                String type = "canvas";
-                if (plugin.accessToValidImageData()) {
-                    type = "image";
-                    sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
-                    sb.append("<li>Close the current image and create a Display Canvas using <i>Create Canvas</i> in the Options pane</li>");
-                }
-                else {
-                    sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
-                }
-                sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
-                final Boolean userPrompt = guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
+                final Boolean userPrompt = guiUtils.getPersistentWarning(mismatchedImageWarningMsg(),
+                        "Mismatched Image Dimensions");
                 if (userPrompt != null) // do nothing if user dismissed the dialog
                     plugin.getPrefs().setTemp("canvasResize-nag", !userPrompt);
             } else {
                 showStatus("Some nodes rendered outside image!", false);
             }
         }
+    }
+
+    private String mismatchedImageWarningMsg() {
+        if (plugin.isStreamMode()) {
+            return "Some nodes are being displayed outside the image volume: Perhaps reconstruction(s) have been loaded from mismatched file(s)?";
+        }
+        final StringBuilder sb = new StringBuilder("Some nodes are being displayed outside the image canvas. To visualize them you can:<ul>");
+        String type = "canvas";
+        if (plugin.accessToValidImageData()) {
+            type = "image";
+            sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
+            sb.append("<li>Close the current image and create a Display Canvas using <i>Create Canvas</i> in the Options pane</li>");
+        }
+        else {
+            sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
+        }
+        sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
+        return sb.toString();
     }
 
     private void updateSinglePaneFlag() {

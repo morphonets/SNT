@@ -508,6 +508,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 handleMouseEvent(me);
             }
 
+            @Override
+            public void mouseClicked(final MouseEvent me) {
+                if (me.getClickCount() != 2 || !SwingUtilities.isLeftMouseButton(me)) return;
+                final TreePath tp = tree.getPathForLocation(me.getX(), me.getY());
+                if (tp == null) return;
+                final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
+                if (node.isRoot()) return;
+                if (plugin.isStreamMode()) {
+                    navToolbar.zoomToBoundingBox(List.of((Path) node.getUserObject()));
+                } else if (tree.isExpanded(tp)) {
+                    tree.collapsePath(tp);
+                } else {
+                    tree.expandPath(tp);
+                }
+            }
+
             private void handleMouseEvent(final MouseEvent e) {
                 if (!e.isConsumed() && tree.getRowForLocation(e.getX(), e.getY()) == -1) {
                     tree.clearSelection(); // Deselect when clicking on 'empty space'
@@ -1678,6 +1694,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
             setExpandsSelectedPaths(true);
             setScrollsOnExpand(true);
+            // Native double-click toggle is replaced by our own handler below, so that in
+            // stream mode double-click can zoom to the path instead of expanding/collapsing
+            setToggleClickCount(0);
             setRowHeight(getFontMetrics(getFont()).getHeight()); // otherwise viewport too small!?
             searchable = new TreeSearchable(this);
             final Timer timer = new Timer(400, ev -> getSNT().getUI().getRecorder(false)
@@ -5962,9 +5981,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private JButton zoomToPathsButton() {
             final JButton button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, 1f));
             button.setActionCommand("Zoom To Selected Paths");
-            button.addActionListener( e -> zoomToBoundingBox(getSelectedPathsUsingToolbarOptions(true)));
+            button.addActionListener( e -> {
+                final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
+                zoomToBoundingBox(paths);
+                if (paths != null && paths.size()==1) doubleClickZoomTipIfNeeded();
+            });
             button.setToolTipText("Zoom to selected path(s)");
             return button;
+        }
+
+        private void doubleClickZoomTipIfNeeded() {
+            if (!plugin.isStreamMode() || plugin.getPrefs().getTemp("stream-dclick-zoom-tip-skipnag", false)) return;
+            final Boolean skipNag = guiUtils.getPersistentWarning("Tip: Double-click a single path in the list "
+                    + "to zoom to it directly, without using this button.", "Navigation Tip");
+            if (skipNag != null) plugin.getPrefs().setTemp("stream-dclick-zoom-tip-skipnag", skipNag);
         }
 
         private JButton bookmarkButton() {

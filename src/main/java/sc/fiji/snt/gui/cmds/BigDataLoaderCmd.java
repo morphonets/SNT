@@ -47,6 +47,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
@@ -723,7 +724,51 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (viewer.getSNT() != null) { // tracing capabilities present
             final PathAndFillManager pafm = viewer.getSNT().getPathAndFillManager();
             trees.forEach(tree -> pafm.addTree(tree, tree.getLabel())); // registers as editable Paths
+            // addTree() (unlike addTrees()) intentionally skips this check (see its javadoc), so trigger
+            // it explicitly here. If a SNTUI exists, reuse its own persistent-warning dialog (same one
+            // shown by traditional-mode reconstruction imports) instead of a one-off dialog of our own
+            pafm.validateImageDimensions();
+            if (viewer.getSNT().getUI() != null) {
+                try {
+                    viewer.getSNT().getUI().runCommand("validateImgDimensions");
+                } catch (final IllegalArgumentException ignored) {
+                    // command unavailable in the current UI state; RESIZE_REQUIRED (set above, if
+                    // applicable) remains armed and will surface on the next reconstruction import
+                }
+            }
+        } else {
+            // No SNT/PathAndFillManager in this case (plain, non-tracing viewer): compare directly
+            // against the viewer's own loaded volume instead
+            warnIfOutOfBounds(viewer, trees);
         }
+    }
+
+    /**
+     * Warns (once, with a permanent opt-out) if {@code trees} fall at least partially outside
+     * {@code viewer}'s loaded volume -- typically a sign that the reconstruction and image files
+     * specified are not a matching pair. Only used for the plain (non-tracing) viewer case; when
+     * tracing capabilities are present, {@link PathAndFillManager#validateImageDimensions()} plus
+     * {@code SNTUI}'s own dialog (see {@link #loadReconstructions}) is used instead
+     */
+    private void warnIfOutOfBounds(final AbstractBigViewer viewer, final Collection<Tree> trees) {
+        final BoundingBox volumeBox = viewer.getBoundingBox();
+        if (volumeBox == null) return;
+        BoundingBox treesBox = null;
+        for (final Tree tree : trees) {
+            final BoundingBox tb = tree.getBoundingBox(true);
+            if (tb == null) continue;
+            if (treesBox == null) treesBox = tb.clone();
+            else treesBox.combine(tb);
+        }
+        if (treesBox == null || volumeBox.contains(treesBox)
+                || prefService.getBoolean(BigDataLoaderCmd.class, "oob-skipnag", false)) {
+            return;
+        }
+        final Boolean skipNag = new GuiUtils(null).getPersistentWarning(
+                "The loaded reconstruction(s) fall (at least partially) outside the loaded volume. "
+                        + "This typically indicates the reconstruction and image are not a matching pair.",
+                "Reconstruction Outside Image Bounds");
+        if (skipNag != null) prefService.put(BigDataLoaderCmd.class, "oob-skipnag", skipNag);
     }
 
     /**
