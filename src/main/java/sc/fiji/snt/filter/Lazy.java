@@ -31,7 +31,9 @@ import net.imglib2.cache.img.*;
 import net.imglib2.cache.img.optional.CacheOptions;
 import net.imglib2.type.NativeType;
 import net.imglib2.util.Intervals;
+import sc.fiji.snt.SNTUtils;
 
+import java.nio.file.Path;
 import java.util.function.Consumer;
 
 /**
@@ -52,12 +54,39 @@ public class Lazy {
             final T type,
             final CellLoader<T> loader)
     {
+        return createImg(targetInterval, blockSize, type, loader, SNTUtils.getCacheDir().toPath());
+    }
+
+    /**
+     * As {@link #createImg(Interval, int[], NativeType, CellLoader)}, but the disk cache is created
+     * directly under {@code cacheDir} rather than SNT's shared {@link SNTUtils#getCacheDir()}. Use this
+     * overload when the caller needs to track and explicitly remove this specific cache later (e.g. it
+     * backs a long-lived image that may be replaced several times within a session, so its disk usage
+     * would otherwise accumulate until the JVM exits).
+     */
+    public static <T extends NativeType<T>> CachedCellImg<T, ?> createImg(
+            final Interval targetInterval,
+            final int[] blockSize,
+            final T type,
+            final CellLoader<T> loader,
+            final Path cacheDir)
+    {
         return new DiskCachedCellImgFactory<>(
                 type,
                 DiskCachedCellImgOptions.options()
                         .cellDimensions(blockSize)
                         .cacheType(CacheOptions.CacheType.SOFTREF)
-                        .initializeCellsAsDirty(true))
+                        .initializeCellsAsDirty(true)
+                        // Nested under SNTUtils#getCacheDir() (or a caller-supplied subdirectory of it)
+                        // rather than left at this library's own default temp location, so this cache
+                        // stays discoverable at a fixed, SNT-owned path alongside DiskBackedStorageBackend's
+                        .tempDirectory(cacheDir)
+                        // Explicit rather than relying on the library's own default: unless a caller
+                        // tracks and removes cacheDir itself (see the overload above), this cache is
+                        // never disposed of explicitly elsewhere in SNT (unlike DiskBackedStorageBackend,
+                        // whose dispose() removes its own temp dir immediately after each run), so a
+                        // JVM-exit shutdown hook is this cache's only fallback cleanup path
+                        .deleteCacheDirectoryOnExit(true))
                 .create(Intervals.dimensionsAsLongArray(targetInterval), loader);
     }
 
@@ -107,6 +136,29 @@ public class Lazy {
                 new UnaryComputerOpCellLoader<>(
                         source,
                         op));
+    }
+
+    /**
+     * As {@link #process(RandomAccessibleInterval, Interval, int[], NativeType, UnaryComputerOp)}, but the
+     * disk cache is created under the caller-supplied {@code cacheDir} -- see
+     * {@link #createImg(Interval, int[], NativeType, CellLoader, Path)} for when to use this.
+     */
+    public static <I, O extends NativeType<O>> CachedCellImg<O, ?> process(
+            final RandomAccessibleInterval<I> source,
+            final Interval sourceInterval,
+            final int[] blockSize,
+            final O type,
+            final UnaryComputerOp<RandomAccessibleInterval<I>, RandomAccessibleInterval<O>> op,
+            final Path cacheDir) {
+
+        return createImg(
+                sourceInterval,
+                blockSize,
+                type,
+                new UnaryComputerOpCellLoader<>(
+                        source,
+                        op),
+                cacheDir);
     }
 
     /**

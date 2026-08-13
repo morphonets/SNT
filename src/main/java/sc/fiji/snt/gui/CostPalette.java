@@ -40,6 +40,7 @@ import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -144,6 +145,15 @@ public class CostPalette extends Thread {
             computeBounds();
             runProbes();
             buildAndDisplay();
+            if (paletteWindow == null) { // image was not displayed
+                if (snt.getUI()!=null) {
+                    snt.getUI().error("The Cost Function Wizard could not be created. " +
+                            "Make sure probe segment (last traced path or path currently selected in the Manager) " +
+                            " is within image bounds.");
+                } else {
+                    SNTUtils.log("Cost-function wizard failed: probe segments out-of-bounds!?");
+                }
+            }
         } catch (final Throwable t) {
             t.printStackTrace();
             SNTUtils.log("Cost-function wizard failed: " + t.getMessage());
@@ -266,6 +276,9 @@ public class CostPalette extends Thread {
         final Roi existingRoi = image.getRoi();
         image.setRoi(x_min, y_min, croppedWidth, croppedHeight);
         paletteImage = image.crop((z_min + 1) + "-" + (z_max + 1));
+        if (paletteImage.getWidth() < 2 || paletteImage.getHeight()  < 2) {
+            return;
+        }
         image.setRoi(existingRoi);
         paletteImage.setTitle("Cost Function Sel. Wizard");
 

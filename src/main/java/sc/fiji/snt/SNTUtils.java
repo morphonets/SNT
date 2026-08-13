@@ -223,6 +223,53 @@ public class SNTUtils {
 		return (lastDot > 0) ? filename.substring(0, lastDot) : filename;
 	}
 
+	/**
+	 * Returns SNT's own scratch/cache directory, used by disk-backed operations
+	 * (e.g. {@link sc.fiji.snt.tracing.auto.gwdt.DiskBackedStorageBackend}, {@link sc.fiji.snt.filter.Lazy}).
+	 * Unlike the workspace directory (see {@code SNTPrefs#getWorkspaceDir()}),
+	 * this directory holds only disposable, regenerable scratch data -- never anything a user created --
+	 * so it lives under the OS temp root.
+	 * <p>
+	 * Individual operations create their own uniquely-named subdirectory here and clean up after
+	 * themselves once done. This parent directory itself is created lazily and left in place across
+	 * sessions, so that (1) it is always at the same, discoverable path and (2) leftovers from a
+	 * crashed session (which skipped its own cleanup) remain  visible and removable.
+	 *
+	 * @return SNT's cache directory (created if it did not already exist), or, if that path could
+	 *         not be created/written to (e.g. permissions, a network-mounted or read-only temp
+	 *         location, a stray file already occupying that path), a fallback directory under the
+	 *         user's home folder. Callers relying on this directory for disk-backed caching should
+	 *         still be prepared for {@code IOException}s down the line (e.g. if the disk is full).
+	 */
+	public static File getCacheDir() {
+		final File primary = new File(System.getProperty("java.io.tmpdir"), "SNT-cache");
+		if (isUsableDir(primary)) return primary;
+		final File fallback = new File(System.getProperty("user.home"), ".SNT-cache");
+		if (isUsableDir(fallback)) {
+			warn("SNT's temp-based cache directory (" + primary.getAbsolutePath()
+					+ ") is not usable; falling back to " + fallback.getAbsolutePath());
+			return fallback;
+		}
+		warn("Neither SNT's temp-based cache directory (" + primary.getAbsolutePath()
+				+ ") nor its fallback (" + fallback.getAbsolutePath()
+				+ ") could be created or written to. Disk-backed operations relying on this directory "
+				+ "(e.g. auto-tracing, secondary/filtered-image caching) will likely fail.");
+		return primary;
+	}
+
+	/**
+	 * @param dir candidate directory (created if it does not already exist)
+	 * @return true if {@code dir} exists (or was created) as a writable directory
+	 */
+	private static boolean isUsableDir(final File dir) {
+		try {
+			if (!dir.exists() && !dir.mkdirs() && !dir.exists()) return false;
+			return dir.isDirectory() && dir.canWrite();
+		} catch (final SecurityException e) {
+			return false;
+		}
+	}
+
 	public static File getUniquelySuffixedTifFile(final File referenceFile) {
 		if (referenceFile != null && !referenceFile.isDirectory() && !referenceFile.getName().endsWith(".tif")) {
 			return getUniquelySuffixedFile(new File(referenceFile.getAbsolutePath() + ".tif"));

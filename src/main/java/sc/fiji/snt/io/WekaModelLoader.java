@@ -32,6 +32,7 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.labkit.ui.segmentation.SegmentationTool;
@@ -87,6 +88,13 @@ public class WekaModelLoader extends CommonDynamicCmd {
 		init(true);
 		redirectErrorMsgsState = IJ.redirectingErrorMessages();
 		IJ.redirectErrorMessages(true); // required to handle TWS errors
+		if (snt.isStreamMode()) {
+			// TWS requires a traditional ImagePlus not available in stream mode
+			final MutableModuleItem<String> engineItem = getInfo().getMutableInput("engineChoice", String.class);
+			engineItem.setChoices(List.of("Labkit", "Labkit w/ GPU acceleration"));
+			resolveInput("display");
+			display = false;
+		}
 	}
 
 	@Override

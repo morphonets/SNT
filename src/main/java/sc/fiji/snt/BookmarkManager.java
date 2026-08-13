@@ -1148,14 +1148,22 @@ public class BookmarkManager {
             prevButton.addActionListener(e -> {
                 final int row = table.getSelectedRow();
                 final int target = (row <= 0) ? table.getRowCount() - 1 : row - 1;
-                if (target >= 0) { table.setRowSelectionInterval(target, target); flyTo(target); }
+                if (target >= 0) {
+                    table.setRowSelectionInterval(target, target);
+                    table.scrollRectToVisible(table.getCellRect(target, 0, true));
+                    flyTo(target);
+                }
             });
             final JButton nextButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.PREVIOUS));
             nextButton.setToolTipText("Fly to next marker");
             nextButton.addActionListener(e -> {
                 final int row = table.getSelectedRow();
                 final int target = (row < 0 || row >= table.getRowCount() - 1) ? 0 : row + 1;
-                if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
+                if (target < table.getRowCount()) {
+                    table.setRowSelectionInterval(target, target);
+                    table.scrollRectToVisible(table.getCellRect(target, 0, true));
+                    flyTo(target);
+                }
             });
             final JButton helpButton = GuiUtils.Buttons.help(null);
             helpButton.addActionListener(e -> bigViewerMarkerHelp(viewer));

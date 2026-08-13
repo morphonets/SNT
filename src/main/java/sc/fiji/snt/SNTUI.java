@@ -3253,9 +3253,11 @@ public class SNTUI extends JDialog {
         mi1.addActionListener(e -> runSecondaryLayerWizard(true));
         final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
         mi2.addActionListener(e -> loadSecondaryImage(true));
+        mi2.setEnabled(!plugin.isStreamMode());
         commandFinder.register(mi2, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
         mi3.addActionListener(e -> loadSecondaryImage(false));
+        mi2.setEnabled(!plugin.isStreamMode()); // ChooseDatasetCmd is not yet ready for OME-ZARR/N5 etc. disable for now
         commandFinder.register(mi3, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
         registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Interactive tracing");
@@ -4167,6 +4169,7 @@ public class SNTUI extends JDialog {
         final String[] labels = {"Current Workspace", "Change Workspace...", "-", //
                 "Backup(s)", "Sessions", "-", //
                 "Current TRACES File", "Image Being Traced", "Last Accessed Folder", "Secondary Layer Image", "-", //
+                "Cache", "-", //
                 "Fiji Scripts"};
         Arrays.stream(labels).forEach(label -> {
             if ("-".equals(label)) {
@@ -4211,6 +4214,7 @@ public class SNTUI extends JDialog {
                                 f = plugin.getFilteredImageFile();
                                 proceed = !noSecondaryDataAvailableError();
                             }
+                            case "Cache" -> f = SNTUtils.getCacheDir();
                             case "Fiji Scripts" -> f = installer.getScriptsDir();
                             default -> {
                             }

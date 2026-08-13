@@ -110,7 +110,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
         this.cellSize = cellSize > 0 ? cellSize : DEFAULT_CELL_SIZE;
         this.cacheSize = cacheSize > 0 ? cacheSize : DEFAULT_CACHE_SIZE;
         try {
-            this.tempDir = Files.createTempDirectory("gwdt-cache-").toFile();
+            this.tempDir = Files.createTempDirectory(SNTUtils.getCacheDir().toPath(), "gwdt-cache-").toFile();
             tempDir.deleteOnExit();
             SNTUtils.log("Disk-backed storage using temp dir: " + tempDir.getAbsolutePath());
         } catch (IOException e) {

@@ -354,6 +354,9 @@ public class SNT extends MultiDThreePanes implements
 	protected boolean doSearchOnSecondaryData;
 	@SuppressWarnings("rawtypes")
 	protected RandomAccessibleInterval secondaryData;
+	// Tracks the disk cache backing secondaryData when it was built via Lazy's "lazy" strategy.
+	// Deleted explicitly in flushSecondaryData()
+	private java.nio.file.Path secondaryDataCacheDir;
 	protected File secondaryImageFile = null;
 	private final ImageStatistics statsSecondary = new ImageStatistics();
 	protected boolean tubularGeodesicsTracingEnabled = false;
@@ -3239,20 +3242,32 @@ public class SNT extends MultiDThreePanes implements
 			throw new IllegalArgumentException("Unknown filter: " + filter);
 		}
 		final RandomAccessibleInterval<FloatType> filtered;
+		// Tracked separately from secondaryDataCacheDir (only overwritten below, after the old cache is
+		// flushed) so that flushSecondaryData() still sees and removes the PREVIOUS lazy cache, not this new one
+		final java.nio.file.Path newSecondaryDataCacheDir;
 		if (strategy.equalsIgnoreCase("lazy")) {
+			try {
+				newSecondaryDataCacheDir = java.nio.file.Files.createTempDirectory(
+						SNTUtils.getCacheDir().toPath(), "secondary-lazy-");
+			} catch (final IOException e) {
+				throw new RuntimeException("Failed to create temp directory for secondary image disk cache", e);
+			}
 			filtered = Lazy.process(
 					data,
 					data,
 					new int[]{32, 32, 32},
 					new FloatType(),
-					op);
+					op,
+					newSecondaryDataCacheDir);
 		} else if (strategy.equalsIgnoreCase("preprocess")) {
+			newSecondaryDataCacheDir = null;
 			filtered = opService.create().img(data, new FloatType());
 			op.compute(data, filtered);
 		} else {
 			throw new IllegalArgumentException("Unknown strategy: " + strategy);
 		}
-		flushSecondaryData();
+		flushSecondaryData(); // deletes the previous secondaryDataCacheDir, if any
+		secondaryDataCacheDir = newSecondaryDataCacheDir;
 		loadSecondaryImage(filtered, false);
 		setSecondaryImageMinMax(min, max);
 		doSearchOnSecondaryData = true;
@@ -4603,6 +4618,21 @@ public class SNT extends MultiDThreePanes implements
 			SNTUtils.log("Invalidating cache...");
 			if (img.getCache() != null)
 				img.getCache().invalidateAll();
+		}
+		if (secondaryDataCacheDir != null) {
+			// NB: shutdown()/invalidateAll() above stop I/O and drop the in-memory cache map, but neither
+			// removes the on-disk cache files -- without this, they would otherwise only be cleaned up by
+			// the JVM-exit shutdown hook registered in Lazy (see Lazy#createImg(..., Path)), so every prior
+			// "lazy" secondary image computed within the same session would keep occupying disk space
+			try {
+				org.apache.commons.io.FileUtils.deleteDirectory(secondaryDataCacheDir.toFile());
+				SNTUtils.log("Deleted secondary image disk cache: " + secondaryDataCacheDir);
+			} catch (final IOException e) {
+				SNTUtils.log("Could not delete secondary image disk cache (will be removed at JVM exit): "
+						+ e.getMessage());
+			} finally {
+				secondaryDataCacheDir = null;
+			}
 		}
 		secondaryData = null;
 		setSecondaryImage(null);
