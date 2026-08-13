@@ -129,11 +129,16 @@ public class SpectralSimilarity<T extends RealType<T>, U extends RealType<U>> ex
         return referenceColor.clone();
     }
 
-    // -- Shared static utilities (used by MultiSpectralRefiner, ComputeSecondaryImg, etc.) --
 
     /**
      * Converts a path node from calibrated (real-world) coordinates to pixel
      * coordinates by dividing by the voxel spacing and rounding.
+     * <p>
+     * Equivalent to calling {@link #nodeToPixelCoords(sc.fiji.snt.util.PointInImage, double, double,
+     * double, double, double, double)} with a zero offset - only correct when the target image's own
+     * pixel (0,0,0) coincides with the node's calibrated (0,0,0), i.e. no materialized crop and no
+     * {@code SNT#getWorldOriginOffset()}. Callers indexing into {@code SNT#getLoadedData()}/an
+     * {@code SNT#getImagePlus()}-derived image should prefer the offset-aware overload instead.
      *
      * @param node     the node in calibrated coordinates
      * @param xSpacing voxel width
@@ -144,10 +149,34 @@ public class SpectralSimilarity<T extends RealType<T>, U extends RealType<U>> ex
     public static int[] nodeToPixelCoords(final sc.fiji.snt.util.PointInImage node,
                                           final double xSpacing, final double ySpacing,
                                           final double zSpacing) {
+        return nodeToPixelCoords(node, xSpacing, ySpacing, zSpacing, 0, 0, 0);
+    }
+
+    /**
+     * As {@link #nodeToPixelCoords(sc.fiji.snt.util.PointInImage, double, double, double)}, but also
+     * adding a pixel-space offset after scaling - typically {@code SNT#getActiveCanvasPixelOffset()},
+     * needed whenever the target image is the crop-local grid of a materialized crop, or the raw
+     * streamed source's own voxel grid under a non-zero {@code SNT#getWorldOriginOffset()} (see
+     * {@code SNT#createSearch(double, double, double, double, double, double)} for the same
+     * conversion, applied to A* search endpoints instead of Path nodes).
+     *
+     * @param node     the node in calibrated coordinates
+     * @param xSpacing voxel width
+     * @param ySpacing voxel height
+     * @param zSpacing voxel depth
+     * @param xOffset  pixel-space offset added after scaling, x axis
+     * @param yOffset  pixel-space offset added after scaling, y axis
+     * @param zOffset  pixel-space offset added after scaling, z axis
+     * @return pixel coordinates as {@code [x, y, z]}
+     */
+    public static int[] nodeToPixelCoords(final sc.fiji.snt.util.PointInImage node,
+                                          final double xSpacing, final double ySpacing,
+                                          final double zSpacing, final double xOffset,
+                                          final double yOffset, final double zOffset) {
         return new int[]{
-                (int) Math.round(node.x / xSpacing),
-                (int) Math.round(node.y / ySpacing),
-                (int) Math.round(node.z / zSpacing)
+                (int) Math.round(node.x / xSpacing + xOffset),
+                (int) Math.round(node.y / ySpacing + yOffset),
+                (int) Math.round(node.z / zSpacing + zOffset)
         };
     }
 
@@ -380,6 +409,25 @@ public class SpectralSimilarity<T extends RealType<T>, U extends RealType<U>> ex
             final RandomAccessibleInterval<T> input,
             final java.util.List<sc.fiji.snt.Path> paths,
             final double xSpacing, final double ySpacing, final double zSpacing) {
+        return averageColorFromPaths(input, paths, xSpacing, ySpacing, zSpacing, 0, 0, 0);
+    }
+
+    /**
+     * As {@link #averageColorFromPaths(RandomAccessibleInterval, java.util.List, double, double,
+     * double)}, but also adding a pixel-space offset after scaling (see
+     * {@link #nodeToPixelCoords(sc.fiji.snt.util.PointInImage, double, double, double, double, double,
+     * double)}) - needed whenever {@code input} is the crop-local grid of a materialized crop, or the
+     * raw streamed source's own voxel grid under a non-zero {@code SNT#getWorldOriginOffset()}.
+     *
+     * @param xOffset pixel-space offset added after scaling, x axis
+     * @param yOffset pixel-space offset added after scaling, y axis
+     * @param zOffset pixel-space offset added after scaling, z axis
+     */
+    public static <T extends RealType<T>> double[] averageColorFromPaths(
+            final RandomAccessibleInterval<T> input,
+            final java.util.List<sc.fiji.snt.Path> paths,
+            final double xSpacing, final double ySpacing, final double zSpacing,
+            final double xOffset, final double yOffset, final double zOffset) {
         // Count total nodes
         int totalNodes = 0;
         for (final sc.fiji.snt.Path p : paths) totalNodes += p.size();
@@ -390,7 +438,8 @@ public class SpectralSimilarity<T extends RealType<T>, U extends RealType<U>> ex
         int idx = 0;
         for (final sc.fiji.snt.Path p : paths) {
             for (int i = 0; i < p.size(); i++) {
-                positions[idx++] = nodeToPixelCoords(p.getNode(i), xSpacing, ySpacing, zSpacing);
+                positions[idx++] = nodeToPixelCoords(p.getNode(i), xSpacing, ySpacing, zSpacing,
+                        xOffset, yOffset, zOffset);
             }
         }
         return averageColorAtPositions(input, positions);

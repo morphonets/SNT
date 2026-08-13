@@ -105,6 +105,15 @@ public class MultiSpectralRefiner implements Callable<Path> {
     private final double ySpacing;
     private final double zSpacing;
 
+    // Pixel offset of (0,0,0) in the true-world grid Path nodes are stored in,
+    // relative to imp's own pixel grid (see SNT#getActiveCanvasPixelOffset()).
+    // Zero by default: this class stays SNT-agnostic, but a caller working off
+    // a materialized crop or a shifted world origin must supply it, or
+    // initWorkingNodes() will index the wrong voxels
+    private final double xOffset;
+    private final double yOffset;
+    private final double zOffset;
+
     // Path data
     private final Path path;
 
@@ -132,8 +141,8 @@ public class MultiSpectralRefiner implements Callable<Path> {
     // A sphere of radius r in physical space maps to an ellipsoid in pixel space:
     //   (dx*xSpacing)² + (dy*ySpacing)² + (dz*zSpacing)² < (r*xSpacing)²
     // Dividing by xSpacing²:  dx² + dy²*(ySpacing/xSpacing)² + dz²*(zSpacing/xSpacing)² < r²
-    private double yAniso2; // (ySpacing / xSpacing)²
-    private double zAniso2; // (zSpacing / xSpacing)²
+    private final double yAniso2; // (ySpacing / xSpacing)²
+    private final double zAniso2; // (zSpacing / xSpacing)²
 
     /**
      * Creates a refiner for a single path using an ImagePlus.
@@ -143,6 +152,24 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * @throws IllegalArgumentException if the image has fewer than 2 channels
      */
     public MultiSpectralRefiner(final ImagePlus imp, final Path path) {
+        this(imp, path, 0, 0, 0);
+    }
+
+    /**
+     * Creates a refiner for a single path using an ImagePlus, where the path's
+     * node coordinates and imp's own pixel grid are related by a fixed offset
+     * (e.g. a materialized crop, or a source with a non-zero world origin
+     * offset). See {@code SNT#getActiveCanvasPixelOffset()}.
+     *
+     * @param imp     the multichannel image (Brainbow, etc.)
+     * @param path    the path to refine
+     * @param xOffset pixel offset of world (0,0,0) on imp's x axis
+     * @param yOffset pixel offset of world (0,0,0) on imp's y axis
+     * @param zOffset pixel offset of world (0,0,0) on imp's z axis
+     * @throws IllegalArgumentException if the image has fewer than 2 channels
+     */
+    public MultiSpectralRefiner(final ImagePlus imp, final Path path, final double xOffset,
+            final double yOffset, final double zOffset) {
         if (imp.getNChannels() < 2)
             throw new IllegalArgumentException("Multispectral refinement requires at least 2 channels");
         if (path == null || path.size() < 2)
@@ -155,6 +182,9 @@ public class MultiSpectralRefiner implements Callable<Path> {
         this.xSpacing = imp.getCalibration().pixelWidth;
         this.ySpacing = imp.getCalibration().pixelHeight;
         this.zSpacing = imp.getCalibration().pixelDepth;
+        this.xOffset = xOffset;
+        this.yOffset = yOffset;
+        this.zOffset = zOffset;
         this.channelStacks = new ImageStack[nChannels];
         for (int i = 1; i <= nChannels; i++) {
             channelStacks[i - 1] = ImpUtils.getChannelStack(imp, i);
@@ -185,7 +215,25 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * @see ImgUtils#toImagePlus(ImgPlus)
      */
     public <T extends NumericType<T>> MultiSpectralRefiner(final ImgPlus<T> img, final Path path) {
-        this(ImgUtils.toImagePlus(img), path);
+        this(ImgUtils.toImagePlus(img), path, 0, 0, 0);
+    }
+
+    /**
+     * Creates a refiner for a single path using an ImgPlus, where the path's
+     * node coordinates and img's own pixel grid are related by a fixed offset.
+     * See {@link #MultiSpectralRefiner(ImagePlus, Path, double, double, double)}.
+     *
+     * @param img     the multichannel image (Brainbow, etc.)
+     * @param path    the path to refine
+     * @param xOffset pixel offset of world (0,0,0) on img's x axis
+     * @param yOffset pixel offset of world (0,0,0) on img's y axis
+     * @param zOffset pixel offset of world (0,0,0) on img's z axis
+     * @throws IllegalArgumentException if the image has fewer than 2 channels
+     * @see ImgUtils#toImagePlus(ImgPlus)
+     */
+    public <T extends NumericType<T>> MultiSpectralRefiner(final ImgPlus<T> img, final Path path,
+            final double xOffset, final double yOffset, final double zOffset) {
+        this(ImgUtils.toImagePlus(img), path, xOffset, yOffset, zOffset);
     }
 
     /**
@@ -506,6 +554,9 @@ public class MultiSpectralRefiner implements Callable<Path> {
         }
     }
 
+    /** Suffix appended to path names after multi-spectral refinement. */
+    private static final String REFINED_SUFFIX = " [Refined*]";
+
     /**
      * Applies the refinement result to the original path by replacing all its
      * nodes with the refined geometry. This preserves hierarchical relationships
@@ -514,9 +565,6 @@ public class MultiSpectralRefiner implements Callable<Path> {
      *
      * @throws IllegalStateException if {@link #call()} has not been run or failed
      */
-    /** Suffix appended to path names after multi-spectral refinement. */
-    private static final String REFINED_SUFFIX = " [Refined*]";
-
     public void apply() {
         if (refined == null || !succeeded)
             throw new IllegalStateException("No refinement result to apply");
@@ -546,7 +594,8 @@ public class MultiSpectralRefiner implements Callable<Path> {
         workingNodes = new ArrayList<>(path.size());
         for (int i = 0; i < path.size(); i++) {
             final PointInImage node = path.getNode(i);
-            final int[] px = SpectralSimilarity.nodeToPixelCoords(node, xSpacing, ySpacing, zSpacing);
+            final int[] px = SpectralSimilarity.nodeToPixelCoords(node, xSpacing, ySpacing, zSpacing,
+                    xOffset, yOffset, zOffset);
             // Use interpolated radius if available, otherwise the node's own radius
             double radius = node.radius;
             if (interpolated != null && interpolated.containsKey(i))
@@ -645,7 +694,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
         }
         if (validR > 0) {
             final int suggested = (int) Math.ceil((sumR / validR) * 2.5);
-            final int newMax = Math.max(3, Math.min(30, suggested));
+            final int newMax = Math.clamp(suggested, 3, 30);
             if (newMax != maxRadius) {
                 SNTUtils.log("MSRefiner: Auto-tune maxRadius: " + maxRadius + " -> " + newMax
                         + " (mean path radius=" + String.format("%.1f", sumR / validR) + "px)");
@@ -678,7 +727,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
         final double simMean = simSum / n;
         final double simStd = Math.sqrt(Math.max(0, simSumSq / n - simMean * simMean));
         final double suggested = simMean - 2.0 * simStd;
-        final double newThreshold = Math.max(0.70, Math.min(0.98, suggested));
+        final double newThreshold = Math.clamp(suggested, 0.70, 0.98);
         if (Math.abs(newThreshold - cosSimilarityThreshold) > 0.01) {
             SNTUtils.log("MSRefiner: Auto-tune cosSimilarityThreshold: "
                     + String.format("%.3f -> %.3f", cosSimilarityThreshold, newThreshold)
@@ -1086,10 +1135,27 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * @return the number of paths successfully refined
      */
     public static int refineTree(final ImagePlus imp, final Tree tree) {
+        return refineTree(imp, tree, 0, 0, 0);
+    }
+
+    /**
+     * Refines all paths in a tree, processing each path in parallel, where the
+     * tree's node coordinates and imp's own pixel grid are related by a fixed
+     * offset. See {@link #MultiSpectralRefiner(ImagePlus, Path, double, double, double)}.
+     *
+     * @param imp     the multichannel image
+     * @param tree    the tree to refine
+     * @param xOffset pixel offset of world (0,0,0) on imp's x axis
+     * @param yOffset pixel offset of world (0,0,0) on imp's y axis
+     * @param zOffset pixel offset of world (0,0,0) on imp's z axis
+     * @return the number of paths successfully refined
+     */
+    public static int refineTree(final ImagePlus imp, final Tree tree, final double xOffset,
+            final double yOffset, final double zOffset) {
         final List<MultiSpectralRefiner> refiners = new ArrayList<>();
         for (final Path p : tree.list()) {
             if (p.size() >= 2) {
-                refiners.add(new MultiSpectralRefiner(imp, p));
+                refiners.add(new MultiSpectralRefiner(imp, p, xOffset, yOffset, zOffset));
             }
         }
         // Parallel refinement (thread-safe)
@@ -1118,6 +1184,23 @@ public class MultiSpectralRefiner implements Callable<Path> {
     }
 
     /**
+     * Refines all paths in a tree, processing each path in parallel, with an
+     * offset. See {@link #refineTree(ImagePlus, Tree, double, double, double)}.
+     *
+     * @param img     the multichannel image (ImgPlus)
+     * @param tree    the tree to refine
+     * @param xOffset pixel offset of world (0,0,0) on img's x axis
+     * @param yOffset pixel offset of world (0,0,0) on img's y axis
+     * @param zOffset pixel offset of world (0,0,0) on img's z axis
+     * @return the number of paths successfully refined
+     * @see ImgUtils#toImagePlus(ImgPlus)
+     */
+    public static <T extends NumericType<T>> int refineTree(final ImgPlus<T> img, final Tree tree,
+            final double xOffset, final double yOffset, final double zOffset) {
+        return refineTree(ImgUtils.toImagePlus(img), tree, xOffset, yOffset, zOffset);
+    }
+
+    /**
      * Refines all paths in a tree with custom parameters.
      *
      * @param img    the multichannel image (ImgPlus)
@@ -1140,10 +1223,28 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * @return the number of paths successfully refined
      */
     public static int refineTree(final ImagePlus imp, final Tree tree, final Parameters params) {
+        return refineTree(imp, tree, params, 0, 0, 0);
+    }
+
+    /**
+     * Refines all paths in a tree with custom parameters, where the tree's node
+     * coordinates and imp's own pixel grid are related by a fixed offset. See
+     * {@link #MultiSpectralRefiner(ImagePlus, Path, double, double, double)}.
+     *
+     * @param imp     the multichannel image
+     * @param tree    the tree to refine
+     * @param params  the parameter set to apply to all refiners
+     * @param xOffset pixel offset of world (0,0,0) on imp's x axis
+     * @param yOffset pixel offset of world (0,0,0) on imp's y axis
+     * @param zOffset pixel offset of world (0,0,0) on imp's z axis
+     * @return the number of paths successfully refined
+     */
+    public static int refineTree(final ImagePlus imp, final Tree tree, final Parameters params,
+            final double xOffset, final double yOffset, final double zOffset) {
         final List<MultiSpectralRefiner> refiners = new ArrayList<>();
         for (final Path p : tree.list()) {
             if (p.size() >= 2) {
-                final MultiSpectralRefiner r = new MultiSpectralRefiner(imp, p);
+                final MultiSpectralRefiner r = new MultiSpectralRefiner(imp, p, xOffset, yOffset, zOffset);
                 params.applyTo(r);
                 refiners.add(r);
             }
@@ -1173,6 +1274,23 @@ public class MultiSpectralRefiner implements Callable<Path> {
     }
 
     /**
+     * Computes the cost at each node of a path without modifying it, with an
+     * offset. See {@link #computeNodeCosts(ImagePlus, Path, double, double, double)}.
+     *
+     * @param img     the multichannel image (ImgPlus)
+     * @param path    the path to evaluate
+     * @param xOffset pixel offset of world (0,0,0) on img's x axis
+     * @param yOffset pixel offset of world (0,0,0) on img's y axis
+     * @param zOffset pixel offset of world (0,0,0) on img's z axis
+     * @return per-node cost values (same length as path.size())
+     * @see ImgUtils#toImagePlus(ImgPlus)
+     */
+    public static <T extends NumericType<T>> double[] computeNodeCosts(final ImgPlus<T> img, final Path path,
+            final double xOffset, final double yOffset, final double zOffset) {
+        return computeNodeCosts(ImgUtils.toImagePlus(img), path, xOffset, yOffset, zOffset);
+    }
+
+    /**
      * Computes the cost at each node of a path without modifying it.
      * Useful for diagnostics and for the "Color Drift" plausibility check.
      *
@@ -1181,7 +1299,24 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * @return per-node cost values (same length as path.size())
      */
     public static double[] computeNodeCosts(final ImagePlus imp, final Path path) {
-        final MultiSpectralRefiner refiner = new MultiSpectralRefiner(imp, path);
+        return computeNodeCosts(imp, path, 0, 0, 0);
+    }
+
+    /**
+     * Computes the cost at each node of a path without modifying it, where the
+     * path's node coordinates and imp's own pixel grid are related by a fixed
+     * offset. See {@link #MultiSpectralRefiner(ImagePlus, Path, double, double, double)}.
+     *
+     * @param imp     the multichannel image
+     * @param path    the path to evaluate
+     * @param xOffset pixel offset of world (0,0,0) on imp's x axis
+     * @param yOffset pixel offset of world (0,0,0) on imp's y axis
+     * @param zOffset pixel offset of world (0,0,0) on imp's z axis
+     * @return per-node cost values (same length as path.size())
+     */
+    public static double[] computeNodeCosts(final ImagePlus imp, final Path path, final double xOffset,
+            final double yOffset, final double zOffset) {
+        final MultiSpectralRefiner refiner = new MultiSpectralRefiner(imp, path, xOffset, yOffset, zOffset);
         refiner.initWorkingNodes();
         refiner.voxelCache = new HashMap<>();
         refiner.colorRef = refiner.computeReferenceColor(0, refiner.workingNodes.size());
