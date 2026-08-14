@@ -118,6 +118,8 @@ public class SNTUI extends JDialog {
     private JPanel canvasCheckBoxRow; // see materializedCropBadge()
     private JButton workspaceIndicator;
     private JSpinner assignDiameterSpinner;
+    private JCheckBox assignDiameterCheckBox;
+    private JButton assignDiameterResetButton;
     private JCheckBox confirmTemporarySegmentsCheckbox;
     private JRadioButtonMenuItem standardTracingRbmi;
 
@@ -398,7 +400,8 @@ public class SNTUI extends JDialog {
         ++c2.gridy;
         tab2.add(tracingPanel(), c2);
         ++c2.gridy;
-        InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
+        InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:",
+                "https://imagej.net/plugins/snt/manual", true, c2, plugin.isStreamMode());
         ++c2.gridy;
         tab2.add(optionsPanel = pathOptionsPanel(), c2);
         ++c2.gridy;
@@ -2200,19 +2203,16 @@ public class SNTUI extends JDialog {
             // live Bvv/Bdv scene. Flag that scope with the same badge used elsewhere
             final JPanel diametersRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             diametersRow.add(diametersCheckBox);
-            diametersRow.add(materializedCropBadge(.9f));
             intPanel.add(diametersRow, gdb);
         } else {
             intPanel.add(diametersCheckBox, gdb);
         }
         ++gdb.gridy;
-
+        intPanel.add(assignDiameterPanel(), gdb);
+        ++gdb.gridy;
         // Indent sub-panels to align their labels with the checkbox icon
         final int indent = diametersCheckBox.getIconTextGap();
         gdb.insets = new Insets(0, indent, 0, 0);
-
-        intPanel.add(assignDiameterPanel(), gdb);
-        ++gdb.gridy;
         intPanel.add(transparencyDefPanel(), gdb);
         ++gdb.gridy;
         intPanel.add(transparencyOutOfBoundsPanel(), gdb);
@@ -2224,21 +2224,42 @@ public class SNTUI extends JDialog {
 
     private JPanel assignDiameterPanel() {
         final double step = plugin.getMinimumSeparation();
+        // manualRadius is the live state; it is seeded from the persisted SNTPrefs#loadPluginPrefs()
+        // before this panel is ever built
+        final boolean enabled = plugin.manualRadius != SNT.SCROLL_DIAMETER_DISABLED;
         final double initVal = plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0;
         assignDiameterSpinner = GuiUtils.doubleSpinner(initVal, 0, 999, step, 3);
+        assignDiameterSpinner.setEnabled(enabled);
         assignDiameterSpinner.addChangeListener(e -> {
+            if (plugin.manualRadius == SNT.SCROLL_DIAMETER_DISABLED) return; // ignore while checkbox is off
             final double d = (double) assignDiameterSpinner.getValue();
             final double current = plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0d;
             if (d == current) return; // programmatic update, nothing to do
-            plugin.manualRadius = (d <= 0) ? -1 : d / 2;
+            plugin.manualRadius = (d <= 0) ? 0 : d / 2;
             plugin.updateAllViewers();
         });
-        final JButton resetButton = resetButton("Reset Interactive Diameter");
-        resetButton.addActionListener(e -> {
-            plugin.manualRadius = -1;
+        assignDiameterResetButton = resetButton("Reset Interactive Diameter");
+        assignDiameterResetButton.setEnabled(enabled);
+        assignDiameterResetButton.addActionListener(e -> {
+            plugin.manualRadius = 0;
             assignDiameterSpinner.setValue(0d);
             plugin.updateAllViewers();
             showStatus("Interactive diameter reset", true);
+        });
+        assignDiameterCheckBox = new JCheckBox("Assign diameter (Ctrl+mouse wheel): ", enabled);
+        registerInCommandFinder(assignDiameterCheckBox, "Toggle Ctrl+Scroll Diameter Assignment", "Options Tab");
+        assignDiameterCheckBox.addItemListener(e -> {
+            final boolean on = e.getStateChange() == ItemEvent.SELECTED;
+            plugin.getPrefs().setScrollDiameterEnabled(on);
+            if (on) {
+                final double d = (double) assignDiameterSpinner.getValue();
+                plugin.manualRadius = (d > 0) ? d / 2 : 0;
+            } else {
+                plugin.manualRadius = SNT.SCROLL_DIAMETER_DISABLED;
+            }
+            assignDiameterSpinner.setEnabled(on);
+            assignDiameterResetButton.setEnabled(on);
+            plugin.updateAllViewers();
         });
         final JPanel p = new JPanel();
         p.setOpaque(false);
@@ -2249,21 +2270,24 @@ public class SNTUI extends JDialog {
         c.gridy = 0;
         c.gridwidth = 3;
         c.ipadx = 0;
-        p.add(GuiUtils.leftAlignedLabel("Assign diameter (Ctrl+mouse wheel): ", true));
+        p.add(assignDiameterCheckBox);
         c.gridx = 1;
         p.add(assignDiameterSpinner, c);
         c.fill = GridBagConstraints.NONE;
         c.gridx = 2;
-        p.add(resetButton);
+        p.add(assignDiameterResetButton);
         GuiUtils.addTooltip(p, "<html>Diameter assigned to path nodes via Ctrl+scroll wheel on the canvas.<br>"
-                + "Set to 0 or Reset to disable."
-                + (plugin.isStreamMode() ? "<br>In Stream mode, applies only to a materialized crop." : ""));
+                + "Uncheck to use Ctrl+scroll for native zoom operation.");
         return p;
     }
 
     protected void updateAssignDiameterSpinner() {
         if (assignDiameterSpinner == null) return;
+        final boolean enabled = plugin.manualRadius != SNT.SCROLL_DIAMETER_DISABLED;
         assignDiameterSpinner.setValue(plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0d);
+        assignDiameterSpinner.setEnabled(enabled);
+        if (assignDiameterResetButton != null) assignDiameterResetButton.setEnabled(enabled);
+        if (assignDiameterCheckBox != null) assignDiameterCheckBox.setSelected(enabled);
     }
 
     private JPanel nodePanel() {
@@ -6446,14 +6470,19 @@ public class SNTUI extends JDialog {
 
         static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
                                         final GridBagConstraints c) {
-            addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c);
+            addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c, false);
         }
 
         static void addSeparatorWithURL(final JComponent component, final String label, final String baseUrl,
-                                        final boolean vgap, final GridBagConstraints c) {
+                                        final boolean vgap, final GridBagConstraints c, final boolean streamIcon) {
             final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
             final String uri = baseUrl + "#" + anchor;
             final JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
+            if (streamIcon) {
+                jLabel.setHorizontalTextPosition(SwingConstants.LEFT);
+                jLabel.setIcon(IconFactory.get(GLYPH.CROP, jLabel.getFont().getSize() * .9f, jLabel.getForeground()));
+                jLabel.setToolTipText("These options apply only to a materialized crop, not the live Bdv/Bvv scene");
+            }
             GuiUtils.addSeparator(component, jLabel, vgap, c);
         }
 

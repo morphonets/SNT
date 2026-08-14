@@ -64,6 +64,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private boolean requireShiftToFork;
 	private boolean activateFinishedPath;
 	private boolean autoCanvasActivation;
+	private boolean scrollDiameter;
 
 	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
@@ -94,6 +95,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final int DEBUG = 4096;
 	private static final int COMPRESSED_XML = 8192;
 	private static final int SOMA_TRIANGLE = 16384;
+	private static final int SCROLL_DIAMETER = 32768;
 
 	/** Pref keys */
 	private static final int UNSET_PREFS = -1;
@@ -283,7 +285,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private int getDefaultBooleans() {
-		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS;
+		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + SCROLL_DIAMETER;
 	}
 
 	private void getBooleans() {
@@ -297,6 +299,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		autoCanvasActivation = getPref(AUTO_CANVAS_ACTIVATION);
 		activateFinishedPath = getPref(AUTO_SELECTION_FINISHED_PATH);
 		requireShiftToFork = getPref(REQUIRE_SHIFT_FOR_FORK);
+		scrollDiameter = getPref(SCROLL_DIAMETER);
+		snt.manualRadius = scrollDiameter ? 0 : SNT.SCROLL_DIAMETER_DISABLED;
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.setDrawDiameters(getPref(DRAW_DIAMETERS));
 		displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
@@ -345,6 +349,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setSaveCompressedTraces(isSaveCompressedTraces());
 		set2DDisplayCanvas(is2DDisplayCanvas());
 		setPref(AUTO_CANVAS_ACTIVATION, autoCanvasActivation);
+		setPref(SCROLL_DIAMETER, scrollDiameter);
 		setPref(AUTO_SELECTION_FINISHED_PATH, activateFinishedPath);
 		setPref(REQUIRE_SHIFT_FOR_FORK, requireShiftToFork);
 
@@ -795,6 +800,14 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		if (snt.getUI() != null && snt.getUI().bdvSNT != null) {
 			snt.getUI().bdvSNT.getRenderingOptions().activateFinishedPath = activateFinishedPath;
 		}
+	}
+
+	public void setScrollDiameterEnabled(final boolean enable) {
+		scrollDiameter = enable;
+	}
+
+	public boolean isScrollDiameterEnabled() {
+		return scrollDiameter;
 	}
 
 	public void setCanvasAutoActivation(final boolean enable) {

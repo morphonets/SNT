@@ -347,7 +347,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         // Header & description
         SNTUI.InternalUtils.addSeparatorWithURL(panel, "Curation Assistant:",
-                "https://imagej.net/plugins/snt/curation", false, gbc);
+                "https://imagej.net/plugins/snt/curation", false, gbc, false);
         gbc.gridy++;
         gbc.weighty = 0.0;
         panel.add(GuiUtils.longSmallMsg("Flags implausible morphology in real time and on demand. "

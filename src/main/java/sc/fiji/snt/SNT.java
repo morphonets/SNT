@@ -247,6 +247,8 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean autoCT;
 	private boolean drawDiameters;
 	protected double manualRadius;
+	/** manualRadius sentinel: Ctrl+scroll diameter assignment explicitly disabled (not just unset) */
+	public static final double SCROLL_DIAMETER_DISABLED = Double.NEGATIVE_INFINITY;
 	private double startNodeRadius = -1; // manualRadius at the time of startPath()
 
 	private boolean manualOverride = false;

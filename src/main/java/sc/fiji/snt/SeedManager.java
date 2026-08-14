@@ -155,7 +155,7 @@ public class SeedManager extends JPanel {
 
         // Seeds section: heading + short synopsis
         SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeded Tracing:",
-                "https://imagej.net/plugins/snt/seeds", true, gbc);
+                "https://imagej.net/plugins/snt/seeds", true, gbc, false);
         gbc.gridy++;
         add(GuiUtils.longSmallMsg(MSG_SYNOPSIS, this), gbc);
         gbc.gridy++;

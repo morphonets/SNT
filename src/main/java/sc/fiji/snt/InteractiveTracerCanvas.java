@@ -1112,7 +1112,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     @Override
     public void mouseWheelMoved(final MouseWheelEvent e) {
-        if (!e.isControlDown() || isEventsDisabled() || !tracerPlugin.isUIready()) {
+        if (!e.isControlDown() || isEventsDisabled() || !tracerPlugin.isUIready()
+                || tracerPlugin.manualRadius == SNT.SCROLL_DIAMETER_DISABLED) {
             // Forward to parent (ImageWindow/StackWindow) for IJ's default zoom/scroll.
             // We consume first to suppress AWT's automatic propagation, which on Windows
             // would deliver the event twice (once via propagation, once via our call).
