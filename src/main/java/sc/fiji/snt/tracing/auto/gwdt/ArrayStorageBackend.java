@@ -162,7 +162,7 @@ public class ArrayStorageBackend implements StorageBackend {
      * @param type connectivity type (1, 2, or 3)
      */
     public void setConnectivityType(final int type) {
-        this.cnnType = Math.max(1, Math.min(3, type));
+        this.cnnType = Math.clamp(type, 1, 3);
     }
 
     /**

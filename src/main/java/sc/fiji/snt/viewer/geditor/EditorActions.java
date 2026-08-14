@@ -1469,7 +1469,7 @@ class EditorActions {
 
             private final List<Tree> trees;
 
-            public NewGraphFromCmd(final List<Tree> trees) {
+            NewGraphFromCmd(final List<Tree> trees) {
                 this.trees = trees;
                 editor.status("Computing graph...");
             }

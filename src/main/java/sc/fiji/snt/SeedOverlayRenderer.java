@@ -308,8 +308,6 @@ public final class SeedOverlayRenderer {
         final double vy = s.y / sy;
         final double vz = s.z / sz;
         return switch (plane) {
-            case MultiDThreePanes.XY_PLANE -> new double[]{
-                    canvas.myScreenXDprecise(vx), canvas.myScreenYDprecise(vy)};
             case MultiDThreePanes.XZ_PLANE -> new double[]{
                     canvas.myScreenXDprecise(vx), canvas.myScreenYDprecise(vz)};
             case MultiDThreePanes.ZY_PLANE -> new double[]{

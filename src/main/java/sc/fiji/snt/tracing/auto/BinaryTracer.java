@@ -516,7 +516,6 @@ public class BinaryTracer implements AutoTracer {
      *   <li>{@link #PERIPHERAL_SEGMENTS}: weights by betweenness centrality (preserves backbone)</li>
      *   <li>{@link #MOST_DISTAL}: weights by proximity to root (preserves proximal structure)</li>
      * </ul>
-     * </p>
      *
      * @param graph          the graph to prune (modified in place)
      * @param weightFunction function that returns the weight/score for each edge;

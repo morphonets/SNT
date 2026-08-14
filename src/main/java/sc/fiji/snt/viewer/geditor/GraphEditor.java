@@ -954,7 +954,7 @@ public class GraphEditor extends JPanel {
 		private final boolean process;
 		private final Object[] inputs;
 
-		public CmdRunner(final CommandService cmdService, final Class<? extends Command> commandClass,
+		CmdRunner(final CommandService cmdService, final Class<? extends Command> commandClass,
 				final boolean process, Object... inputs) {
 			this.cmdService = cmdService;
 			this.commandClass = commandClass;

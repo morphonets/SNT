@@ -526,8 +526,8 @@ public class BigDataLoaderCmd extends ContextCommand {
                     SNTUtils.log("BVV: could not access pixel data from SpimData ImgLoader for A* search ("
                             + e.getMessage() + "); manual tracing only");
                 }
-            } else if (source instanceof SpimDataUtils.N5Sources n5Sources && !n5Sources.sources.isEmpty()) {
-                final var spimSource = n5Sources.sources.getFirst().getSpimSource();
+            } else if (source instanceof SpimDataUtils.N5Sources n5Sources && !n5Sources.sources().isEmpty()) {
+                final var spimSource = n5Sources.sources().getFirst().getSpimSource();
                 final var itvl = spimSource.getSource(0, 0); // timepoint 0, full-resolution level 0
                 final var vd = spimSource.getVoxelDimensions();
                 snt.setImageMetadata((int) itvl.dimension(0), (int) itvl.dimension(1), (int) itvl.dimension(2),
@@ -782,8 +782,8 @@ public class BigDataLoaderCmd extends ContextCommand {
      *         false if the user chose to abort
      */
     private static boolean confirmPyramidOrAbort(final SpimDataUtils.N5Sources n5Sources, final String path) {
-        if (n5Sources.sources.isEmpty()) return true; // nothing to check; downstream logic already handles this
-        final int nLevels = n5Sources.sources.getFirst().getSpimSource().getNumMipmapLevels();
+        if (n5Sources.sources().isEmpty()) return true; // nothing to check; downstream logic already handles this
+        final int nLevels = n5Sources.sources().getFirst().getSpimSource().getNumMipmapLevels();
         if (nLevels > 1) return true;
         final String message = String.format(
                 "'%s' has no multi-resolution pyramid (a single resolution level only). Big Volume "

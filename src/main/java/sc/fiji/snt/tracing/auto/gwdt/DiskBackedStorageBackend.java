@@ -88,7 +88,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
     private final int cacheSize;
 
     // Temp directory for disk cache
-    private File tempDir;
+    private final File tempDir;
     
     // ALIVE index tracking (ENABLED by default - critical for disk-backed performance)
     private boolean trackAlive = true;
@@ -577,7 +577,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
      * Sets the connectivity type for neighbor iteration.
      */
     public void setConnectivityType(final int type) {
-        this.cnnType = Math.max(1, Math.min(3, type));
+        this.cnnType = Math.clamp(type, 1, 3);
     }
     
     @Override

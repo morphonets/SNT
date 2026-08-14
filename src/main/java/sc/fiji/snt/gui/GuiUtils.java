@@ -1596,8 +1596,8 @@ public class GuiUtils {
 
 		// Ensure dialog stays within screen bounds
 		final Rectangle screenBounds = gc.getBounds();
-		x = Math.max(screenBounds.x, Math.min(x, screenBounds.x + screenBounds.width - dialogSize.width));
-		y = Math.max(screenBounds.y, Math.min(y, screenBounds.y + screenBounds.height - dialogSize.height));
+		x = Math.clamp(x, screenBounds.x, screenBounds.x + screenBounds.width - dialogSize.width);
+		y = Math.clamp(y, screenBounds.y, screenBounds.y + screenBounds.height - dialogSize.height);
 
 		dialog.setLocation(x, y);
 	}
@@ -4388,7 +4388,6 @@ public class GuiUtils {
 		 *   <li>2nd pass: scrolling occurs after layout is complete, so {@code table.getHeight()}
 		 *       reflects the actual table size including new rows</li>
 		 * </ol>
-		 * </p>
 		 *
 		 * @param table the table to scroll (must be inside a {@link JScrollPane})
 		 */

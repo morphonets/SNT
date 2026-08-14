@@ -428,7 +428,7 @@ public class Bdv extends AbstractBigViewer {
     public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources) {
         final boolean firstEverSource = bdvHandle == null;
         final List<BdvStackSource<?>> sources = new ArrayList<>();
-        for (final SourceAndConverter<?> soc : n5Sources.sources) {
+        for (final SourceAndConverter<?> soc : n5Sources.sources()) {
             // See Bvv's identical fix for multiple channels being displayed across instances
             // NB: Each channel is a separate BdvFunctions.show(...) call, and options *without* addTo(...)
             // always opens a brand new top-level window. Deciding "attach to existing handle" once, before
@@ -437,7 +437,7 @@ public class Bdv extends AbstractBigViewer {
             final BdvOptions opts = (bdvHandle == null)
                     ? baseOpts()
                     : BdvOptions.options().addTo(bdvHandle);
-            final BdvStackSource<?> source = BdvFunctions.show(soc, n5Sources.numTimepoints, opts);
+            final BdvStackSource<?> source = BdvFunctions.show(soc, n5Sources.numTimepoints(), opts);
             sources.add(source);
             if (bdvHandle == null) bdvHandle = source.getBdvHandle(); // subsequent channels attach to this window
         }

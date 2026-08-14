@@ -1963,7 +1963,7 @@ class Bookmark extends Path.PathNode {
 
 class CellEditor extends DefaultCellEditor {
 
-    public CellEditor() {
+    CellEditor() {
         super(new JTextField());
         GuiUtils.addClearButton((JTextField) editorComponent);
         setClickCountToStart(3); // triple click necessary to start editing a cell

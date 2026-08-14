@@ -5647,8 +5647,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     public static String extractTagsFromPath(final Path p) {
         final String name = p.getName();
-        final int openingDlm = name.indexOf("{");
-        final int closingDlm = name.lastIndexOf("}");
+        final int openingDlm = name.indexOf('{');
+        final int closingDlm = name.lastIndexOf('}');
         if (closingDlm > openingDlm) {
             return name.substring(openingDlm + 1, closingDlm);
         }
@@ -5657,7 +5657,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     public static String removeTags(final Path p) {
         final String name = p.getName();
-        final int delimiterIdx = name.indexOf("{");
+        final int delimiterIdx = name.indexOf('{');
         if (delimiterIdx == -1) {
             return name;
         } else {

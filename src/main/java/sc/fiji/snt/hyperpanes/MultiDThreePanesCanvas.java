@@ -169,7 +169,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	private Font getScaledFont() {
-		final double size = SCALE_FACTOR * Math.max(12, Math.min(13 * magnification, 30));
+		final double size = SCALE_FACTOR * Math.clamp(13 * magnification, 12, 30);
 		return new Font(Font.SANS_SERIF, Font.PLAIN, 13).deriveFont((float) size);
 	}
 

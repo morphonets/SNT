@@ -102,7 +102,7 @@ public class AnnotationDensityCmd extends CommonDynamicCmd {
 		imp = snt.getImagePlus();
 		rm = RoiManager.getInstance();
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("roiSource", String.class);
-		final ArrayList<String> choices = new ArrayList<>(4);
+		final List<String> choices = new ArrayList<>(4);
 		if (imp != null && imp.getRoi() != null) choices.add("Active ROI");
 		if (ui.getBookmarkManager().getCount() > 0) choices.add("Bookmarked locations");
 		if (imp != null && imp.getOverlay() != null) choices.add("Image overlay");
@@ -286,7 +286,7 @@ public class AnnotationDensityCmd extends CommonDynamicCmd {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		final Map<String, Object> input = new HashMap<>();
 		input.put("paths", tree.list());
 		ij.command().run(AnnotationDensityCmd.class, true, input);

@@ -500,11 +500,11 @@ public class AnalysisUtils {
 	private static void applyHistogramStyle(final JFreeChart chart, final Plot plot) {
 		final Color bColor = null; //Color.WHITE; make graph transparent so that it can be exported without background
 		plot.setBackgroundPaint(bColor);
-		if (plot instanceof XYPlot) {
-			((XYPlot) plot).setDomainGridlinesVisible(false);
-			((XYPlot) plot).setRangeGridlinesVisible(false);
-			((XYPlot) plot).setAxisOffset(new RectangleInsets(0,0, 0, 0));
-		}
+        if (plot instanceof XYPlot xyPlot) {
+            xyPlot.setDomainGridlinesVisible(false);
+            xyPlot.setRangeGridlinesVisible(false);
+            xyPlot.setAxisOffset(new RectangleInsets(0, 0, 0, 0));
+        }
 		if (plot instanceof CategoryPlot cPlot) {
 			cPlot.setDomainGridlinesVisible(false);
 			cPlot.setRangeGridlinesVisible(true);
@@ -652,7 +652,7 @@ public class AnalysisUtils {
 	 * @return an instance of SNTChart containing the generated ring plot
 	 */
 	public static SNTChart ringPlot(final String title, final HashMap<String, Double> data,
-									final HashMap<String, Color> colors)  {
+									final Map<String, Color> colors)  {
 		final DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
 		data.forEach((k,v) -> dataset.setValue(WordUtils.capitalizeFully(k), v));
 		dataset.sortByValues(SortOrder.DESCENDING);
@@ -994,7 +994,7 @@ public class AnalysisUtils {
 	 * @param phaseFrequencies Map of growth phases  to their frequencies
 	 * @return JFreeChart with horizontal timeline visualization
 	 */
-	public static SNTChart ringPlot(final String title, final HashMap<GrowthPhaseType, Double> phaseFrequencies) {
+	public static SNTChart ringPlot(final String title, final Map<GrowthPhaseType, Double> phaseFrequencies) {
 		final HashMap<String, Double> donutData = new HashMap<>(phaseFrequencies.size());
 		final HashMap<String, Color> donutColors = new HashMap<>(phaseFrequencies.size());
 		phaseFrequencies.forEach((phaseType, counts) -> {

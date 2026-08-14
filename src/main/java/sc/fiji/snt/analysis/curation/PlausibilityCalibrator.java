@@ -372,7 +372,7 @@ public class PlausibilityCalibrator {
                     .minRunNodes(2);
             final List<CrossoverFinder.CrossoverEvent> events = CrossoverFinder.find(paths, cfg);
             for (final CrossoverFinder.CrossoverEvent ev : events) {
-                stats.addValue(ev.medianMinDist);
+                stats.addValue(ev.medianMinDist());
             }
         }
         addSummary(result, "Crossovers", "Cross-over proximity",

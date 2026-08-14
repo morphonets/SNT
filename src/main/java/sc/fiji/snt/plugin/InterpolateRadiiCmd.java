@@ -52,7 +52,7 @@ import sc.fiji.snt.viewer.Viewer3D;
 @Plugin(type = Command.class, label = "Correct Invalid Radii", initializer = "init")
 public class InterpolateRadiiCmd extends CommonDynamicCmd {
 
-	private static String HEADER;
+	private static final String HEADER;
 	private static final String desc = "NB: NaN or negative values are always queued for interpolation";
 
 	static {

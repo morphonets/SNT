@@ -193,15 +193,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 	private ShollTable commonSummaryTable;
 	private static final String SUMMARY_TABLE_NAME = "Sholl_Metrics";
 
-	private static class AnalysisSummary {
-		private final ShollTable table;
-		private final String header;
-
-		AnalysisSummary(final ShollTable table, final String header) {
-			this.table = table;
-			this.header = header;
-		}
-	}
+	private record AnalysisSummary(ShollTable table, String header) {}
 
 	/* Preferences */
 	private int minDegree;

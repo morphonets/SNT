@@ -254,7 +254,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	private String[] getDirAndFilename(final String resourcePath) {
 		if (resourcePath == null) return null;
 		final String[] result = new String[2];
-		final int slashIndex = resourcePath.lastIndexOf("/"); // path separator in JARs is always "/"
+		final int slashIndex = resourcePath.lastIndexOf('/'); // path separator in JARs is always "/"
 		if (slashIndex == -1) {
 			result[0] = resourcePath;
 			result[1] = resourcePath;
@@ -431,7 +431,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		if (label != null) return label;
 		label = si.getPath();
 		if (label != null) {
-			int idx = label.lastIndexOf("/"); // "/" seems to be used in all OSes!?
+			int idx = label.lastIndexOf('/'); // "/" seems to be used in all OSes!?
 			if (idx > 0) return label.substring(idx + 1);
 			idx = label.lastIndexOf(File.separator); // In case Windows uses it
 			if (idx > 0) return label.substring(idx + 1);
@@ -480,7 +480,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	}
 
 	private static String guessScriptingLanguage(final String text) {
-		boolean javaKeyword = false;
+		boolean javaKeyword;
 		boolean javaComment = false;
 		boolean groovyKeyword = false;
 		boolean pythonComment = false;

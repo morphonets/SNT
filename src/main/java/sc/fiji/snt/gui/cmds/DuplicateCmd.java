@@ -249,7 +249,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	private int getNthJunction(final int desiredIndex) {
 		final Iterator<Integer> itr = junctionIndices.iterator();
 		int currentIndex = 0;
-		int currentElement = 0;
+		int currentElement;
 		while (itr.hasNext()) {
 			currentElement = itr.next();
 			if (currentIndex == desiredIndex) {

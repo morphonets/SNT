@@ -62,7 +62,7 @@ public class AllenCompartment implements BrainAnnotation {
 	private JSONObject jsonObj;
 	// Only access parentStructure via a call to getTreePath()
 	// This will ensure that parentStructure has been initialized
-	private ArrayList<AllenCompartment> parentStructure;
+	private List<AllenCompartment> parentStructure;
 
 	/**
 	 * Instantiates a new ARA annotation from a UUID (as used by MouseLight's
@@ -279,7 +279,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 * @return the "flattened" ontologies list
 	 */
 	public List<AllenCompartment> getChildren() {
-		final ArrayList<AllenCompartment> children = new ArrayList<>();
+		final List<AllenCompartment> children = new ArrayList<>();
 		final Collection<AllenCompartment> allCompartments = AllenUtils.getOntologies();
 		for (final AllenCompartment c : allCompartments) {
 			if (c.isChildOf(this)) children.add(c);
@@ -296,7 +296,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 */
 	public List<AllenCompartment> getChildren(final int level) {
 		final int maxLevel = getTreePath().size() + level;
-		final ArrayList<AllenCompartment> children = new ArrayList<>();
+		final List<AllenCompartment> children = new ArrayList<>();
 		final Collection<AllenCompartment> allCompartments = AllenUtils.getOntologies();
 		for (AllenCompartment c :  allCompartments) {
 			if (c.isChildOf(this) && c.getTreePath().size() <= maxLevel)

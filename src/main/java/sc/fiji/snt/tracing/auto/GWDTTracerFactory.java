@@ -78,7 +78,6 @@ public class GWDTTracerFactory {
      *   <li>Sparse: Use if working memory < 20% of max heap OR moderate free memory</li>
      *   <li>Disk: Use if insufficient memory or very large images</li>
      * </ul>
-     * </p>
      *
      * @return array of [sparseThresholdMB, diskThresholdMB]
      */

@@ -250,7 +250,6 @@ public class PersistenceAnalyzer {
      * <li>Associated tree nodes for each topological feature</li>
      * <li>Cached results for subsequent method calls</li>
      * </ul>
-     * </p>
      *
      * @param func the string identifier for the filter function to use (case-insensitive)
      * 
@@ -626,9 +625,9 @@ public class PersistenceAnalyzer {
         for (List<Double> doubles : diagram) {
             double px = doubles.get(0);
             double py = doubles.get(1);
-            int minIndex = Math.min(Math.max((int) Math.ceil((px - sampleRange[0]) / stepX), 0), resolution);
-            int midIndex = Math.min(Math.max((int) Math.ceil((0.5 * (py + px) - sampleRange[0]) / stepX), 0), resolution);
-            int maxIndex = Math.min(Math.max((int) Math.ceil((py - sampleRange[0]) / stepX), 0), resolution);
+            int minIndex = Math.clamp((int) Math.ceil((px - sampleRange[0]) / stepX), 0, resolution);
+            int midIndex = Math.clamp((int) Math.ceil((0.5 * (py + px) - sampleRange[0]) / stepX), 0, resolution);
+            int maxIndex = Math.clamp((int) Math.ceil((py - sampleRange[0]) / stepX), 0, resolution);
             if (minIndex < resolution && maxIndex > 0) {
                 double landscapeValue = sampleRange[0] + minIndex * stepX - px;
                 for (int k = minIndex; k < midIndex; k++) {

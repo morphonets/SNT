@@ -126,7 +126,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		final int lastExistingPathIdx = pafm.size() - 1;
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
 		final String compartment = (!arborChoice.contains(" ")) ? arborChoice
-				: arborChoice.substring(0, arborChoice.indexOf(" "));
+				: arborChoice.substring(0, arborChoice.indexOf(' '));
 		for (final String id : ids) {
 			final MouseLightLoader loader = new MouseLightLoader(id);
 			inMap.put(id, (loader.idExists()) ? loader.getNodes(compartment) : null);

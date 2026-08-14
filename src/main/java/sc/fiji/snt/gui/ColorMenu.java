@@ -211,7 +211,7 @@ public class ColorMenu extends JMenu {
 		private final boolean isCustomizable;
 		private final int baseArc;
 
-		public ColorPane(final SNTColor sColor, final boolean customizable) {
+		ColorPane(final SNTColor sColor, final boolean customizable) {
 			swcColor = sColor;
 			isCustomizable = customizable;
 			baseArc = UIManager.getInt("Component.arc");

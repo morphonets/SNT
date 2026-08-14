@@ -32,9 +32,8 @@ class ColorTableMapper extends ColorMapper {
 
 	private final ColorTable colorTable;
 
-	public ColorTableMapper(final ColorTable colorTable, final double min,
-		final double max)
-	{
+	ColorTableMapper(final ColorTable colorTable, final double min,
+		final double max) {
 		super();
 		this.colorTable = (colorTable == null) ? ColorTables.ICE : colorTable;
 		this.min = min;

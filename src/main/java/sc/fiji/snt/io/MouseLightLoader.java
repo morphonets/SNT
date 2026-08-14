@@ -59,7 +59,7 @@ public class MouseLightLoader {
 	public static final String SOMA = "soma";
 
 	private static final String TRACING_URL = "https://ml-neuronbrowser.janelia.org/export";
-	private static int CCF_VERSION;
+	private static final int CCF_VERSION;
 	static {
 		switch (AllenUtils.VERSION) {
 			case "3":

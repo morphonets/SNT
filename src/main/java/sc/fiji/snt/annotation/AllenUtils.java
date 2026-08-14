@@ -413,7 +413,7 @@ public class AllenUtils {
 		}
 	}
 
-	private static class AllenTreeModel {
+	private static final class AllenTreeModel {
 
 		private static final int ROOT_ID = 997;
 		private final JSONArray areaList;
@@ -437,8 +437,7 @@ public class AllenUtils {
 		}
 
 		private DefaultTreeModel getTreeModel(final boolean meshesOnly) {
-			final TreeSet<AllenCompartment> all = new TreeSet<>(
-					Comparator.comparing(AllenCompartment::getStructureIdPath));
+			final Set<AllenCompartment> all = new TreeSet<>(Comparator.comparing(AllenCompartment::getStructureIdPath));
 			final Map<Integer, AllenCompartment> idsMap = new HashMap<>();
 			final Set<Integer> visitedIds = new HashSet<>();
 			root = new DefaultMutableTreeNode();

@@ -910,8 +910,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	 *         </ul>
 	 *         <p>
 	 *         Returns null if path has only one point or extension direction cannot be determined
-	 *         <p>
-	 * 
+	 *
 	 * @see #getExtensionDirection3D()
 	 * @see #getExtensionAngle3D(boolean)
 	 * @see #getExtensionAngleXY()

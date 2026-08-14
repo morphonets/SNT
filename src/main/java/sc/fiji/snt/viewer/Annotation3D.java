@@ -242,7 +242,7 @@ public class Annotation3D {
 	private static Drawable meshToDrawable(Mesh mesh, final Color color) {
 		final Triangles faces = mesh.triangles();
 		final Iterator<Triangle> faceIter = faces.iterator();
-		final ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<>();
+		final List<ArrayList<Coord3d>> coord3dFaces = new ArrayList<>();
 		while (faceIter.hasNext()) {
 			final ArrayList<Coord3d> simplex = new ArrayList<>();
 			final Triangle t = faceIter.next();
@@ -298,7 +298,7 @@ public class Annotation3D {
 	}
 
 	private Drawable assembleStrip() {
-		final ArrayList<Point> linePoints = new ArrayList<>(points.size());
+		final List<Point> linePoints = new ArrayList<>(points.size());
 		for (final SNTPoint point : points) {
 			if (point == null)
 				continue;

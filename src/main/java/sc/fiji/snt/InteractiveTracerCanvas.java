@@ -710,7 +710,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         return helpItem;
     }
 
-
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keycode,
                                final IconFactory.GLYPH glyph) {
         return GuiUtils.MenuItems.menuItem(cmdName, lstnr, KeyStroke.getKeyStroke(keycode, 0), glyph);

@@ -277,7 +277,7 @@ public class CrossoverFinder {
         final double vl = v.length();
         if (ul == 0.0 || vl == 0.0) return 0.0;
         double c = (u.x * v.x + u.y * v.y + u.z * v.z) / (ul * vl);
-        c = Math.max(-1.0, Math.min(1.0, c));
+        c = Math.clamp(c, -1.0, 1.0);
         return Math.acos(c);
     }
 
@@ -297,7 +297,7 @@ public class CrossoverFinder {
 
     private static double angleDeg(final Vector3d u, final Vector3d v) {
         double dot = Math.abs(u.dot(v));
-        dot = Math.max(-1.0, Math.min(1.0, dot));
+        dot = Math.clamp(dot, -1.0, 1.0);
         return Math.toDegrees(Math.acos(dot));
     }
 
@@ -548,35 +548,25 @@ public class CrossoverFinder {
         }
     }
 
-    /** One detected crossover event. */
-    public static final class CrossoverEvent {
+    /**
+     * One detected crossover event.
+     *
+     * @param x              X-coordinate of crossover center in real world units
+     * @param y              Y-coordinate of crossover center in real world units
+     * @param z              Z-coordinate of crossover center in real world units
+     * @param participants   Unique paths taking part in the crossover
+     * @param medianAngleDeg Median crossing angle between local tangents
+     * @param medianMinDist  Median segment-to-segment closest distance (real world units)
+     * @param indexWindow    Min/max of node indices per path near the event
+     */
+    public record CrossoverEvent(double x, double y, double z, Set<Path> participants, double medianAngleDeg,
+                                 double medianMinDist, Map<Path, IntSummaryStatistics> indexWindow) {
 
-        /** X-coordinate of crossover center in real world units */
-        public final double x;
-        /** Y-coordinate of crossover center in real world units */
-        public final double y;
-        /** Z-coordinate of crossover center in real world units */
-        public final double z;
-        /** Unique paths taking part in the crossover */
-        public final Set<Path> participants;
-        /** Median crossing angle between local tangents */
-        public final double medianAngleDeg;
-        /** Median segment-to-segment closest distance (real world units) */
-        public final double medianMinDist;
-        /**  Min/max of node indices per path near the event */
-        public final Map<Path, IntSummaryStatistics> indexWindow; //
-
-         private CrossoverEvent(final double x, final double y, final double z,
-                              final double medianMinDist, final double medianAngleDeg,
-                              final Set<Path> participants,
-                              final Map<Path, IntSummaryStatistics> indexWindow) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.medianMinDist = medianMinDist;
-            this.medianAngleDeg = medianAngleDeg;
-            this.participants = Collections.unmodifiableSet(new LinkedHashSet<>(participants));
-            this.indexWindow = Collections.unmodifiableMap(new LinkedHashMap<>(indexWindow));
+        private CrossoverEvent(final double x, final double y, final double z,
+                               final double medianMinDist, final double medianAngleDeg,
+                               final Set<Path> participants,
+                               final Map<Path, IntSummaryStatistics> indexWindow) {
+            this(x, y, z, Collections.unmodifiableSet(new LinkedHashSet<>(participants)), medianAngleDeg, medianMinDist, Collections.unmodifiableMap(new LinkedHashMap<>(indexWindow)));
         }
 
         /**
@@ -611,14 +601,11 @@ public class CrossoverFinder {
     private record ClosestResult(Vector3d p, Vector3d q, double dist) {}
     private record NodeRef(Vector3d pos, Path path, int idx, int c, int t, boolean isMid) {}
 
-    private static final class PairIdx {
-        final int iA, iB;
-
-        PairIdx(NodeRef a, NodeRef b) {
-            this.iA = a.idx;
-            this.iB = b.idx;
+    private record PairIdx(int iA, int iB) {
+            PairIdx(NodeRef a, NodeRef b) {
+                this(a.idx, b.idx);
+            }
         }
-    }
 
     private record PairKey(Path a, Path b) {
 

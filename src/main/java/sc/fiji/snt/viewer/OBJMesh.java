@@ -57,7 +57,6 @@ import org.scijava.util.Colors;
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.EigenDecomposition;
 import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.stat.correlation.Covariance;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.PCAnalyzer;
@@ -589,7 +588,7 @@ public class OBJMesh {
 		double dotProduct = normDirX * localDirection[0] + normDirY * localDirection[1] + normDirZ * localDirection[2];
 
 		// Clamp to [-1, 1] to handle numerical errors
-		dotProduct = Math.max(-1.0, Math.min(1.0, dotProduct));
+		dotProduct = Math.clamp(dotProduct, -1.0, 1.0);
 
 		// Return acute angle (0-90 degrees)
 		final double angle = Math.acos(Math.abs(dotProduct));
@@ -597,19 +596,10 @@ public class OBJMesh {
 	}
 
 	/**
-	 * Helper class for storing vertex-distance pairs during nearest neighbor search.
+	 * Helper record for storing vertex-distance pairs during nearest neighbor search.
 	 */
-	private static class VertexDistance {
-		final SNTPoint vertex;
-		final double distance;
-
-		VertexDistance(final SNTPoint vertex, final double distance) {
-			this.vertex = vertex;
-			this.distance = distance;
-		}
+	private record VertexDistance(SNTPoint vertex, double distance) {
 	}
-
-
 
 	/**
 	 * Returns the {@link OBJFile} associated with this mesh
@@ -816,7 +806,7 @@ public class OBJMesh {
 
 		private String getLabel() {
 			String label = url.toString();
-			label = label.substring(label.lastIndexOf("/") + 1);
+			label = label.substring(label.lastIndexOf('/') + 1);
 			return label;
 		}
 

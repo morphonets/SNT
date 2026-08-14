@@ -952,14 +952,14 @@ public class Bvv extends AbstractBigViewer {
         // control panel" further down still fires exactly once/
         final boolean firstEverSource = bvvHandle == null;
         final List<BvvStackSource<?>> sources = new ArrayList<>();
-        for (final SourceAndConverter<?> soc : n5Sources.sources) {
+        for (final SourceAndConverter<?> soc : n5Sources.sources()) {
             // NB: Each channel is a separate BvvFunctions.show(...) call, and options *without* addTo(...) always
             // opens a brand new top-level window. Deciding "attach to existing handle" once, before any
             // channel exists, meant bvvHandle was still null for the whole loop on a fresh Bvv, so
             // every channel got its own window instead of being appended to the first one
             final BvvOptions opts = bvvHandle != null
                     ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
-            final BvvStackSource<?> source = BvvFunctions.show(soc, n5Sources.numTimepoints, opts);
+            final BvvStackSource<?> source = BvvFunctions.show(soc, n5Sources.numTimepoints(), opts);
             sources.add(source);
             if (bvvHandle == null) bvvHandle = source.getBvvHandle(); // subsequent channels attach to this window
         }
@@ -982,7 +982,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         // Derive a display name, stripping any per-channel suffix
-        String datasetName = n5Sources.name;
+        String datasetName = n5Sources.name();
         try {
             final String firstName = sources.getFirst().getSources().getFirst().getSpimSource().getName();
             if (firstName != null && !firstName.isBlank())

@@ -291,7 +291,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			final Set<Integer> timePoints = new HashSet<>();
 			final String[] convertedArray = userInput.split(",");
 			for (final String number : convertedArray) {
-				final int idx1 = userInput.indexOf("-");
+				final int idx1 = userInput.indexOf('-');
 				if (idx1 > -1) { // input displayed in range
 					final String rngStart = userInput.substring(0, idx1);
 					final String rngEnd = userInput.substring(idx1 + 1);

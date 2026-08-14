@@ -44,7 +44,7 @@ import sc.fiji.snt.gui.GuiUtils;
 public class PathFitterCmd extends ContextCommand {
 
     /** The default search radius constraining the fit (in pixels). */
-    public static int DEFAULT_SEARCH_RADIUS_PIXELS = 10;
+    public static final int DEFAULT_SEARCH_RADIUS_PIXELS = 10;
 
 	@Parameter
 	private PrefService prefService;
@@ -67,7 +67,7 @@ public class PathFitterCmd extends ContextCommand {
 	private static final String CHOICE_FALLBACK_MINSEP ="Smallest voxel separation";
 	private static final String CHOICE_FALLBACK_NAN = "NaN (Not a number)";
 
-	private static String HEADER = "<HTML><body><div style='width:"
+	private static final String HEADER = "<HTML><body><div style='width:"
 			+ GuiUtils.renderedWidth("Type of refinement: SNT can use the fluorescent signal around traced paths to opt")
 			+ ";'>";
 

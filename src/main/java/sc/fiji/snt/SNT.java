@@ -3355,7 +3355,6 @@ public class SNT extends MultiDThreePanes implements
 	 * {@link TubularGeodesicsTracer}, etc.
 	 * <p>
 	 * All input {@link PointInImage} must be specified in real world coordinates.
-	 * <p>
 	 *
 	 * @param pointList the list of {@link PointInImage} containing the nodes to
 	 *          be used as target goals during the search. If the search cannot
@@ -4463,8 +4462,8 @@ public class SNT extends MultiDThreePanes implements
                     return null;
                 }
             }
-            case SpimDataUtils.N5Sources n5 when !n5.sources.isEmpty() ->
-                    data = n5.sources.getFirst().getSpimSource().getSource(0, 0); // timepoint 0, full-resolution level 0
+            case SpimDataUtils.N5Sources n5 when !n5.sources().isEmpty() ->
+                    data = n5.sources().getFirst().getSpimSource().getSource(0, 0); // timepoint 0, full-resolution level 0
             case null, default -> {
                 return null; // unresolved / unrecognized type
             }

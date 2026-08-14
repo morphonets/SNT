@@ -947,7 +947,7 @@ public class PolarProfileStats implements ShollStats {
         final double denom = Math.max(1e-12, (maxValue - minValue));
         double norm = (value - minValue) / denom;
         if (Double.isNaN(norm)) norm = 0;
-        norm = Math.max(0, Math.min(1, norm));
+        norm = Math.clamp(norm, 0, 1);
         final int colorIndex = (int) Math.round(norm * (colorTable.getLength() - 1));
         final int r = colorTable.get(ColorTable.RED, colorIndex);
         final int g = colorTable.get(ColorTable.GREEN, colorIndex);

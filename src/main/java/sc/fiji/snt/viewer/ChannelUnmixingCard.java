@@ -395,7 +395,7 @@ class ChannelUnmixingCard {
                                     final double aNorm = a.getRealDouble() - sigMin;
                                     final double bNorm = (b.getRealDouble() - subMin) * rangeScale;
                                     final double val = aNorm - w * bNorm + sigMin;
-                                    out.setReal(Math.max(0, Math.min(BvvUtils.MAX_UINT16, val)));
+                                    out.setReal(Math.clamp(val, 0, BvvUtils.MAX_UINT16));
                                 });
                     } catch (final OutOfMemoryError oom) {
                         SwingUtilities.invokeLater(() -> {

@@ -7227,7 +7227,7 @@ public class Viewer3D {
         private javax.swing.JTextField editTextField;
         private final CustomListRenderer renderer;
         private final UpdatableListModel<Object> model;
-        private boolean allowDirectEditByDoubleCLick;
+        private final boolean allowDirectEditByDoubleCLick;
 
         @SuppressWarnings("unchecked")
         public CheckboxListEditable(final UpdatableListModel<Object> model) {
@@ -7613,7 +7613,7 @@ public class Viewer3D {
 
         static String getTagStringFromEntry(final String entry) {
             final int openingDlm = entry.indexOf(" {");
-            final int closingDlm = entry.lastIndexOf("}");
+            final int closingDlm = entry.lastIndexOf('}');
             if (closingDlm > openingDlm) {
                 return entry.substring(openingDlm + 2, closingDlm);
             }

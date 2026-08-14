@@ -559,8 +559,8 @@ public class ImpUtils {
                 int srcY = y - srcHeight / 2;
 
                 // Clamp to image bounds
-                srcX = Math.max(0, Math.min(srcX, imp.getWidth() - srcWidth));
-                srcY = Math.max(0, Math.min(srcY, imp.getHeight() - srcHeight));
+                srcX = Math.clamp(srcX, 0, imp.getWidth() - srcWidth);
+                srcY = Math.clamp(srcY, 0, imp.getHeight() - srcHeight);
 
                 Rectangle newSrcRect = new Rectangle(srcX, srcY, srcWidth, srcHeight);
                 canvas.setSourceRect(newSrcRect);
@@ -718,8 +718,8 @@ public class ImpUtils {
                     int srcY = centerY - srcHeight / 2;
 
                     // Clamp to image bounds
-                    srcX = Math.max(0, Math.min(srcX, imp.getWidth() - srcWidth));
-                    srcY = Math.max(0, Math.min(srcY, imp.getHeight() - srcHeight));
+                    srcX = Math.clamp(srcX, 0, imp.getWidth() - srcWidth);
+                    srcY = Math.clamp(srcY, 0, imp.getHeight() - srcHeight);
 
                     Rectangle newSrcRect = new Rectangle(srcX, srcY, srcWidth, srcHeight);
                     canvas.setSourceRect(newSrcRect);
@@ -772,8 +772,8 @@ public class ImpUtils {
                 int srcY = centerY - srcHeight / 2;
 
                 // Clamp to image bounds
-                srcX = Math.max(0, Math.min(srcX, imp.getWidth() - srcWidth));
-                srcY = Math.max(0, Math.min(srcY, imp.getHeight() - srcHeight));
+                srcX = Math.clamp(srcX, 0, imp.getWidth() - srcWidth);
+                srcY = Math.clamp(srcY, 0, imp.getHeight() - srcHeight);
 
                 Rectangle newSrcRect = new Rectangle(srcX, srcY, srcWidth, srcHeight);
                 canvas.setSourceRect(newSrcRect);

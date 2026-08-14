@@ -438,7 +438,7 @@ public class DemoRunner {
                     assert snt != null;
                     final ScriptInstaller si = new ScriptInstaller(snt.getContext(), ui);
 					final String scriptFileName = "Fully_Automated_Tracing_Timelapse_Demo.groovy";
-					final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf(".")).replace("_", " ");
+					final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf('.')).replace("_", " ");
 					si.runScript("Tracing", scriptName);
 					si.openScript("Tracing", scriptName);
 				} catch (final Throwable ex) {

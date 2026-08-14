@@ -37,6 +37,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchProgressCallback;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Abstract class for path-finding over {@link RandomAccessibleInterval}s
@@ -67,7 +68,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected final String spacing_units;
     protected int timeoutSeconds;
     protected long reportEveryMilliseconds;
-    protected ArrayList<SearchProgressCallback> progressListeners;
+    protected List<SearchProgressCallback> progressListeners;
 
     // Precomputed neighbor distances for [xdiff+1][ydiff+1][zdiff+1] where diff ∈ {-1, 0, 1}
     protected double[][][] neighborDistances;

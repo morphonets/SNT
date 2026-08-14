@@ -610,7 +610,7 @@ public class FileChooser extends JFileChooser {
     private static class BaseIcon extends FlatAbstractIcon {
         Area area;
 
-        public BaseIcon() {
+        BaseIcon() {
             super(16, 16, UIManager.getColor("Actions.Grey")); // see FlatFileChooser.* icons
         }
 

@@ -46,11 +46,11 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 	private long timeKeyDown = 0; // last time key was pressed
 	private int lastKeyPressedCode;
 
-	public ClarifyingKeyListener(final SNT plugin) {
+	ClarifyingKeyListener(final SNT plugin) {
 		this.plugin = plugin;
 	}
 
-	public void addKeyAndContainerListenerRecursively(final Component c) {
+	 void addKeyAndContainerListenerRecursively(final Component c) {
 		c.addKeyListener(this);
 		if (c instanceof Container container) {
             container.addContainerListener(this);

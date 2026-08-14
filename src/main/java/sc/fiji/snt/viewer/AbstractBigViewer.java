@@ -1151,7 +1151,7 @@ public abstract class AbstractBigViewer {
                 "Fit view to the current (selected) source"));
         bar.addSeparator();
         // Action names match those registered by BDV/BVV NavigationActions
-        final java.util.LinkedHashMap<String, List<IconFactory.GLYPH>> planes = new java.util.LinkedHashMap<>();
+        final java.util.HashMap<String, List<IconFactory.GLYPH>> planes = new java.util.LinkedHashMap<>();
         planes.put("align XY plane", List.of(IconFactory.GLYPH.X, IconFactory.GLYPH.Y));
         planes.put("align XZ plane", List.of(IconFactory.GLYPH.X, IconFactory.GLYPH.Z));
         planes.put("align ZY plane", List.of(IconFactory.GLYPH.Z, IconFactory.GLYPH.Y));

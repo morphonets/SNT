@@ -75,8 +75,8 @@ public class NDFImporter {
 	private int subSampleFactor; // Subsampling
 	private String version;
 
-	private File file;
-	private InputStream is;
+	private final File file;
+	private final InputStream is;
 	private Collection<Tree> parsedTrees;
 
 	/**

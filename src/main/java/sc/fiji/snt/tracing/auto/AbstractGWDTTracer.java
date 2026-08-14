@@ -1179,7 +1179,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Uses cached arrays to reduce allocations in hot path.
      */
     protected void addNeighborsToHeap(final long[] pos, final RandomAccess<T> srcRA,
-                                      final PriorityQueue<long[]> heap, final double threshold) {
+                                      final Queue<long[]> heap, final double threshold) {
         final int nDims = dims.length;
         final long currentIdx = posToIndex(pos);
         final double currentDist = storage.getDistance(currentIdx);

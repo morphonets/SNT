@@ -79,7 +79,7 @@ public class PathFitter implements Callable<Path> {
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     /** The default value for the smallest angle (in radians) constraining the fit. */
-    public static double DEFAULT_MIN_ANGLE = Math.PI / 2;
+    public static final double DEFAULT_MIN_ANGLE = Math.PI / 2;
 
     /**
      * Flag specifying that the computed path should only inherit fitted radii
@@ -337,7 +337,7 @@ public class PathFitter implements Callable<Path> {
         // Physical radius = (sideSearch/2) × scale, so:
         this.sideSearch = (int) Math.ceil(2 * crossSectionRadius / minScale);
         // Clamp to reasonable range
-        this.sideSearch = Math.max(5, Math.min(this.sideSearch, 100));
+        this.sideSearch = Math.clamp(this.sideSearch, 5, 100);
         SNTUtils.log(String.format(
                 "Set search radius to %.2f %s (grid size: %d×%d)",
                 crossSectionRadius, path.spacing_units, sideSearch, sideSearch

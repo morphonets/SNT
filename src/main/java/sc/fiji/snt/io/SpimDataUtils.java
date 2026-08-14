@@ -370,24 +370,12 @@ public class SpimDataUtils {
      * there is no BDV-XML descriptor involved: sources are built directly from
      * the container's own N5/OME-NGFF metadata via
      * {@link N5Viewer#buildN5Sources}.
+     *
+     * @param sources       One {@link SourceAndConverter} per channel/setup, in discovery order.
+     * @param numTimepoints Number of timepoints shared by all sources.
+     * @param name          Display name derived from the container's directory name.
      */
-    public static class N5Sources {
-
-        /** One {@link SourceAndConverter} per channel/setup, in discovery order. */
-        public final List<SourceAndConverter<?>> sources;
-
-        /** Number of timepoints shared by all sources. */
-        public final int numTimepoints;
-
-        /** Display name derived from the container's directory name. */
-        public final String name;
-
-        public N5Sources(final List<SourceAndConverter<?>> sources, final int numTimepoints, final String name) {
-            this.sources = sources;
-            this.numTimepoints = numTimepoints;
-            this.name = name;
-        }
-    }
+    public record N5Sources(List<SourceAndConverter<?>> sources, int numTimepoints, String name) {}
 
     /**
      * Opens an N5 or OME-Zarr container directly via {@code n5-ij}/{@code n5-universe}/{@code n5-viewer_fiji}.

@@ -437,7 +437,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		final Map<String, Object> input = new HashMap<>();
 		input.put("tree", tree);
 		ij.command().run(AnalyzerCmd.class, true, (Map<String, Object>)null);

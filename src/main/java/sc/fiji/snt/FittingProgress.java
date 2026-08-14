@@ -39,9 +39,8 @@ class FittingProgress implements MultiTaskProgress {
 	private final SNTUI sntui;
 	private final String msgStatus;
 
-	public FittingProgress(final SNTUI sntui, final StatusService statusService,
-		final int totalTasks)
-	{
+	FittingProgress(final SNTUI sntui, final StatusService statusService,
+		final int totalTasks) {
 		this.statusService = statusService;
 		this.sntui = sntui;
 		msgStatus = "Fitting " + totalTasks + " paths... ";

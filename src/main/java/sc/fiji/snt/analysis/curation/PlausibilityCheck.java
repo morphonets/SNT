@@ -943,10 +943,10 @@ public final class PlausibilityCheck {
             for (final CrossoverFinder.CrossoverEvent ev : events) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
                         String.format("Cross-over detected: %.1f µm apart, %.0f° angle",
-                                ev.medianMinDist, ev.medianAngleDeg),
-                        new PointInImage(ev.x, ev.y, ev.z),
-                        new ArrayList<>(ev.participants),
-                        ev.medianMinDist, proximityUm));
+                                ev.medianMinDist(), ev.medianAngleDeg()),
+                        new PointInImage(ev.x(), ev.y(), ev.z()),
+                        new ArrayList<>(ev.participants()),
+                        ev.medianMinDist(), proximityUm));
             }
             return warnings;
         }
@@ -978,7 +978,7 @@ public final class PlausibilityCheck {
                 return Measurements.EMPTY.withHint(crossoversHint);
             }
             final List<Double> vals = new ArrayList<>(events.size());
-            for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianMinDist);
+            for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianMinDist());
             return toMeasurements(vals, 0, "Cross-over distance", "µm", "cross-over");
         }
     }
@@ -1042,10 +1042,10 @@ public final class PlausibilityCheck {
             for (final CrossoverFinder.CrossoverEvent ev : events) {
                 warnings.add(new Warning(getName(), Severity.INFO,
                         String.format("Bundled run detected: %.1fµm apart, %.0f° angle (min run %d nodes)",
-                                ev.medianMinDist, ev.medianAngleDeg, minRunNodes),
-                        new PointInImage(ev.x, ev.y, ev.z),
-                        new ArrayList<>(ev.participants),
-                        ev.medianAngleDeg, maxParallelAngleDeg));
+                                ev.medianMinDist(), ev.medianAngleDeg(), minRunNodes),
+                        new PointInImage(ev.x(), ev.y(), ev.z()),
+                        new ArrayList<>(ev.participants()),
+                        ev.medianAngleDeg(), maxParallelAngleDeg));
             }
             return warnings;
         }
@@ -1072,7 +1072,7 @@ public final class PlausibilityCheck {
                 return Measurements.EMPTY;
             }
             final List<Double> vals = new ArrayList<>(events.size());
-            for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianAngleDeg);
+            for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianAngleDeg());
             return toMeasurements(vals, 0, "Bundle approach angle", "°", "bundled run", 0.0, 90.0);
         }
     }

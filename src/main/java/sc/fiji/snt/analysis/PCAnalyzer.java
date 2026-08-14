@@ -412,7 +412,7 @@ public class PCAnalyzer {
             double dotProduct = normDirX * x + normDirY * y + normDirZ * z;
 
             // Clamp to [-1, 1] to handle numerical errors
-            dotProduct = Math.max(-1.0, Math.min(1.0, dotProduct));
+            dotProduct = Math.clamp(dotProduct, -1.0, 1.0);
 
             // Return acute angle (0-90 degrees)
             final double angle = Math.acos(Math.abs(dotProduct));

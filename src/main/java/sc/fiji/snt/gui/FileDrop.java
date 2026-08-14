@@ -715,7 +715,7 @@ public class FileDrop {
 		 *            The event source
 		 * @since 1.1
 		 */
-		public Event(final java.io.File[] files, final Object source) {
+		Event(final java.io.File[] files, final Object source) {
 			super(source);
 			this.files = files;
 		} // end constructor
@@ -817,7 +817,7 @@ public class FileDrop {
 		 *            The data to transfer
 		 * @since 1.1
 		 */
-		public TransferableObject(final Object data) {
+		TransferableObject(final Object data) {
 			this.data = data;
 			this.customFlavor = new java.awt.datatransfer.DataFlavor(
 					data.getClass(), MIME_TYPE);
@@ -833,7 +833,7 @@ public class FileDrop {
 		 *            The {@link Fetcher} that will return the data object
 		 * @since 1.1
 		 */
-		public TransferableObject(final Fetcher fetcher) {
+		TransferableObject(final Fetcher fetcher) {
 			this.fetcher = fetcher;
 		} // end constructor
 
@@ -853,7 +853,7 @@ public class FileDrop {
 		 *            The {@link Fetcher} that will return the data object
 		 * @since 1.1
 		 */
-		public TransferableObject(final Class<?> dataClass, final Fetcher fetcher) {
+		TransferableObject(final Class<?> dataClass, final Fetcher fetcher) {
 			this.fetcher = fetcher;
 			this.customFlavor = new java.awt.datatransfer.DataFlavor(dataClass,
 					MIME_TYPE);
