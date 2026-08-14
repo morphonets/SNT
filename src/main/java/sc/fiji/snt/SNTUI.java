@@ -3257,7 +3257,6 @@ public class SNTUI extends JDialog {
         commandFinder.register(mi2, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
         mi3.addActionListener(e -> loadSecondaryImage(false));
-        mi2.setEnabled(!plugin.isStreamMode()); // ChooseDatasetCmd is not yet ready for OME-ZARR/N5 etc. disable for now
         commandFinder.register(mi3, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
         registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Interactive tracing");
@@ -3346,7 +3345,12 @@ public class SNTUI extends JDialog {
             warnOnAutoCTcompatibilityOthers();
             final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir()
                     : plugin.getFilteredImageFile();
-            final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
+            // An N5/OME-Zarr secondary layer is a directory, not a single file, and SNT#loadSecondaryImage(File)
+            // (via SpimDataUtils#resolvePathToSource) supports resolving one
+            final File file = (plugin.isStreamMode())
+                    ? guiUtils.getOpenFileOrDirectory("Choose Secondary Image", proposedFile)
+                    : guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
+
             if (file != null)
                 loadSecondaryImageFile(file);
         }

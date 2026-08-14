@@ -24,6 +24,7 @@ package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
 import ij.plugin.frame.RoiManager;
+import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.Command;
@@ -124,14 +125,18 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                         ? p.getFitted() : p)
                 .collect(Collectors.toList());
         channel = snt.getChannel();
-        if (snt.accessToValidImageData()) {
-            if (snt.getImagePlus() != null && snt.getImagePlus().getNChannels() == 1) {
+        // NB: not snt.getImagePlus() != null -- that is null in Stream mode unless a materialized crop
+        // is active. snt.getDataset() already handles that case: it falls back to a Dataset built from
+        // the currently-streamed data when no resident ImagePlus exists
+        final Dataset dataset = snt.accessToValidImageData() ? snt.getDataset() : null;
+        if (dataset != null) {
+            if (dataset.getChannels() == 1) {
                 // Only 1 channel available
                 resolveInput("channel");
             } else {
                 // Set channel max from loaded image
                 final MutableModuleItem<Integer> mItem = getInfo().getMutableInput("channel", Integer.class);
-                mItem.setMaximumValue((snt.getImagePlus() != null) ? snt.getImagePlus().getNChannels() : 1);
+                mItem.setMaximumValue((int) dataset.getChannels());
             }
             // Pre-fill prominence from image stats if available
             final double[] stats = new double[]{snt.getStats().min, snt.getStats().max};
@@ -173,7 +178,10 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             error("No paths selected for analysis.");
             return;
         }
-        if (snt == null || !snt.accessToValidImageData() || snt.getImagePlus() == null) {
+        // NB: not snt.getImagePlus() == null -- see the same note in init() above. Requiring only
+        // accessToValidImageData() lets detection work in Stream mode for the case of the currently active channel,
+        // via snt.getLoadedData() below
+        if (snt == null || !snt.accessToValidImageData()) {
             error("Maxima detection requires valid image data to be loaded.");
             return;
         }
@@ -182,8 +190,15 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         final RandomAccessibleInterval<? extends RealType<?>> detectionImg;
         if (snt.getChannel() == channel) {
             detectionImg = snt.getLoadedData();
-        } else {
+        } else if (snt.getImagePlus() != null) {
             detectionImg = ImgUtils.getCtSlice3d(snt.getImagePlus(), channel, snt.getFrame());
+        } else {
+            // Stream mode without a materialized crop: only the active channel's data is resident
+            // (see SNT#getDataset() javadoc), so a different channel genuinely cannot be sampled here
+            error("Detection on a channel other than the active one (" + snt.getChannel() + ")"
+                    + " requires either a materialized crop or Classic mode. Set 'Detection channel' to "
+                    + snt.getChannel() + ".");
+            return;
         }
 
         // Build config
@@ -252,6 +267,13 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         } else {
             // Add to ROI Manager: one grouped PointRoi per path
             final ImagePlus imp = snt.getImagePlus();
+            if (imp == null) {
+                // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
+                // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
+                error("ROI output requires an image canvas to be available (Classic mode, or a "
+                        + "materialized crop in Stream mode). Use 'Bookmarked locations' output instead.");
+                return;
+            }
             RoiManager rm = RoiManager.getInstance2();
             if (rm == null) rm = new RoiManager();
             for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {

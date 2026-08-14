@@ -647,17 +647,17 @@ public class DelineationsManager {
             if (sntui.noPathsError()) return;
             final ImagePlus labelImp = getLabelImage();
             if (labelImp == null) return;
-            final ImagePlus tracingImp = sntui.plugin.getImagePlus();
-            if (tracingImp != null) {
-                final boolean dimMatch = labelImp.getWidth() == tracingImp.getWidth()
-                        && labelImp.getHeight() == tracingImp.getHeight()
-                        && labelImp.getNSlices() == tracingImp.getNSlices();
+            // NB: not plugin.getImagePlus() != null -- that is null in Stream mode!
+            if (sntui.plugin.accessToValidImageData()) {
+                final int[] fullDims = sntui.plugin.getFullImageDimensions();
+                final boolean dimMatch = labelImp.getWidth() == fullDims[0]
+                        && labelImp.getHeight() == fullDims[1]
+                        && labelImp.getNSlices() == fullDims[2];
                 if (!dimMatch && !sntui.guiUtils.getConfirmation(
                         "The label image dimensions (" + labelImp.getWidth() + "×"
                                 + labelImp.getHeight() + "×" + labelImp.getNSlices()
                                 + ") do not match the tracing image ("
-                                + tracingImp.getWidth() + "×" + tracingImp.getHeight()
-                                + "×" + tracingImp.getNSlices()
+                                + fullDims[0] + "×" + fullDims[1] + "×" + fullDims[2]
                                 + "). Assignments may be incorrect. Proceed anyway?",
                         "Dimension Mismatch")) {
                     return;

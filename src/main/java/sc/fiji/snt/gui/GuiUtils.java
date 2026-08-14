@@ -1271,6 +1271,22 @@ public class GuiUtils {
 		return (File) showOpenDialog(title, JFileChooser.FILES_ONLY, false, file, false, filter);
 	}
 
+	/**
+	 * As {@link #getOpenFile(String, File, String...)}, but the dialog also allows selecting a
+	 * directory directly. Needed for pointing directly at an N5/OME-Zarr container; a metadata file
+	 * *inside* such a container (e.g. {@code zarr.json}, {@code .zattrs}) can still be selected too.
+	 * Both resolve to the same container root,
+	 * <p>
+	 * NB: unlike most {@code getXxxFile(s)} methods above, this always uses the classic chooser and
+	 * ignores {@link SNTPrefs#getUseNativeFileChooser()} -- FlatLaf's {@link SystemFileChooser} (the
+	 * native alternative) does not support a mixed files-and-directories selection mode at all.
+	 */
+	public File getOpenFileOrDirectory(final String title, final File file) {
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG,
+				JFileChooser.FILES_AND_DIRECTORIES);
+		return (File) getOpenFileChooserResult(chooser);
+	}
+
 	public File getSaveFile(final String title, final File file, final String... allowedExtensions) {
 		File chosenFile = null;
 		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY);

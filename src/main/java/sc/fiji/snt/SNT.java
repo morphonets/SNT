@@ -4415,22 +4415,28 @@ public class SNT extends MultiDThreePanes implements
 		// Falls back to the conventional path for anything it can't resolve
 		// (resolvePathToSource() itself ends in a conventional ImgPlus-open fallback too, but keeping
 		// our own fallback here avoids any behavior change for formats that already worked before).
-		RandomAccessibleInterval<?> data = null;
+		// Resolution and dimension-checking are deliberately two separate steps here: only a failure to
+		// resolve/parse the source at all should fall back to the conventional (RAM-unsafe-for-big-data)
+		// path below. A dimension mismatch on an already-resolved big-data source must NOT fall back to it
+		Object resolvedSource = null;
 		try {
-			data = extractSecondaryData(SpimDataUtils.resolvePathToSource(file.getAbsolutePath()));
+			resolvedSource = SpimDataUtils.resolvePathToSource(file.getAbsolutePath());
 		} catch (final Exception e) {
 			SNTUtils.log("Secondary layer: '" + file.getName() + "' could not be resolved as a big-data "
 					+ "container (" + e.getMessage() + "); falling back to conventional image opening");
 		}
-		if (data != null) {
-			// computeStatistics=false: data here may be a lazily-backed (N5/Zarr/BDV) source, and eager
-			// min/max/mean/stdDev via generic OpService calls is 3 separate full-volume passes -- real
-			// disk I/O per chunk, done 3x over, with no caching between passes. That may work for the
-			// classic ImagePlus but not for lazy data.
-			//noinspection unchecked,rawtypes
-			loadSecondaryImage((RandomAccessibleInterval) data, true, false);
-			setSecondaryImage(isSecondaryDataAvailable() ? file : null);
-			return;
+		if (resolvedSource != null) {
+			final RandomAccessibleInterval<?> data = extractSecondaryData(resolvedSource);
+			if (data != null) {
+				// computeStatistics=false: data here may be a lazily-backed (N5/Zarr/BDV) source, and eager
+				// min/max/mean/stdDev via generic OpService calls is 3 separate full-volume passes -- real
+				// disk I/O per chunk, done 3x over, with no caching between passes. That may work for the
+				// classic ImagePlus but not for lazy data.
+				//noinspection unchecked,rawtypes
+				loadSecondaryImage((RandomAccessibleInterval) data, true, false);
+				setSecondaryImage(isSecondaryDataAvailable() ? file : null);
+				return;
+			}
 		}
 		final ImagePlus imp = openCachedDataImage(file);
 		loadSecondaryImage(imp, true);
@@ -4440,14 +4446,24 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * Extracts a {@link RandomAccessibleInterval} for the currently active channel/frame from a
 	 * resolved big-data source (see {@link SpimDataUtils#resolvePathToSource(String)}), or
-	 * {@code null} if {@code source} isn't one of the recognized types, or its XYZ dimensions don't
-	 * match the data currently being traced (see {@link #sameXYZDimensionsAsTracingData}).
+	 * {@code null} if {@code source} isn't one of the recognized types (the caller, {@link
+	 * #loadSecondaryImage(File)}, then falls back to conventional image opening).
+	 * <p>
+	 * If {@code source} <i>is</i> one of the recognized types but its XYZ dimensions don't match the
+	 * data currently being traced (see {@link #sameXYZDimensionsAsTracingData}), this throws instead
+	 * of returning {@code null}: unlike a genuinely unresolved source, this data was already
+	 * successfully resolved as big data, so silently falling back to the conventional path would mean
+	 * fully loading a potentially huge dataset into RAM via SCIFIO/Bio-Formats just to discover its
+	 * dimensions are wrong. Failing fast here, with the same message {@link #openCachedDataImage(File)}
+	 * gives for the same condition, avoids that.
 	 * <p>
 	 * For {@link AbstractSpimData} (BDV .xml/IMS) and {@link SpimDataUtils.N5Sources} (ambiguous
 	 * N5/Zarr layouts), only the first setup/source and timepoint 0 are used. This is the same
 	 * simplification {@code BigDataLoaderCmd#applyFallbackCalibration} already makes for the
 	 * <i>primary</i> volume in this same situation. A genuinely multichannel secondary layer of
 	 * either of these types would thus only expose its first channel.
+	 *
+	 * @throws IllegalArgumentException if the resolved source's dimensions don't match the data currently being traced
 	 */
 	private RandomAccessibleInterval<?> extractSecondaryData(final Object source) {
 		final RandomAccessibleInterval<?> data;
@@ -4473,9 +4489,10 @@ public class SNT extends MultiDThreePanes implements
                 return null; // unresolved / unrecognized type
             }
         }
-		if (!sameXYZDimensionsAsTracingData(data)) {
-			SNTUtils.log("Secondary layer: dimensions do not match those of the data being traced");
-			return null;
+		if (!sameXYZDimensionsAsTracingData(data)) { // NB: throws rather than returning null
+			final String msg = (isStreamMode())
+					? "" : " If this is unexpected, check under 'Image>Properties...' that CZT axes are not swapped.";
+			throw new IllegalArgumentException("Dimensions do not match those of the image being traced." + msg);
 		}
 		return data;
 	}
@@ -4673,9 +4690,9 @@ public class SNT extends MultiDThreePanes implements
 		if (!sameXYZDimensionsAsTracingData(imp)) {
 			// We are imposing only XYZ dimensions to e.g., allow for loading of single-channel
 			// p-maps. Hopefully, being lax about CT dimensions won't cause issues downstream
-			final String refName = (xy != null) ? xy.getTitle() : "the image being traced";
-			throw new IllegalArgumentException("Dimensions do not match those of " + refName
-					+ ". If this is unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
+			final String msg = (isStreamMode())
+					? "" : " If this is unexpected, check under 'Image>Properties...' that CZT axes are not swapped.";
+			throw new IllegalArgumentException("Dimensions do not match those of the image being traced." + msg);
 		}
 		return imp;
 	}
