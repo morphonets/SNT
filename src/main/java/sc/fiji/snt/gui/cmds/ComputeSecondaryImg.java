@@ -394,6 +394,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				else
 					mmi.setLabel("Now Click on a Representative Structure...");
 				//mmi.setDescription("Once you click on the image, a preview of clicked neighborhood will open");
+				activateViewer();
 				break;
 			default:
 				mmi.setLabel("Select visually...");
@@ -430,6 +431,12 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		if (snt.isStreamMode() && snt.isMaterializedCrop()) {
             final ij.gui.ImageWindow win = snt.getImagePlus().getWindow();
 			if (win != null) SwingUtilities.invokeLater(() -> win.setVisible(visible));
+		}
+	}
+
+	private void activateViewer() {
+		if (snt.isStreamMode() && ui != null && ui.getActiveBigViewer() != null) {
+			SwingUtilities.invokeLater(() -> ui.getActiveBigViewer().getViewerFrame().toFront());
 		}
 	}
 

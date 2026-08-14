@@ -369,6 +369,7 @@ public class SNTCommandFinder {
                 cmd.button.doClick();
             }
         } else if (cmd.action != null) {
+            if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
             cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
         }
     }
@@ -380,13 +381,16 @@ public class SNTCommandFinder {
         }
         if (cmd.revealAction != null) {
             // special case 1: ad-hoc reveal action
+            if (!scriptCall) autoHide(); // hide before running, in case action opens a dialog
             cmd.revealAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
         } else if (cmd.button == null && cmd.action != null || cmd.button != null && cmd.button.getParent() == null) {
             // special case 2: proxy buttons or proxy actions: executing IS the reveal
             executeCmd(cmd);
         } else if (cmd.button instanceof JMenuItem jmi) {
+            if (!scriptCall) autoHide(); // hide before revealing, so it does not obscure the menu
             revealMenuItem(jmi);
         } else try {
+            if (!scriptCall) autoHide(); // hide before revealing, so it does not obscure the button
             revealButton(cmd);
         } catch (final Throwable t) {
             displayTempMsg("Button can not be displayed in current state", true);

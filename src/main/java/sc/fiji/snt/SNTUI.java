@@ -1193,12 +1193,11 @@ public class SNTUI extends JDialog {
         }
 
         changeState(LOADING);
-        showStatus("Materializing region...", false);
+        showStatus("Materializing region. Please wait...", false);
         // The actual read (plugin.buildMaterializedCrop(box)) can be disk-/network-bound and slow; running it in
         // doInBackground() keeps the EDT free instead of freezing for the read's duration. installMaterializedCrop(...)
         // below touches Swing/AWT state (ImageWindow show/toFront, initialize()) and must stay on the EDT - done()
         // always runs there, so no explicit dispatching is needed for it.
-        //
         // A free EDT means the rebuildCanvasButton stays clickable during the read: without this guard, a second click
         // could launch a second overlapping background read/install, with the two done() calls racing on the EDT
         rebuildCanvasButton.setEnabled(false);
@@ -1395,14 +1394,14 @@ public class SNTUI extends JDialog {
         states.put(QUERY_KEEP, new QueryKeepState());
         states.put(FILLING_PATHS, new FillingPathsState());
         states.put(FITTING_PATHS, new FittingPathsState());
-        states.put(RUNNING_CMD, new RunningCmdState());
-        states.put(CACHING_DATA,          simpleState(CACHING_DATA,          "Caching data. This could take a while...", null, true, null));
-        states.put(CALCULATING_HESSIAN_I, simpleState(CALCULATING_HESSIAN_I, "Calculating Hessian...",                   "Computing Hessian for main image...",    true, null));
-        states.put(CALCULATING_HESSIAN_II,simpleState(CALCULATING_HESSIAN_II,"Calculating Hessian (II Image)..",         "Computing Hessian (secondary image)...", true, null));
+        states.put(RUNNING_CMD, new AnimatedCmdState(RUNNING_CMD, "Running Command...", true));
+        states.put(CACHING_DATA, simpleState(CACHING_DATA, "Caching data. This could take a while...", null, true, null));
+        states.put(CALCULATING_HESSIAN_I, simpleState(CALCULATING_HESSIAN_I, "Calculating Hessian...", "Computing Hessian for main image...", true, null));
+        states.put(CALCULATING_HESSIAN_II, simpleState(CALCULATING_HESSIAN_II, "Calculating Hessian (II Image)..", "Computing Hessian (secondary image)...", true, null));
         states.put(WAITING_FOR_SIGMA_POINT_I, simpleState(WAITING_FOR_SIGMA_POINT_I, "Click on a representative structure...", "Adjusting Hessian (main image)...", false, null));
-        states.put(WAITING_FOR_SIGMA_CHOICE,  simpleState(WAITING_FOR_SIGMA_CHOICE,  "Close 'Pick Sigma &amp; Max' to continue...", null, false, null));
-        states.put(LOADING, simpleState(LOADING, "Loading data...", null, true, null));
-        states.put(SAVING,  simpleState(SAVING,  "Saving...",  null, true, null));
+        states.put(WAITING_FOR_SIGMA_CHOICE, simpleState(WAITING_FOR_SIGMA_CHOICE, "Close 'Pick Sigma &amp; Max' to continue...", null, false, null));
+        states.put(LOADING, new AnimatedCmdState(LOADING, "Loading Data...", true));
+        states.put(SAVING, simpleState(SAVING, "Saving...", null, true, null));
         states.put(EDITING, new EditingState());
         states.put(SNT_PAUSED, new SntPausedState());
         states.put(STREAMING, new StreamState());
@@ -1638,23 +1637,30 @@ public class SNTUI extends JDialog {
         }
     }
 
-    private class RunningCmdState implements UIState {
-        private static final String[] BRAILLE = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
-        private static final String[] SPINNER_FRAMES;
-        static {
-            SPINNER_FRAMES = new String[BRAILLE.length];
+    private class AnimatedCmdState implements UIState {
+        static final String[] BRAILLE = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+        final String[] SPINNER_FRAMES = new String[BRAILLE.length];
+        final int id;
+        final String statusMsg;
+        final boolean disableEverything;
+        Timer runningAnimationTimer;
+        int spinnerIndex = 0;
+
+        AnimatedCmdState(final int id, final String statusMsg, final boolean disableEverything) {
+            this.id = id;
+            this.statusMsg = statusMsg;
+            this.disableEverything = disableEverything;
+
             for (int i = 0; i < BRAILLE.length; i++) {
-                SPINNER_FRAMES[i] = "<html><strong>Running Command... <span style='font-size:1.1em'>"
+                SPINNER_FRAMES[i] = "<html><strong>" + statusMsg + " <span style='font-size:1.1em'>"
                         + BRAILLE[i] + " " + BRAILLE[i] + " " + BRAILLE[i] + "</span></strong></html>";
             }
         }
-        Timer runningAnimationTimer;
-        private int spinnerIndex = 0;
 
         @Override
         public void enter() {
-            updateStatusText("Running Command...");
-            disableEverything();
+            updateStatusText(statusMsg);
+            if (disableEverything) disableEverything();
             spinnerIndex = 0;
             runningAnimationTimer = new Timer(150, e -> {
                 spinnerIndex = (spinnerIndex + 1) % SPINNER_FRAMES.length;
@@ -1664,17 +1670,16 @@ public class SNTUI extends JDialog {
         }
 
         @Override
+        public int getStateId() {
+            return id;
+        }
+
+        @Override
         public void exit() {
             if (runningAnimationTimer != null) {
                 runningAnimationTimer.stop();
                 runningAnimationTimer = null;
             }
-            updateStatusText((plugin.tracingHalted) ? "Tracing functions disabled..." : "Click somewhere to start a new path...");
-        }
-
-        @Override
-        public int getStateId() {
-            return RUNNING_CMD;
         }
     }
 
