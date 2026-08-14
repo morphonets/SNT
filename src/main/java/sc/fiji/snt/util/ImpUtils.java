@@ -1105,6 +1105,39 @@ public class ImpUtils {
     }
 
     /**
+     * Used by SNT to tag an eagerly-materialized pixel crop of a streamed volume as such.
+     * @param imp the image to be tagged
+     */
+    public  static void setIsMaterializedCrop(final ImagePlus imp) {
+        if (imp != null) imp.setProperty("Info", "SNT Materialized Crop\n");
+    }
+
+    /**
+     * Checks whether an image is a materialized crop of a streamed volume.
+     * @param imp the image to be checked
+     * @return true if {@link setIsMaterializedCrop(ImagePlus)} was previous called on {@code imp}
+     */
+    public static boolean isMaterializedCrop(final ImagePlus imp) {
+        return imp != null && "SNT Materialized Crop\n".equals(imp.getInfoProperty());
+    }
+    /**
+     * Used by SNT to tag an image as a Display Canvas (typically a blank placeholder image).
+     * @param imp the image to be tagged
+     */
+    public static void setIsDisplayCanvas(final ImagePlus imp) {
+        if (imp != null) imp.setProperty("Info", "SNT Display Canvas\n");
+    }
+
+    /**
+     * Checks whether an image is a placeholder canvas
+     * @param imp the image to be checked
+     * @return true if {@link setIsDisplayCanvas(ImagePlus)} was previous called on {@code imp}
+     */
+    public static boolean isDisplayCanvas(final ImagePlus imp) {
+        return imp != null && "SNT Display Canvas\n".equals(imp.getInfoProperty());
+    }
+
+    /**
      * Returns all currently open images in ImageJ's {@link ij.WindowManager}.
      *
      * @return array of open {@link ImagePlus} instances, or an empty array if
@@ -1118,4 +1151,21 @@ public class ImpUtils {
                 .filter(Objects::nonNull)
                 .toArray(ImagePlus[]::new);
     }
+
+    /**
+     * Returns all currently open images in ImageJ that were not created by SNT.
+     *
+     * @return array of open {@link ImagePlus} instances, or an empty array if non-SNT created images are open
+     */
+    public static ImagePlus[] getNonSNTOpenImages() {
+        final int[] ids = ij.WindowManager.getIDList();
+        if (ids == null) return new ImagePlus[0];
+        return Arrays.stream(ids)
+                .mapToObj(ij.WindowManager::getImage)
+                .filter(Objects::nonNull)
+                .filter(imp -> !ImpUtils.isMaterializedCrop(imp))
+                .filter(imp -> !ImpUtils.isDisplayCanvas(imp))
+                .toArray(ImagePlus[]::new);
+    }
+
 }

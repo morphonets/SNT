@@ -33,6 +33,7 @@ import ij.ImagePlus;
 import sc.fiji.snt.hyperpanes.MultiDThreePanesCanvas;
 import sc.fiji.snt.hyperpanes.PaneOwner;
 import sc.fiji.snt.tracing.artist.SearchArtist;
+import sc.fiji.snt.util.ImpUtils;
 
 /**
  * Provides rendering capabilities for visualizing paths, overlays, and additional interactive elements
@@ -104,7 +105,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 
 		final boolean drawDiametersXY = plugin.getDrawDiameters();
 		// Placeholder canvases are always a single C1T1 image (SNT#rebuildDisplayCanvasesInternal()),
-		final boolean enforceActiveCTpos = plugin.showOnlyActiveCTposPaths && !plugin.isDisplayCanvas(imp);
+		final boolean enforceActiveCTpos = plugin.showOnlyActiveCTposPaths && !ImpUtils.isDisplayCanvas(imp);
 
 		if (pathAndFillManager != null) {
 			final Stroke stroke = g.getStroke();

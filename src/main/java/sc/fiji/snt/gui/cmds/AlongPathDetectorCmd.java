@@ -24,6 +24,7 @@ package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
 import ij.plugin.frame.RoiManager;
+import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.Command;
@@ -110,16 +111,17 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
 
         channel = snt.getChannel();
 
-        final boolean hasImage = snt.accessToValidImageData()
-                && snt.getImagePlus() != null;
+        // NB: not snt.getImagePlus() != null -- that is null in Stream mode unless a materialized crop is active
+        final Dataset dataset = snt.accessToValidImageData() ? snt.getDataset() : null;
+        final boolean hasImage = dataset != null;
 
         if (hasImage) {
-            if (snt.getImagePlus().getNChannels() == 1) {
+            if (dataset.getChannels() == 1) {
                 resolveInput("channel");
             } else {
                 final MutableModuleItem<Integer> mItem = getInfo()
                         .getMutableInput("channel", Integer.class);
-                mItem.setMaximumValue(snt.getImagePlus().getNChannels());
+                mItem.setMaximumValue((int) dataset.getChannels());
             }
         } else {
             // No image: force intensity filtering off and hide related params
@@ -161,7 +163,8 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
         final RandomAccessibleInterval<? extends RealType<?>> intensityImg;
         double resolvedMinIntensity = minIntensity;
         if (useIntensity) {
-            if (snt == null || !snt.accessToValidImageData() || snt.getImagePlus() == null) {
+            // NB: not snt.getImagePlus() == null -- see the same note in init() above
+            if (snt == null || !snt.accessToValidImageData()) {
                 error("Intensity filtering requires valid image data to be loaded.");
                 return;
             }
@@ -175,8 +178,15 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
             }
             if (snt.getChannel() == channel) {
                 intensityImg = snt.getLoadedData();
-            } else {
+            } else if (snt.getImagePlus() != null) {
                 intensityImg = ImgUtils.getCtSlice3d(snt.getImagePlus(), channel, snt.getFrame());
+            } else {
+                // Stream mode without a materialized crop: only the active channel's data is resident
+                // (see SNT#getDataset()), so a different channel genuinely cannot be sampled here
+                error("Intensity filtering on a channel other than the active one (" + snt.getChannel() + ")"
+                        + " requires either a materialized crop or Classic mode. Set 'Intensity channel' to "
+                        + snt.getChannel() + ", or filter using radius only (Min. intensity = 0).");
+                return;
             }
         } else {
             intensityImg = null;

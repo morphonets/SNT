@@ -93,18 +93,21 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
 
         // Build list of open images that pass label-image heuristics
         labelCandidates = new LinkedHashMap<>();
-        for (final ImagePlus imp : ImpUtils.getOpenImages()) {
+        for (final ImagePlus imp : ImpUtils.getNonSNTOpenImages()) {
 
             if (imp.isHyperStack() || ImpUtils.isBinary(imp))
                 continue; // skip binary and hyperstacks; only first C/T would be used
 
             // Quick dimension check: label image should match tracing image spatially
-            final ImagePlus tracingImp = snt.getImagePlus();
-            if (tracingImp != null) {
-                if (imp.getWidth() != tracingImp.getWidth() || imp.getHeight() != tracingImp.getHeight()) {
+            // NB: not snt.getImagePlus() != null -- that is null in Stream mode unless a materialized
+            // crop is active, which would let every open image through unfiltered in that case.
+            // getFullImageDimensions() resolves correctly in every mode (Classic, Stream, materialized crop)
+            if (snt.accessToValidImageData()) {
+                final int[] fullDims = snt.getFullImageDimensions();
+                if (imp.getWidth() != fullDims[0] || imp.getHeight() != fullDims[1]) {
                     continue;
                 }
-                if (tracingImp.getNSlices() > 1 && imp.getNSlices() != tracingImp.getNSlices()) {
+                if (fullDims[2] > 1 && imp.getNSlices() != fullDims[2]) {
                     continue;
                 }
             }
@@ -151,10 +154,16 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
         }
 
         // Dimension check against tracing data
-        final ImagePlus tracingImp = snt.getImagePlus();
-        if (tracingImp != null && !ImgUtils.haveSameSpatialDimensions(tracingImp, labelImg)) {
-            msg("Label image dimensions do not match the tracing image.\n"
-                    + "Results may be inaccurate.", "Dimension Mismatch");
+        // NB: not snt.getImagePlus() != null -- see the same note in init() above
+        if (snt.accessToValidImageData()) {
+            final int[] fullDims = snt.getFullImageDimensions();
+            final boolean dimMatch = labelImg.dimension(0) == fullDims[0]
+                    && labelImg.dimension(1) == fullDims[1]
+                    && (labelImg.numDimensions() <= 2 || labelImg.dimension(2) == fullDims[2]);
+            if (!dimMatch) {
+                msg("Label image dimensions do not match the tracing image.\n"
+                        + "Results may be inaccurate.", "Dimension Mismatch");
+            }
         }
 
         // Build config

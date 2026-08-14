@@ -1094,7 +1094,7 @@ public class SNTUI extends JDialog {
             return;
         }
         final ImagePlus imp = plugin.getImagePlus();
-        final String label = (imp == null || !plugin.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
+        final String label = (!ImpUtils.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
         rebuildCanvasButton.setText(label);
         rebuildCanvasButton.setIcon(null);
     }
@@ -1530,7 +1530,7 @@ public class SNTUI extends JDialog {
         showPathsSelected.setEnabled(enable);
         partsNearbyCSpinner.setEnabled(enable);
         useSnapWindow.setEnabled(enable);
-        onlyActiveCTposition.setEnabled(enable && !plugin.isDisplayCanvas(plugin.getImagePlus()));
+        onlyActiveCTposition.setEnabled(enable && !ImpUtils.isDisplayCanvas(plugin.getImagePlus()));
         snapWindowXYsizeSpinner.setEnabled(enable);
         snapWindowZsizeSpinner.setEnabled(enable);
         assignDiameterSpinner.setEnabled(enable);
@@ -2017,7 +2017,7 @@ public class SNTUI extends JDialog {
             final ImagePlus imp = plugin.getImagePlus();
             if (imp == null) {
                 guiUtils.error((plugin.isStreamMode()) ? "No materialized region exists." : "No image available.", "No Image Exists");
-            } else if (plugin.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
+            } else if (ImpUtils.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
                 switch(imp.getProcessor().get(0, 0)) {
                     case 0 -> imp.getProcessor().set(128);
                     case 128 -> imp.getProcessor().set(255);
@@ -3257,7 +3257,6 @@ public class SNTUI extends JDialog {
         commandFinder.register(mi2, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
         mi3.addActionListener(e -> loadSecondaryImage(false));
-        mi2.setEnabled(!plugin.isStreamMode()); // ChooseDatasetCmd is not yet ready for OME-ZARR/N5 etc. disable for now
         commandFinder.register(mi3, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
         registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Interactive tracing");
@@ -3346,7 +3345,12 @@ public class SNTUI extends JDialog {
             warnOnAutoCTcompatibilityOthers();
             final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir()
                     : plugin.getFilteredImageFile();
-            final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
+            // An N5/OME-Zarr secondary layer is a directory, not a single file, and SNT#loadSecondaryImage(File)
+            // (via SpimDataUtils#resolvePathToSource) supports resolving one
+            final File file = (plugin.isStreamMode())
+                    ? guiUtils.getOpenFileOrDirectory("Choose Secondary Image", proposedFile)
+                    : guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
+
             if (file != null)
                 loadSecondaryImageFile(file);
         }
@@ -5664,7 +5668,7 @@ public class SNTUI extends JDialog {
     protected void inputImageChanged() {
         partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
         partsNearbyCSpinner.setEnabled(!plugin.is2D());
-        onlyActiveCTposition.setEnabled(!plugin.isDisplayCanvas(plugin.getImagePlus()));
+        onlyActiveCTposition.setEnabled(!ImpUtils.isDisplayCanvas(plugin.getImagePlus()));
         plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(), (int) partsNearbyCSpinner.getValue());
         ctPositionChanged();
         if (autoRbmi != null)
@@ -5941,7 +5945,7 @@ public class SNTUI extends JDialog {
     protected boolean accessToValidImagePlus() {
         final ImagePlus imp = plugin.getImagePlus();
         return imp != null && imp.getProcessor() != null
-                && !plugin.isDisplayCanvas(imp) && (imp.getWidth() > 1 || imp.getHeight() > 1);
+                && !ImpUtils.isDisplayCanvas(imp) && (imp.getWidth() > 1 || imp.getHeight() > 1);
     }
 
     private boolean accessToTracingCanvas() {
@@ -6106,7 +6110,7 @@ public class SNTUI extends JDialog {
         public void imageClosed(final ImagePlus imp) {
 
             // Case 1: A display canvas was closed. Do nothing
-            if (plugin.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
+            if (ImpUtils.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
                 SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
                 return;
             }
@@ -6115,7 +6119,7 @@ public class SNTUI extends JDialog {
             // SNT#isMaterializedCrop()) and any "whole dataset" command work again. Checked before Case 4
             // below, which would otherwise also match (a crop's own ctSlice3d is non-null too) and
             // incorrectly offer to "reopen from cached data" using the crop's own small pixel data
-            else if (plugin.isMaterializedCrop(imp)) {
+            else if (ImpUtils.isMaterializedCrop(imp)) {
                 plugin.dematerializeDisplayCanvas();
                 listener.tracingImageID = 0;
             }
