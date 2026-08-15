@@ -30,6 +30,7 @@ import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInImage;
 
 import javax.swing.*;
 import java.util.Arrays;
@@ -88,6 +89,7 @@ public class DemoRunner {
 		entry.data = "Image (2D; 3-channel confocal image, 5.5MB)";
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL41458";
 		entry.online = true;
+		entry.keywords = List.of("multicolor", "spectral refinement");
 		return entry;
 	}
 
@@ -132,6 +134,7 @@ public class DemoRunner {
 				Beining et al. 2017 (PMID 27514866),
 				NeuroMorpho.org ID: 21dpi_contra_infra_01, Source version (Beining archive)""";
 		entry.online = false;
+		entry.keywords = List.of("Dentate gyrus", "root angle analysis");
 		return entry;
 	}
 
@@ -177,6 +180,7 @@ public class DemoRunner {
 		entry.data = "Image (2D mask, 581KB)";
 		entry.online = false;
 		entry.source = "PMID 24449841";
+		entry.keywords = List.of("space-filling", "tracing-free", "confocal", "projection", "Sholl", "auto-tracing");
 		return entry;
 	}
 
@@ -206,6 +210,7 @@ public class DemoRunner {
 		// entry.tracingsURL =
 		// "https://raw.githubusercontent.com/morphonets/SNT/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1-gs.swc";
 		entry.online = true;
+		entry.keywords = List.of("DIADEM", "confocal", "antennal lobe", "PNs", "auto-tracing");
 		return entry;
 	}
 
@@ -224,6 +229,7 @@ public class DemoRunner {
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL701";
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/CIL_Dataset_%23701.traces";
+		entry.keywords = List.of("In vitro", "brightfield", "unlabeled", "growth analysis");
 		return entry;
 	}
 
@@ -240,6 +246,7 @@ public class DemoRunner {
 		entry.data = "Image (2D; 5-channel confocal image, 2.5MB)";
 		entry.source = "ImageJ sample image";
 		entry.online = true;
+		entry.keywords = List.of("In vitro", "membrane", "synapses", "neurotransmitter", "profile");
 		return entry;
 	}
 
@@ -256,6 +263,7 @@ public class DemoRunner {
 		entry.data = "Image (2D; 3-channel confocal image, 3.8MB)";
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL810";
 		entry.online = true;
+		entry.keywords = List.of("In vitro", "membrane", "synapses", "neurotransmitter", "profile");
 		return entry;
 	}
 
@@ -282,6 +290,7 @@ public class DemoRunner {
 		entry.data = "Image (2D; mask, 23KB), tracings, and ROIs (25KB)";
 		entry.source = "SNT script";
 		entry.online = false;
+		entry.keywords = List.of("synthetic", "Strahler");
 		return entry;
 	}
 
@@ -328,6 +337,7 @@ public class DemoRunner {
 		entry.data = "Image (2D; grayscale, 1.4MB)";
 		entry.online = true;
 		entry.source = "PMID 29750189";
+		entry.keywords = List.of("glia", "multi-cell", "auto-tracing");
 		return entry;
 	}
 
@@ -365,6 +375,7 @@ public class DemoRunner {
 		entry.data = "JSON (654KB)";
 		entry.source = "MouseLight database (AA0001-AA0004)";
 		entry.online = false;
+		entry.keywords = List.of("whole-brain", "neuropil annotations", "CCF", "delineation analysis");
 		return entry;
 	}
 
@@ -396,6 +407,7 @@ public class DemoRunner {
 		entry.source = "ImageJ sample image, PMID 19720876";
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/SNTmanuscript/718e4b90fb4bb61f382edcf467173b53045b25e0/FigS3_5D-Tracing/traces/mitosis.traces";
+		entry.keywords = List.of("Chromosome", "in-vitro", "not-a-neuron", "time-lapse");
 		return entry;
 	}
 
@@ -420,6 +432,7 @@ public class DemoRunner {
 		entry.source = "NeuronJ, https://imagej.net/plugins/neuronj";
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/NeuronJ/neurites.ndf";
+		entry.keywords = List.of("2D", "in-vitro", "rubber-band", "live-tracing");
 		return entry;
 	}
 
@@ -453,6 +466,7 @@ public class DemoRunner {
 		entry.data = "Image (2D timelapse, 0.9MB)";
 		entry.source = "https://forum.image.sc/t/snt-time-lapse-utilites/47974";
 		entry.online = true;
+		entry.keywords = List.of("growth analysis", "in-vitro", "script", "auto-tracing", "binary");
 		return entry;
 	}
 
@@ -483,6 +497,7 @@ public class DemoRunner {
 		entry.source = "Spot Spine (https://imagej.net/plugins/spot-spine) manuscript, doi:10.12688/f1000research.146327.2";
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.swc";
+		entry.keywords = List.of("spine morphology", "SNT add-on", "synapse", "dendrite");
 		return entry;
 	}
 
@@ -536,6 +551,7 @@ public class DemoRunner {
 		String summary;
 		boolean online;
 		boolean imageLoaded;
+		List<String> keywords;
 
 		private Demo(final int id, final String name) {
 			this.id = id;
@@ -668,6 +684,10 @@ public class DemoRunner {
 			if (source != null) {
 				sb.append("\n");
 				sb.append("Source: ").append(source);
+			}
+			if (keywords != null && !keywords.isEmpty()) {
+				sb.append("\n");
+				sb.append("Keywords: ").append(String.join(", ", keywords));
 			}
 			return sb.toString();
 		}
