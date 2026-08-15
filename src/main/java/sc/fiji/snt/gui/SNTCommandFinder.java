@@ -1185,7 +1185,7 @@ public class SNTCommandFinder {
 
                 @Override
                 public void updateUI() {
-                    GuiUtils.recolorTracks(this, BACKGROUND, false);
+                    GuiUtils.ScrollPanes.recolorTracks(this, BACKGROUND, false);
                     super.updateUI();
                 }
             };

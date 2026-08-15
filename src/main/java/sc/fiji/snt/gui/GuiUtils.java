@@ -25,6 +25,7 @@ package sc.fiji.snt.gui;
 import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.icons.FlatClearIcon;
+import com.formdev.flatlaf.ui.FlatLineBorder;
 import com.formdev.flatlaf.util.SystemFileChooser;
 import com.formdev.flatlaf.util.UIScale;
 import com.jidesoft.plaf.LookAndFeelFactory;
@@ -586,11 +587,11 @@ public class GuiUtils {
 		final JPanel panel = new JPanel(layout);
 		panel.add(getLabel(message),gbc);
 		gbc.gridy++;
-		panel.add(getScrollPane(list), gbc);
+		panel.add(ScrollPanes.create(list), gbc);
 		gbc.gridy++;
 		panel.add(new JLabel("<HTML>&nbsp;"), gbc); // spacer
 		gbc.gridy++;
-		panel.add(getScrollPane(ta), gbc);
+		panel.add(ScrollPanes.create(ta), gbc);
 		if (choices.length >  4) {
 			final ListSearchable searchable = new ListSearchable(list) {
 				@Override
@@ -648,15 +649,9 @@ public class GuiUtils {
 		return list;
 	}
 
-	private JScrollPane getScrollPane(final Component c) {
-		final JScrollPane sp = new JScrollPane(c);
-		sp.setWheelScrollingEnabled(true);
-		return sp;
-	}
-
 	public List<String> getMultipleChoices(final String title, final String[] choices, final String defaultChoice) {
 		final JList<String> list = getJList(choices, defaultChoice);
-		if (JOptionPane.showConfirmDialog(parent, getScrollPane(list), title,
+		if (JOptionPane.showConfirmDialog(parent, ScrollPanes.create(list), title,
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.OK_OPTION)
 			return list.getSelectedValuesList();
 		return null;
@@ -671,7 +666,7 @@ public class GuiUtils {
 		combo.setSelectedItem(defaultChoice2);
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-		panel.add(getScrollPane(list1));
+		panel.add(ScrollPanes.create(list1));
 		panel.add(combo);
 		if (JOptionPane.showConfirmDialog(parent, panel, title,
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.OK_OPTION) {
@@ -1492,7 +1487,7 @@ public class GuiUtils {
 	}
 
 	private JDialog htmlOptionPane(final String msg, final String title, final boolean modal) {
-		final JOptionPane op = new JOptionPane(getScrollPane(htmlEditorPane(msg)),
+		final JOptionPane op = new JOptionPane(ScrollPanes.create(htmlEditorPane(msg)),
 				JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = op.createDialog(parent, title);
 		d.setModal(modal);
@@ -2342,23 +2337,6 @@ public class GuiUtils {
 		return cp;
 	}
 
-	public static void recolorTracks(final JScrollPane scrollPane, final Color color, final boolean updateUI) {
-		final Component c = scrollPane.getCorner(JScrollPane.LOWER_TRAILING_CORNER);
-		if (c != null) {
-			c.setBackground(color);
-		} else {
-			final JPanel dummy = new JPanel();
-			dummy.setBackground(color);
-			scrollPane.setCorner(JScrollPane.LOWER_TRAILING_CORNER, dummy);
-		}
-		final Map<String, Object> style = new HashMap<>();
-		style.put("track", color);
-		style.put("hoverTrackColor", color);
-		scrollPane.getHorizontalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
-		scrollPane.getVerticalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
-		if (updateUI) scrollPane.updateUI();
-	}
-
 	public static void addClearButton(final JTextField textField) {
 		textField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
 	}
@@ -2737,7 +2715,7 @@ public class GuiUtils {
 
 	public boolean yesNoHTMLDialog(final String htmlMsg, final String title,
 								   final String yesLabel, final String noLabel) {
-		return yesNoDialog(new Object[]{getScrollPane(htmlEditorPane(htmlMsg))}, title,
+		return yesNoDialog(new Object[]{ScrollPanes.create(htmlEditorPane(htmlMsg))}, title,
 				new String[]{yesLabel, noLabel}, JOptionPane.PLAIN_MESSAGE) == JOptionPane.YES_OPTION;
 	}
 
@@ -2804,7 +2782,7 @@ public class GuiUtils {
 				++c.gridy;
 				contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
 				++c.gridy;
-				contentPane.add(getScrollPane(titles), c);
+				contentPane.add(ScrollPanes.create(titles), c);
 				++c.gridy;
 				contentPane.add(leftAlignedLabel("Montage Layout:", true), c);
 				++c.gridy;
@@ -5018,6 +4996,38 @@ public class GuiUtils {
 			}
 		}
 
+	}
+
+
+	public static class ScrollPanes {
+
+		private static JScrollPane create(final Component c) {
+			final JScrollPane sp = new JScrollPane(c);
+			sp.setWheelScrollingEnabled(true);
+			return sp;
+		}
+
+		public static void setTopBottomBorder(final JScrollPane scrollPane) {
+			scrollPane.setBorder(new FlatLineBorder(new Insets(1, 0, 1, 0),
+					UIManager.getColor("Component.borderColor")));
+		}
+
+		public static void recolorTracks(final JScrollPane scrollPane, final Color color, final boolean updateUI) {
+			final Component c = scrollPane.getCorner(JScrollPane.LOWER_TRAILING_CORNER);
+			if (c != null) {
+				c.setBackground(color);
+			} else {
+				final JPanel dummy = new JPanel();
+				dummy.setBackground(color);
+				scrollPane.setCorner(JScrollPane.LOWER_TRAILING_CORNER, dummy);
+			}
+			final Map<String, Object> style = new HashMap<>();
+			style.put("track", color);
+			style.put("hoverTrackColor", color);
+			scrollPane.getHorizontalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
+			scrollPane.getVerticalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
+			if (updateUI) scrollPane.updateUI();
+		}
 	}
 
 

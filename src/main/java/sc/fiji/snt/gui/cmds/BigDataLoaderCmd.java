@@ -133,7 +133,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
     String msg;
 
-    @Parameter(label = "Load Remote Demo...", callback = "loadDemo", persist = false, required = false)
+    @Parameter(label = "Load Remote Demo", callback = "loadDemo", persist = false, required = false)
     private Button demoButton;
 
     @SuppressWarnings("unused")

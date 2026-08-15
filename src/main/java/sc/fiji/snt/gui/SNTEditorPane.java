@@ -170,7 +170,7 @@ public class SNTEditorPane extends EditorPane {
             th.apply(this);
             setFont(getFont().deriveFont(GuiUtils.uiFontSize())); // theme may contain hardwired fonts
             scrollPane.getGutter().setLineNumberFont(scrollPane.getGutter().getLineNumberFont().deriveFont(getFontSize()*.75f)); // theme may contain hardwired fonts
-            GuiUtils.recolorTracks(scrollPane, th.bgColor, true);
+            GuiUtils.ScrollPanes.recolorTracks(scrollPane, th.bgColor, true);
             // Ensure gutter and row header backgrounds match the editor
             scrollPane.getGutter().setBackground(th.bgColor);
             if (scrollPane.getRowHeader() != null) {

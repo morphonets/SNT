@@ -355,17 +355,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 + "Double-click an issue to navigate to its location; "
                 + "right-click the issues table for actions.", panel), gbc);
         gbc.gridy++;
-        // Parameters region (live + on-demand). Wrapped in a scroll pane so
-        // that when the user shrinks the top half of the split below the
-        // params' natural height, the content scrolls instead of clipping.
-        // The two sections are also independently collapsible via the
-        // chevron next to each header -- collapse one to focus on the other.
-        // WidthTrackingPanel (see below) instead of plain JPanel: it
-        // implements Scrollable with getScrollableTracksViewportWidth() ==
-        // true, so the panel reflows to the viewport's width instead of
-        // sizing to its preferred width and overflowing the right edge
-        // (which, with HORIZONTAL_SCROLLBAR_NEVER, would clip the histogram
-        // buttons at the right of each row).
+        // Parameters region (live + on-demand). Wrapped in a scroll pane so that when the user shrinks the top half of
+        // the split below the  params' natural height, the content scrolls instead of clipping.  The two sections are
+        // collapsible via the chevron next to each header -- collapse one to focus on the other.
+        // WidthTrackingPanel (see below) instead of plain JPanel: it implements Scrollable with
+        // getScrollableTracksViewportWidth() ==  true, so the panel reflows to the viewport's width instead of sizing
+        // to its preferred width and overflowing the right edge (which, with HORIZONTAL_SCROLLBAR_NEVER, would clip the
+        // histogram buttons at the right of each row)
         final JPanel paramsPane = new WidthTrackingPanel(new GridBagLayout());
         final GridBagConstraints paramsGbc = GuiUtils.defaultGbc();
         paramsGbc.fill = GridBagConstraints.HORIZONTAL;
@@ -378,26 +374,20 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         paramsGbc.weighty = 1.0;
         paramsPane.add(Box.createVerticalGlue(), paramsGbc);
 
-        // VERTICAL_SCROLLBAR_ALWAYS rather than AS_NEEDED so the scrollbar's
-        // width is always reserved by the viewport, never overlapping the
-        // chevron and per-row histogram buttons that sit at the right edge.
-        // The "non-functional scrollbar when content fits" cost is small;
-        // for this dense panel the bar is usually active anyway.
+        // VERTICAL_SCROLLBAR_ALWAYS rather than AS_NEEDED so the scrollbar's width is always reserved by the viewport,
+        // never overlapping the chevron and per-row histogram buttons that sit at the right edge. The "non-functional
+        // scrollbar when content fits" cost is small; for this dense panel the bar is usually active anyway
         final JScrollPane paramsScroll = new JScrollPane(paramsPane,
                 JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        paramsScroll.setBorder(BorderFactory.createEmptyBorder());
+        GuiUtils.ScrollPanes.setTopBottomBorder(paramsScroll);
         paramsScroll.setViewportBorder(BorderFactory.createEmptyBorder());
         paramsScroll.setOpaque(false);
         paramsScroll.getViewport().setOpaque(false);
-        // Faster scroll than the default 1px-per-tick
-        paramsScroll.getVerticalScrollBar().setUnitIncrement(16);
 
-        // Bottom half of the split: toolbar + warnings table. Bundling them
-        // here (rather than as separate top-level rows) lets the JSplitPane
-        // treat "params" and "warnings + their controls" as the two natural
-        // sides of the divider; the toolbar always sits with what it
-        // operates on.
+        // Bottom half of the split: toolbar + warnings table. Bundling them  here (rather than as separate top-level
+        // rows) lets the JSplitPane treat "params" and "warnings + their controls" as the two natural  sides of the
+        // divider; the toolbar always sits with what it operates on
         tableScroll = new JScrollPane(warningsTable);
         tableScroll.setMinimumSize(new Dimension(0, 0)); // allow shrinking
         warningsTable.setPreferredScrollableViewportSize(null); // defer to layout
@@ -406,21 +396,18 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         bottomHalf.add(buildToolbar(), BorderLayout.NORTH);
         bottomHalf.add(tableScroll, BorderLayout.CENTER);
 
-        // Vertical split between params (top) and toolbar+table (bottom).
-        // resizeWeight = 0.0 means: when the whole tab is resized, the
-        // bottom (table) absorbs the change while params stays at its
-        // current size -- which matches users' usual mental model of
-        // "give me more room for the issues list".
+        // Vertical split between params (top) and toolbar+table (bottom). resizeWeight = 0.0 means: when the whole tab
+        // is resized, the  bottom (table) absorbs the change while params stays at its current size -- which matches
+        // users' usual mental model of  "give me more room for the issues list"
         final javax.swing.JSplitPane paramsTableSplit = new javax.swing.JSplitPane(
                 javax.swing.JSplitPane.VERTICAL_SPLIT, paramsScroll, bottomHalf);
         paramsTableSplit.setBorder(BorderFactory.createEmptyBorder());
         paramsTableSplit.setOpaque(false);
         paramsTableSplit.setContinuousLayout(true);
         paramsTableSplit.setOneTouchExpandable(false);
-        // Initial split: ~60% to params (typical content fits there), rest
-        // for the issues list. setDividerLocation(double) only works after
-        // the component is realized, so we also set a sensible absolute
-        // fallback that takes effect immediately.
+        // Initial split: ~60% to params (typical content fits there), rest for the issues list.
+        // setDividerLocation(double) only works after  the component is realized, so we also set a sensible absolute
+        // fallback that takes effect immediately
         paramsTableSplit.setDividerLocation(0.7);
         SwingUtilities.invokeLater(() -> paramsTableSplit.setDividerLocation(0.7));
 
@@ -431,11 +418,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         gbc.gridy++;
         gbc.insets.top = 0;
 
-        // Detach / dock table: the helper needs the scroll pane to exist
-        // (it captures a reference to it). We can't wire it inside
-        // buildTablePopupMenu() because that runs from the constructor,
-        // long before tableScroll is created here. Append the toggle item
-        // to the existing popup now that everything it needs is in place.
+        // Detach / dock table: the helper needs the scroll pane to exist. We can't wire it inside
+        // buildTablePopupMenu() because that runs from the constructor,  long before tableScroll is created here.
+        // Append the toggle item to the existing popup now that everything it needs is in place
         if (tableDetacher == null) {
             tableDetacher = new GuiUtils.JTables.DetachableTable(
                     tableScroll, "Issues (Curation Assistant)", this::redockTableScroll,
