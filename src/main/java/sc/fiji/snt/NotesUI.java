@@ -22,15 +22,19 @@
 
 package sc.fiji.snt;
 
+import ij.ImagePlus;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTEditorPane;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Implements the <i>Notepad</i> pane.
@@ -38,6 +42,8 @@ import java.io.IOException;
  * @author Tiago Ferreira
  */
 public class NotesUI {
+
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     private final SNTUI sntui;
     private final SNTEditorPane editor;
@@ -121,11 +127,13 @@ public class NotesUI {
             final String cheatsheet = markDownOverview();
             if (editor.getText().contains(cheatsheet)) {
                 editor.setText(editor.getText().replace(cheatsheet, ""));
+                editor.requestFocusInWindow();
             } else {
+                final int cheatsheetStart = editor.getDocument().getLength() + 1;
                 editor.append(cheatsheet);
-                editor.setCaretPosition(editor.getDocument().getLength()-cheatsheet.length());
+                editor.setCaretPosition(cheatsheetStart);
+                scrollToOffsetIfNotVisible(cheatsheetStart + cheatsheet.length()/2); // scroll to middle
             }
-            editor.requestFocusInWindow();
         });
         final JToolBar toolbar = new JToolBar();
         toolbar.add(open);
@@ -137,24 +145,29 @@ public class NotesUI {
         toolbar.addSeparator();
         toolbar.add(editor.timeStampButton(e -> {
             editor.appendTimeStamp("*", "*\n");
-            editor.requestFocusInWindow();
+            scrollToOffsetIfNotVisible(editor.getDocument().getLength());
         }));
         final JButton settingsStamp = new JButton(IconFactory.buttonIcon('\uf2db', true, IconFactory.defaultColor()));
         settingsStamp.setToolTipText("Insert computation settings");
         settingsStamp.addActionListener(e -> {
             editor.append("**Computation Settings:**");
             editor.append("\n```\n" + computationSettings() +"\n```\n");
-            editor.requestFocusInWindow();
+            scrollToOffsetIfNotVisible(editor.getDocument().getLength());
         });
         toolbar.add(settingsStamp);
         final JButton imgTitleStamp = new JButton(IconFactory.buttonIcon('\uf03e', true, IconFactory.defaultColor()));
-        imgTitleStamp.setToolTipText("Insert name of image being traced");
+        imgTitleStamp.setToolTipText("Insert details on image being traced");
         imgTitleStamp.addActionListener(e -> {
             if (!sntui.plugin.accessToValidImageData()) {
                 sntui.noValidImageDataError();
             } else {
-                editor.append("`" + sntui.plugin.getImagePlus().getTitle() + "`\n");
-                editor.requestFocusInWindow();
+                if (sntui.plugin.getImagePlus() != null)
+                    editor.append("`" + standardModeImageDetails(sntui.plugin.getImagePlus()) + "`\n");
+                else if (sntui.plugin.isStreamMode())
+                    editor.append("`" + streamModeImageDetails() + "`\n");
+                else
+                    editor.append("`unknown image title`\n");
+                scrollToOffsetIfNotVisible(editor.getDocument().getLength());
             }
         });
         toolbar.add(imgTitleStamp);
@@ -166,7 +179,7 @@ public class NotesUI {
                 sntui.error("Current tracings do not seem to be associated with a TRACES file.");
             } else {
                 editor.append("`" + file.getName() + "`\n");
-                editor.requestFocusInWindow();
+                scrollToOffsetIfNotVisible(editor.getDocument().getLength());
             }
         });
         toolbar.add(filenameStamp);
@@ -208,6 +221,61 @@ public class NotesUI {
         return sntui.geSettingsString();
     }
 
+    private String streamModeImageDetails() {
+        final SNT p = sntui.plugin;
+        final StringBuilder sb = new StringBuilder("Streamed data");
+        if (p.getWidth() > 0 && p.getHeight() > 0 && p.getDepth() > 0) {
+            sb.append(String.format(" (%dx%dx%d px", p.getWidth(), p.getHeight(), p.getDepth()));
+            if (p.getPixelWidth() > 0 && p.getPixelHeight() > 0 && p.getPixelDepth() > 0) {
+                sb.append(String.format("; %.3fx%.3fx%.3f %s/px", p.getPixelWidth(), p.getPixelHeight(),
+                        p.getPixelDepth(), p.getSpacingUnits()));
+            }
+            sb.append(")");
+        }
+        if (p.isMaterializedCrop()) sb.append(" [materialized crop]");
+        final AbstractBigViewer viewer = sntui.getActiveBigViewer();
+        if (viewer != null) {
+            final String sourcePath = viewer.getPrimarySourcePath();
+            if (sourcePath != null && !sourcePath.isBlank()) sb.append(", source: ").append(sourcePath);
+            if (!viewer.getRenderedTrees().isEmpty())
+                sb.append(", ").append(viewer.getRenderedTrees().size()).append(" tree(s)");
+            if (viewer.hasMarkerManager() && viewer.getMarkerManager().hasBookmarks())
+                sb.append(", ").append(viewer.getMarkerManager().getCount()).append(" marker(s)");
+        }
+        return sb.toString();
+    }
+
+    private String standardModeImageDetails(final ImagePlus imp) {
+        assert imp != null;
+        final StringBuilder sb = new StringBuilder(imp.getTitle());
+        sb.append(String.format(" (%dx%dx%d px", imp.getWidth(), imp.getHeight(), imp.getNSlices()));
+        final ij.measure.Calibration cal = imp.getCalibration();
+        if (cal != null && cal.pixelWidth > 0 && cal.pixelHeight > 0) {
+            sb.append(String.format("; %.3fx%.3fx%.3f %s/px", cal.pixelWidth, cal.pixelHeight,
+                    (cal.pixelDepth > 0) ? cal.pixelDepth : 1d, cal.getUnit()));
+        }
+        sb.append(")");
+        if (imp.getNChannels() > 1) sb.append(", ").append(imp.getNChannels()).append(" channels");
+        if (imp.getNFrames() > 1) sb.append(", ").append(imp.getNFrames()).append(" frames");
+        final String sourcePath = standardModeSourcePath(imp);
+        if (sourcePath != null) sb.append(", source: ").append(sourcePath);
+        final Collection<Tree> trees = sntui.plugin.getPathAndFillManager().getTrees();
+        if (trees != null && !trees.isEmpty()) sb.append(", ").append(trees.size()).append(" tree(s)");
+        if (sntui.getBookmarkManager().hasBookmarks())
+            sb.append(", ").append(sntui.getBookmarkManager().getCount()).append(" marker(s)");
+        return sb.toString();
+    }
+
+    /** Best-effort original file path/URL for {@code imp}, or null if unknown. */
+    private String standardModeSourcePath(final ImagePlus imp) {
+        final ij.io.FileInfo fi = imp.getOriginalFileInfo();
+        if (fi == null) return null;
+        if (fi.url != null && !fi.url.isBlank()) return fi.url;
+        if (fi.directory != null && fi.fileName != null && !fi.fileName.isBlank())
+            return fi.directory + fi.fileName;
+        return null;
+    }
+
     private void loadNotesFromFile(final File file) {
         try {
             editor.open(file);
@@ -230,6 +298,23 @@ public class NotesUI {
         final boolean blank = editor.getText().isBlank();
         if (blank) sntui.guiUtils.error("Notepad is empty.");
         return blank;
+    }
+
+    private void scrollToOffsetIfNotVisible(final int offset) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                final Rectangle2D r2d = editor.modelToView2D(offset);
+                if (r2d == null) return;
+                final Rectangle rect = r2d.getBounds();
+                if (!editor.getVisibleRect().contains(rect)) {
+                    editor.scrollRectToVisible(rect);
+                }
+            } catch (final javax.swing.text.BadLocationException ignored) {
+                // offset no longer valid (e.g., editor content changed in the meantime): nothing to scroll to
+            } finally {
+                editor.requestFocusInWindow();
+            }
+        });
     }
 
     private void noRecordComment() {

@@ -89,7 +89,11 @@ public class BigDataLoaderCmd extends ContextCommand {
 
 
     @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
-    String msgHeader= "<HTML>All files can be specified by either local paths or remote URLs. Only <i>Main volume</i> is a mandatory field.";
+    String msgHeader= "<HTML>This is the initialization prompt for TB-sized images (w/ optional tracing via <i>SNT " +
+            "Stream</i>). For regular, in-memory<br>" +
+            "images, use the <i>Startup...</i> option instead. All files can be specified by either local paths or " +
+            "remote URLs. Only<br>" +
+            "the <i>Main volume</i> field is mandatory.";
 
     // NB: persist = false on all four File parameters below: SciJava's own generic File-parameter persistence restores
     // a value via `new File(persistedString)`, which mangles a remote URL (see toPathString()). Persistence is instead
@@ -122,13 +126,15 @@ public class BigDataLoaderCmd extends ContextCommand {
     private static final String REC_KEY = "recFiles";
     private static final String MARKER_KEY = "markerFile";
 
-    @Parameter(label = "Viewer type", description = "The type of viewer.\nTracing capabilities are provided by SNT Stream.",
-            choices = {
-            "Big Data Viewer (BDV): Interactive reslicing",
-            "Big Data Viewer (BDV): Interactive reslicing w/ tracing capabilities",
-            "Big Volume Viewer (BVV): 3D rendering",
-            "Big Volume Viewer (BVV): 3D rendering w/ tracing capabilities"})
-    String viewerChoice;
+    @Parameter(label = "Viewer type", description = "The type of viewer.",
+            choices = {"Big Data Viewer (BDV): Interactive reslicing", "Big Volume Viewer (BVV): 3D rendering"})
+    String viewerType;
+
+    @Parameter(label = "Enable tracing (SNT Stream)",
+            description = "<HTML>If enabled, the viewer becomes the main tracing canvas w/ tracing capabilities.<br>"
+                    + "If disabled, a plain, lightweight viewer is opened with no SNT session attached.",
+            callback = "tracingEnabledChanged")
+    boolean tracingEnabled = true;
 
     @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
     String msg;
@@ -143,14 +149,26 @@ public class BigDataLoaderCmd extends ContextCommand {
         img2File = null;
         recFiles = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/autotracings.traces");;
         markerFile = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/soma_detections.csv");
-        viewerChoice = "Big Data Viewer (BDV): Interactive reslicing w/ tracing capabilities";
+        viewerType = "Big Data Viewer (BDV): Interactive reslicing";
+        tracingEnabled = true;
     }
 
     @SuppressWarnings("unused")
     private void init() {
-        msg = (SNTUtils.getInstance() == null)
-                ? "" : "<HTML>NB: <i>SNT Stream</i> requires SNT to not already be running. Please close the active instance first.";
+        updateRunningInstanceWarning();
         populateLastUsed();
+    }
+
+    @SuppressWarnings("unused")
+    private void tracingEnabledChanged() {
+        updateRunningInstanceWarning();
+    }
+
+    private void updateRunningInstanceWarning() {
+        msg = (tracingEnabled && SNTUtils.getInstance() != null)
+                ? "<HTML>NB: Enabling tracing (<i>SNT Stream</i>) requires SNT to not already be running. "
+                        + "Please close the active instance first,<br>or disable tracing above."
+                : "";
     }
 
     /** Restores the four File fields from PrefService, in place of SciJava's own (URL-mangling) persistence. */
@@ -194,9 +212,8 @@ public class BigDataLoaderCmd extends ContextCommand {
             error("No volume files specified.");
             return;
         }
-        final boolean threeD = viewerChoice == null || viewerChoice.toLowerCase().contains("bvv")
-                || viewerChoice.toLowerCase().contains("vol");
-        final boolean tracer = viewerChoice != null && viewerChoice.toLowerCase().contains("tracing");
+        final boolean threeD = viewerType != null && viewerType.toLowerCase().contains("bvv");
+        final boolean tracer = tracingEnabled;
 
         if (tracer && SNTUtils.getInstance() != null) {
             error("SNT seems to be already running. Please close the current instance and re-run.");
