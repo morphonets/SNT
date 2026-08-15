@@ -630,6 +630,16 @@ public abstract class AbstractBigViewer {
         return markerManager;
     }
 
+    /**
+     * Checks whether a {@link sc.fiji.snt.BookmarkManager} has already been created for this
+     * viewer, without triggering its (lazy, non-trivial) creation as {@link #getMarkerManager()}
+     * would. Useful for display/logging code that wants to report marker counts only if the
+     * panel is already in use.
+     */
+    public boolean hasMarkerManager() {
+        return markerManager != null;
+    }
+
 
     /**
      * Sets the voxel calibration for the viewer.
@@ -665,6 +675,22 @@ public abstract class AbstractBigViewer {
     /** Returns the physical unit string, or null if not set. */
     public String getCalUnit() {
         return calUnit;
+    }
+
+    /**
+     * Returns the file path/URL of the primary loaded volume, for display/logging purposes
+     * (e.g., a Notes entry documenting the dataset being traced).
+     * <p>
+     * Only sources registered through {@link #spimDataFilePaths} (i.e., datasets opened via
+     * {@code AbstractSpimData}-based {@code show(...)} overloads, such as N5/Zarr/BDV/IMS data)
+     * are tracked. There is no guaranteed order if more than one source is loaded; this simply
+     * returns the first entry found.
+     * </p>
+     *
+     * @return the source path/URL, or null if unknown/not applicable
+     */
+    public String getPrimarySourcePath() {
+        return spimDataFilePaths.values().stream().findFirst().orElse(null);
     }
 
     /**

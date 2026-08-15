@@ -69,22 +69,26 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private static final String DEF_DESCRIPTION =
 		"Optional. Ignored when a display canvas is used";
 
+	@Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
+	String msgHeader= "<HTML>This is SNT's initialization prompt for regular, in-memory images. " +
+			"For TB-sized data<br>use the <i>Big Data...</i> option. All fields are optional.";
+
 	@Parameter(required = true, label = "Image", //
-			description = "The image to be traced (optional). If binary, it will be eligible for automated reconstruction.", //
+			description = "<HTML>Optional. The image to be traced.", //
 			callback = "imageChoiceChanged")
 	private String imageChoice;
 
 	@Parameter(required = false, label = "Image file",
-			description = "<HTML>Image file, when <i>Image</i> choice is <i>"+ IMAGE_FILE +"</i> (optional)",
+			description = "<HTML>Optional. Image file when <i>Image</i> choice is<br><i>"+ IMAGE_FILE +"</i>",
 		style = FileWidget.OPEN_STYLE, callback = "imageFileChanged")
 	private File imageFile;
 
-	@Parameter(required = false, label = "<HTML>&nbsp;",
-		visibility = ItemVisibility.MESSAGE)
+	@Parameter(required = false, label = "<HTML>&nbsp;", visibility = ItemVisibility.MESSAGE)
 	private String SPACER1;
 
 	@Parameter(required = false, label = "Reconstruction file", //
-			description="The reconstruction file to be loaded: JSON, NDF, SWC, or TRACES (optional)",
+			description="<HTML>Optional. The reconstruction file to be loaded:<br>" +
+					"TRACES, SWC, Neurolucida XML, NDF, JSON...",
 		style = FileWidget.OPEN_STYLE, callback = "tracesFileChanged")
 	private File tracesFile;
 
@@ -92,8 +96,8 @@ public class SNTLoaderCmd extends DynamicCommand {
 		visibility = ItemVisibility.MESSAGE)
 	private String SPACER2;
 
-	@Parameter(required = false, label = "User interface", choices = { UI_DEFAULT,
-		UI_SIMPLE }, description = DEF_DESCRIPTION + " or image is 2D")
+	@Parameter(required = false, label = "User interface", choices = { UI_DEFAULT, UI_SIMPLE },
+			description = DEF_DESCRIPTION + " or image is 2D")
 	private String uiChoice;
 
 	@Parameter(required = false, label = "Tracing channel",
