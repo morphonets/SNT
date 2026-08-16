@@ -23,29 +23,31 @@
 package sc.fiji.snt.plugin;
 
 import java.awt.image.IndexColorModel;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import net.imagej.ImageJ;
 
 import org.scijava.command.Command;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.ui.DialogPrompt;
-import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.UIService;
-import org.scijava.widget.ChoiceWidget;
 
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.Roi;
 import ij.plugin.LutLoader;
 import ij.process.ImageProcessor;
+import org.scijava.widget.ChoiceWidget;
 import sc.fiji.analyzeSkeleton.AnalyzeSkeleton_;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTService;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImpUtils;
 
 /**
@@ -53,23 +55,21 @@ import sc.fiji.snt.util.ImpUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Convert Paths to Topographic Skeletons")
-public class SkeletonizerCmd implements Command {
+@Plugin(type = Command.class, initializer = "init", label = "Convert Paths to Topographic Skeletons")
+public class SkeletonizerCmd extends CommonDynamicCmd {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-	@Parameter
-	private UIService uiService;
-
-	@Parameter
-	private SNTService sntService;
+	private static final String NO_RESTRICTION = "None (Convert complete paths)";
+	private static final String MATERIALIZED_REGION_RESTRICTION = "Convert only paths within the materialized region";
+	private static final String ROI_RESTRICTION = "Convert only path segments contained by ROI";
 
 	@Parameter(required = false, label = "Output", style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, choices = {
 			"Binary (all paths have the same intensity)", "Labels (each path has an unique intensity)" })
 	private String imgChoice;
 
-	@Parameter(required = false, label = "Roi filtering", style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, choices = {
-			"None (Convert complete paths)", "Convert only path segments contained by ROI" })
+	@Parameter(required = false, label = "Roi filtering", style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
+			choices = { NO_RESTRICTION, ROI_RESTRICTION })
 	private String roiChoice;
 
 	@Parameter(required = false, label = "Run \"Analyze Skeleton\" after conversion")
@@ -78,7 +78,23 @@ public class SkeletonizerCmd implements Command {
 	@Parameter(required = true)
 	private Tree tree;
 
-	private SNT plugin;
+
+	@SuppressWarnings("unused")
+	private void init() {
+		super.init(true);
+		if (snt != null && snt.isStreamMode()) {
+			if (snt.isMaterializedCrop()) {
+				// BDV/BVV have no ROI concept, but a materialized crop (see SNT#isMaterializedCrop()) defines an
+				// analogous region to restrict to
+				final MutableModuleItem<String> mi = getInfo().getMutableInput("roiChoice", String.class);
+				mi.setChoices(List.of(NO_RESTRICTION, MATERIALIZED_REGION_RESTRICTION));
+				roiChoice = MATERIALIZED_REGION_RESTRICTION;
+			} else {
+				resolveInput("roiChoice"); // No crop materialized: nothing to restrict to
+				roiChoice = NO_RESTRICTION;
+			}
+		}
+	}
 
 	/*
 	 * (non-Javadoc)
@@ -92,37 +108,58 @@ public class SkeletonizerCmd implements Command {
 			error("No Paths to convert.");
 			return;
 		}
-		plugin = sntService.getInstance();
-		if (plugin == null) {
+		if (snt == null) {
 			error("No active instance of SNT was found.");
 			return;
 		}
 
-		final ImagePlus imp = plugin.getImagePlus();
-		final boolean displayCanvas = !plugin.accessToValidImageData();
-		final boolean twoDdisplayCanvas =  imp != null && imp.getNSlices() == 1 && tree.is3D();
-		final boolean useNewImage = displayCanvas || twoDdisplayCanvas;
+		final ImagePlus imp = snt.getImagePlus();
+		final boolean displayCanvas = !snt.accessToValidImageData();
+		final boolean twoDDisplayCanvas =  imp != null && imp.getNSlices() == 1 && tree.is3D();
+		final boolean useNewImage = displayCanvas || twoDDisplayCanvas;
+
+		// Stream mode's analog of classic mode's ROI restriction below: skeletonization is already spatially confined
+		// to a materialized crop (SNT#makePathVolume() rasterizes into the crop's own, small array; nodes outside it
+		// are silently dropped), but every Path in the tree would still be walked to discover that, wasting Bresenham3D
+		// computation. Pre-filter to just the whole paths that intersect the crop's world bounds instead
+		final boolean restrictToMaterializedRegion = !useNewImage && snt.isStreamMode() && snt.isMaterializedCrop()
+				&& MATERIALIZED_REGION_RESTRICTION.equals(roiChoice);
 
 		final Roi roi = (imp == null) ? null : imp.getRoi();
-		boolean restrictByRoi = !roiChoice.startsWith("None");
+		boolean restrictByRoi = !restrictToMaterializedRegion && !roiChoice.startsWith("None");
 		final boolean validAreaRoi = (roi == null || !roi.isArea());
 		if (restrictByRoi && validAreaRoi) {
-			if (!getConfirmation(
+			if (!getConfirmationEdtSafe(
 				"ROI filtering requested but no area ROI was found.\n" +
 					"Proceed without ROI filtering?", "Proceed Without ROI Filtering?"))
 				return;
 			restrictByRoi = false;
 		}
 
-		plugin.showStatus(0, 0, "Converting paths to skeletons...");
+		Collection<Path> pathsToConvert = tree.list();
+		if (restrictToMaterializedRegion) {
+			final BoundingBox cropBounds = snt.getMaterializedCropWorldBounds();
+			if (cropBounds != null) {
+				pathsToConvert = tree.list().stream()
+						.filter(p -> p.getNodes().stream().anyMatch(cropBounds::contains))
+						.collect(Collectors.toList());
+				if (pathsToConvert.isEmpty()) {
+					error("No paths intersect the materialized region.");
+					return;
+				}
+			}
+		}
+
+		setStatus("Converting paths to skeletons...");
 		final boolean asLabelsImage = imgChoice.startsWith("Labels");
 		try {
-			final ImagePlus imagePlus = (useNewImage) ? tree.getSkeleton((asLabelsImage) ? -1 : 255) : plugin.makePathVolume(tree.list(), asLabelsImage);
+			final ImagePlus imagePlus = (useNewImage)
+					? tree.getSkeleton((asLabelsImage) ? -1 : 255)
+					: snt.makePathVolume(pathsToConvert, asLabelsImage);
 			if (asLabelsImage) {
 				final IndexColorModel model = LutLoader.getLut("glasbey_on_dark");
-				if (model != null)
-					imp.getProcessor().setColorModel(model);
-				imagePlus.setDisplayRange(0, tree.size());
+				if (model != null) imagePlus.getProcessor().setColorModel(model);
+				imagePlus.setDisplayRange(0, pathsToConvert.size());
 			} else {
 				ImpUtils.convertTo8bit(imagePlus);
 			}
@@ -143,30 +180,16 @@ public class SkeletonizerCmd implements Command {
 				analyzer.setup("", imagePlus);
 				analyzer.run(imagePlus.getProcessor());
 			}
-
 			imagePlus.show();
 		}
 		catch (final OutOfMemoryError error) {
 			final String msg = "Out of Memory: There is not enough RAM to perform skeletonization under "
-					+ "current options. Please allocate more memory to IJ, downsample the reconstruction, "
+					+ "current options. Please allocate more memory to Fiji, downsample the paths, "
 					+ " or consider skeletonization through API scripting";
 			error(msg);
+		} finally {
+			resetUI();
 		}
-	}
-
-	private boolean getConfirmation(final String msg, final String title) {
-		final Result res = uiService.getDefaultUI().dialogPrompt(msg, title,
-			DialogPrompt.MessageType.QUESTION_MESSAGE,
-			DialogPrompt.OptionType.YES_NO_OPTION).prompt();
-		return Result.YES_OPTION.equals(res);
-	}
-
-	private void error(final String msg) {
-		// With HTML errors, uiService will not use the java.awt legacy messages
-		// that do not scale in hiDPI
-		uiService.getDefaultUI().dialogPrompt("<HTML>" + msg, "Error",
-			DialogPrompt.MessageType.ERROR_MESSAGE,
-			DialogPrompt.OptionType.DEFAULT_OPTION).prompt();
 	}
 
 	/* IDE debug method **/

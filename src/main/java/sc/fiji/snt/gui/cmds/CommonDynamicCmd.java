@@ -204,6 +204,12 @@ public class CommonDynamicCmd extends DynamicCommand {
 			if (validateDimensions && !isCanceled())
 				ui.runCommand("validateImgDimensions");
 		}
+		if (snt != null && snt.isStreamMode() && ui != null) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
+			if (viewer != null) {
+				viewer.updateStatus("", 0, 0);
+			}
+		}
 		statusService.clearStatus();
 	}
 

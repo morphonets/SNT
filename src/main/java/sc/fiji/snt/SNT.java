@@ -899,6 +899,22 @@ public class SNT extends MultiDThreePanes implements
 		return ImpUtils.isMaterializedCrop(xy);
 	}
 
+	/**
+	 * @return the world-space (calibrated) extent of the currently materialized crop (see
+	 *         {@link #materializeDisplayCanvas(BoundingBox)}), or {@code null} if none is active. Useful for callers
+	 *         that want to restrict an operation to the region actually  materialized.
+	 */
+	public BoundingBox getMaterializedCropWorldBounds() {
+		if (!isMaterializedCrop()) return null;
+		final Calibration cal = getCalibration();
+		final PointInCanvas off = activeCanvasPixelOffset;
+		final BoundingBox box = new BoundingBox();
+		box.setSpacing(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
+		box.setOrigin(new PointInImage(-off.x * cal.pixelWidth, -off.y * cal.pixelHeight, -off.z * cal.pixelDepth));
+		box.setDimensions(width, height, depth);
+		return box;
+	}
+
 	/*
 	 * Reverts a materialized crop back to a plain Stream-mode session: restores  ctSlice3d to the original
 	 * streamedSourceData cached by materializeDisplayCanvas(BoundingBox), resets every Path's canvasOffset back to 0
@@ -2522,7 +2538,37 @@ public class SNT extends MultiDThreePanes implements
 		for (int i = 0; i < depth; ++i)
 			snapshot_data[i] = new short[width * height];
 
-		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width);
+		// setPathPointsInVolume() rasterizes into this session's raw voxel-index grid via each Path's
+		// own canvasOffset and its own spacing (see Path#getXUnscaled/Y/Z: node.x/x_spacing + canvasOffset.x).
+		// Interactively-traced Paths are kept in sync with activeCanvasPixelOffset (see syncActivePathCanvasState(),
+		// AbstractBigViewer#finishPath()), and installMaterializedCrop() also re-stamps every already-loaded Path's
+		// spacing from the crop's own calibration - but Paths added in bulk (addTree()/addTrees(), SWC/graph import,
+		// loading a .traces file) are never re-stamped either way, so they can still be carrying canvasOffset's class
+		// default of (0,0,0) and/or whatever spacing they had at import.
+		// Apply this session's live activeCanvasPixelOffset/calibration just for this rasterization call
+		// (picks up a materialized crop's own crop-relative offset/calibration automatically, since both are
+		// read live), then restore each Path's original canvasOffset/spacing immediately after - same
+		// save/apply/restore pattern Tree#getSkeletonInternal() already uses for, so paths keep rendering exactly as
+		// before everywhere else (viewers, Path Manager, etc.).
+		final Calibration liveCal = getCalibration();
+		final List<PointInCanvas> originalOffsets = new ArrayList<>(paths.size());
+		final List<Calibration> originalSpacings = new ArrayList<>(paths.size());
+		for (final Path p : paths) {
+			originalOffsets.add(p.getCanvasOffset());
+			originalSpacings.add(p.getCalibration());
+			p.setCanvasOffset(activeCanvasPixelOffset);
+			p.setSpacing(liveCal);
+		}
+		try {
+			pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width);
+		} finally {
+			int i = 0;
+			for (final Path p : paths) {
+				p.setCanvasOffset(originalOffsets.get(i));
+				p.setSpacing(originalSpacings.get(i));
+				i++;
+			}
+		}
 
 		final ImageStack newStack = new ImageStack(width, height);
 
