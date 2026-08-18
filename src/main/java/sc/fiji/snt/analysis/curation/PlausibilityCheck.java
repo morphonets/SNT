@@ -2015,6 +2015,14 @@ public final class PlausibilityCheck {
             final double xV = terminal.getXUnscaledDouble(tipIdx);
             final double yV = terminal.getYUnscaledDouble(tipIdx);
             final double zV = terminal.getZUnscaledDouble(tipIdx);
+            // An endpoint genuinely outside this image's own voxel bounds (e.g., a path traced outside a
+            // materialized crop's small FOV) is not "near" the boundary - it is not addressable against this
+            // image at all. Without this check, the min()/max(0, ...) below would silently clamp a wildly
+            // out-of-range coordinate to a false "0 voxels from boundary" (see the Full Scan crop-scope
+            // caveat in CurationManager#runOnDemandAsync()), flooding results with bogus warnings instead of
+            // skipping the (unassessable) path the way scan()/measure() already skip a NaN result
+            if (xV < 0 || xV > dims[0] - 1 || yV < 0 || yV > dims[1] - 1) return Double.NaN;
+            if (dims.length >= 3 && dims[2] > 1 && (zV < 0 || zV > dims[2] - 1)) return Double.NaN;
             // Distance to each face in voxel units; min across all faces is
             // the answer. dims[i] - 1 is the index of the last voxel in dim i.
             double min = Math.min(xV, dims[0] - 1 - xV);

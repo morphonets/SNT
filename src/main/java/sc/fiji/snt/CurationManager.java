@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
 import ij.ImagePlus;
+import net.imglib2.RandomAccessibleInterval;
 import sc.fiji.snt.analysis.curation.CurationHistograms;
 import sc.fiji.snt.analysis.curation.CurationTags;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
@@ -34,6 +35,7 @@ import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
@@ -786,8 +788,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         signalQualityCheckbox = new JCheckBox("Path signal quality: min contrast",
                 signalCheck != null && signalCheck.isEnabled());
         signalQualityCheckbox.setToolTipText(
-                "Flags paths with poor signal-to-background contrast (requires image).\n" +
-                        "Set to -1 for auto-threshold derived from image statistics.");
+                """
+                        Flags paths with poor signal-to-background contrast (requires image).
+                        Set to -1 for auto-threshold derived from image statistics.
+                        Does a full scan of the image volume and may be slow with streamed data""");
         signalQualitySpinner = new JSpinner(new SpinnerNumberModel(
                 signalCheck != null ? signalCheck.getMinContrast() : PlausibilityCheck.SignalQuality.AUTO_THRESHOLD,
                 PlausibilityCheck.SignalQuality.AUTO_THRESHOLD, 10000.0, 0.5));
@@ -814,7 +818,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     // image is missing: returning EMPTY here would strip that hint and the user would see the
                     // generic "trace some paths" fallback instead.
                     signalCheck.prepareImage(sntui.plugin.getLoadedData());
-                    return signalCheck.measure(paths);
+                    return withCropScopeHint(signalCheck.measure(paths), paths);
                 },
                 this::currentPaths,
                 () -> {
@@ -853,7 +857,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     // prepareImage borrows SignalQuality's stats when its peer has them,
                     // otherwise runs an own full-volume scan. Null-safe on no image.
                     utCheck.prepareImage(sntui.plugin.getLoadedData());
-                    return utCheck.measure(paths);
+                    return withCropScopeHint(utCheck.measure(paths), paths);
                 },
                 this::currentPaths,
                 () -> {
@@ -918,6 +922,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         liveToggle.setToolTipText("Enable live monitoring");
         liveToggle.addActionListener(e -> {
             if (noParametersSelected(liveCheckboxes, "live parameter")) {
+                liveToggle.setSelected(false);
+                return;
+            }
+            if (sntui.plugin.isStreamMode() && !sntui.plugin.isMaterializedCrop()) {
+                sntui.error("Currently, live monitoring is only available on paths traced on materialized crops.");
                 liveToggle.setSelected(false);
                 return;
             }
@@ -1056,15 +1065,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         colorMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.DANGER));
         popup.add(colorMenuItem);
         colorMenuItem.addActionListener(e -> {
+            assert sntui != null;
             final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
             if (warnings.isEmpty()) {
                 sntui.error("No issue selected.");
                 return;
             }
             for (final PlausibilityCheck.Warning warning : warnings) {
-                warning.affectedPaths().forEach(p -> {
-                    p.setColor(severityColor(warning.severity()));
-                });
+                warning.affectedPaths().forEach(p -> p.setColor(severityColor(warning.severity())));
             }
             sntui.plugin.updateAllViewers();
         });
@@ -1130,7 +1138,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private void runOnDemandAsync() {
         if (noParametersSelected()) return;
         onDemandButton.setEnabled(false);
-        sntui.showStatus("Running Full scan...", true);
         final List<Path> paths = sntui.plugin.getPathAndFillManager().getPathsFiltered();
         if (paths.isEmpty()) {
             sntui.error("There are no traced paths.");
@@ -1143,40 +1150,87 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             onDemandButton.setEnabled(true);
             return;
         }
+        sntui.showStatus("Running Full scan...", false);
         final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
         // Provide image context for checks that need it (e.g., SignalQuality)
         monitor.setImageData(sntui.plugin.getLoadedData());
-        // Ensure image statistics are available for auto-threshold. If not yet
-        // computed, prompt the user (same pattern as runSecondaryLayerWizard).
-        if (sq != null && sq.isEnabled() && sq.getMinContrast() == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD) {
+        final boolean autoThreshold = sq != null && sq.getMinContrast() == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD;
+        // While a crop is materialized, getLoadedData()/getStats() above are the CROP's own (small) pixel data/
+        // stats, not the full streamed source (see SNT#getStreamedOrLoadedStats()) - but paths is every  traced path,
+        // session-wide, never restricted to the crop's bounds. Image-dependent checks (Signal quality,b Tip signal
+        // quality, Signal quality dips, Boundary proximity) silently skip any path outside that small  region
+        // (ProfileProcessor throws per-node, caught per-path - see PlausibilityCheck.SignalQuality#scan()),
+        // so "no issues found" after a Full Scan can otherwise look like a clean bill of health for the whole
+        // reconstruction when only the crop's own paths were actually assessable. Count them here (off the EDT,
+        // below) so done() can surface it in the status message
+        final boolean anyImageDependentCheckEnabled = java.util.stream.Stream.<PlausibilityCheck.DeepCheck>of(
+                sq,
+                monitor.getDeepCheck(PlausibilityCheck.UncertainTerminal.class),
+                monitor.getDeepCheck(PlausibilityCheck.IntensityValley.class),
+                monitor.getDeepCheck(PlausibilityCheck.BoundaryProximity.class))
+                .anyMatch(c -> c != null && c.isEnabled());
+        // Ensure image statistics are available for auto-threshold. If not yet computed, confirmation dialog happens
+        // here - same prompt as invalidStatsError()/runSecondaryLayerWizard. For a Stream-mode/streamed source,
+        // computing min/max is a full-volume pass that can be genuinely slow (network/disk-bound, same caveat as
+        // onceRbmi's own warning), and running it here would block the GUI before the worker even starts, making the
+        // button look unresponsive ("nothing happens") until the scan finishes
+        if (sq != null && sq.isEnabled() && autoThreshold) {
             final ij.process.ImageStatistics imgStats = sntui.plugin.getStats();
             if (imgStats.min == 0 && imgStats.max == 0) {
-                // min/max not yet computed. Prompt the user to compute them.
-                if (sntui.plugin.invalidStatsError(false)) {
+                if (sntui.plugin.getLoadedData() == null) {
+                    sntui.error("This option requires valid image data to be loaded.");
                     onDemandButton.setEnabled(true);
-                    return; // user dismissed: abort scan
+                    return;
+                }
+                if (!sntui.guiUtils.getConfirmation(
+                        "Statistics for the main image have not been computed yet, but are required to resolve "
+                                + "\"Min. signal contrast ratio\"'s auto-threshold. You can either compute them "
+                                + "now for the whole image, or dismiss this prompt and disable that check.",
+                        "Unknown Image Statistics", "Compute Now", "Dismiss")) {
+                    onDemandButton.setEnabled(true);
+                    return; // user declined: abort scan, same as before
                 }
             }
-            monitor.setImageStats(imgStats.min, imgStats.max);
         }
-        // Compute the resolved auto-threshold now (before scan) so we can
-        // display it in the spinner after the scan completes
-        final double resolvedThreshold;
-        if (sq != null && sq.getMinContrast() == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD) {
-            final ij.process.ImageStatistics ist = sntui.plugin.getStats();
-            resolvedThreshold = (ist.max > ist.min) ? (ist.max + 1.0) / (ist.min + 1.0) / 2.0 : 1.5;
-        } else {
-            resolvedThreshold = Double.NaN;
-        }
+        tableModel.setRunning(true);
         new SwingWorker<List<PlausibilityCheck.Warning>, Void>() {
+            private double resolvedThreshold = Double.NaN;
+            private int outOfCropPathCount = 0;
+
             @Override
+            @SuppressWarnings({"unchecked", "rawtypes"})
             protected List<PlausibilityCheck.Warning> doInBackground() {
+                if (anyImageDependentCheckEnabled) {
+                    final BoundingBox cropBounds = sntui.plugin.getMaterializedCropWorldBounds();
+                    if (cropBounds != null) {
+                        for (final Path p : paths) {
+                            if (!pathWithinBounds(p, cropBounds)) outOfCropPathCount++;
+                        }
+                    }
+                }
+                if (sq != null && sq.isEnabled() && autoThreshold) {
+                    final ij.process.ImageStatistics imgStats = sntui.plugin.getStats();
+                    // Raw type: computeImgStats() expects an Iterable<T>, which a directly-parameterized
+                    // RandomAccessibleInterval<T> does not satisfy, but a raw one is accepted unchecked (same pattern
+                    // of SNT#getStreamedOrLoadedStats())
+                    if (imgStats.min == 0 && imgStats.max == 0) {
+                        final RandomAccessibleInterval raw = sntui.plugin.getLoadedData();
+                        sntui.plugin.computeImgStats(raw, imgStats, SNT.CostType.RECIPROCAL);
+                    }
+                    monitor.setImageStats(imgStats.min, imgStats.max);
+                }
+                // Compute the resolved auto-threshold now (before scan) so we can display it in the  spinner after the scan completes
+                if (autoThreshold) {
+                    final ij.process.ImageStatistics ist = sntui.plugin.getStats();
+                    resolvedThreshold = (ist.max > ist.min) ? (ist.max + 1.0) / (ist.min + 1.0) / 2.0 : 1.5;
+                }
                 return monitor.runFullScan(paths);
             }
 
             @Override
             protected void done() {
                 onDemandButton.setEnabled(true);
+                tableModel.setRunning(false);
                 // If auto-threshold was used, display the resolved value
                 if (!Double.isNaN(resolvedThreshold)) {
                     signalQualitySpinner.setValue(resolvedThreshold);
@@ -1184,10 +1238,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 }
                 try {
                     final List<PlausibilityCheck.Warning> warnings = get();
+                    final String outOfCropNote = (outOfCropPathCount > 0)
+                            ? String.format(" (%d/%d path(s) outside the materialized crop were not assessed "
+                                    + "by image-based checks)", outOfCropPathCount, paths.size())
+                            : "";
                     if (warnings.isEmpty()) {
-                        sntui.showStatus("Full scan: no issues found.", true);
+                        sntui.showStatus("Full scan: no issues found." + outOfCropNote, true);
                     } else {
-                        sntui.showStatus(String.format("Full scan completed: %d issue(s) found", warnings.size()), true);
+                        sntui.showStatus(String.format("Full scan completed: %d issue(s) found", warnings.size())
+                                + outOfCropNote, true);
                     }
                 } catch (final Exception ex) {
                     SNTUtils.log("Full scan failed: " + ex.getMessage());
@@ -1195,6 +1254,21 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 }
             }
         }.execute();
+    }
+
+    /**
+     * @return true if every node of {@code path} falls within {@code cropBounds} (world/calibrated units, see
+     *         {@link SNT#getMaterializedCropWorldBounds()}) - i.e., the path is fully assessable by an
+     *         image-dependent check against the currently materialized crop. A path straddling the boundary
+     *         still counts as "outside" (conservative): {@link sc.fiji.snt.analysis.ProfileProcessor} would
+     *         throw on whichever of its nodes falls outside, so such a path is only partially assessed at best.
+     */
+    private static boolean pathWithinBounds(final Path path, final BoundingBox cropBounds) {
+        if (path == null) return true;
+        for (int i = 0; i < path.size(); i++) {
+            if (!cropBounds.contains(path.getNode(i))) return false;
+        }
+        return true;
     }
 
     private void runCalibration() {
@@ -1577,6 +1651,24 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private java.util.Collection<Path> currentPaths() {
         if (sntui == null || sntui.plugin == null) return java.util.Collections.emptyList();
         return sntui.plugin.getPathAndFillManager().getPathsFiltered();
+    }
+
+    /**
+     * Appends a check-specific hint to {@code m} when it came back empty AND a materialized crop is active:
+     * image-dependent checks (Signal quality, Tip signal quality, etc.) can only sample paths that pass through
+     * the crop's own small field of view (see {@code SNT#getLoadedData()}), so a full/session-wide {@code paths}
+     * collection scanned against it commonly comes back fully skipped. Used by the histogram button lambdas for
+     * signal-quality-family checks; leaves {@code m} untouched otherwise.
+     */
+    private PlausibilityCheck.Measurements withCropScopeHint(final PlausibilityCheck.Measurements m,
+            final java.util.Collection<Path> paths) {
+        if (m.isEmpty() && m.emptyHint().isEmpty() && paths != null && !paths.isEmpty() && sntui != null
+                && sntui.plugin != null && sntui.plugin.isMaterializedCrop()) {
+            return m.withHint(String.format(
+                    "All %d path(s) fall outside the materialized crop's small field of view; this check can "
+                            + "only assess paths that pass through it.", paths.size()));
+        }
+        return m;
     }
 
     /**
@@ -2008,11 +2100,24 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             return visibleSeverities.contains(severity);
         }
 
+        private volatile boolean running;
+
+        /**
+         * Toggles the "Running scan..." placeholder text. Only visible while the table has zero rows -
+         * i.e., no effect if warnings from a previous scan are still listed. Called from
+         * runOnDemandAsync() around its SwingWorker.
+         */
+        void setRunning(final boolean running) {
+            this.running = running;
+            fireTableDataChanged(); // repaints the placeholder overlay even though row count is unchanged
+        }
+
         String placeholderLine1() {
-            return "No issues listed.";
+            return running ? "Running scan..." : "No issues listed.";
         }
 
         String placeholderLine2() {
+            if (running) return null;
             return (visibleSeverities.size() < PlausibilityCheck.Severity.values().length)
                     ? "Issues could be filtered out." : null;
         }

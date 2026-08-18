@@ -35,6 +35,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
+import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -2125,6 +2126,22 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
     }
 
+    /**
+     * Hook 4: notifies {@link PlausibilityMonitor#onNodeEdited(Path, int)} after a node has been
+     * moved, inserted, or deleted here in edit mode - the edit-mode equivalent of Hooks 1-3, which
+     * {@code SNT#startPath()}/{@code searchFinished()}/{@code finishPath()} call directly during
+     * interactive tracing (see those methods' own "Hook" comments). Without this, live monitoring
+     * would never re-check a fork after the user manually adjusts nodes near it post-tracing.
+     *
+     * @param editedPath the path whose node was just mutated
+     * @param nodeIndex the index of the affected node (before removal, for a delete)
+     */
+    private void notifyPlausibilityMonitorNodeEdited(final Path editedPath, final int nodeIndex) {
+        if (tracerPlugin.getUI() != null && tracerPlugin.getUI().getPlausibilityMonitor().isEnabled()) {
+            tracerPlugin.getUI().getPlausibilityMonitor().onNodeEdited(editedPath, nodeIndex);
+        }
+    }
+
     protected void deleteEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
         if (unsupportedOnFittedPath("Delete node")) return;
@@ -2138,8 +2155,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             // Only push undo after validation passes
             pushEditUndo();
             try {
-                editingPath.removeNode(editingPath.getEditableNodeIndex());
+                final int editedIndex = editingPath.getEditableNodeIndex();
+                editingPath.removeNode(editedIndex);
                 redrawEditingPath("Node deleted");
+                notifyPlausibilityMonitorNodeEdited(editingPath, editedIndex);
             }
             catch (final IllegalArgumentException exc) {
                 canvasWarning("Node deletion failed!");
@@ -2182,6 +2201,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     (p[2] - offset.z) * tracerPlugin.z_spacing));
             editingPath.setEditableNode(editingNode + 1);
             redrawEditingPath("New node inserted (N=" + editingNode + ")");
+            notifyPlausibilityMonitorNodeEdited(editingPath, editingNode);
         }
         catch (final IllegalArgumentException exc) {
             canvasWarning("Node insertion failed!");
@@ -2330,6 +2350,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     editingPath.x_spacing, (p[1] - offset.y) * editingPath.y_spacing,
                     (p[2] - offset.z) * editingPath.z_spacing));
             redrawEditingPath((warnOnFailure) ? "Node moved" : null);
+            notifyPlausibilityMonitorNodeEdited(editingPath, editingNode);
         }
         catch (final IllegalArgumentException exc) {
             canvasWarning("Node displacement failed!");
@@ -2356,6 +2377,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     currentNode.x,
                     currentNode.y, newZ));
             redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
+            notifyPlausibilityMonitorNodeEdited(editingPath, editingNode);
         }
         catch (final IllegalArgumentException exc) {
             canvasWarning("Adjustment of Z-position failed!");
