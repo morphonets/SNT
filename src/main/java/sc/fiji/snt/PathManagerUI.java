@@ -2770,6 +2770,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         guiUtils.error("No valid image data is accessible for fitting.");
                         return;
                     }
+                    // Streamed data (e.g. BVV), or a materialized crop (single- or multichannel - see
+                    // activeCTForPixelSampling()): PathFitter (see exploreFit()/new PathFitter(plugin, p)) always
+                    // samples plugin.getLoadedData(), which is fundamentally single-channel/single-frame
+                    // regardless of how many channels the resident ImagePlus/crop actually has (see
+                    // SNT#getLoadedData()). Unlike the bulk FitCommand (which already calls
+                    // resolveActiveCTPathSelection()), this single-path action had no such check - a path off
+                    // the active channel/frame would otherwise be silently fitted against the wrong data
+                    final int[] activeCT = activeCTForPixelSampling();
+                    if (activeCT != null && (p.getChannel() != activeCT[0] || p.getFrame() != activeCT[1])) {
+                        guiUtils.error("This path is not associated with the active channel ("
+                                + activeCT[0] + ")/frame (" + activeCT[1] + "), which is all "
+                                + "that streamed data can currently fit against.");
+                        return;
+                    }
                     if (!plugin.uiReadyForModeChange() && plugin.getEditingPath() != null
                             && !p.equals(plugin.getEditingPath())) {
                         guiUtils.error("Please finish current operation before exploring fit.");

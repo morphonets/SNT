@@ -29,6 +29,7 @@ import net.imagej.ImgPlus;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealRandomAccess;
 import net.imglib2.RealRandomAccessible;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import net.imglib2.converter.Converters;
 import net.imglib2.converter.RealFloatConverter;
@@ -212,6 +213,13 @@ public class PathFitter implements Callable<Path> {
         this.plugin = plugin;
         setImage(plugin.getLoadedData());
         path.setSpacing(plugin.x_spacing, plugin.y_spacing, plugin.z_spacing, plugin.spacing_units);
+        // As with spacing above, adopt the live session's own canvasOffset (crop-relative while a
+        // materialized crop is active, world-origin-offset-relative otherwise - see
+        // SNT#getActiveCanvasPixelOffset()) so that sampleCrossSection() below reads the correct voxel
+        // from plugin.getLoadedData() regardless of how this path arrived (interactively traced, or
+        // bulk-added via addTree()/SWC import/.traces loading, which never gets canvasOffset stamped
+        // otherwise - see SNT#makePathVolume() for the same fix applied to skeletonization)
+        path.setCanvasOffset(plugin.getActiveCanvasPixelOffset());
         this.path = path;
         this.fitterIndex = -1;
         this.progress = null;
@@ -480,6 +488,10 @@ public class PathFitter implements Callable<Path> {
         // Reusable arrays to avoid per-node allocations
         final double[] x_basis_in_plane = new double[3];
         final double[] y_basis_in_plane = new double[3];
+        // NB: must be applied when converting x_world/y_world/z_world to a pixel position below (see
+        // CrossSectionUtils#sampleCrossSection's offsetX/Y/Z javadoc), or sampling silently reads the
+        // wrong voxel whenever the source has a non-zero world-origin offset (Stream mode)
+        final PointInCanvas canvasOffset = path.getCanvasOffset();
 
         for (int i = 0; i < totalPoints; ++i) {
 
@@ -516,6 +528,7 @@ public class PathFitter implements Callable<Path> {
                     x_world, y_world, z_world,
                     a_basis, b_basis,
                     path.x_spacing, path.y_spacing, path.z_spacing,
+                    canvasOffset.x, canvasOffset.y, canvasOffset.z,
                     realRandomAccess);
             final float[] normalPlane = (float[]) crossSectionFp.getPixels();
 
