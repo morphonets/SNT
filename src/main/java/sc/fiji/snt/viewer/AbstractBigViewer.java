@@ -160,6 +160,11 @@ public abstract class AbstractBigViewer {
         if (snt == null)
             throw new IllegalArgumentException("Only available in SNT-tethered instances");
         final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
+        if (trees.isEmpty()) {
+            clearAllTrees();
+            return false;
+        }
+
         final java.util.Set<String> currentLabels = trees.stream().map(Tree::getLabel)
                 .collect(java.util.stream.Collectors.toSet());
         // See renderedTreesLock: this method can run concurrently with another instance of
@@ -177,10 +182,6 @@ public abstract class AbstractBigViewer {
             currentLabels.forEach(renderedTrees.keySet()::remove);
             syncedPathManagerLabels.clear();
             syncedPathManagerLabels.addAll(currentLabels);
-        }
-        if (trees.isEmpty()) {
-            syncOverlays();
-            return false;
         }
         addCollection(trees, true);
         return true;
@@ -889,11 +890,7 @@ public abstract class AbstractBigViewer {
             return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (syncPathManagerList()) {
-                        showViewerMessage("Path Manager synced");
-                    } else {
-                        showViewerMessage("No paths or SNT unavailable");
-                    }
+                    showViewerMessage((syncPathManagerList()) ? "Path Manager synced" : "No paths to sync");
                 }
             };
         }
