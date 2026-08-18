@@ -229,12 +229,14 @@ public class PathAndFillManager extends DefaultHandler implements
         boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
                 spacing_units);
         boundingBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
+        // NB: canvasOffset is deliberately left untouched here. This method has no reliable way to know the correct
+        // offset for the new calibration (that requires session/world-origin context - see SNT#getWorldOriginOffset()/
+        // #getActiveCanvasPixelOffset() - which a bare ImagePlus cannot supply), and getPaths() here may include Paths
+        // shared by reference with a live SNT session (e.g. via Tree#assignImage(ImagePlus), whose own
+        // PathAndFillManager wraps the SAME Path instances. Zeroing unconditionally silently corrupts any legitimate
+        // non-zero canvasOffset those shared Paths already carried, e.g. from GWDTTracerCommonCmd#applyWorldOriginOffsetIfAny
         if (size() > 0) {
-            final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
-            getPaths().forEach(path -> {
-                path.setSpacing(cal);
-                path.setCanvasOffset(zeroOffset);
-            });
+            getPaths().forEach(path -> path.setSpacing(cal));
         }
     }
 
@@ -255,12 +257,9 @@ public class PathAndFillManager extends DefaultHandler implements
         boundingBox.setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
         boundingBox.setDimensions(dimX, dimY, dimZ);
 
+        // canvasOffset is deliberately left untouched here: See assignSpatialSettings(ImagePlus)'s identical comment
         if (size() > 0) {
-            final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
-            getPaths().forEach(path -> {
-                path.setSpacing(cal);
-                path.setCanvasOffset(zeroOffset);
-            });
+            getPaths().forEach(path -> path.setSpacing(cal));
         }
         return cal;
     }

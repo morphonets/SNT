@@ -45,9 +45,7 @@ public class PointInCanvas extends PointInImage implements SNTPoint {
 		super(x, y, z);
 	}
 
-	protected PointInCanvas(final double x, final double y, final double z,
-		final Path onPath)
-	{
+	protected PointInCanvas(final double x, final double y, final double z, final Path onPath) {
 		super(x, y, z, onPath);
 	}
 
@@ -60,8 +58,7 @@ public class PointInCanvas extends PointInImage implements SNTPoint {
 	 *           Path
 	 */
 	public PointInImage getScaledPoint() throws IllegalArgumentException {
-		if (onPath == null) throw new IllegalArgumentException(
-			"Point not associated with a Path");
+		if (onPath == null) throw new IllegalArgumentException("Point not associated with a Path");
 		final double x, y, z;
 		final Calibration cal = onPath.getCalibration();
 		x = this.x * cal.pixelWidth;
@@ -69,4 +66,15 @@ public class PointInCanvas extends PointInImage implements SNTPoint {
 		z = this.z * cal.pixelDepth;
 		return new PointInImage(x, y, z, onPath);
 	}
+
+	@Override
+	public String toString() {
+		return String.format("(%4f,%.4f,%.4f)", x, y, z);
+	}
+
+	public static PointInCanvas fromString(final String str) {
+		final PointInImage pim = SNTPoint.fromString(str);
+		return (pim == null) ? null : new PointInCanvas(pim.getX(), pim.getY(), pim.getZ());
+	}
+
 }

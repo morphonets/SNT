@@ -29,22 +29,23 @@ package sc.fiji.snt;
  */
 public interface TreeProperties {
 
-	final String KEY_ID = "id";
-	final String KEY_LABEL = "label";
-	final String KEY_SOURCE = "source";
-	final String KEY_IMG = "img";
-	final String KEY_IMG_CHANNEL = "channel";
-	final String KEY_IMG_FRAME = "frame";
-	final String KEY_FRAME_POS = "frame";
-	final String KEY_COMPARTMENT = "compartment";
-	final String KEY_SPATIAL_UNIT = "unit";
-	final String KEY_COLOR = "color";
+	String KEY_ID = "id";
+	String KEY_LABEL = "label";
+	String KEY_SOURCE = "source";
+	String KEY_IMG = "img";
+	String KEY_IMG_CHANNEL = "channel";
+	String KEY_IMG_FRAME = "frame";
+	String KEY_FRAME_POS = "frame";
+	String KEY_COMPARTMENT = "compartment";
+	String KEY_SPATIAL_UNIT = "unit";
+	String KEY_COLOR = "color";
+	String KEY_CANVAS_OFFSET = "canvasOffset";
 
-	final String DENDRITIC = "dendritic";
-	final String AXONAL = "axonal";
-	final String SOMATIC = "somatic";
+	String DENDRITIC = "dendritic";
+	String AXONAL = "axonal";
+	String SOMATIC = "somatic";
 
-	final String UNSET = "?";
+	String UNSET = "?";
 
 	static String getStandardizedCompartment(final String description) {
 		if (description == null || description.trim().isEmpty()) return UNSET;

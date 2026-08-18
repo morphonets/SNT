@@ -741,18 +741,28 @@ public class Tree implements TreeProperties, Cloneable {
     }
 
 	/**
-	 * Specifies the offset to be used when rendering this Tree in a
-	 * {@link TracerCanvas}. Path coordinates remain unaltered.
+	 * Specifies the offset to be used when rendering this Tree in a {@link TracerCanvas}.
+	 * Path coordinates remain unaltered.
 	 *
 	 * @param xOffset the x offset (in pixels)
 	 * @param yOffset the y offset (in pixels)
 	 * @param zOffset the z offset (in pixels)
 	 */
-	public void applyCanvasOffset(final double xOffset, final double yOffset,
-		final double zOffset)
-	{
+	public void applyCanvasOffset(final double xOffset, final double yOffset, final double zOffset) {
 		final PointInCanvas offset = new PointInCanvas(xOffset, yOffset, zOffset);
 		tree.forEach(p -> p.setCanvasOffset(offset));
+		getProperties().setProperty(KEY_CANVAS_OFFSET, offset.toString());
+	}
+
+	/**
+	 * Returns the canvas offset of this tree.
+	 *
+	 * @return the canvas offset. Never null (defaults to 0,0,0) if no offset exists.
+	 * @see #applyCanvasOffset(double, double, double)
+	 */
+	public PointInCanvas getCanvasOffset() {
+		final String offset = getProperties().getProperty(KEY_CANVAS_OFFSET);
+		return (offset == null) ? new PointInCanvas(0, 0, 0) : PointInCanvas.fromString(offset);
 	}
 
 	/**

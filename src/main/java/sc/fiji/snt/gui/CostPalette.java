@@ -387,9 +387,21 @@ public class CostPalette extends Thread {
             new GuiUtils(paletteWindow).error("The selected variant did not produce a path.");
             return;
         }
-        // Reset the canvas offset we installed for the cropped preview so the path's coordinates are back in
-        // source-image space before the listener/PathAndFillManager consumes it
-        chosen.path.setCanvasOffset(new PointInCanvas(0, 0, 0));
+        // chosen.path's nodes are raw TracerThread/asPath() output: voxelIndex * spacing, where voxelIndex
+        // was computed (via voxelX/Y/Z above) against this session's live activeCanvasPixelOffset at probe
+        // time - not true world coordinates. Resetting canvasOffset to a hardcoded (0,0,0), only works if
+        // no materialized crop and no world origin offset - see SNT#getWorldOriginOffset(), in Stream mode
+        // Bake the FULL live offset out of the node coordinates once, now, turning / them into true world
+        // (same idea as GWDTTracerCommonCmd#applyWorldOriginOffsetIfAny(List<Tree>), but done in a single
+        // step here since this path has no interim/in-progress state to worry about), then  stamp
+        // canvasOffset from that same live offset so the path still samples/renders correctly
+        final PointInCanvas liveOffset = snt.getActiveCanvasPixelOffset();
+        if (liveOffset.x != 0 || liveOffset.y != 0 || liveOffset.z != 0) {
+            final ij.measure.Calibration pathCal = chosen.path.getCalibration();
+            new Tree(List.of(chosen.path)).translate(-liveOffset.x * pathCal.pixelWidth,
+                    -liveOffset.y * pathCal.pixelHeight, -liveOffset.z * pathCal.pixelDepth);
+        }
+        chosen.path.setCanvasOffset(liveOffset);
         listeners.forEach(l -> l.costFunctionPicked(chosen.type, chosen.path));
         dismiss();
     }

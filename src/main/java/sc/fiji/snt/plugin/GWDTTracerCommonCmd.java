@@ -47,6 +47,7 @@ import sc.fiji.snt.tracing.auto.GWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.TreeUtils;
 
 import java.io.File;
@@ -493,13 +494,27 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
      * whose own coordinate frame is not anchored at world (0,0,0) (see
      * {@code BigDataLoaderCmd#applyFallbackCalibration}); leaving it uncorrected would produce
      * shape-correct but uniformly mispositioned trees.
+     * <p>
+     * Translating the node coordinates alone is only half of the correction interactive tracing
+     * applies (see {@code SNT#syncActivePathCanvasState}): every Path's own {@code canvasOffset}
+     * must be stamped with the matching (negative, pixel-space) counterpart too, or {@code
+     * Path#getXUnscaledDouble()} and friends resolve to the wrong voxel index against whatever RAI
+     * {@code chosenImp} was read from, even though the Path's own world coordinates display and
+     * measure correctly. {@link SNT#getActiveCanvasPixelOffset()} (not the crop-independent
+     * {@link SNT#getDefaultCanvasPixelOffset()}) is used because {@code chosenImp} itself comes
+     * from {@link SNT#getLoadedDataAsImg} - the crop-local grid whenever a crop happens to be
+     * materialized, the raw streamed source's grid otherwise (see {@code initForImage()}).
      *
      * @param trees the traced trees to correct in place
      */
     protected void applyWorldOriginOffsetIfAny(final List<Tree> trees) {
         final double[] originOffset = snt.getWorldOriginOffset();
         if (originOffset[0] != 0 || originOffset[1] != 0 || originOffset[2] != 0) {
-            trees.forEach(tree -> tree.translate(originOffset[0], originOffset[1], originOffset[2]));
+            final PointInCanvas canvasOffset = snt.getActiveCanvasPixelOffset();
+            trees.forEach(tree -> {
+                tree.translate(originOffset[0], originOffset[1], originOffset[2]);
+                tree.list().forEach(path -> path.setCanvasOffset(canvasOffset));
+            });
         }
     }
 
