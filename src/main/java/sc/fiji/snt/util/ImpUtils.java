@@ -1168,4 +1168,45 @@ public class ImpUtils {
                 .toArray(ImagePlus[]::new);
     }
 
+    /**
+     * Script-friendly method for merging separate channels into a multichannel composite image.
+     *
+     * @param imps The channels to be merged (Array, Collection, Iterable, or comma-separated images).
+     * @return the composite image, or if {@code imps} is a single image, that same image.
+     */
+    public static ImagePlus mergeChannels(final Object... imps) {
+        if (imps == null || imps.length == 0) return null;
+
+        // Unwrap if a single collection/array/image was passed into the varargs parameter
+        final Object target = (imps.length == 1) ? imps[0] : imps;
+
+        switch (target) {
+            case null -> {
+                return null;
+            }
+            case ImagePlus[] imagePluses -> {
+                return RGBStackMerge.mergeChannels(imagePluses, false);
+            }
+            case Object[] objArray -> {
+                // Catches generic arrays, Python sequences, or comma-separated varargs
+                final List<ImagePlus> list = new ArrayList<>();
+                for (final Object obj : objArray) {
+                    if (obj instanceof ImagePlus imp) list.add(imp);
+                }
+                return RGBStackMerge.mergeChannels(list.toArray(new ImagePlus[0]), false);
+            }
+            case Iterable<?> iterable -> {
+                final List<ImagePlus> list = new ArrayList<>();
+                for (final Object obj : iterable) { // Handles all Collections (Lists, Sets) and Iterables
+                    if (obj instanceof ImagePlus imp) list.add(imp);
+                }
+                return RGBStackMerge.mergeChannels(list.toArray(new ImagePlus[0]), false);
+            }
+            case ImagePlus imagePlus -> {
+                return imagePlus;
+            }
+            default -> throw new IllegalArgumentException("Unsupported input type: " + target.getClass().getName());
+        }
+    }
+
 }

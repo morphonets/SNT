@@ -9,7 +9,7 @@
 """
 file:       Take_Snapshot.py
 author:     Tiago Ferreira
-version:    20260731
+version:    20260818
 info:       Displays a WYSIWYG image of a tracing canvas. Exemplifies
             how to script SNT using SNTService
 """
@@ -27,7 +27,7 @@ def run():
 
     # This script's snapshot mechanism is classic-canvas-based (XY/ZY/XZ/3D panes), which don't
     # exist in Stream mode. BVV has its own native snapshot capture (press Shift+S) instead
-    if snt.isStreamMode():
+    if snt.isStreamMode() and not snt.getInstance().isMaterializedCrop():
         ui.showDialog("Snapshots of XY/ZY/XZ/3D tracing canvases are not available in Stream "
                       "mode. If tracing in BVV, use its own snapshot capture (Shift+S) instead.",
                       "Not Available in Stream Mode")
@@ -40,25 +40,24 @@ def run():
     # Refresh displays (just in case something needs to be updated)
     snt.updateViewers()
 
-    # Offset traced paths so that fluorescent signal is not covered by
-    # rendered paths. This offset is specified in pixels and it only
-    # affects rendering. The actual Path nodes are not translated.
-    # Offset is specified in (x,y,z) coordinates. Eg, (x=-10,y=10,z=1)
-    # offsets paths 10 pixels left, 10 pixels down, 1 z-slice forward
-    tree.applyCanvasOffset(offset,offset,offset)
+    # Offset traced paths so that fluorescent signal is not covered by rendered
+    # paths. This offset is specified in (x,y,z) pixel coordinates it only affects
+    # rendering (e.g., x=-10,y=10,z=1 offsets paths 10 pixels left, 10 pixels down,
+    # 1 z-slice forward). The actual Path nodes are not translated. We'll store any
+    # existing offset so that we can restore it later on
+    existing_offset = tree.getCanvasOffset()
 
     try:
-        # Retrieve 'snapshot'
+        # Apply offset, retrieve, and display snapshot image
+        tree.applyCanvasOffset(offset, offset, offset)
         snap = snt.getInstance().captureView(view, mip)
- 
-        # Restore offsets, display 'snapshot' and add a scale bar to it
-        if offset != 0:
-            tree.applyCanvasOffset(0,0,0)
         snap.show()
         ls.runLegacyCommand("ij.plugin.ScaleBar", " width=50 ")
     except:
         ui.showDialog("%s canvas does not seem to be available." % view, "Error")
-        return
+    finally:
+        # Restore offsets
+        tree.applyCanvasOffset(existing_offset[0], existing_offset[1], existing_offset[2])
 
 
 run()
