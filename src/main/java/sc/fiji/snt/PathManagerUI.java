@@ -393,6 +393,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.SEND_TO_TWS_CMD, IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
         jmi.setToolTipText("Starts a Trainable Weka Segmentation session loaded with labels from selected paths");
         jmi.addActionListener(multiPathListener);
+        jmi.setEnabled(!plugin.isStreamMode());
         process.add(jmi);
 
         final JMenu advanced = new JMenu("Analyze");
@@ -2313,7 +2314,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
             case MultiPathActionListener.SLICE_LABEL_TAG_CMD -> {
                 if (reapply) { // Special case: not toggleable: Nothing to remove
-                    if (noValidImageDataError()) return;
+                    if (noValidImagePlusError()) return;
                     int errorCounter = 0;
                     for (final Path p : paths) {
                         try {
@@ -2795,7 +2796,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
                 case STRAIGHTEN -> straightenPath(p);
                 case NODE_PROFILER -> {
-                    // NB: not noValidImageDataError(): NodeProfiler, like PathProfiler, only ever reads pixel data
+                    // NB: not noValidImagePlusError(): NodeProfiler, like PathProfiler, only ever reads pixel data
                     // via the supplied Dataset, which plugin.getDataset() now also builds from streamed data
                     // (e.g. BVV's ctSlice3d) when no ImagePlus is resident
                     if (!plugin.accessToValidImageData()) {
@@ -2916,7 +2917,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private void straightenPath(final Path p) {
-        if (noValidImageDataError()) return;
+        if (noValidImagePlusError()) return;
         if (p.size() < 2) {
             guiUtils.error("Path must have at least two nodes.");
             return;
@@ -3357,7 +3358,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class PlotProfileCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                // NB: not noValidImageDataError() (requires a RAM-resident ImagePlus): PathProfiler only ever
+                // NB: not noValidImagePlusError() (requires a RAM-resident ImagePlus): PathProfiler only ever
                 // reads pixel data via the supplied Dataset: plugin.getDataset()  builds one from streamed
                 // data (e.g. BVV's ctSlice3d) when no ImagePlus is resident, so gate on that instead
                 if (!plugin.accessToValidImageData()) {
@@ -3784,7 +3785,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class TimeProfilerCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                if (noValidImageDataError()) return;
+                if (noValidImagePlusError()) return;
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("tree", new Tree(selectedPaths));
                 inputs.put("imp", plugin.getImagePlus());
@@ -4265,7 +4266,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class FillOutCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                if (noValidImageDataError()) return;
+                // NB: not noValidImagePlusError() (requires a RAM-resident ImagePlus): initPathsToFill()
+                // reads pixel data via getLoadedData()/getSecondaryData(), same as AStarRefineCommand
+                // above, which works fine against streamed data (e.g. BVV's ctSlice3d) with no ImagePlus
+                // resident at all
+                if (!plugin.accessToValidImageData()) {
+                    guiUtils.error("No valid image data is accessible for filling.");
+                    return;
+                }
+                // getLoadedData()/getSecondaryData() are fundamentally single-channel/single-frame (see
+                // AStarRefineCommand's identical use of this check further below in this file) - a path
+                // off the active channel/frame would otherwise be silently filled against the wrong data
+                selectedPaths = resolveActiveCTPathSelection(selectedPaths);
+                if (selectedPaths == null) return;
                 plugin.initPathsToFill(new HashSet<>(selectedPaths),
                         plugin.getPrefs().getBoolean(SNTPrefs.SPLIT_FILLS_KEY, true));
             }
@@ -5313,7 +5326,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
 
                 if (skippedFits == selectedPaths.size()) {
-                    noValidImageDataError();
+                    noValidImagePlusError();
                 }
                 else if (!pathsToFit.isEmpty()) {
                     if (fittingHelper == null) fittingHelper = new FitHelper();
@@ -5339,7 +5352,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class AStarRefineCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                // NB: intentionally NOT noValidImageDataError(), which requires the image
+                // NB: intentionally NOT noValidImagePlusError(), which requires the image
                 // to be fully loaded into RAM (accessToValidImagePlus()):
                 if (!plugin.accessToValidImageData()) {
                     guiUtils.error("No valid image data is accessible for tracing.");
@@ -5384,12 +5397,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class MultiSpectralRefineCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                if (noValidImageDataError()) {
-                    return;
-                }
                 final ImagePlus imp = plugin.getImagePlus();
-                if (imp.getNChannels() < 2) {
-                    guiUtils.error("Multispectral refinement requires a multichannel image (at least 2 channels).");
+                if (imp == null || imp.getNChannels() < 2) {
+                    guiUtils.error((plugin.isStreamMode())
+                            ? "Multispectral refinement requires a multichannel image (at least 2 channels) to be loaded into memory (RAM)."
+                            : "Multispectral refinement requires a multichannel image (at least 2 channels).");
                     return;
                 }
                 final ArrayList<MultiSpectralRefiner> refiners = new ArrayList<>();
@@ -5612,11 +5624,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         plugin.setUnsavedChanges(true);
     }
 
-    private boolean noValidImageDataError() {
+    private boolean noValidImagePlusError() {
         final boolean invalidImage = !plugin.getUI().accessToValidImagePlus();
         if (invalidImage) {
-            guiUtils.error((getSNT().getUI() != null && getSNT().getUI().getState() == SNTUI.STREAMING)
-                    ? "This option requires the entire image to be loaded into memory (RAM)."
+            guiUtils.error((plugin.isStreamMode())
+                    ? "This option requires the entire image to be loaded into memory (RAM) or a materialized region."
                     : "This option requires valid image data to be loaded.");
         }
         return invalidImage;
@@ -6055,7 +6067,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
          *         shown and the caller should abort the intensity-based operation)
          */
         private boolean ensureNodeValues(final Collection<Path> paths) {
-            if (noValidImageDataError()) return false;
+            // NB: not noValidImagePlusError() (requires a RAM-resident ImagePlus): PathProfiler only ever
+            // reads pixel data via the supplied Dataset, which plugin.getDataset() also builds from streamed
+            // data (e.g. BVV's ctSlice3d) when no ImagePlus is resident - same precedent as PlotProfileCommand
+            if (!plugin.accessToValidImageData()) {
+                guiUtils.error("No valid image data is accessible for this operation.");
+                return false;
+            }
             for (final Path p : paths) {
                 // Always (re)assign with point sampling so the values array is densely populated
                 try {

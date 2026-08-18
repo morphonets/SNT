@@ -1915,7 +1915,7 @@ public class SNTUI extends JDialog {
         mipCS.setEnabled(!plugin.isStreamMode());
         mipCS.getCheckBox().addActionListener(e -> {
             if (!accessToValidImagePlus()) {
-                noValidImageDataError();
+                noValidImagePlusError();
                 mipCS.setSelected(false);
             } else if (plugin.is2D()) {
                 guiUtils.error(plugin.getImagePlus().getTitle() + " has no depth. Cannot generate projection.");
@@ -3153,7 +3153,7 @@ public class SNTUI extends JDialog {
             if (choices[0].equals(choice)) {
                 final ImagePlus imp = plugin.getImagePlus();
                 if (imp == null) {
-                    noValidImageDataError();
+                    noValidImagePlusError();
                     return;
                 }
                 if (isBvv) {
@@ -4233,7 +4233,7 @@ public class SNTUI extends JDialog {
                             }
                             case "Image Being Traced" -> {
                                 if (!accessToValidImagePlus()) {
-                                    noValidImageDataError();
+                                    noValidImagePlusError();
                                     proceed = false;
                                 }
                                 try {
@@ -5987,17 +5987,33 @@ public class SNTUI extends JDialog {
         return false;
     }
 
+    /**
+     * For commands that only need {@link SNT#accessToValidImageData()} (tolerant of streamed data, e.g.
+     * BVV/BDV's {@code ctSlice3d}, with no {@link ij.ImagePlus} residency required at all). NOT for commands
+     * that need a genuine, RAM-resident {@link ij.ImagePlus} - see {@link #noValidImagePlusError()} for those.
+     */
     protected void noValidImageDataError() {
         guiUtils.error((plugin.isStreamMode())
-                ? "This option requires the entire image to be loaded into memory (RAM)."
+                ? "This option requires valid image data to be accessible: either a materialized crop, or an active streamed source."
                 : "This option requires valid image data to be loaded.");
     }
 
     private void noValidImageDataErrorExtended() {
         guiUtils.error((plugin.isStreamMode())
-                ? "This option requires the entire image to be loaded into memory (RAM)."
+                ? "This option requires valid image data to be accessible: either a materialized crop, or an active "
+                  + "streamed source. The image should have bright foreground structures on a dark background."
                 : "This option requires valid image data to be loaded. " +
                   "The image should have bright foreground structures on a dark background.");
+    }
+
+    /**
+     * For commands that specifically need {@link #accessToValidImagePlus()} (a genuine, RAM-resident
+     * {@link ij.ImagePlus}) - e.g. ones that read the image's original file path, or otherwise cannot work
+     * off streamed data alone. Unlike {@link #noValidImageDataError()}, the message here does not depend on
+     * {@link SNT#isStreamMode()}: RAM residency is what is actually missing either way.
+     */
+    private void noValidImagePlusError() {
+        guiUtils.error("This option requires the entire image to be loaded into memory (RAM).");
     }
 
     private boolean okToReplaceSecLayer() {
@@ -6711,7 +6727,7 @@ public class SNTUI extends JDialog {
 
     protected void saveTracingsAndOpenSiblingImage(final boolean next) {
         if (!accessToValidImagePlus()) {
-            noValidImageDataError();
+            noValidImagePlusError();
             return;
         }
         // Determine current image file
