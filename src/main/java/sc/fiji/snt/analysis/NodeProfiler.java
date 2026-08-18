@@ -52,12 +52,13 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTColor;
 
 /**
  * Command to retrieve node profiles (plots of voxel intensities sampled across
  * Path nodes).
- *
+ * 
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, label = "Node Profiler", initializer = "init")
@@ -111,7 +112,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 
 	/**
 	 * Instantiates a new Profiler.
-	 *
+	 * 
 	 * @param dataset the image from which pixel intensities will be retrieved. Note
 	 *                that no effort is made to ensure that the image is suitable
 	 *                for profiling.
@@ -275,7 +276,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	/**
 	 * Gets the profile for the specified path as a map of lists of pixel
 	 * intensities (profile indices as keys)
-	 *
+	 * 
 	 * @param p the path to be profiled, using its CT positions in the image
 	 * @return The profile
 	 */
@@ -286,7 +287,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	/**
 	 * Gets the profile for the specified path as a map of lists of pixel
 	 * intensities (profile indices as keys)
-	 *
+	 * 
 	 * @param p       the path to be profiled
 	 * @param channel the channel to be profiled (0-based index)
 	 * @param frame   the frame to be profiled (0-based index)
@@ -296,14 +297,38 @@ public class NodeProfiler extends CommonDynamicCmd {
 			final int frame) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
 		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel, frame);
-		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
-		processor.setShape(shape);
-		processor.setRadius(radius);
-		return processor.getRawValues(nodeStep);
+		// Same fix as PathProfiler#assignValues(Path, int, int): Path#getXUnscaled/Y/Z (which
+		// ProfileProcessor samples through) read each Path's own canvasOffset/spacing, not this
+		// session's - see SNT#makePathVolume()'s javadoc for the full reasoning. A Path added in bulk
+		// (addTree()/addTrees(), SWC/graph import, loading a .traces file) may still be carrying
+		// canvasOffset's class default of (0,0,0), which is wrong whenever this session has a non-zero
+		// world origin offset (Stream mode with a non-zero-anchored source), silently yielding an
+		// all-empty profile (ProfileProcessor#getAllValues() drops out-of-bounds samples with no
+		// warning). Apply this session's live activeCanvasPixelOffset/calibration just for this call,
+		// then restore. Guarded on snt != null: this class is also usable standalone (see the
+		// Dataset-only constructor), with no live SNT session to correct against
+		final PointInCanvas originalOffset = (snt != null) ? p.getCanvasOffset() : null;
+		final Calibration originalCal = (snt != null) ? p.getCalibration() : null;
+		if (snt != null) {
+			p.setCanvasOffset(snt.getActiveCanvasPixelOffset());
+			final Calibration liveCal = snt.getCalibration();
+			p.setSpacing(liveCal.pixelWidth, liveCal.pixelHeight, liveCal.pixelDepth, liveCal.getUnit());
+		}
+		try {
+			final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
+			processor.setShape(shape);
+			processor.setRadius(radius);
+			return processor.getRawValues(nodeStep);
+		} finally {
+			if (snt != null) {
+				p.setCanvasOffset(originalOffset);
+				p.setSpacing(originalCal.pixelWidth, originalCal.pixelHeight, originalCal.pixelDepth, originalCal.getUnit());
+			}
+		}
 	}
 
 	/**
-	 *
+	 * 
 	 * @param path the path to be profiled, using its CT positions in the image
 	 * @return The profile (Mean±SD of all the profiled data)
 	 */
@@ -388,7 +413,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 
 	/**
 	 * Sets the shape of the iterating cursor.
-	 *
+	 * 
 	 * @param shape A {@link ProfileProcessor.Shape}
 	 */
 	public void setShape(final ProfileProcessor.Shape shape) {

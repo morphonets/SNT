@@ -38,7 +38,9 @@ import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.analysis.detection.PeripathDetector;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.PointInCanvas;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -227,7 +229,33 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         SNTUtils.log("PeripathDetectorCmd: " + cfg);
 
         // Run detection
-        final List<Detection> results = PeripathDetector.detect(paths, detectionImg, cfg);
+        // Temporarily stamp each path's canvasOffset/spacing from the live session state, so
+        // PeripathDetector's cross-section sampling reads the correct voxel from detectionImg. Same
+        // save/apply/restore idiom as SNT#makePathVolume(): bulk-added paths (addTree()/SWC import/
+        // .traces loading) never get canvasOffset/spacing stamped otherwise, and detectionImg is always
+        // the CURRENTLY ACTIVE grid (getLoadedData()/getCtSlice3d()), matching
+        // snt.getActiveCanvasPixelOffset() (crop-relative while a materialized crop is active)
+        final List<PointInCanvas> originalOffsets = new ArrayList<>(paths.size());
+        final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(paths.size());
+        final PointInCanvas liveOffset = snt.getActiveCanvasPixelOffset();
+        final ij.measure.Calibration liveCal = snt.getCalibration();
+        for (final Path p : paths) {
+            originalOffsets.add(p.getCanvasOffset());
+            originalSpacings.add(p.getCalibration());
+            p.setCanvasOffset(liveOffset);
+            p.setSpacing(liveCal);
+        }
+        final List<Detection> results;
+        try {
+            results = PeripathDetector.detect(paths, detectionImg, cfg);
+        } finally {
+            int i = 0;
+            for (final Path p : paths) {
+                p.setCanvasOffset(originalOffsets.get(i));
+                p.setSpacing(originalSpacings.get(i));
+                i++;
+            }
+        }
 
         if (results.isEmpty()) {
             error("No maxima detected with current parameters.");

@@ -23,6 +23,7 @@
 package sc.fiji.snt.analysis.detection;
 
 import sc.fiji.snt.Path;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 
@@ -120,11 +121,18 @@ public class Detection {
      * @return {@code double[5]}: {xPixel, yPixel, zPixel, channel, frame}
      */
     public double[] xyzct() {
+        // NB: not cal.getRawX/Y/Z() - plain ij.measure.Calibration has no notion of this Path's own
+        // canvasOffset (see Path#getCanvasOffset()), so it would silently omit the pixel-space shift
+        // that Path#getXUnscaledDouble(int) etc. apply for every other pixel-index conversion in SNT.
+        // Left out, ROI/bookmark markers built from this detection would land at the wrong pixel
+        // whenever the source has a non-zero world-origin offset (Stream mode) - same bug class as the
+        // one fixed in AlongPathDetector/PeripathDetector's own intensity sampling
         final ij.measure.Calibration cal = path.getCalibration();
+        final PointInCanvas offset = path.getCanvasOffset();
         return new double[]{
-                cal.getRawX(x),
-                cal.getRawY(y),
-                cal.getRawZ(z),
+                x / cal.pixelWidth + offset.x,
+                y / cal.pixelHeight + offset.y,
+                z / cal.pixelDepth + offset.z,
                 path.getChannel(),
                 path.getFrame()
         };

@@ -38,6 +38,7 @@ import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.tracing.CrossSectionUtils;
+import sc.fiji.snt.util.PointInCanvas;
 
 import java.awt.*;
 import java.util.*;
@@ -122,6 +123,12 @@ public class PeripathDetector {
             final double xSp = path.getCalibration().pixelWidth;
             final double ySp = path.getCalibration().pixelHeight;
             final double zSp = path.getCalibration().pixelDepth;
+            // NB: canvasOffset (see Path#getCanvasOffset()) must be applied when converting a world
+            // position to a pixel index, or sampling silently reads the wrong voxel whenever the source
+            // has a non-zero world-origin offset (Stream mode). Callers sampling against the session's
+            // own live canvas (e.g. PeripathDetectorCmd) are responsible for keeping this current for
+            // every path passed in
+            final PointInCanvas offset = path.getCanvasOffset();
             final double[] tangent = new double[3];
             final int pointsEitherSide = 4;
 
@@ -153,6 +160,7 @@ public class PeripathDetector {
                             nSamples, scaleA,
                             node.x, node.y,
                             aBasis, xSp, ySp,
+                            offset.x, offset.y,
                             realAccess);
 
                     final double innerRSamples = innerR / scaleA;
@@ -187,6 +195,7 @@ public class PeripathDetector {
                             node.x, node.y, node.z,
                             aBasis, bBasis,
                             xSp, ySp, zSp,
+                            offset.x, offset.y, offset.z,
                             realAccess);
 
                     final double innerRGrid = innerR / scaleIso;
@@ -271,6 +280,8 @@ public class PeripathDetector {
             final double xSp = path.getCalibration().pixelWidth;
             final double ySp = path.getCalibration().pixelHeight;
             final double zSp = path.getCalibration().pixelDepth;
+            // see the same NB in detect() above re: why canvasOffset must be applied here
+            final PointInCanvas offset = path.getCanvasOffset();
             final double[] tangent = new double[3];
             final int pointsEitherSide = 4;
 
@@ -299,6 +310,7 @@ public class PeripathDetector {
                         node.x, node.y, node.z,
                         aBasis, bBasis,
                         xSp, ySp, zSp,
+                        offset.x, offset.y, offset.z,
                         innerRGrid, outerRGrid,
                         fillValue);
             }

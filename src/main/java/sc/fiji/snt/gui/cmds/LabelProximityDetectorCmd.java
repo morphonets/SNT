@@ -37,6 +37,7 @@ import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.analysis.detection.LabelProximityDetector;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInCanvas;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -174,12 +175,37 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
         SNTUtils.log("LabelProximityDetectorCmd: " + cfg);
 
         // Run detection
+        // Temporarily stamp each path's canvasOffset/spacing to the crop-independent baseline (see
+        // SNT#getDefaultCanvasPixelOffset()), NOT the live/possibly-crop-relative
+        // snt.getActiveCanvasPixelOffset(): labelImg is always matched against
+        // snt.getFullImageDimensions() (the full dataset), never the small crop-local grid, so sampling
+        // it must always use the full-dataset-relative offset even while a crop is materialized (whose
+        // live offset is crop-relative - see SNT#installMaterializedCrop()). Also needed because
+        // bulk-added paths (addTree()/SWC import/.traces loading) never get canvasOffset/spacing stamped
+        // otherwise - same idiom as SNT#makePathVolume()
+        final List<PointInCanvas> originalOffsets = new ArrayList<>(paths.size());
+        final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(paths.size());
+        final PointInCanvas defaultOffset = snt.getDefaultCanvasPixelOffset();
+        final ij.measure.Calibration liveCal = snt.getCalibration();
+        for (final Path p : paths) {
+            originalOffsets.add(p.getCanvasOffset());
+            originalSpacings.add(p.getCalibration());
+            p.setCanvasOffset(defaultOffset);
+            p.setSpacing(liveCal);
+        }
         final List<Detection> results;
         try {
             results = LabelProximityDetector.detect(paths, labelImg, cfg);
         } catch (final IllegalArgumentException ex) {
             error(ex.getMessage());
             return;
+        } finally {
+            int i = 0;
+            for (final Path p : paths) {
+                p.setCanvasOffset(originalOffsets.get(i));
+                p.setSpacing(originalSpacings.get(i));
+                i++;
+            }
         }
 
         if (results.isEmpty()) {

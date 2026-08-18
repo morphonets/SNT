@@ -243,24 +243,29 @@ public class AlongPathDetector {
     /**
      * Samples on-skeleton intensity at each node using tri-linear
      * interpolation.
+     * <p>
+     * NB: uses {@link Path#getXUnscaledDouble(int)}/{@code getYUnscaledDouble}/{@code getZUnscaledDouble}
+     * rather than a plain {@code node.x/xSp} division, so that each node's own {@code canvasOffset} (see
+     * {@link Path#getCanvasOffset()}) is correctly applied. Without it, sampling would silently read the
+     * wrong voxel whenever the source has a non-zero world-origin offset (Stream mode) - regressing to
+     * plain {@code node.x/xSp} would reintroduce that bug even for interactively-traced, correctly
+     * stamped paths, not just bulk-imported ones. Callers that sample against the session's own live
+     * canvas (e.g. {@code AlongPathDetectorCmd}) are responsible for ensuring {@code canvasOffset} is
+     * current for every path passed in (see {@link Path#setCanvasOffset(sc.fiji.snt.util.PointInCanvas)}).
      */
     private static double[] sampleOnSkeletonIntensities(
             final Path path,
             final RealRandomAccessible<FloatType> interpolant) {
 
-        final double xSp = path.getCalibration().pixelWidth;
-        final double ySp = path.getCalibration().pixelHeight;
-        final double zSp = path.getCalibration().pixelDepth;
         final int nDim = interpolant.numDimensions();
         final RealRandomAccess<FloatType> access = interpolant.realRandomAccess();
         final double[] position = new double[nDim];
         final double[] intensities = new double[path.size()];
 
         for (int i = 0; i < path.size(); i++) {
-            final Path.PathNode node = path.getNode(i);
-            position[0] = node.x / xSp;
-            position[1] = node.y / ySp;
-            if (nDim > 2) position[2] = node.z / zSp;
+            position[0] = path.getXUnscaledDouble(i);
+            position[1] = path.getYUnscaledDouble(i);
+            if (nDim > 2) position[2] = path.getZUnscaledDouble(i);
             intensities[i] = access.setPositionAndGet(position).getRealDouble();
         }
         return intensities;

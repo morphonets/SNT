@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import ij.gui.PlotWindow;
+import ij.measure.Calibration;
 import net.imagej.axis.Axes;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.ItemVisibility;
@@ -62,7 +63,7 @@ import sc.fiji.snt.util.*;
 /**
  * Command to retrieve Path profiles (plots of voxel intensities values along a
  * Path)
- *
+ * 
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
@@ -182,7 +183,7 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	/**
 	 * Instantiates a new Profiler.
-	 *
+	 * 
 	 * @param tree    the Tree to be profiled
 	 * @param dataset the dataset from which pixel intensities will be retrieved.
 	 *                Note that no effort is made to ensure that the image is
@@ -203,7 +204,7 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	/**
 	 * Instantiates a new Profiler from a single path.
-	 *
+	 * 
 	 * @param path    the path to be profiled
 	 * @param dataset the dataset from which pixel intensities will be
 	 *                retrieved.Note that no effort is made to ensure that the image
@@ -333,7 +334,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 *
+	 * 
 	 * @param shape Either {@link ProfileProcessor.Shape}
 	 */
 	public void setShape(final ProfileProcessor.Shape shape) {
@@ -488,22 +489,46 @@ public class PathProfiler extends CommonDynamicCmd {
 	/**
 	 * Retrieves pixel intensities at each node of the Path storing them as Path
 	 * {@code values}
-	 *
+	 * 
 	 * @param channel the channel to be parsed (base-0 index)
 	 * @param frame the frame to be parsed (base-0 index)
 	 * @param p       the Path to be profiled
 	 * @see Path#setNodeValues(double[])
-	 *
+	 * 
 	 * @throws IllegalArgumentException if image does not contain the path's channel
 	 */
 	public <T extends RealType<T>> void assignValues(final Path p, final int channel, final int frame) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
 		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel, frame);
-		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
-		processor.setShape(shape);
-		processor.setRadius(radius);
-		processor.setMetric(metric);
-		p.setNodeValues(processor.call());
+		// Path#getXUnscaled/Y/Z (which ProfileProcessor samples through) read each Path's own canvasOffset/
+		// spacing, not this session's - see SNT#makePathVolume()'s identical fix for the full reasoning. Paths
+		// added in bulk (addTree()/addTrees(), SWC/graph import, loading a .traces file) may still be carrying
+		// canvasOffset's class default of (0,0,0), which is wrong whenever this session has a non-zero world
+		// origin offset (Stream mode with a non-zero-anchored source): every sampled position then lands outside
+		// rai's actual bounds and ProfileProcessor#getAllValues() silently drops it - no exception, no warning,
+		// just an all-empty/all-zero profile. Apply this session's live activeCanvasPixelOffset/calibration just
+		// for this call, then restore - same save/apply/restore pattern as SNT#makePathVolume(). Guarded on
+		// snt != null: this class is also usable standalone (see the Tree/Dataset constructors), with no live
+		// SNT session to correct against
+		final PointInCanvas originalOffset = (snt != null) ? p.getCanvasOffset() : null;
+		final Calibration originalCal = (snt != null) ? p.getCalibration() : null;
+		if (snt != null) {
+			p.setCanvasOffset(snt.getActiveCanvasPixelOffset());
+			final Calibration liveCal = snt.getCalibration();
+			p.setSpacing(liveCal.pixelWidth, liveCal.pixelHeight, liveCal.pixelDepth, liveCal.getUnit());
+		}
+		try {
+			final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
+			processor.setShape(shape);
+			processor.setRadius(radius);
+			processor.setMetric(metric);
+			p.setNodeValues(processor.call());
+		} finally {
+			if (snt != null) {
+				p.setCanvasOffset(originalOffset);
+				p.setSpacing(originalCal.pixelWidth, originalCal.pixelHeight, originalCal.pixelDepth, originalCal.getUnit());
+			}
+		}
 		//ImgUtils.getCtSlice3d(dataset, channel, channel);
 	}
 
@@ -569,7 +594,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * Sets whether the profile abscissae should be reported in real-word units
 	 * (the default) or node indices (zero-based). Must be called before calling
 	 * {@link #getValues(Path)}, {@link #getPlot()} or {@link #getXYPlot()}.
-	 *
+	 * 
 	 * @param nodeIndices If true, distances will be reported as indices.
 	 */
 	public void setNodeIndicesAsDistances(final boolean nodeIndices) {
@@ -580,7 +605,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * Gets the profile for the specified path as a map of lists, with distances (or
 	 * indices) stored under {@link #X_VALUES} ({@value #X_VALUES}) and intensities
 	 * under {@link #Y_VALUES} ({@value #Y_VALUES}).
-	 *
+	 * 
 	 * @param p the path to be profiled
 	 * @return the profile
 	 */
@@ -606,7 +631,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * Gets the profile for the specified path as a map of lists, with distances (or
 	 * indices) stored under {@link #X_VALUES} ({@value #X_VALUES}) and intensities
 	 * under {@link #Y_VALUES} ({@value #Y_VALUES}).
-	 *
+	 * 
 	 * @param p       the path to be profiled
 	 * @param channel the channel to be parsed (base-0 index)
 	 * @param frame   the frame to be parsed (base-0 index)
@@ -723,7 +748,7 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	/**
 	 * Gets the plot profile as an ImageJ {@link Plot} (all channels).
-	 *
+	 * 
 	 * @return the plot
 	 */
 	public Plot getPlot() throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
@@ -821,7 +846,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	/**
 	 * Gets the plot profile as an {@link PlotService} plot. It is recommended to
 	 * call {@link #setContext(org.scijava.Context)} beforehand.
-	 *
+	 * 
 	 * @return the plot
 	 */
 	public XYPlot getXYPlot() {
@@ -866,7 +891,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * linear interpolation. Entries beyond the path's actual length are set to
 	 * {@link Double#NaN}, which allows variable-length paths to be compared in
 	 * the same matrix without padding with zeros.
-	 *
+	 * 
 	 * @param p        the path to profile (values are assigned if not yet set)
 	 * @param channel  the channel to sample (base-0 index)
 	 * @param nSamples the number of output grid points (&gt;= 2)
@@ -888,7 +913,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * linear interpolation. Entries beyond the path's actual length are set to
 	 * {@link Double#NaN}, which allows variable-length paths to be compared in
 	 * the same matrix without padding with zeros.
-	 *
+	 * 
 	 * @param p        the path to profile (values are assigned if not yet set)
 	 * @param channel  the channel to sample (base-0 index)
 	 * @param frame    the frame to sample (base-0 index)
@@ -947,7 +972,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * {@code matrix[i][j]} is the interpolated intensity at distance sample j for
 	 * the i-th path. Entries beyond a path's actual length are {@link Double#NaN}.
 	 * </p>
-	 *
+	 * 
 	 * @param paths             ordered list of paths, one per time frame
 	 * @param channel           the channel to sample (base-0 index)
 	 * @param nSamples          number of distance samples (columns in the result)
@@ -989,7 +1014,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	/**
 	 * Gets the time profile for the specified path as a list of {@link #getValues(Path, int, int)} profiles,
 	 * with one entry per frame of the dataset.
-	 *
+	 * 
 	 * @param path    the path to be profiled
 	 * @param channel the channel to be parsed (base-0 index)
 	 * @return the list of profile values (one entry per frame)

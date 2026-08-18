@@ -101,6 +101,7 @@ import java.awt.event.KeyListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
@@ -288,6 +289,14 @@ public class SNT extends MultiDThreePanes implements
 	 * does not otherwise capture. See getWorldOriginOffset()/setWorldOriginOffset().
 	 */
 	private double originOffsetX, originOffsetY, originOffsetZ;
+
+	/*
+	 * The (1-based) channel/frame the currently materialized crop (see MaterializedCrop) was actually read from,
+	 * stamped by installMaterializedCrop() just before initialize(ImagePlus) resets channel/frame to 1/1. Meaningless
+	 * whenever isMaterializedCrop() is false. Always read these from getMaterializedCropChannelFrame()
+	 */
+	private int materializedCropChannel = 1;
+	private int materializedCropFrame = 1;
 
 	/* all tracing and filling-related functions are performed on the Imgs */
 	@SuppressWarnings("rawtypes")
@@ -901,8 +910,15 @@ public class SNT extends MultiDThreePanes implements
 
 	/**
 	 * @return the world-space (calibrated) extent of the currently materialized crop (see
-	 *         {@link #materializeDisplayCanvas(BoundingBox)}), or {@code null} if none is active. Useful for callers
-	 *         that want to restrict an operation to the region actually  materialized.
+	 *         {@link #materializeDisplayCanvas(BoundingBox)}), or {@code null} if none is active. Useful for
+	 *         callers (e.g. {@code SkeletonizerCmd}) that want to restrict an operation to the region actually
+	 *         materialized, since BDV/BVV have no ROI equivalent. Derived from {@link #getActiveCanvasPixelOffset()}
+	 *         and the live {@link #width}/{@link #height}/{@link #depth} (the crop's own small dimensions while
+	 *         materialized - see {@link #getFullImageDimensions()}): since {@code voxelIndex =
+	 *         world/spacing + canvasOffset} (see {@link #defaultCanvasPixelOffset()}), the crop's local voxel 0
+	 *         and voxel {@code width}/{@code height}/{@code depth} map back to world coordinates via {@code world =
+	 *         (voxelIndex - canvasOffset) * spacing} - {@link #getWorldOriginOffset()} cancels out of that algebra,
+	 *         so it does not need to be looked up separately here.
 	 */
 	public BoundingBox getMaterializedCropWorldBounds() {
 		if (!isMaterializedCrop()) return null;
@@ -913,6 +929,20 @@ public class SNT extends MultiDThreePanes implements
 		box.setOrigin(new PointInImage(-off.x * cal.pixelWidth, -off.y * cal.pixelHeight, -off.z * cal.pixelDepth));
 		box.setDimensions(width, height, depth);
 		return box;
+	}
+
+	/**
+	 * @return the (1-based) {@code {channel, frame}} the currently materialized crop (see
+	 *         {@link #materializeDisplayCanvas(BoundingBox)}) was actually read from, or {@code null} if no crop is
+	 *         active. A materialized crop is single-channel/single-frame (whichever was active in the session when it
+	 *         was built, see {@link MaterializedCrop}), not the full multichannel/multiframe source. Useful for callers
+	 *         that need to validate a {@link Path}'s channel/frame against what the crop actually contains, rather than
+	 *         against the crop {@code ImagePlus}'s own reported C/T of 1/1.
+	 */
+	public int[] getMaterializedCropChannelFrame() {
+		if (!isMaterializedCrop()) return null;
+		if (xy.getNChannels() > 1) return null;
+		return new int[] { materializedCropChannel, materializedCropFrame };
 	}
 
 	/*
@@ -1115,7 +1145,7 @@ public class SNT extends MultiDThreePanes implements
 			return cal;
 		}
 		// Source did not report real voxel dimensions: fall back to a representative loaded Path's own
-		// calibration when available (see this method's own javadoc caveat), else this session's (default) fields.
+		// calibration when available (see caveat in javadoc), else this session's (default) fields
 		final Path referencePath = pathAndFillManager.getPaths().stream().findFirst().orElse(null);
 		final Calibration pathCal = (referencePath == null) ? null : referencePath.getCalibration();
 		cal.pixelWidth = (pathCal != null && pathCal.pixelWidth > 0) ? pathCal.pixelWidth : x_spacing;
@@ -1272,8 +1302,24 @@ public class SNT extends MultiDThreePanes implements
 	 *                 grid, per axis - needed by {@link #installMaterializedCrop(MaterializedCrop)}, together
 	 *                 with {@link #getWorldOriginOffset()}, to position every {@link Path} relative to the
 	 *                 crop's local grid
+	 * @param channel  the (1-based) channel the crop's pixel data was actually read from - i.e., this
+	 *                 session's own {@link #channel} at the time {@link #buildMaterializedCrop(BoundingBox, boolean)}
+	 *                 ran. Recorded here because {@link #installMaterializedCrop(MaterializedCrop)} calls
+	 *                 {@link #initialize(ImagePlus)} on {@code imp}, which resets this session's {@link #channel}/
+	 *                 {@link #frame} fields to 1/1 (a materialized crop is always single-channel/single-frame, see
+	 *                 {@link #getMaterializedCropChannelFrame()}), so the crop's true source channel/frame would
+	 *                 otherwise be lost
+	 * @param frame    the (1-based) frame the crop's pixel data was actually read from - see {@code channel}
 	 */
-	public record MaterializedCrop(ImagePlus imp, long[] voxelMin) {
+	public record MaterializedCrop(ImagePlus imp, long[] voxelMin, int channel, int frame) {
+		public MaterializedCrop {
+			// Tag intrinsically here rather than relying on every caller (buildMaterializedCrop(), or a script
+			// building its own multichannel crop, see Materialize_Multichannel_Region.groovy) to remember to
+			// call ImpUtils.setIsMaterializedCrop(imp) itself. isMaterializedCrop(imp) drives real behavior
+			// downstream (e.g. getMaterializedCropChannelFrame(), setFieldsFromImage() skipping
+			// assignSpatialSettings()), so this should never depend on caller discipline. Null-safe/idempotent
+			ImpUtils.setIsMaterializedCrop(imp);
+		}
 	}
 
 	/**
@@ -1379,8 +1425,8 @@ public class SNT extends MultiDThreePanes implements
 				voxelMin[2] * cal.pixelDepth + worldOriginOffset[2]));
 		cropImp.resetDisplayRange();
 		cropImp.setCalibration(cal);
-		ImpUtils.setIsMaterializedCrop(cropImp);
-		return new MaterializedCrop(cropImp, voxelMin);
+		// MaterializedCrop's constructor will call ImpUtils.setIsMaterializedCrop(cropImp)
+		return new MaterializedCrop(cropImp, voxelMin, channel, frame);
 	}
 
 	/**
@@ -1390,10 +1436,6 @@ public class SNT extends MultiDThreePanes implements
 	 * editing (extend/fork/join/delete nodes, wired into {@link InteractiveTracerCanvas}) real pixel
 	 * context in Stream mode, where BDV/BVV have no equivalent context menu.
 	 * <p>
-	 * Touches Swing/AWT state ({@link #initialize(ImagePlus)}, showing/fronting the {@code
-	 * ImageWindow}) and so, unlike {@link #buildMaterializedCrop(BoundingBox)}, MUST be called on the
-	 * EDT.
-	 * <p>
 	 * Deliberately scoped to editing, not tracing: this reuses the normal {@link #initialize(ImagePlus)} pipeline,
 	 * which also replaces {@link #ctSlice3d} with the crop's own (small) pixel data. A* search/GWDT tracing initiated
 	 * after materializing is therefore scoped to the crop's own bounds, not the full streamed volume, until a different
@@ -1401,8 +1443,27 @@ public class SNT extends MultiDThreePanes implements
 	 * canonical streamed source: only geometry/paths persist, pixel edits are local to this session.
 	 *
 	 * @param crop the crop to install, from {@link #buildMaterializedCrop(BoundingBox)}
+	 * @throws IllegalStateException if this session is not in Stream mode (see {@link #isStreamMode()}):
+	 *         classic mode already holds its full image resident, so installing a crop as this session's
+	 *         canvas is untested and not a supported combination
 	 */
 	public void installMaterializedCrop(final MaterializedCrop crop) {
+		if (!isStreamMode()) {
+			throw new IllegalStateException(
+					"installMaterializedCrop() requires Stream mode (BDV/BVV); this session is in classic mode");
+		}
+		if (SwingUtilities.isEventDispatchThread()) {
+			installMaterializedCropOnEDT(crop);
+			return;
+		}
+		try {
+			SwingUtilities.invokeAndWait(() -> installMaterializedCropOnEDT(crop));
+		} catch (final InterruptedException | InvocationTargetException e) {
+			throw new RuntimeException("Failed to install materialized crop", e);
+		}
+	}
+
+	private void installMaterializedCropOnEDT(final MaterializedCrop crop) {
 		// Cancel any A* search still in flight on the classic canvas before this method proceeds to
 		// swap ctSlice3d/activeCanvasPixelOffset below: createSearch() captures img=getLoadedData() once,
 		// by reference, when a search is constructed, so a still-running search keeps reading the OLD
@@ -1416,6 +1477,12 @@ public class SNT extends MultiDThreePanes implements
 		// BDV/BVV tracing is unaffected either way - see getStreamedOrLoadedData()/manualTraceHeadless(),
 		// which never read the live, crop-local activeCanvasPixelOffset/getLoadedData() in the first place
 		cancelSearch(false);
+		// Stamp the crop's true source channel/frame before initialize(ImagePlus) below resets this session's
+		// own channel/frame fields to 1/1 (crop.imp() always reports getC()==1/getT()==1, see MaterializedCrop.
+		// Consulted later via getMaterializedCropChannelFrame(), e.g. by PathManagerUI's channel/frame
+		// mismatch validation for Path Profiler/Node Profiler/Fit commands
+		materializedCropChannel = crop.channel();
+		materializedCropFrame = crop.frame();
 		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip
 		// pathAndFillManager.assignSpatialSettings(...), which would otherwise reset every Path's canvasOffset to zero
 		// and overwrite their spacing. No new world origin offset is needed either
@@ -1470,9 +1537,8 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * Convenience call combining {@link #buildMaterializedCrop(BoundingBox)} and
 	 * {@link #installMaterializedCrop(MaterializedCrop)} - reads the region and installs it as this  session's canvas,
-	 * in one (synchronous, EDT-blocking if called from the EDT) call. Fine for scripts and other non-interactive
-	 * callers; a UI wanting to keep the interface responsive during a potentially slow read should instead call the
-	 * two halves directly, backgrounding {@link #buildMaterializedCrop(BoundingBox)}.
+	 * in one call. Safe to call from any thread but a UI wanting to keep the interface responsive during a potentially
+	 * slow read should instead call the two halves directly, backgrounding {@link #buildMaterializedCrop(BoundingBox)}.
 	 *
 	 * @param worldBox see {@link #buildMaterializedCrop(BoundingBox)}
 	 * @throws IllegalStateException see {@link #buildMaterializedCrop(BoundingBox)}
@@ -2416,9 +2482,8 @@ public class SNT extends MultiDThreePanes implements
 			statusMessage = "Node " + editingPath.getEditableNodeIndex() + ", ";
 		}
 
-		// ix/iy/iz are local canvas-pixel indices (crop-local when a crop is materialized);
-		// subtract activeCanvasPixelOffset to report the true-world coordinate, same
-		// convention as getActiveCanvasPixelOffset()'s javadoc
+		// ix/iy/iz are local canvas-pixel indices (crop-local when a crop is materialized); subtract
+		// activeCanvasPixelOffset to report the true-world coordinate, same convention as getActiveCanvasPixelOffset()
 		statusMessage += String.format("World: (%.2f, %.2f, %.2f);",
 				(ix - activeCanvasPixelOffset.x) * x_spacing,
 				(iy - activeCanvasPixelOffset.y) * y_spacing,
@@ -2538,18 +2603,20 @@ public class SNT extends MultiDThreePanes implements
 		for (int i = 0; i < depth; ++i)
 			snapshot_data[i] = new short[width * height];
 
-		// setPathPointsInVolume() rasterizes into this session's raw voxel-index grid via each Path's
-		// own canvasOffset and its own spacing (see Path#getXUnscaled/Y/Z: node.x/x_spacing + canvasOffset.x).
-		// Interactively-traced Paths are kept in sync with activeCanvasPixelOffset (see syncActivePathCanvasState(),
-		// AbstractBigViewer#finishPath()), and installMaterializedCrop() also re-stamps every already-loaded Path's
-		// spacing from the crop's own calibration - but Paths added in bulk (addTree()/addTrees(), SWC/graph import,
+		// setPathPointsInVolume() rasterizes into this session's raw voxel-index grid via each Path's own canvasOffset
+		// AND its own spacing (see Path#getXUnscaled/Y/Z: node.x/x_spacing + canvasOffset.x). Interactively-traced
+		// Paths are kept in sync with activeCanvasPixelOffset (see syncActivePathCanvasState(),
+		// AbstractBigViewer#finishPath()), and installMaterializedCrop() also  re-stamps every already-loaded Path's
+		// spacing from the crop's own calibration - but Paths added in bulk (addTree()/addTrees(), SWC/graph import
 		// loading a .traces file) are never re-stamped either way, so they can still be carrying canvasOffset's class
-		// default of (0,0,0) and/or whatever spacing they had at import.
-		// Apply this session's live activeCanvasPixelOffset/calibration just for this rasterization call
+		// default of (0,0,0) and/or whatever spacing they had at import. Both are harmless for a classic session with
+		// matching calibration, but produce wildly out-of-bounds voxel indices for a Stream-mode source with a non-zero
+		// world origin offset, or a mismatched per-Path calibration (the Bresenham3D "Out-of-bounds point" warnings
+		// this fixes). Apply this session's live activeCanvasPixelOffset/calibration just for this rasterization call
 		// (picks up a materialized crop's own crop-relative offset/calibration automatically, since both are
 		// read live), then restore each Path's original canvasOffset/spacing immediately after - same
-		// save/apply/restore pattern Tree#getSkeletonInternal() already uses for, so paths keep rendering exactly as
-		// before everywhere else (viewers, Path Manager, etc.).
+		// save/apply/restore pattern Tree#getSkeletonInternal() already uses for its own (tree-local)
+		// offset/spacing, so paths keep rendering exactly as before everywhere else (viewers, Path Manager, etc.).
 		final Calibration liveCal = getCalibration();
 		final List<PointInCanvas> originalOffsets = new ArrayList<>(paths.size());
 		final List<Calibration> originalSpacings = new ArrayList<>(paths.size());
@@ -2825,7 +2892,7 @@ public class SNT extends MultiDThreePanes implements
 		// an offset into whichever grid will actually be searched: the live activeCanvasPixelOffset (the
 		// crop-local pixel grid when a materialized crop is active, or defaultCanvasPixelOffset()'s raw
 		// streamed source grid otherwise), or, when useStreamedSource is set, always
-		// defaultCanvasPixelOffset() paired with getStreamedOrLoadedData() - see that method's javadoc
+		// defaultCanvasPixelOffset() paired with getStreamedOrLoadedData()
 		final PointInCanvas offset = useStreamedSource ? defaultCanvasPixelOffset() : activeCanvasPixelOffset;
 		final int x_start = (int) Math.round(world_x_start / x_spacing + offset.x);
 		final int y_start = (int) Math.round(world_y_start / y_spacing + offset.y);
@@ -3066,7 +3133,7 @@ public class SNT extends MultiDThreePanes implements
 		// unconfirmed - the search that just produced temporaryPath always used the live offset (see testPathTo()).
 		//
 		// Only the CROP-RELATIVE portion of that offset is subtracted here for a brand-new path (see
-		// cropRelativeCanvasOffset()'s javadoc), not the full offset: applyWorldOriginOffsetIfAny() is
+		// cropRelativeCanvasOffset()), not the full offset: applyWorldOriginOffsetIfAny() is
 		// the single place getWorldOriginOffset() gets added, right before this path reaches
 		// pathAndFillManager (see finishedPath()) - subtracting the full offset here would leave nodes
 		// already complete, and applyWorldOriginOffsetIfAny() would then double-count that offset.
@@ -3561,7 +3628,7 @@ public class SNT extends MultiDThreePanes implements
 			}
 			// createSearch(...settings) above is crop-aware (does not use useStreamedSource), so
 			// pathResult's raw nodes are missing both the crop-relative and worldOriginOffset
-			// components (see cropRelativeCanvasOffset()'s javadoc). Correct only the crop-relative
+			// components (see cropRelativeCanvasOffset()). Correct only the crop-relative
 			// portion here; applyWorldOriginOffsetIfAny() completes the rest, once, below
 			final PointInCanvas segCropOffset = cropRelativeCanvasOffset();
 			if (segCropOffset.x != 0 || segCropOffset.y != 0 || segCropOffset.z != 0) {

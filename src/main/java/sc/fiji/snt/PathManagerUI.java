@@ -2789,11 +2789,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         return;
                     }
                     // Streamed data (e.g. BVV): getDataset() falls back to wrapping just the currently active
-                    // CT's slice (ctSlice3d); a path off that channel/ frame can't be profiled from it
-                    if (plugin.getImagePlus() == null
-                            && (p.getChannel() != plugin.getChannel() || p.getFrame() != plugin.getFrame())) {
+                    // CT's slice (ctSlice3d) - or, if a crop has been materialized (see
+                    // SNT#isMaterializedCrop()), the crop's own single captured channel/frame (see
+                    // activeCTForPixelSampling()) - rather than a full multichannel/multiframe Dataset. A
+                    // path off that channel/frame can't be profiled from it
+                    final int[] activeCT = activeCTForPixelSampling();
+                    if (activeCT != null && (p.getChannel() != activeCT[0] || p.getFrame() != activeCT[1])) {
                         guiUtils.error("This path is not associated with the active channel ("
-                                + plugin.getChannel() + ")/frame (" + plugin.getFrame() + "), which is all "
+                                + activeCT[0] + ")/frame (" + activeCT[1] + "), which is all "
                                 + "that streamed data can currently profile against.");
                         return;
                     }
@@ -3347,10 +3350,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("No valid image data is accessible for profiling.");
                     return;
                 }
-                if (plugin.getImagePlus() == null) {
-                    // Streamed data (e.g. BVV): getDataset() falls back to wrapping just the currently active CT's
-                    // slice (ctSlice3d), unlike a resident. ImagePlus's full multichannel/multi-frame Dataset.
-                    // Paths off that channel/frame can't be profiled from it
+                if (activeCTForPixelSampling() != null) {
+                    // Streamed data with no crop, or a crop that is itself still single-channel/single-frame
+                    // (see SNT#getMaterializedCropChannelFrame()): getDataset() then falls back to wrapping
+                    // just that one active CT slice, unlike a resident ImagePlus's (or a genuinely
+                    // multichannel crop's) full multichannel/multi-frame Dataset. Paths off that channel/frame
+                    // can't be profiled from it. NB: intentionally NOT gated on plugin.isMaterializedCrop()
+                    // alone - a multichannel crop (see Materialize_Multichannel_Region.groovy) makes
+                    // activeCTForPixelSampling() return null too, same as a resident multichannel ImagePlus,
+                    // so every path's own channel/frame is used unrestricted via the full Dataset instead
                     selectedPaths = resolveActiveCTPathSelection(selectedPaths);
                     if (selectedPaths == null) return;
                 }
@@ -3782,6 +3790,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("Varicosity/Spine detection requires valid image data.");
                     return;
                 }
+                // PeripathDetectorCmd always samples a single, fixed-frame image (plugin.getFrame() - it
+                // has no frame parameter of its own, unlike its channel picker, which deliberately lets
+                // the user sample any channel regardless of a path's own recorded channel). A path
+                // recorded on a different frame would otherwise be silently processed against the wrong
+                // timepoint's data
+                selectedPaths = resolveActiveFramePathSelection(selectedPaths);
+                if (selectedPaths == null) return;
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
                 (plugin.getUI().new DynamicCmdRunner(PeripathDetectorCmd.class, inputs)).run();
@@ -3800,6 +3815,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("Swelling detection requires valid image data.");
                     return;
                 }
+                // See the same NB in DetectVaricositiesCommand above: AlongPathDetectorCmd's optional
+                // intensity filtering (when enabled) also always samples plugin.getFrame()'s data, with no
+                // per-command frame override
+                selectedPaths = resolveActiveFramePathSelection(selectedPaths);
+                if (selectedPaths == null) return;
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
                 (plugin.getUI().new DynamicCmdRunner(AlongPathDetectorCmd.class, inputs)).run();
@@ -3811,6 +3831,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
+        // NB: DetectLabelProximityCommand (LabelProximityDetectorCmd) is intentionally NOT gated here:
+        // it tests purely spatial proximity to an externally-supplied label image and never reads a
+        // path's own channel/frame at all (see LabelProximityDetector), so there is no active-C/T concept
+        // for it to be validated against.
         private class DetectLabelProximityCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
@@ -5600,10 +5624,28 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     /**
+     * @return the {@code {channel, frame}} pair pixel-sampling commands (profilers, fitting, A* re-tracing) must
+     *         validate a Path's own channel/frame against, or {@code null} if no such restriction applies - i.e., a
+     *         fully resident, multichannel/multiframe {@link ij.ImagePlus} is loaded and no crop is materialized, so
+     *         any channel/frame can be sampled directly from it. When a crop has been materialized (see
+     *         {@link SNT#isMaterializedCrop()}) this is the crop's own captured channel/frame (see
+     *         {@link SNT#getMaterializedCropChannelFrame()}), NOT {@link SNT#getChannel()}/{@link SNT#getFrame()}
+     *         (reset to 1/1 by {@link SNT#initialize(ij.ImagePlus)} for the crop's own, trivial C/T dimensions).
+     *         Otherwise (streamed data, no crop), it is simply {@link SNT#getChannel()}/{@link SNT#getFrame()}, the
+     *         CT slice actually wrapped by {@link SNT#getDataset()}.
+     */
+    private int[] activeCTForPixelSampling() {
+        final int[] cropCT = plugin.getMaterializedCropChannelFrame();
+        if (cropCT != null) return cropCT;
+        return (plugin.getImagePlus() == null) ? new int[] { plugin.getChannel(), plugin.getFrame() } : null;
+    }
+
+    /**
      * For commands that sample pixel data (fitting, A* re-tracing, etc.): those always read against whichever
-     * channel/frame is currently "active" on the live {@link SNT} instance (see {@link SNT#getChannel()}/
-     * {@link SNT#getFrame()}). A path stamped with a *different* channel/frame than the active one would silently be
-     * processed against the wrong image data.
+     * channel/frame is currently "active" (see {@link #activeCTForPixelSampling()} - normally the live {@link SNT}
+     * instance's own {@link SNT#getChannel()}/{@link SNT#getFrame()}, but the materialized crop's own captured
+     * channel/frame when a crop is installed, since materializing resets those fields to 1/1). A path stamped with a
+     * *different* channel/frame than the active one would silently be processed against the wrong image data.
      * <p>
      * Unlike {@link #mixedCTPathSelectionError(List)} (which just blocks any selection spanning multiple C/T positions,
      * for operations like Concatenate/Combine/Merge that must act on every selected path together), this is for
@@ -5617,8 +5659,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
      * channel/frame. {@code null} means "abort, do nothing further"
      */
     private List<Path> resolveActiveCTPathSelection(final List<Path> selectedPaths) {
-        final int activeChannel = plugin.getChannel();
-        final int activeFrame = plugin.getFrame();
+        final int[] activeCT = activeCTForPixelSampling();
+        final int activeChannel = (activeCT != null) ? activeCT[0] : plugin.getChannel();
+        final int activeFrame = (activeCT != null) ? activeCT[1] : plugin.getFrame();
         final List<Path> matching = new ArrayList<>();
         for (final Path p : selectedPaths) {
             if (p.getChannel() == activeChannel && p.getFrame() == activeFrame) matching.add(p);
@@ -5635,6 +5678,40 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                                 + "be processed. What would you like to do?", selectedPaths.size(), activeChannel, activeFrame),
                 "Selection Spans Different CT Positions", "Process Only Active CT Paths", "Cancel");
         return processOnlyActiveCTPaths ? matching : null;
+    }
+
+    /**
+     * Frame-only counterpart of {@link #resolveActiveCTPathSelection(List)}, for commands (varicosity/
+     * swelling detection) that let the user pick ANY channel to sample intensity from - independent of a
+     * path's own recorded channel, since that is the whole point of their channel picker - but have no
+     * way to select a different frame at all: they always sample against {@link SNT#getFrame()}'s data.
+     * A path recorded on a different frame would otherwise be silently processed against the wrong
+     * timepoint, with no dialog or filtering to catch it.
+     *
+     * @param selectedPaths the paths to check
+     * @return {@code selectedPaths} unchanged if all already match the active frame (no dialog is
+     * shown); a filtered sublist containing only the matching paths if the selection was mixed and the
+     * user chose to proceed with those; or {@code null} if the user canceled, or if none of the selected
+     * paths match the active frame. {@code null} means "abort, do nothing further"
+     */
+    private List<Path> resolveActiveFramePathSelection(final List<Path> selectedPaths) {
+        final int activeFrame = plugin.getFrame();
+        final List<Path> matching = new ArrayList<>();
+        for (final Path p : selectedPaths) {
+            if (p.getFrame() == activeFrame) matching.add(p);
+        }
+        if (matching.size() == selectedPaths.size()) return selectedPaths; // common case: nothing mixed
+        if (matching.isEmpty()) {
+            guiUtils.error("None of the " + selectedPaths.size() + " selected paths are associated with the "
+                            + "active frame (" + activeFrame + ").",
+                    "Selection Spans Different Frames");
+            return null;
+        }
+        final boolean processOnlyActiveFramePaths = guiUtils.getConfirmation(String.format(
+                        "Some of %d selected paths are not associated with the active frame (%d), and cannot "
+                                + "be processed. What would you like to do?", selectedPaths.size(), activeFrame),
+                "Selection Spans Different Frames", "Process Only Active Frame Paths", "Cancel");
+        return processOnlyActiveFramePaths ? matching : null;
     }
 
     /**

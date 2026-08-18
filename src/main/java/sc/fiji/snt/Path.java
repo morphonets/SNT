@@ -1886,7 +1886,7 @@ public class Path implements Comparable<Path>, Cloneable {
         }
     }
 
-	protected void setSpacing(final Calibration cal) {
+	public void setSpacing(final Calibration cal) {
 		this.x_spacing = cal.pixelWidth;
 		this.y_spacing = cal.pixelHeight;
 		this.z_spacing = cal.pixelDepth;

@@ -131,6 +131,11 @@ public final class CrossSectionUtils {
      * @param xSpacing   voxel width (for converting world→pixel)
      * @param ySpacing   voxel height
      * @param zSpacing   voxel depth
+     * @param offsetX    pixel-space offset added to the X position after dividing by spacing, i.e., the
+     *                   same convention as {@link sc.fiji.snt.Path#getXUnscaledDouble(int)} - 0 for a
+     *                   source with no world-origin offset and no materialized crop active
+     * @param offsetY    pixel-space offset added to the Y position - see {@code offsetX}
+     * @param offsetZ    pixel-space offset added to the Z position - see {@code offsetX}
      * @param realAccess interpolating accessor into the source image
      * @return the sampled cross-section as a {@link FloatProcessor}
      */
@@ -142,6 +147,7 @@ public final class CrossSectionUtils {
             final double[] aBasis,
             final double[] bBasis,
             final double xSpacing, final double ySpacing, final double zSpacing,
+            final double offsetX, final double offsetY, final double offsetZ,
             final RealRandomAccess<FloatType> realAccess) {
 
         final float[] pixels = new float[side * side];
@@ -165,11 +171,13 @@ public final class CrossSectionUtils {
             for (int grid_j = 0; grid_j < side; ++grid_j) {
                 final double gj = midside - grid_j;
 
-                // Convert to pixel coordinates (divide by voxel spacing)
-                position[0] = (ox + gi * ax_s + gj * bx_s) / xSpacing;
-                position[1] = (oy + gi * ay_s + gj * by_s) / ySpacing;
+                // Convert to pixel coordinates (divide by voxel spacing), then apply the pixel-space
+                // offset (see offsetX/Y/Z javadoc) so this lands on the same voxel Path#getXUnscaledDouble()
+                // etc. would compute for a node at this position
+                position[0] = (ox + gi * ax_s + gj * bx_s) / xSpacing + offsetX;
+                position[1] = (oy + gi * ay_s + gj * by_s) / ySpacing + offsetY;
                 if (nDim > 2)
-                    position[2] = (oz + gi * az_s + gj * bz_s) / zSpacing;
+                    position[2] = (oz + gi * az_s + gj * bz_s) / zSpacing + offsetZ;
 
                 pixels[grid_j * side + grid_i] = realAccess.setPositionAndGet(position).getRealFloat();
             }
@@ -283,6 +291,11 @@ public final class CrossSectionUtils {
      * @param direction  direction vector {@code [dx, dy]} (unit length)
      * @param xSpacing   voxel width (for converting world→pixel)
      * @param ySpacing   voxel height
+     * @param offsetX    pixel-space offset added to the X position after dividing by spacing - see
+     *                   {@link #sampleCrossSection(int, double, double, double, double, double, double[],
+     *                   double[], double, double, double, double, double, double, RealRandomAccess)}'s
+     *                   {@code offsetX} for the full explanation
+     * @param offsetY    pixel-space offset added to the Y position - see {@code offsetX}
      * @param realAccess interpolating accessor into the source image (2D)
      * @return the sampled profile as a float array
      */
@@ -292,6 +305,7 @@ public final class CrossSectionUtils {
             final double ox, final double oy,
             final double[] direction,
             final double xSpacing, final double ySpacing,
+            final double offsetX, final double offsetY,
             final RealRandomAccess<FloatType> realAccess) {
 
         final float[] profile = new float[nSamples];
@@ -302,8 +316,8 @@ public final class CrossSectionUtils {
 
         for (int i = 0; i < nSamples; i++) {
             final double g = mid - i;
-            position[0] = (ox + g * dx_s) / xSpacing;
-            position[1] = (oy + g * dy_s) / ySpacing;
+            position[0] = (ox + g * dx_s) / xSpacing + offsetX;
+            position[1] = (oy + g * dy_s) / ySpacing + offsetY;
             profile[i] = realAccess.setPositionAndGet(position).getRealFloat();
         }
         return profile;
@@ -456,6 +470,10 @@ public final class CrossSectionUtils {
      * @param xSpacing    voxel width
      * @param ySpacing    voxel height
      * @param zSpacing    voxel depth
+     * @param offsetX     pixel-space offset added to the X position after dividing by spacing - see
+     *                    {@link sc.fiji.snt.Path#getXUnscaledDouble(int)} for the convention
+     * @param offsetY     pixel-space offset added to the Y position - see {@code offsetX}
+     * @param offsetZ     pixel-space offset added to the Z position - see {@code offsetX}
      * @param innerRadius inner radius in grid pixels (0 for solid disk)
      * @param outerRadius outer radius in grid pixels
      * @param fillValue   the value to write into annulus voxels
@@ -467,6 +485,7 @@ public final class CrossSectionUtils {
             final double ox, final double oy, final double oz,
             final double[] aBasis, final double[] bBasis,
             final double xSpacing, final double ySpacing, final double zSpacing,
+            final double offsetX, final double offsetY, final double offsetZ,
             final double innerRadius, final double outerRadius,
             final double fillValue) {
 
@@ -492,8 +511,8 @@ public final class CrossSectionUtils {
                 if (t > -innerRWorld && t < innerRWorld) continue;
                 final double wx = ox + t * aBasis[0];
                 final double wy = oy + t * aBasis[1];
-                final long px = Math.round(wx / xSpacing);
-                final long py = Math.round(wy / ySpacing);
+                final long px = Math.round(wx / xSpacing + offsetX);
+                final long py = Math.round(wy / ySpacing + offsetY);
                 if (px < 0 || px > maxX || py < 0 || py > maxY) continue;
                 ra.setPosition(px, 0);
                 ra.setPosition(py, 1);
@@ -516,9 +535,9 @@ public final class CrossSectionUtils {
 
                 // Back-project to world coordinates, then to pixel coordinates
                 final double[] world = backProject(gx, gy, side, scaleIso, ox, oy, oz, aBasis, bBasis);
-                final long px = Math.round(world[0] / xSpacing);
-                final long py = Math.round(world[1] / ySpacing);
-                final long pz = (zSpacing > 0) ? Math.round(world[2] / zSpacing) : 0;
+                final long px = Math.round(world[0] / xSpacing + offsetX);
+                final long py = Math.round(world[1] / ySpacing + offsetY);
+                final long pz = (zSpacing > 0) ? Math.round(world[2] / zSpacing + offsetZ) : 0;
 
                 // Bounds check
                 if (px < 0 || px > maxX || py < 0 || py > maxY || pz < 0 || pz > maxZ)
