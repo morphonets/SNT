@@ -557,13 +557,13 @@
 			<!-- Change verbose logging of smile.stat.distribution.* -->
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.6.1</version>
+			<version>1.6.2</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-core</artifactId>
-			<version>1.6.1</version>
+			<version>1.6.2</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
