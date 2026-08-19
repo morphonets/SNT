@@ -193,8 +193,7 @@ public class ROIExporterCmd implements Command {
 		statusService.clearStatus();
 
 		if (warningsExist) {
-			warnUser(
-				"ROIs generated but some exceptions occurred.\nPlease see Console for details.");
+			warnUser("ROIs generated but some warnings occurred.\nPlease see Console for details.");
 		}
 
 	}

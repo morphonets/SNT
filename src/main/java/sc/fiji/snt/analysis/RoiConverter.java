@@ -77,9 +77,12 @@ public class RoiConverter {
 	private int exportPlane = XY_PLANE;
 	private boolean useSWCcolors;
 	private final ImagePlus imp;
-	private final boolean hyperstack;
 	private final boolean twoD;
 	private final TreeStatistics tStats;
+	// Hyperstack dimensions used solely to encode the per-point composite stack index of multi-point ROIs
+	private final int nChannels;
+	private final int nSlices;
+	private final int nFrames;
 
 	/**
 	 * Instantiates a new Converter. Since an image has not been specified, C,Z,T
@@ -90,8 +93,11 @@ public class RoiConverter {
 	public RoiConverter(final Tree tree) {
 		tStats = new TreeStatistics(tree);
 		imp = null;
-		hyperstack = false;
 		twoD = !tree.is3D();
+		final int[] dims = estimateHyperstackDims(tree);
+		nChannels = dims[0];
+		nSlices = dims[1];
+		nFrames = dims[2];
 	}
 
 	/**
@@ -126,8 +132,31 @@ public class RoiConverter {
 	public RoiConverter(final Tree tree, final ImagePlus imp) {
 		tStats = new TreeStatistics(tree);
 		this.imp = imp;
-		hyperstack = imp.getNChannels() > 1 || imp.getNFrames() > 1;
 		twoD = imp.getNSlices() == 1;
+		nChannels = imp.getNChannels();
+		nSlices = imp.getNSlices();
+		nFrames = imp.getNFrames();
+	}
+
+	/**
+	 * Best-effort {channels, slices, frames} estimate for a Tree with no associated image: the max
+	 * channel/frame tagged on its paths, and the Z-extent (in unscaled/pixel units) spanned by their
+	 * nodes. Only used to keep per-point hyperstack positions internally consistent within the ROIs
+	 * produced by this instance - there being no resident image, there is no "true" dimension to match.
+	 */
+	private static int[] estimateHyperstackDims(final Tree tree) {
+		int maxChannel = 1;
+		int maxFrame = 1;
+		int maxZ = 0;
+		for (final Path p : tree.list()) {
+			if (p.getChannel() > maxChannel) maxChannel = p.getChannel();
+			if (p.getFrame() > maxFrame) maxFrame = p.getFrame();
+			for (int i = 0; i < p.size(); i++) {
+				final int z = p.getZUnscaled(i);
+				if (z > maxZ) maxZ = z;
+			}
+		}
+		return new int[] { maxChannel, maxZ + 1, maxFrame };
 	}
 
 	/**
@@ -456,13 +485,14 @@ public class RoiConverter {
 	}
 
 	private void setPosition(final Roi roi, final int[] positions) {
-		if (hyperstack) {
-			roi.setPosition(positions[0], positions[1], positions[2]);
-		} else if (!twoD) {
-			roi.setPosition(positions[1]);
-		} else {
+		if (positions == null || positions.length == 0)
 			roi.setPosition(0);
-		}
+		else if (nChannels > 1 || nFrames > 1)
+			roi.setPosition(positions[0], positions[1], positions[2]);
+		else if (!twoD)
+			roi.setPosition(positions[1]);
+		else
+			roi.setPosition(0);
 	}
 
 	/* this will aggregate all points into a single multipoint ROI */
@@ -499,11 +529,17 @@ public class RoiConverter {
             default -> "XY";
         };
 	}
-
+	
 	/**
-	 * With current IJ1.51u API the only way to set the z-position of a point is
-	 * to activate the corresponding image z-slice. This class makes it easier to
-	 * do so.
+	 * With the current IJ1 API, a multi-point ROI's per-point hyperstack position is stored as a
+	 * single composite stack index (see {@link ImagePlus#getStackIndex(int, int, int)}), which
+	 * {@link PointRoi#addPoint(ij.ImagePlus, double, double)} normally derives by reading back
+	 * {@code imp.getCurrentSlice()} right after moving {@code imp} to the desired C/Z/T - i.e., it
+	 * requires a resident image, and changes its current position as a side effect. This subclass
+	 * instead replicates {@code getStackIndex}'s formula directly from the C,Z,T triple via
+	 * {@link PointRoi#addPoint(double, double, int)}, using the dimensions captured by the enclosing
+	 * {@link RoiConverter} at construction time. This works whether an image is resident (e.g.,
+	 * Stream mode, where no {@link ImagePlus} exists at all), without touching a live image's state
 	 */
 	private class SNTPointRoi extends PointRoi {
 
@@ -512,19 +548,14 @@ public class RoiConverter {
 		public SNTPointRoi() {
 			super(0, 0);
 			deletePoint(0);
-			imp = RoiConverter.this.imp;
-			if (imp == null) {
-				// HACK: this image is just required to assign positions
-				// to points. It is an overhead and not required for 2D images
-				// We should change the IJ1 API so that position can be assigned
-				// without an image
-				imp = tStats.tree.getImpContainer(exportPlane, 8);
-			}
 		}
 
 		public void addPoint(final double ox, final double oy, final int[] position) {
-			imp.setPositionWithoutUpdate(position[0], position[1], position[2]);
-			super.addPoint(imp, ox, oy);
+			final int channel = Math.clamp(position[0], 1, nChannels);
+			final int slice = Math.clamp(position[1], 1, nSlices);
+			final int frame = Math.clamp(position[2], 1, nFrames);
+			final int stackIndex = (frame - 1) * nChannels * nSlices + (slice - 1) * nChannels + channel;
+			super.addPoint(ox, oy, stackIndex);
 		}
 	}
 
@@ -594,7 +625,7 @@ public class RoiConverter {
 	public static Roi combine(final List<Roi> rois) {
 		// from RoiManager#combine
 		if (rois.size() == 1) {
-			return rois.get(0);
+			return rois.getFirst();
 		}
 		final long nPoints = rois.stream().filter(roi -> roi.getType() == Roi.POINT).count();
 		if (nPoints == rois.size()) {
