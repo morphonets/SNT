@@ -245,6 +245,14 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean snapCursor;
 	protected volatile boolean showOnlySelectedPaths;
 	protected volatile boolean showOnlyActiveCTposPaths;
+	/**
+	 * ID of the single tree (arbor) currently isolated for display in PathManagerUI or -1 if no isolation is active
+	 * Orthogonal to path selection: unlike {@code showOnlySelectedPaths}, isolating a tree does not alter which paths
+	 * are considered "selected", nor their rendered color - it only hides paths belonging to other trees.
+	 * Set via {@link #setIsolatedTreeID(int)}; consulted by {@link TracerCanvas}, the legacy 3D viewer
+	 * ({@link PathAndFillManager#update3DViewerContents()}), and Bdv/Bvv ({@code Bvv.PathOverlay}).
+	 */
+	protected volatile int isolatedTreeID = -1;
 	protected volatile boolean autoCT;
 	private boolean drawDiameters;
 	protected double manualRadius;
@@ -2645,8 +2653,7 @@ public class SNT extends MultiDThreePanes implements
 			newStack.addSlice(null, thisSlice.convertToByteProcessor(false));
 		}
 
-		final ImagePlus newImp = new ImagePlus(xy.getShortTitle() +
-				" Rendered Paths", newStack);
+		final ImagePlus newImp = new ImagePlus("Rasterized Paths", newStack);
 		newImp.setCalibration(getCalibration());
 		return newImp;
 	}
@@ -4947,6 +4954,35 @@ public class SNT extends MultiDThreePanes implements
 
 	public void setShowOnlySelectedPaths(final boolean showOnlySelectedPaths) {
 		setShowOnlySelectedPaths(showOnlySelectedPaths, true);
+	}
+
+	/**
+	 * Isolates a single tree (arbor) for display across every tracing viewer, hiding paths belonging to any other tree.
+	 * Orthogonal to {@link #setShowOnlySelectedPaths(boolean)}: does not touch path selection or rendered colors, it
+	 * only restricts which trees are candidates for display at all. Pass -1 (or call {@link #clearIsolatedTreeID()}) to
+	 * lift the restriction.
+	 *
+	 * @param treeID the ID of the tree to isolate (see {@link Tree#getTreeID()}), or -1 to show all
+	 * @see PathManagerUI
+	 */
+	public void setIsolatedTreeID(final int treeID) {
+		this.isolatedTreeID = treeID;
+		updateTracingViewers(true);
+	}
+
+	/** Convenience for {@code setIsolatedTreeID(-1)}: lifts any active tree isolation. */
+	public void clearIsolatedTreeID() {
+		setIsolatedTreeID(-1);
+	}
+
+	/** @return the ID of the currently isolated tree, or -1 if no isolation is active */
+	public int getIsolatedTreeID() {
+		return isolatedTreeID;
+	}
+
+	/** @return whether a single tree is currently isolated for display (see {@link #setIsolatedTreeID(int)}) */
+	public boolean isTreeIsolationActive() {
+		return isolatedTreeID != -1;
 	}
 
 	/**

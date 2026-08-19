@@ -1271,6 +1271,27 @@ public class Tree implements TreeProperties, Cloneable {
 		return label;
 	}
 
+	/**
+	 * Returns the ID shared by every {@link Path} in this tree (see {@link Path#getTreeID()}), i.e., the arbor's
+	 * identity as tracked by the {@link PathAndFillManager} that assigned it.
+	 * <p>
+	 * <b>Uniqueness is scoped to a single {@link PathAndFillManager} instance</b>, e.g., all the Trees of a running SNT
+	 * session, or all the Trees parsed from one multi-tree reconstruction file. It is <i>not</i> guaranteed across
+	 * independently-created Trees: each standalone parse (a call to {@link #fromFile(String)}, or each individual file
+	 * visited by {@link #listFromFile(String)}/{@link #listFromDir(String)}) gets its own manager with its own ID
+	 * sequence starting from scratch, so two such Trees - even from the same {@code listFromDir()} call - may share the
+	 * same ID. Once a Tree is merged into a live manager (e.g., via {@link PathAndFillManager#addTree(Tree)}), its
+	 * paths are assigned fresh, unique, collision-free IDs scoped to that manager; any IDs from the Tree's
+	 * original source file are discarded.
+	 * </p>
+	 *
+	 * @return the tree ID, or -1 if this tree has no paths (a treeID is always &gt;= 1 otherwise -
+	 *         see {@code PathAndFillManager#maxUsedTreeID})
+	 */
+	public int getTreeID() {
+		return (isEmpty()) ? -1 : list().getFirst().getTreeID();
+	}
+
 	public List<SWCPoint> getNodesAsSWCPoints() throws IllegalArgumentException {
 		if (isEmpty()) return new ArrayList<>();
 		initPathAndFillManager();

@@ -899,8 +899,11 @@ public abstract class AbstractBigViewer {
             return new AbstractAction("Remove All Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (getGuiUtils().getConfirmation("Remove all reconstructions? (undoable action)",
-                            "Remove All Annotations?")) {
+                    final String message = (snt != null && snt.isTreeIsolationActive())
+                            ? "Remove all reconstructions, including structures currently hidden by the "
+                                    + "isolation filter? (undoable action)"
+                            : "Remove all reconstructions? (undoable action)";
+                    if (getGuiUtils().getConfirmation(message, "Remove All Annotations?")) {
                         clearAllTrees();
                         showViewerMessage("Annotations cleared");
                     }
