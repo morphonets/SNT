@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.plugin;
 
+import ij.ImagePlus;
 import org.apache.commons.lang.WordUtils;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
@@ -59,6 +60,8 @@ import java.util.stream.Collectors;
  */
 @Plugin(type = Command.class, label = "Growth Analysis...", initializer = "init")
 public class GrowthAnalyzerCmd extends CommonDynamicCmd {
+
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     // GUI Prompt
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
@@ -125,6 +128,21 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
             description = "Neurites shorter than this length at any given frame are ignored from analysis")
     private double minPathLength = GrowthAnalyzer.DEFAULT_MIN_PATH_LENGTH;
 
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Time Calibration:")
+    private String HEADER5;
+
+    @Parameter(persist = false, label = "Frame interval", min = "0", description = """
+            Time elapsed between consecutive frames, used to convert frame indices into real time units.
+            Auto-populated from the image's calibration when available. Streamed/BDV-backed images (Stream
+            mode) carry no temporal calibration, so this defaults to 1 (i.e., growth rates reported per
+            frame); edit it here if you know the real interval.""")
+    private double frameInterval = 1;
+
+    @Parameter(persist = false, label = "Time units", description = """
+            Physical units for the frame interval above (e.g., 'sec', 'min'). Leave as "No. of frames" to
+            report growth rates per-frame rather than in physical time units.""")
+    private String timeUnits = "No. of frames";
+
     @Parameter(required = false, label = "Defaults", callback = "resetInputParameters")
     private Button reset;
 
@@ -136,16 +154,19 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
 
     // Analysis results
     private GrowthAnalysisResults analysisResults;
-    private double frameInterval;
-    private String timeUnits;
     private String lengthUnits;
 
     @SuppressWarnings("unused")
     private void init() {
         super.init(false);
-        if (snt.accessToValidImageData()) {
-            frameInterval = snt.getImagePlus().getCalibration().frameInterval;
-            timeUnits = snt.getImagePlus().getCalibration().getTimeUnit();
+        // NB: accessToValidImageData() is not enough here: it is also true in Stream mode (streamed/BDV-backed
+        // data with no RAM-resident ImagePlus), where getImagePlus() returns null and has no Calibration to
+        // read. Fall back to frame-index reporting in that case; the fields above remain user-editable in the
+        // prompt so a known interval/unit can still be supplied manually.
+        final ImagePlus imp = snt.getImagePlus();
+        if (imp != null) {
+            frameInterval = imp.getCalibration().frameInterval;
+            timeUnits = imp.getCalibration().getTimeUnit();
         } else {
             frameInterval = 1;
             timeUnits = "No. of frames";
