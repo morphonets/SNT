@@ -31,6 +31,8 @@ import net.imglib2.type.numeric.RealType;
 import org.scijava.ItemVisibility;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
+import org.scijava.prefs.PrefService;
+import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
@@ -89,6 +91,9 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private static final String AFTER_REPLACE = "Replace existing paths";
     private static final String AFTER_PROOFREAD = "Prepare for proofreading";
     private static final String AFTER_REPLACE_AND_PROOFREAD = "Replace existing paths & prepare for proofreading";
+
+    @Parameter
+    protected PrefService prefService;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER1 = "<HTML><b>Input Image";
@@ -264,6 +269,10 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     "</dl>")
     String afterTracingChoice = AFTER_DO_NOTHING;
 
+    @Parameter(label = "  Apply Defaults  ", callback = "applyDefaults",
+            description = "<HTML>Resets all fields above to their default values.")
+    private Button applyDefaultsButton;
+
     protected boolean abortRun;
     protected ImgPlus<?> chosenImp;
     /** Populated by auto-detection; null when ROI-based strategy is used. */
@@ -323,6 +332,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             }
         }
         debugMode = SNTUtils.isDebugMode();
+        readPreferences();
     }
 
     protected void initForFile() {
@@ -334,6 +344,66 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         resolveInput("roiPlaneOnly");
         resolveInput("debugMode"); // debug mode is always enabled to report progress to console
         debugMode = SNTUtils.isDebugMode();
+        readPreferences();
+    }
+
+    protected void readPreferences() {
+        somaStrategyChoice = prefService.get(getClass(), "somaStrategyChoice", somaStrategyChoice);
+        roiPlaneOnly = prefService.getBoolean(getClass(), "roiPlaneOnly", roiPlaneOnly);
+        backgroundThreshold = prefService.getDouble(getClass(), "backgroundThreshold", backgroundThreshold);
+        scoreMapFilter = prefService.get(getClass(), "scoreMapFilter", scoreMapFilter);
+        lengthThreshold = prefService.getDouble(getClass(), "lengthThreshold", lengthThreshold);
+        srRatio = prefService.getDouble(getClass(), "srRatio", srRatio);
+        sphereOverlapThreshold = prefService.getDouble(getClass(), "sphereOverlapThreshold", sphereOverlapThreshold);
+        leafPruneEnabled = prefService.getBoolean(getClass(), "leafPruneEnabled", leafPruneEnabled);
+        branchTuneMaxAngle = prefService.getDouble(getClass(), "branchTuneMaxAngle", branchTuneMaxAngle);
+        tipExtensionDistance = prefService.getDouble(getClass(), "tipExtensionDistance", tipExtensionDistance);
+        zigzagRemovalEnabled = prefService.getBoolean(getClass(), "zigzagRemovalEnabled", zigzagRemovalEnabled);
+        overshootRemovalEnabled = prefService.getBoolean(getClass(), "overshootRemovalEnabled", overshootRemovalEnabled);
+        smoothWindowSize = prefService.getInt(getClass(), "smoothWindowSize", smoothWindowSize);
+        resampleStep = prefService.getDouble(getClass(), "resampleStep", resampleStep);
+        connectivityChoice = prefService.get(getClass(), "connectivityChoice", connectivityChoice);
+        afterTracingChoice = prefService.get(getClass(), "afterTracingChoice", afterTracingChoice);
+    }
+
+    protected void savePreferences() {
+        prefService.put(getClass(), "somaStrategyChoice", somaStrategyChoice);
+        prefService.put(getClass(), "roiPlaneOnly", roiPlaneOnly);
+        prefService.put(getClass(), "backgroundThreshold", backgroundThreshold);
+        prefService.put(getClass(), "scoreMapFilter", scoreMapFilter);
+        prefService.put(getClass(), "lengthThreshold", lengthThreshold);
+        prefService.put(getClass(), "srRatio", srRatio);
+        prefService.put(getClass(), "sphereOverlapThreshold", sphereOverlapThreshold);
+        prefService.put(getClass(), "leafPruneEnabled", leafPruneEnabled);
+        prefService.put(getClass(), "branchTuneMaxAngle", branchTuneMaxAngle);
+        prefService.put(getClass(), "tipExtensionDistance", tipExtensionDistance);
+        prefService.put(getClass(), "zigzagRemovalEnabled", zigzagRemovalEnabled);
+        prefService.put(getClass(), "overshootRemovalEnabled", overshootRemovalEnabled);
+        prefService.put(getClass(), "smoothWindowSize", smoothWindowSize);
+        prefService.put(getClass(), "resampleStep", resampleStep);
+        prefService.put(getClass(), "connectivityChoice", connectivityChoice);
+        prefService.put(getClass(), "afterTracingChoice", afterTracingChoice);
+    }
+
+    @SuppressWarnings("unused")
+    protected void applyDefaults() {
+        somaStrategyChoice = SOMA_AUTO;
+        roiPlaneOnly = false;
+        backgroundThreshold = -1.00;
+        scoreMapFilter = SCORE_MAP_TUBENESS;
+        lengthThreshold = 5.0;
+        srRatio = 0.3;
+        sphereOverlapThreshold = 0.1;
+        leafPruneEnabled = false;
+        branchTuneMaxAngle = 90.0;
+        tipExtensionDistance = 0;
+        zigzagRemovalEnabled = true;
+        overshootRemovalEnabled = true;
+        smoothWindowSize = 5;
+        resampleStep = 2.0;
+        connectivityChoice = "Medium";
+        afterTracingChoice = AFTER_DO_NOTHING;
+        scoreMapFilterCallback(); // keep secondaryImageSuffix visibility in sync w/ reset scoreMapFilter
     }
 
     /**
@@ -469,6 +539,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
             applyWorldOriginOffsetIfAny(trees);
             handleTracedTrees(trees);
+            savePreferences();
 
         } catch (final java.util.concurrent.CancellationException ce) {
             // Expected outcome of user-requested cancellation (SNTUI abort/exit); not an error

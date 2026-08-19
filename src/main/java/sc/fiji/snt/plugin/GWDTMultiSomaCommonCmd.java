@@ -122,6 +122,36 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
         resolveInput("roiPlaneOnly");
     }
 
+    @Override
+    protected void readPreferences() {
+        super.readPreferences();
+        minSomaRadius = prefService.getDouble(getClass(), "minSomaRadius", minSomaRadius);
+        minSomaDistance = prefService.getDouble(getClass(), "minSomaDistance", minSomaDistance);
+        caliperFraction = prefService.getDouble(getClass(), "caliperFraction", caliperFraction);
+        exclusionBuffer = prefService.getInt(getClass(), "exclusionBuffer", exclusionBuffer);
+        minPathsPerCell = prefService.getInt(getClass(), "minPathsPerCell", minPathsPerCell);
+    }
+
+    @Override
+    protected void savePreferences() {
+        super.savePreferences();
+        prefService.put(getClass(), "minSomaRadius", minSomaRadius);
+        prefService.put(getClass(), "minSomaDistance", minSomaDistance);
+        prefService.put(getClass(), "caliperFraction", caliperFraction);
+        prefService.put(getClass(), "exclusionBuffer", exclusionBuffer);
+        prefService.put(getClass(), "minPathsPerCell", minPathsPerCell);
+    }
+
+    @Override
+    protected void applyDefaults() {
+        super.applyDefaults();
+        minSomaRadius = 0;
+        minSomaDistance = 0;
+        caliperFraction = 0.5;
+        exclusionBuffer = 5;
+        minPathsPerCell = 2;
+    }
+
     protected void runMultiSoma() {
         try {
             chosenImp = getImgFromImgChoice();
@@ -207,6 +237,7 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
 
             applyWorldOriginOffsetIfAny(trees);
             handleTracedTrees(trees);
+            savePreferences();
 
         } catch (final java.util.concurrent.CancellationException ce) {
             // Expected outcome of user-requested cancellation (SNTUI abort/exit); not an error
