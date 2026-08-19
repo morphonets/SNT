@@ -3690,8 +3690,10 @@ public class PathAndFillManager extends DefaultHandler implements
             else if (selected) color3f = plugin.selectedColor3f;
             else color3f = plugin.deselectedColor3f;
 
+            final boolean isolationOk = !plugin.isTreeIsolationActive()
+                    || p.getTreeID() == plugin.getIsolatedTreeID();
             p.updateContent3D(plugin.univ, // The appropriate 3D universe
-                    (selected || !showOnlySelectedPaths), // Visible at all?
+                    (selected || !showOnlySelectedPaths) && isolationOk, // Visible at all?
                     plugin.getPaths3DDisplay(), // How to display?
                     color3f, plugin.colorImage); // Colour?
 

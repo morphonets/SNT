@@ -3812,7 +3812,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         void updatePaths() {
-            final Collection<Tree> trees = sntViewer.getRenderedTrees();
+            final Collection<Tree> trees = filterIsolated(sntViewer.getRenderedTrees());
             overlayRenderer.updatePaths(trees);
             viewerPanel.requestRepaint();
         }
@@ -3820,8 +3820,25 @@ public class Bvv extends AbstractBigViewer {
         void updatePaths(final Tree transientTree) {
             final Collection<Tree> trees = new ArrayList<>(sntViewer.getRenderedTrees());
             if (transientTree != null) trees.add(transientTree);
-            overlayRenderer.updatePaths(trees);
+            overlayRenderer.updatePaths(filterIsolated(trees));
             viewerPanel.requestRepaint();
+        }
+
+        /**
+         * Restricts {@code trees} to the single tree isolated via {@link SNT#setIsolatedTreeID(int)}
+         * (e.g. {@code PathManagerUI}'s "Hide others" toolbar button), if any; a no-op passthrough
+         * otherwise. Shared by both {@code updatePaths()} overloads above, and - since {@code Bdv}
+         * reuses this same {@code PathOverlay} class (see its class javadoc) - covers both viewers.
+         */
+        private Collection<Tree> filterIsolated(final Collection<Tree> trees) {
+            final SNT snt = sntViewer.getSNT();
+            if (snt == null || !snt.isTreeIsolationActive()) return trees;
+            final int isolatedID = snt.getIsolatedTreeID();
+            final List<Tree> filtered = new ArrayList<>();
+            for (final Tree tree : trees) {
+                if (tree.getTreeID() == isolatedID) filtered.add(tree);
+            }
+            return filtered;
         }
 
         /**

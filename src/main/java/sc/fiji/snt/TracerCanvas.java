@@ -127,6 +127,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 				// not the fitted copy, so test against p rather than drawPath
 				final boolean isSelected = pathAndFillManager.isSelected(p);
 				if (!isSelected && plugin.isOnlySelectedPathsVisible()) continue;
+				if (plugin.isTreeIsolationActive() && p.getTreeID() != plugin.getIsolatedTreeID()) continue;
 				if (enforceActiveCTpos && (imp.getC() != drawPath
 					.getChannel() || imp.getT() != drawPath.getFrame()))
 				{

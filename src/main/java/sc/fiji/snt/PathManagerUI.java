@@ -739,7 +739,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         swcTypeMenu.addSeparator();
         swcTypeMenu.add(jmi);
         if (applyPromptOptions && pathAndFillManager.size() > 0 && guiUtils
-                .getConfirmation("Apply new color options to all paths?", "Apply Colors"))
+                .getConfirmation(plugin.isTreeIsolationActive()
+                        ? "Apply new color options to all paths, including structures currently hidden by "
+                                + "the isolation filter?"
+                        : "Apply new color options to all paths?", "Apply Colors"))
         {
             final List<Path> allPaths = pathAndFillManager.getPathsFiltered();
             if (assignColors) {
@@ -4390,8 +4393,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
                 boolean assumeAll = tree.getSelectionCount() == 0 || tree.getSelectionCount() == tree.getNumberOfNodes();
-                String message = assumeAll ? "Are you really sure you want to delete all paths?"
-                        : "Delete the selected " + selectedPaths.size() + " path(s)?";
+                String message;
+                if (!assumeAll) {
+                    message = "Delete the selected " + selectedPaths.size() + " path(s)?";
+                } else if (plugin.isTreeIsolationActive()) {
+                    message = "Delete all " + selectedPaths.size() + " listed path(s)? (Structures currently "
+                            + "hidden will <i>not</i> be affected.)";
+                } else {
+                    message = "Are you really sure you want to delete all paths?";
+                }
                 if (guiUtils.getConfirmation(message, "Confirm Deletion?")) {
                     deletePaths(selectedPaths);
                 }
@@ -6289,6 +6299,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             arborChoice = null;
             tree.setModel(fullTreeModel);
             hideOthersButton.setSelected(false);
+            plugin.clearIsolatedTreeID(); // undo any active canvas/Bdv/Bvv isolation from applyHideOthers(true)
             // Re-enable sorting now that the full (multi-arbor) model is restored:
             // applyHideOthers(true) disables it while a single arbor is isolated, and
             // this path (e.g. the "show all structures" button) must undo that.
@@ -6383,7 +6394,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
-        /** Show only the chosen arbor or restore the full list. */
+        /**
+         * Show only the chosen arbor (in both the JTree and every tracing viewer - classic canvas,
+         * legacy 3D viewer, and Bdv/Bvv, via {@link SNT#setIsolatedTreeID(int)}) or restore the full
+         * list/display.
+         */
         private void applyHideOthers(final boolean hide) {
             if (fullTreeModel == null || arborChoice == null) return;
 
@@ -6394,10 +6409,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
                 tree.setModel(new HelpfulTreeModel(primaryPaths, arborChoice));
                 sortArborsButton.setEnabled(false);
+                // Mirror the JTree's own filtering in the tracing viewers: getTree(String) returns
+                // null if arborChoice no longer matches any tree (e.g. deleted between UI updates),
+                // in which case clearing isolation is the safer fallback over isolating a stale ID
+                final Tree isolatedTree = pathAndFillManager.getTree(arborChoice);
+                plugin.setIsolatedTreeID((isolatedTree != null) ? isolatedTree.getTreeID() : -1);
+                if (isolatedTree != null) zoomToBoundingBox(isolatedTree.list()); // zoom to selected choice
             } else {
                 hideOthersButton.setSelected(false); // ensure sync
                 tree.setModel(fullTreeModel); // will call reload
                 sortArborsButton.setEnabled(true);
+                plugin.clearIsolatedTreeID();
             }
             GuiUtils.JTrees.expandAllNodes(tree);
             // 3) Restore selection if that exists in the new model
