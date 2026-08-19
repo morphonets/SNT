@@ -3846,31 +3846,64 @@ public class GuiUtils {
 			return mi;
 		}
 
-		public static JMenuItem showHelpOnCountingSpines(final Component parent, final Runnable action) {
-			final String HELP_MSG = "<HTML><div WIDTH=550>" //
-					+ "<b>Annotating Spines/Varicosities Along Paths:</b>" //
+		public static JMenuItem showHelpOnCountingSpines(final boolean streamMode, final Action postDialogAction) {
+
+			final JMenuItem mi = new JMenuItem("Spine/Varicosity Analysis Help", IconFactory.menuIcon(GLYPH.QUESTION));
+			mi.addActionListener(e -> {
+				if (postDialogAction == null) {
+					GuiUtils.showHTMLDialog(spineHelpMsg(streamMode), "Annotating Spines/Varicosities");
+				} else if (new GuiUtils().yesNoHTMLDialog(spineHelpMsg(streamMode), "Annotating Spines/Varicosities",
+						"Pause SNT & Start Manual Annotation", "Dismiss")) {
+					String actionName = (String) postDialogAction.getValue(Action.NAME);
+					if (actionName == null) {
+						actionName = "Proceed";
+					}
+					final ActionEvent event = new ActionEvent(GuiUtils.class, ActionEvent.ACTION_PERFORMED, actionName);
+					postDialogAction.actionPerformed(event);
+				}
+			});
+			return mi;
+		}
+
+		private static String spineHelpMsg(final boolean streamMode) {
+			return (streamMode)
+					? "<HTML><div WIDTH=550>" //
+					+ "<b>Option 1: Automated Detection</b>" //
 					+ "<ol>" //
-					+ "  <li>"
-					+ "    <b>Option 1, Automated Detection</b>:" //
-					+ "    <ol>" //
-					+ "      <li>" //
-					+ "          Run <i>Detect Maxima Around Paths...</i>"
-					+ "        </li>" //
-					+ "    </ol>" //
-					+ "  <li>"
-					+ "    <b>Option 2, Manual Annotation</b>:" //
-					+ "    <ol>" //
-					+ "      <li>Pause SNT</li>" //
-					+ "      <li>Click on features to count. In 3D images, ensure you are on the correct Z-plane before clicking</li>" //
-					+ "      <li>" //
-					+ "         After counting, select the path(s) of interest (or none to include all), then run <i>" //
+					+ "  <li>Run <i>Detect Maxima Around Paths...</i></li>" //
+					+ "</ol>" //
+					+ "<b>Option 2: Manual Annotation</b>" //
+					+ "<ol>" //
+					+ "  <li>Click/hover the spine/varicosity and press 'M' in BVV/BDV</li>" //
+					+ "  <li>" //
+					+ "     After counting, select the path(s) of interest (or none to include all), then run <i>" //
+					+ "     Analyze → Spines/Varicosities → Compute Densities from Annotations...</i><br>" //
+					+ "  </li>" //
+					+ "</ol>" //
+					+ "<b>See the <a href=\"https://imagej.net/plugins/snt/spines-varicosities\">User Manual</a> for further details.</b>" //
+					+ "</div></HTML>"
+					: "<HTML><div WIDTH=550>" //
+					+ "<b>Option 1: Automated Detection</b>" //
+					+ "<ol>" //
+					+ "  <li>Run <i>Detect Maxima Around Paths...</i></li>" //
+					+ "</ol>" //
+					+ "<b>Option 2: Manual Annotation Using Bookmarks</b>" //
+					+ "<ol>" //
+					+ "    <li>Hover above the spine/varicosity and press Shift+B to bookmark its location</li>" //
+					+ "    <li>" //
+					+ "         Once done, select the path(s) of interest (or none to include all), then run <i>" //
 					+ "         Analyze → Spines/Varicosities → Compute Densities from Annotations...</i><br>" //
-					+ "         NB:<ul>" //
-					+ "           <li>Counts should occur in the main tracing view. ZY/XZ views are currently not supported</li>" //
-					+ "           <li>SNT only tallies features. Consider storing clicked locations in the ROI Manager or Bookmarks pane for further analyses</li>" //
-					+ "         </ul>" //
-					+ "      </li>"
-					+ "    </ol>" //
+					+ "      </li>" //
+					+ "</ol>" //
+					+ "<b>Option 3: Manual Annotation Using ROIs</b>" //
+					+ "<ol>" //
+					+ "  <li>Pause SNT</li>" //
+					+ "  <li>Select the multipoint tool in the ImageJ toolbar</li>" //
+					+ "  <li>Click on features to count. In 3D images, ensure you are on the correct Z-plane before clicking</li>" //
+					+ "  <li>" //
+					+ "     After counting, select the path(s) of interest (or none to include all), then run <i>" //
+					+ "     Analyze → Spines/Varicosities → Compute Densities from Annotations...</i><br>" //
+					+ "     NB: Consider storing clicked locations in the ROI Manager" //
 					+ "  </li>" //
 					+ "</ol>" //
 					+ "<b>Tips on Multipoint Tool Usage</b>:" //
@@ -3882,16 +3915,8 @@ public class GuiUtils {
 					+ "<li><i>Edit → Selection → Restore Selection</i> (" + GuiUtils.ctrlKey() + "+Shift+E) to undo deletion</li>" //
 					+ "<li>Double-click the Multipoint tool in the main ImageJ toolbar for more options</li>" //
 					+ "</ul>" //
-					+ "<b>See the <a href=\"https://imagej.net/plugins/snt/spines-varicosities\">User Manual</a> for further details.";
-
-			final JMenuItem mi = new JMenuItem("Spine/Varicosity Analysis Help", IconFactory.menuIcon(GLYPH.QUESTION));
-			mi.addActionListener(e -> {
-				if (new GuiUtils(parent).yesNoHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities",
-						"Pause SNT & Start Manual Annotation", "Dismiss")) {
-					SwingUtilities.invokeLater(action);
-				}
-			});
-			return mi;
+					+ "<b>See the <a href=\"https://imagej.net/plugins/snt/spines-varicosities\">User Manual</a> for further details.</b>" //
+					+ "</div></HTML>";
 		}
 
 		public static LinkedHashMap<String, Color> colorTagPresets() {

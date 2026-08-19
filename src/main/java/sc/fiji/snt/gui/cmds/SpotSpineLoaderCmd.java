@@ -26,6 +26,7 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.Types;
+import sc.fiji.snt.SNTService;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
@@ -42,14 +43,26 @@ public class SpotSpineLoaderCmd implements Command {
     @Parameter
     LegacyService legacyService;
 
+    @Parameter
+    SNTService sntService;
+
     @Override
     public void run() {
+        final boolean streamMode = sntService != null && sntService.isStreamMode();
+        final boolean isMaterializedCrop = streamMode && sntService.getInstance().isMaterializedCrop();
         if (Types.load(CLASS) != null) {
-            legacyService.runLegacyCommand(CLASS, "");
+            if (!streamMode || isMaterializedCrop) {
+                legacyService.runLegacyCommand(CLASS, "");
+            } else {
+                GuiUtils.errorPrompt("This option requires the entire image to be loaded into memory (RAM) or a materialized region.");
+            }
             return;
         }
+        final String nb = (streamMode)
+                ? "<br><br>NB: <i>Spot Spine requires the entire image to be loaded into memory (RAM) or a materialized region."
+                : "";
         final boolean openDoc = new GuiUtils().getConfirmation("Spot Spine does not seem to be available. Please " +
-                        "install it by following the installation details on imagej.net. Open documentation page now?",
+                        "install it by following the installation details on imagej.net. Open documentation page now?" + nb,
                 "Spot Spine Not Installed", "Yes. Open In Browser", "No. Dismiss");
         if (openDoc)
             legacyService.runLegacyCommand("ij.plugin.BrowserLauncher", DOC_PAGE);

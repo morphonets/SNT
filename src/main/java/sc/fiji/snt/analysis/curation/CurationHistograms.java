@@ -30,6 +30,7 @@ import sc.fiji.snt.gui.GuiUtils;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Collection;
@@ -97,7 +98,7 @@ public final class CurationHistograms {
                                  final DoubleSupplier threshold,
                                  final Side side,
                                  final Component parent) {
-        return button(checkName, measureFn, pathsSnapshot, threshold, null, side, parent);
+        return button(checkName, null, measureFn, pathsSnapshot, threshold, null, side, parent);
     }
 
     /**
@@ -106,6 +107,7 @@ public final class CurationHistograms {
      * {@link PlausibilityCheck.BranchAngle}, which has min and max spinners).
      */
     public static JButton button(final String checkName,
+                                 final Action preRunAction,
                                  final Function<Collection<Path>, PlausibilityCheck.Measurements> measureFn,
                                  final Supplier<Collection<Path>> pathsSnapshot,
                                  final DoubleSupplier primaryThreshold,
@@ -116,6 +118,12 @@ public final class CurationHistograms {
         final String m = (checkName == null || checkName.isBlank()) ? "measurement" : checkName.toLowerCase();
         btn.setToolTipText("Plot the " + m + " distribution for all the paths listed in the Path Manager");
         btn.addActionListener(e -> {
+            if (preRunAction != null) {
+                String actionName = (String) preRunAction.getValue(Action.NAME);
+                if (actionName == null) actionName = "preRun";
+                ActionEvent event = new ActionEvent(CurationHistograms.class, ActionEvent.ACTION_PERFORMED, actionName);
+                preRunAction.actionPerformed(event);
+            }
             // The path snapshot is taken on the EDT (so it can safely iterate the live path list). Threshold reads
             // are deferred to the worker's done() callback: some thresholds depend on side effects of  measureFn
             // (e.g., SignalQuality's auto-threshold resolves against image stats computed inside the worker),

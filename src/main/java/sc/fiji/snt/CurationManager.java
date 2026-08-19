@@ -499,7 +499,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Histogram button: both BranchAngle spinners share the same OUTSIDE-flagged
         // distribution. Clicking either button opens the same chart with both markers.
         final JButton branchAngleMinHist = (angleCheck == null) ? null
-                : CurationHistograms.button("Fork angle",
+                : CurationHistograms.button("Fork angle", null,
                 paths -> monitor.measure(angleCheck, paths),
                 this::currentPaths,
                 () -> ((Number) branchAngleMinSpinner.getValue()).doubleValue(),
@@ -522,7 +522,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (angleCheck != null) angleCheck.setMaxAngleDeg((Double) branchAngleMaxSpinner.getValue());
         });
         final JButton branchAngleMaxHist = (angleCheck == null) ? null
-                : CurationHistograms.button("Fork angle",
+                : CurationHistograms.button("Fork angle", null,
                 paths -> monitor.measure(angleCheck, paths),
                 this::currentPaths,
                 () -> ((Number) branchAngleMaxSpinner.getValue()).doubleValue(),
@@ -810,8 +810,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // scan independent of SNT.stats. This bypasses the scenario where the cached SNT.stats object is lazily
         // populated by e.g. a local search, causing the auto-resolved threshold to be drawn at a meaningless value.
         // After prepareImage runs on the worker, done() sees fresh image stats and resolves the AUTO value
+        assert sntui != null;
         final JButton signalHist = (signalCheck == null) ? null
                 : CurationHistograms.button("Path signal quality",
+                signalQualityWarningAction(),
                 paths -> {
                     // prepareImage is null-safe (clears stats when no image is loaded). We always defer to
                     // signalCheck.measure(), which returns its own withHint("Load an image first.") when the
@@ -826,7 +828,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     return (v == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD)
                            ? signalCheck.getResolvedThreshold() : v;
                 },
-                CurationHistograms.Side.LEFT_FLAGGED, p);
+                null, CurationHistograms.Side.LEFT_FLAGGED, p);
         addCheckRow(p, c, signalQualityCheckbox, sqUndoBtn, spinnerWithHistogram(signalQualitySpinner, signalHist));
 
         // Uncertain terminal: tip-window SNR (image-dependent, parallel to signal quality)
@@ -853,6 +855,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         final JButton uncertainTerminalHist = (utCheck == null) ? null
                 : CurationHistograms.button("Tip signal quality",
+                signalQualityWarningAction(),
                 paths -> {
                     // prepareImage borrows SignalQuality's stats when its peer has them,
                     // otherwise runs an own full-volume scan. Null-safe on no image.
@@ -865,6 +868,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     return (v == PlausibilityCheck.UncertainTerminal.AUTO_THRESHOLD)
                            ? utCheck.getResolvedThreshold() : v;
                 },
+                null,
                 CurationHistograms.Side.LEFT_FLAGGED, p);
         addCheckRow(p, c, uncertainTerminalCheckbox, utUndoBtn, spinnerWithHistogram(uncertainTerminalSpinner, uncertainTerminalHist));
 
@@ -886,12 +890,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         final JButton intensityValleyHist = (ivCheck == null) ? null
                 : CurationHistograms.button("Path signal quality dips",
+                signalQualityWarningAction(),
                 paths -> {
                     ivCheck.setImage(sntui.plugin.getLoadedData());
                     return ivCheck.measure(paths);
                 },
                 this::currentPaths,
                 () -> ((Number) intensityValleySpinner.getValue()).doubleValue(),
+                null,
                 CurationHistograms.Side.RIGHT_FLAGGED, p);
         addCheckRow(p, c, intensityValleyCheckbox, spinnerWithHistogram(intensityValleySpinner, intensityValleyHist));
 
@@ -906,6 +912,30 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         wireSectionHeader(onDemandHeaderCheckbox, onDemandCheckboxes);
 
         return p;
+    }
+
+    private Action signalQualityWarningAction() {
+        class Action extends AbstractAction {
+            private final SNTUI sntui;
+            static final String SCOPE = "signal quality";
+
+            public Action(final SNTUI sntui) {
+                super(SCOPE + " warning");
+                this.sntui = sntui;
+            }
+
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (sntui != null && sntui.plugin != null && sntui.plugin.isStreamMode() &&
+                        !sntui.plugin.getPrefs().getTemp("cm-heavy-skipnag", false)) {
+                    final Boolean skipNag = new GuiUtils(sntui).getPersistentWarning(
+                            "Computation of the " + SCOPE + " distribution will run in the background but may take a while, " +
+                                    "as it may need to scan the entire volume.", "Background Computation");
+                    if (skipNag != null) sntui.plugin.getPrefs().setTemp("cm-heavy-skipnag", skipNag);
+                }
+            }
+        }
+        return new Action(sntui);
     }
 
     private JToolBar buildToolbar() {
