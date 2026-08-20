@@ -58,7 +58,9 @@ import javax.swing.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -83,6 +85,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             the entire file into memory.""";
 
     private static final int GL_MAX_3D_TEXTURE_SIZE = 0x8073; // OpenGL constant
+    private static final int REACHABILITY_TIMEOUT_MS = 4000;
     private static final String ABORT = "Abort";
     private static final String DOWNSAMPLE = "Downsample to fit";
     private static final String CONVERT = "Show me how to convert to multi-resolution pyramid image";
@@ -147,7 +150,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         // fine to declare URL as file even though File collapses "//" -> "/": restoreUrlScheme() already handles that
         img1File = new File("https://ome-zarr-scivis.s3.us-east-1.amazonaws.com/v0.4/96x0/marmoset_neurons.ome.zarr");
         img2File = null;
-        recFiles = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/autotracings.traces");;
+        recFiles = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/autotracings.traces");
         markerFile = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/soma_detections.csv");
         viewerType = "Big Data Viewer (BDV): Interactive reslicing";
         tracingEnabled = true;
@@ -198,7 +201,6 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     @Override
     public void run() {
-        SNTUtils.setDebugMode(true);
         if (img1File == null) {
             error("Main volume is required.");
             return;
@@ -212,6 +214,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             error("No volume files specified.");
             return;
         }
+        if (!checkReachable(filePaths)) return; // single friendly dialog if any remote field is unreachable
         final boolean threeD = viewerType != null && viewerType.toLowerCase().contains("bvv");
         final boolean tracer = tracingEnabled;
 
@@ -220,20 +223,30 @@ public class BigDataLoaderCmd extends ContextCommand {
             return;
         }
 
+        AbstractBigViewer viewer = null;
         try {
             SNTUtils.setIsLoading(true);
             if (tracer && threeD)
-                runBvvWithTracing(filePaths);
+                viewer = runBvvWithTracing(filePaths);
             else if (tracer)
-                runBdvWithTracing(filePaths);
+                viewer = runBdvWithTracing(filePaths);
             else if (threeD)
-                runBvv(filePaths);
+                viewer = runBvv(filePaths);
             else
-                runBdv(filePaths);
-            SNTUtils.setIsLoading(false);
+                viewer = runBdv(filePaths);
         } catch (final Exception e) {
             SNTUtils.setIsLoading(false); // hide splashscreen behind error dialog
-            error("An error occurred: " + e.getMessage());
+            error("An error occurred: " + GuiUtils.friendlyErrorMessage(e));
+        } finally {
+            SNTUtils.setIsLoading(false);
+            if (viewer != null && viewer.getViewerFrame() != null && BoundingBox.UNSET_SPACING_UNIT.equals(viewer.getPhysicalUnit())) {
+                AbstractBigViewer finalViewer = viewer;
+                SwingUtilities.invokeLater(() -> {
+                    new GuiUtils(finalViewer.getViewerFrame()).warning(
+                            "<HTML>Spatial calibration values appear to be invalid.<br>" +
+                                    "To adjust them, right-click the scale bar button in <i>Scene Controls</i>.");
+                });
+            }
         }
     }
 
@@ -250,6 +263,29 @@ public class BigDataLoaderCmd extends ContextCommand {
         return SpimDataUtils.isRemoteUrl(f.getPath())
                 ? SpimDataUtils.restoreUrlScheme(f.getPath())
                 : f.getAbsolutePath();
+    }
+
+    /**
+     * @return true if every remote field is reachable (or none are remote); false if the run was
+     *         aborted because at least one was not
+     */
+    private boolean checkReachable(final String[] filePaths) {
+        final LinkedHashMap<String, String> byLabel = new LinkedHashMap<>();
+        if (filePaths.length > 0) byLabel.put("Main volume", filePaths[0]);
+        if (filePaths.length > 1) byLabel.put("Secondary volume", filePaths[1]);
+        if (recFiles != null) byLabel.put("Reconstruction(s)", toPathString(recFiles));
+        if (markerFile != null) byLabel.put("Markers", toPathString(markerFile));
+        final List<String> unreachable = new ArrayList<>();
+        for (final Map.Entry<String, String> entry : byLabel.entrySet()) {
+            final String path = entry.getValue();
+            if (SpimDataUtils.isRemoteUrl(path) && !SNTUtils.isReachable(path, REACHABILITY_TIMEOUT_MS))
+                unreachable.add(entry.getKey() + ": " + path);
+        }
+        if (unreachable.isEmpty()) return true;
+        error("<HTML>No internet access. Could not reach:<br>&nbsp;&nbsp;"
+                + String.join("<br>&nbsp;&nbsp;", unreachable)
+                + "<br>Please check your connection and try again.");
+        return false;
     }
 
     /** True if path is an existing .n5/.zarr directory, or a remote URL to one. */
@@ -311,15 +347,16 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /** Resolves sources, enforces GPU texture limits, then opens BVV. */
-    private void runBvv(final String[] filePaths) {
+    private AbstractBigViewer runBvv(final String[] filePaths) {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
-        if (resolved == null) return; // user chose Abort (oversized image or non-pyramidal dataset)
+        if (resolved == null) return null; // user chose Abort (oversized image or non-pyramidal dataset)
         final Bvv bvv = new Bvv();
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
         loadMarkers(bvv);
+        return bvv;
     }
 
     /**
@@ -333,7 +370,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * manual tracing still works (segment tracing only needs spacing, which defaults to 1 regardless
      * of a loaded image), but A* has nothing real to search until an image is loaded via the SNTUI.
      */
-    private void runBvvWithTracing(final String[] filePaths) {
+    private AbstractBigViewer runBvvWithTracing(final String[] filePaths) {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         // Resolve the primary volume (img1File, i.e. filePaths[0]) exactly once: startTracingSNT() needs
@@ -342,11 +379,12 @@ public class BigDataLoaderCmd extends ContextCommand {
         // discovery a second time for an unchanged path
         final TracingSetup setup = startTracingSNT(img1File);
         final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize, setup.primarySource());
-        if (resolved == null) return; // user chose Abort (oversized image or non-pyramidal dataset)
+        if (resolved == null) return null; // user chose Abort (oversized image or non-pyramidal dataset)
         final Bvv bvv = new Bvv(setup.snt());
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
         loadMarkers(bvv);
+        return bvv;
     }
 
     /** Holds the outcome of {@link #resolveBvvSources(String[], int, Object)}. */
@@ -591,7 +629,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */
-    private void runBdv(final String[] filePaths) {
+    private AbstractBigViewer runBdv(final String[] filePaths) {
         final Bdv bdv = new Bdv();
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (final String path : filePaths) {
@@ -620,10 +658,11 @@ public class BigDataLoaderCmd extends ContextCommand {
             datasetDialog(path, bdv);
         loadReconstructions(bdv);
         loadMarkers(bdv);
+        return bdv;
     }
 
     /** BDV counterpart to runBvvWithTracing(final String[] filePaths); */
-    private void runBdvWithTracing(final String[] filePaths) {
+    private AbstractBigViewer runBdvWithTracing(final String[] filePaths) {
         final TracingSetup setup = startTracingSNT(img1File);
         final Bdv bdv = new Bdv(setup.snt());
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
@@ -657,6 +696,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             datasetDialog(path, bdv);
         loadReconstructions(bdv);
         loadMarkers(bdv);
+        return bdv;
     }
 
     private void loadMarkers(final AbstractBigViewer viewer) {
@@ -698,11 +738,11 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (SpimDataUtils.isRemoteUrl(path)) {
             // fileAvailable()/getReconstructionFiles() below are local-filesystem-only checks. Tree.listFromFile()
             // already knows how to handle a remote URL directly (a single reconstruction file is streamed, a .zip is
-            // downloaded/extracted and treated as a irectory), so route straight through it instead for this case
+            // downloaded/extracted and treated as a directory), so route straight through it instead for this case
             try {
                 trees.addAll(Tree.listFromFile(path));
             } catch (final IllegalArgumentException e) {
-                error("Could not load reconstructions from " + path + ": " + e.getMessage());
+                error("Could not load reconstructions from " + path + ": " + GuiUtils.friendlyErrorMessage(e));
                 return;
             }
             if (trees.isEmpty()) {

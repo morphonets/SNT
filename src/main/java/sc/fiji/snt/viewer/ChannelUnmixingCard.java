@@ -423,7 +423,7 @@ class ChannelUnmixingCard {
                         if (mixedSource[0] != null) mixedSource[0].removeFromBdv();
                         final BvvOptions addOpt = new BvvOptions().addTo(owner.getBvvHandle());
                         final String srcName = String.format("%s − %.2f × %s", sigName, w, subName);
-                        final String unit = owner.getCalUnit() != null ? owner.getCalUnit() : "pixel";
+                        final String unit = owner.getPhysicalUnit();
                         final AffineTransform3D srcT = new AffineTransform3D();
                         srcT.set(sigSrcToWorld);
                         if (calOffset != null) {

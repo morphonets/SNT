@@ -42,7 +42,7 @@ public class BoundingBox implements Cloneable {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-	private final static String DEF_SPACING_UNIT = "? units";
+	public final static String UNSET_SPACING_UNIT = "? units";
 
 	/** The 'voxel width' of the bounding box */
 	public double xSpacing = 1d;
@@ -56,7 +56,7 @@ public class BoundingBox implements Cloneable {
 	/** Used to store information about this bounding box. Default is null */
 	public String info = null;
 
-	protected String spacingUnit = DEF_SPACING_UNIT;
+	protected String spacingUnit = UNSET_SPACING_UNIT;
 
 	/** The bounding box origin (SE, lower corner) */
 	protected PointInImage origin;
@@ -175,7 +175,7 @@ public class BoundingBox implements Cloneable {
 	 */
 	public boolean isScaled() {
 		return xSpacing != 1d || ySpacing != 1d || zSpacing != 1d ||
-				!spacingUnit.equals(DEF_SPACING_UNIT);
+				!spacingUnit.equals(UNSET_SPACING_UNIT);
 	}
 
 	/**
@@ -190,11 +190,11 @@ public class BoundingBox implements Cloneable {
 
 	public static String sanitizedUnit(final String unit) {
 		if (unit == null || unit.startsWith("pixel")) {
-			return DEF_SPACING_UNIT;
+			return UNSET_SPACING_UNIT;
 		}
 		final String sanitizedUnit = unit.trim().toLowerCase();
 		if (sanitizedUnit.isEmpty()) {
-			return DEF_SPACING_UNIT;
+			return UNSET_SPACING_UNIT;
 		} else if ("um".equals(sanitizedUnit) || "micron".equals(sanitizedUnit) || "microns".equals(sanitizedUnit)) {
 			return GuiUtils.micrometer();
 		}

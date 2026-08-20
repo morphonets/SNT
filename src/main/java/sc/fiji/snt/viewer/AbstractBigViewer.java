@@ -673,11 +673,6 @@ public abstract class AbstractBigViewer {
         return box;
     }
 
-    /** Returns the physical unit string, or null if not set. */
-    public String getCalUnit() {
-        return calUnit;
-    }
-
     /**
      * Returns the file path/URL of the primary loaded volume, for display/logging purposes
      * (e.g., a Notes entry documenting the dataset being traced).
@@ -699,7 +694,7 @@ public abstract class AbstractBigViewer {
      * Subclasses may override to add viewer-specific fallbacks
      * (e.g., reading units from source VoxelDimensions).
      */
-    protected String getPhysicalUnit() {
+    public String getPhysicalUnit() {
         if (calUnit != null && !calUnit.isBlank() && !"pixel".equalsIgnoreCase(calUnit))
             return calUnit;
         if (snt != null) {

@@ -80,7 +80,7 @@ public class AnnotationDensityCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Add extracted counts to ROI Manager", //
 			description = "<HTML>Generates new ROIs from the assigned counts and adds them to the ROI Manager.<br>"
-					+ "This allows you to validate the extraction and ensure the assigments are correct.")
+					+ "This allows you to validate the extraction and ensure the assignments are correct.")
 	private boolean addToManager;
 
 	@Parameter(label = "Clear Existing Counts", callback = "wipeExistingCounts",
@@ -103,9 +103,9 @@ public class AnnotationDensityCmd extends CommonDynamicCmd {
 		rm = RoiManager.getInstance();
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("roiSource", String.class);
 		final List<String> choices = new ArrayList<>(4);
-		if (imp != null && imp.getRoi() != null) choices.add("Active ROI");
+		if ((!snt.isStreamMode() || snt.isMaterializedCrop()) && (imp != null && imp.getRoi() != null)) choices.add("Active ROI");
 		if (ui.getBookmarkManager().getCount() > 0) choices.add("Bookmarked locations");
-		if (imp != null && imp.getOverlay() != null) choices.add("Image overlay");
+		if ((!snt.isStreamMode() || snt.isMaterializedCrop()) && (imp != null && imp.getOverlay() != null)) choices.add("Image overlay");
 		if (rm != null) choices.add("ROI Manager");
 		if (choices.isEmpty()) {
 			abort();
@@ -228,7 +228,7 @@ public class AnnotationDensityCmd extends CommonDynamicCmd {
 			imp.restoreRoi();
 		if (matchedPoints < inputPoints) {
 			msg(String.format(
-					"%d/%d points were not matched. Perhaps the specified distance of %.1f %s is too restringent and should be increased?",
+					"%d/%d points were not matched. Perhaps the specified distance of %.1f %s is too stringent and should be increased?",
 					inputPoints - matchedPoints, inputPoints, maxDist, unit), "Incomplete Extraction");
 		}
 		resetUI();

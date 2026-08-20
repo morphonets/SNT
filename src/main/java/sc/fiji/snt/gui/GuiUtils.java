@@ -143,6 +143,10 @@ public class GuiUtils {
 		centeredDialog(msg, title, JOptionPane.ERROR_MESSAGE);
 	}
 
+	public void warning(final String msg) {
+		centeredDialog(msg, "SNT v" + SNTUtils.VERSION, JOptionPane.WARNING_MESSAGE);
+	}
+
 	/**
 	 * Returns the Last-Modified timestamp from a HEAD request, or -1 on failure.
 	 */
@@ -2508,6 +2512,26 @@ public class GuiUtils {
 		guiUtils.error(msg, "SNT v" + SNTUtils.VERSION);
 	}
 
+	/**
+	 * Rewrites a common network-connectivity exception (unknown host, refused/timed-out connection)
+	 * into a short, user-facing message, instead of the exception's own message, which for e.g.
+	 * {@link java.net.UnknownHostException} is just the bare, unexplained hostname. Falls back to {@code
+	 * t.getMessage()} for anything else.
+	 *
+	 * @param t the exception to inspect (its cause chain is also walked)
+	 * @return a friendly message describing {@code t}
+	 */
+	public static String friendlyErrorMessage(final Throwable t) {
+		for (Throwable cause = t; cause != null; cause = cause.getCause()) {
+			if (cause instanceof java.net.UnknownHostException)
+				return "Could not reach '" + cause.getMessage() + "' - check your internet connection";
+			if (cause instanceof java.net.ConnectException || cause instanceof java.net.SocketTimeoutException)
+				return "Could not connect to the remote server - check your internet connection";
+		}
+        assert t != null;
+        return t.getMessage();
+	}
+
 	public static String[] availableLookAndFeels() {
 		return new String[] { LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
 	}
@@ -3847,19 +3871,18 @@ public class GuiUtils {
 		}
 
 		public static JMenuItem showHelpOnCountingSpines(final boolean streamMode, final Action postDialogAction) {
-
 			final JMenuItem mi = new JMenuItem("Spine/Varicosity Analysis Help", IconFactory.menuIcon(GLYPH.QUESTION));
 			mi.addActionListener(e -> {
 				if (postDialogAction == null) {
 					GuiUtils.showHTMLDialog(spineHelpMsg(streamMode), "Annotating Spines/Varicosities");
-				} else if (new GuiUtils().yesNoHTMLDialog(spineHelpMsg(streamMode), "Annotating Spines/Varicosities",
-						"Pause SNT & Start Manual Annotation", "Dismiss")) {
+				} else {
 					String actionName = (String) postDialogAction.getValue(Action.NAME);
-					if (actionName == null) {
-						actionName = "Proceed";
+					if (actionName == null) actionName = "Proceed";
+					if (new GuiUtils().yesNoHTMLDialog(spineHelpMsg(streamMode), "Annotating Spines/Varicosities",
+							actionName, "Dismiss")) {
+						final ActionEvent event = new ActionEvent(GuiUtils.class, ActionEvent.ACTION_PERFORMED, actionName);
+						postDialogAction.actionPerformed(event);
 					}
-					final ActionEvent event = new ActionEvent(GuiUtils.class, ActionEvent.ACTION_PERFORMED, actionName);
-					postDialogAction.actionPerformed(event);
 				}
 			});
 			return mi;

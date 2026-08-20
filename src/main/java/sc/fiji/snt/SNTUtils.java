@@ -51,7 +51,6 @@ import org.scijava.ui.console.ConsolePane;
 import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
-import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.BigDataLoaderCmd;
 import sc.fiji.snt.util.BoundingBox;
@@ -60,6 +59,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 import java.awt.*;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -74,8 +75,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -212,7 +211,7 @@ public class SNTUtils {
 		if (s.indexOf(',') >= 0 || s.indexOf(' ') >= 0) quote = true;
 		if (s.indexOf('"') >= 0) {
 			quote = true;
-			result = s.replaceAll("\"", "\"\"");
+			result = s.replace("\"", "\"\"");
 		}
 		if (quote) return "\"" + result + "\"";
 		else return result;
@@ -340,6 +339,35 @@ public class SNTUtils {
 		}
 	}
 
+	/**
+	 * Checks for whether {@code url}'s host can be reached, meant to be called before a real download/stream attempt
+	 * (e.g., {@link #downloadToTempFile}) so that a missing network connection surfaces as one clear message.
+	 * est-effort: only http(s) URLs are actually probed; any other scheme (e.g. a bare host-less URI) is assumed
+	 * reachable, deferring to the real caller
+	 *
+	 * @param url       the URL to check
+	 * @param timeoutMs connect timeout, in milliseconds
+	 * @return true if the host could be reached (or {@code url} is not a plain http(s) URL); false if
+	 * a connection could not be established within {@code timeoutMs}
+	 */
+	public static boolean isReachable(final String url, final int timeoutMs) {
+		try {
+			final URI uri = new URI(url);
+			final String scheme = uri.getScheme();
+			if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")))
+				return true; // not a plain HTTP(S) URL (e.g. s3://, gs://); nothing simple to probe here
+			final String host = uri.getHost();
+			if (host == null) return true; // no host to probe; let the real caller deal with it
+			final int port = uri.getPort() != -1 ? uri.getPort() : ("https".equalsIgnoreCase(scheme) ? 443 : 80);
+			try (final Socket socket = new Socket()) {
+				socket.connect(new InetSocketAddress(host, port), timeoutMs);
+				return true;
+			}
+		} catch (final Exception e) {
+			return false;
+		}
+	}
+
 	public static String formatDouble(final double value, final int digits) {
 		return (Double.isNaN(value)) ? "NaN" : getDecimalFormat(value, digits).format(value);
 	}
@@ -463,29 +491,6 @@ public class SNTUtils {
 		return String.format("%02d min, %02d sec", TimeUnit.MILLISECONDS.toMinutes(time),
 				TimeUnit.MILLISECONDS.toSeconds(time)
 						- TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(time)));
-	}
-
-	/**
-	 * Retrieves Sholl Analysis implementation date
-	 *
-	 * @return the implementation date or an empty strong if date could not be
-	 *         retrieved.
-	 */
-	public static String buildDate() {
-		String BUILD_DATE;
-		final Class<ShollUtils> clazz = ShollUtils.class;
-		final String className = clazz.getSimpleName() + ".class";
-		try {
-			final String classPath = clazz.getResource(className).toString();
-			final String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
-			final Manifest manifest = new Manifest(new URI(manifestPath).toURL().openStream());
-			final Attributes attr = manifest.getMainAttributes();
-			BUILD_DATE = attr.getValue("Implementation-Date");
-			BUILD_DATE = BUILD_DATE.substring(0, BUILD_DATE.lastIndexOf("T"));
-		} catch (final Exception ignored) {
-			BUILD_DATE = "";
-		}
-		return BUILD_DATE;
 	}
 
 	/**

@@ -236,8 +236,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	public void run() {
 
 		SNTUtils.setIsLoading(true);
-		final boolean noImg = IMAGE_NONE.equals(imageChoice) || (IMAGE_FILE.equals(
-			imageChoice) && imageFile == null);
+		final boolean noImg = IMAGE_NONE.equals(imageChoice) || (IMAGE_FILE.equals(imageChoice) && imageFile == null);
 
 		if (noImg) {
 			final PathAndFillManager pathAndFillManager = new PathAndFillManager();

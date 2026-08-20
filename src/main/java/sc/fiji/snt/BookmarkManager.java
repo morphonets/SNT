@@ -1362,7 +1362,7 @@ public class BookmarkManager {
         try {
             model.populateFromFile(file);
         } catch (final Exception ex) {
-            guiUtils.error(ex.getMessage() + ".");
+            guiUtils.error(GuiUtils.friendlyErrorMessage(ex) + ".");
             SNTUtils.error("loadBookmarksFromFile() failure", ex);
         }
     }
@@ -1371,7 +1371,7 @@ public class BookmarkManager {
         try {
             model.populateFromFile(filePathOrURL);
         } catch (final Exception ex) {
-            guiUtils.error(ex.getMessage() + ".");
+            guiUtils.error(GuiUtils.friendlyErrorMessage(ex) + ".");
             SNTUtils.error("loadBookmarksFromFile() failure", ex);
         }
     }

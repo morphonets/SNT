@@ -2630,18 +2630,15 @@ public class Bvv extends AbstractBigViewer {
 
     /**
      * Resolves the physical unit string for the currently loaded volume.
-     * Checks (in order): calUnit field, SNT spacing units, first source's
-     * VoxelDimensions (same source used by the scale bar renderer).
+     *
+     * @return the physical unit. Checks (in order): {@code calUnit} field, first source's VoxelDimensions (same source
+     * used by the scale bar renderer), and SNT spacing units. Returns {@link BoundingBox#UNSET_SPACING_UNIT} if unit is
+     * unknown or unset.
      */
     @Override
     public String getPhysicalUnit() {
-        if (calUnit != null && !calUnit.isBlank() && !"pixel".equalsIgnoreCase(calUnit))
+        if (calUnit != null && !calUnit.isBlank() && (!"pixel".equalsIgnoreCase(calUnit) && !BoundingBox.UNSET_SPACING_UNIT.equals(calUnit)))
             return calUnit;
-        if (snt != null) {
-            final String u = snt.getSpacingUnits();
-            if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u))
-                return BoundingBox.sanitizedUnit(u);
-        }
         if (bvvHandle != null) {
             try {
                 final var srcs = bvvHandle.getViewerPanel().state().getSources();
@@ -2652,9 +2649,15 @@ public class Bvv extends AbstractBigViewer {
                         return BoundingBox.sanitizedUnit(vd.unit());
                 }
             } catch (final Exception ignored) {
+                // do nothing
             }
         }
-        return "pixel";
+        if (snt != null) {
+            final String u = snt.getSpacingUnits();
+            if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u))
+                return BoundingBox.sanitizedUnit(u);
+        }
+        return BoundingBox.UNSET_SPACING_UNIT;
     }
 
     /**
