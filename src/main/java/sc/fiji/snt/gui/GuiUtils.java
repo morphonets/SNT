@@ -4798,22 +4798,22 @@ public class GuiUtils {
 		}
 
 		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
-			return OptionsButton(glyph, scalingFactor, menu, true);
+			return OptionsButton(glyph, IconFactory.defaultColor(), scalingFactor, menu, true);
 		}
 
-		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu,
+		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final Color color, final float scalingFactor, final JPopupMenu menu,
 												  final boolean dropdownIndicator) {
-			return new OptionsButton(glyph, scalingFactor, menu, dropdownIndicator);
+			return new OptionsButton(glyph, (color == null) ? IconFactory.defaultColor() : color, scalingFactor, menu, dropdownIndicator);
 		}
 
 		 public static class OptionsButton extends JButton {
 			public final JPopupMenu popupMenu;
 
-			private OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu popupMenu,
+			private OptionsButton(final IconFactory.GLYPH glyph, final Color color, final float scalingFactor, final JPopupMenu popupMenu,
 								  final boolean dropdownIndicator) {
 				super( (dropdownIndicator)
-						? IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.defaultColor())
-						: IconFactory.buttonIcon(glyph, scalingFactor));
+						? IconFactory.dropdownMenuIcon(glyph, scalingFactor, color)
+						: IconFactory.buttonIcon(glyph, color, scalingFactor));
 				this.popupMenu = popupMenu;
 				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, GuiUtils.getDisabledComponentColor()));
 				// Store a back-reference so callers can locate this button from the popup alone

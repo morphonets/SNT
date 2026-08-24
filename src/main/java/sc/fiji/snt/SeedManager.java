@@ -69,14 +69,6 @@ public class SeedManager extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private static final String MSG_SYNOPSIS = """
-                Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
-                used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
-                (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
-
-                Double-click a row to navigate to its location; Alt+Click on the canvas (while tracing is paused) \
-                to edit the nearest seed.""";
-
     private final SNT snt;
     private final SNTUI sntui;
     private final SeedOverlay overlay;
@@ -157,7 +149,7 @@ public class SeedManager extends JPanel {
         SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeded Tracing:",
                 "https://imagej.net/plugins/snt/seeds", true, gbc, false);
         gbc.gridy++;
-        add(GuiUtils.longSmallMsg(MSG_SYNOPSIS, this), gbc);
+        add(GuiUtils.longSmallMsg(panelHeading(), this), gbc);
         gbc.gridy++;
 
         // Display section
@@ -195,6 +187,17 @@ public class SeedManager extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weighty = 0;
         add(bottomToolbar(), gbc);
+    }
+
+    private String panelHeading() {
+        return String.format(
+                """
+                        Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
+                        used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
+                        (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
+                        
+                        Double-click a row to navigate to its location; %s Alt+click on the canvas (while tracing is paused) \
+                        to edit the nearest seed.""", (snt.isStreamMode()) ? "With materialized crops," : "");
     }
 
     private JToolBar buildDisplayRow() {

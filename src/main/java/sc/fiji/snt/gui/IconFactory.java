@@ -24,6 +24,8 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.icons.FlatAbstractIcon;
+import com.formdev.flatlaf.ui.FlatUIUtils;
+import com.formdev.flatlaf.util.UIScale;
 import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
@@ -322,7 +324,9 @@ public class IconFactory {
     }
 
     public static Icon dropdownMenuIcon(final GLYPH entry, final float scalingFactor, final Color color) {
-        return dropdownIcon(entry, scalingFactor, color, UIManager.getIcon("Tree.expandedIcon"));
+        Icon chevron = UIManager.getIcon("Tree.expandedIcon");
+        if (chevron != null && color != null && !color.equals(defaultColor())) chevron = averagedIcon(chevron, color);
+        return dropdownIcon(entry, scalingFactor, color, chevron);
     }
 
     private static Icon dropdownIcon(final GLYPH entry, final float scalingFactor, final Color color, final Icon rightIcon) {
@@ -359,6 +363,39 @@ public class IconFactory {
             }
         }
         return new DropdownIcon(entry, scalingFactor, rightIcon);
+    }
+
+    // Returns an icon whose pixels are the average of src's pixels and tint, achieved by overlaying tint at 50%
+    // alpha (SRC_ATOP). Renders at device pixel scale for HiDPI fidelity.
+    private static Icon averagedIcon(final Icon src, final Color tint) {
+        return new Icon() {
+            private java.awt.image.BufferedImage cached;
+
+            @Override
+            public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+                final int w = getIconWidth(), h = getIconHeight();
+                if (w <= 0 || h <= 0) { src.paintIcon(c, g, x, y); return; }
+                if (cached == null) {
+                    final GraphicsConfiguration gc = c != null ? c.getGraphicsConfiguration() : null;
+                    final double scale = UIScale.getSystemScaleFactor(gc);
+                    final int pw = (int) Math.round(w * scale);
+                    final int ph = (int) Math.round(h * scale);
+                    cached = new java.awt.image.BufferedImage(pw, ph, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    final Graphics2D ig = cached.createGraphics();
+                    ig.scale(scale, scale);
+                    FlatUIUtils.setRenderingHints(ig);
+                    src.paintIcon(c, ig, 0, 0);
+                    ig.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, 0.5f));
+                    ig.setColor(tint);
+                    ig.fillRect(0, 0, w, h);
+                    ig.dispose();
+                }
+                g.drawImage(cached, x, y, w, h, null);
+            }
+
+            @Override public int getIconWidth()  { return src.getIconWidth(); }
+            @Override public int getIconHeight() { return src.getIconHeight(); }
+        };
     }
 
     public static void assignIcon(final AbstractButton button, final GLYPH glyph, final Color color, final float scalingFactor) {

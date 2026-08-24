@@ -147,11 +147,12 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     @SuppressWarnings("unused")
     private void loadDemo() {
+        final String demoRoot = "https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/";
         // fine to declare URL as file even though File collapses "//" -> "/": restoreUrlScheme() already handles that
         img1File = new File("https://ome-zarr-scivis.s3.us-east-1.amazonaws.com/v0.4/96x0/marmoset_neurons.ome.zarr");
         img2File = null;
-        recFiles = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/autotracings.traces");
-        markerFile = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/soma_detections.csv");
+        recFiles = new File(demoRoot + "autotracings.traces");
+        markerFile = new File(demoRoot + "soma_detections.csv");
         viewerType = "Big Data Viewer (BDV): Interactive reslicing";
         tracingEnabled = true;
     }
@@ -251,7 +252,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /**
-     * Converts an (possibly user-typed) {@link File} parameter back to the string form
+     * Converts a (possibly user-typed) {@link File} parameter back to the string form
      * {@link SpimDataUtils#resolvePathToSource(String)} expects. {@code File#getAbsolutePath()} mangles
      * remote URLs (e.g. {@code https://.../dataset.ome.zarr}) by prepending the current working
      * directory, since a URL scheme isn't a recognized absolute-path prefix. Even {@code File#getPath()}

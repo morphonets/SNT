@@ -4742,7 +4742,7 @@ public class SNTUI extends JDialog {
         toolbar.addSeparator();
 
         // Quick Toggles dropdown
-        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f, quickTogglesMenu() );
+        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT,  IconFactory.selectedColor(), 1f, quickTogglesMenu(), true);
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 

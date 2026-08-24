@@ -105,6 +105,18 @@ public class DelineationsManager {
         return ColorMaps.glasbeyColorsAWT(n);
     }
 
+    private String panelHeading() {
+        return String.format(
+                """
+                        Delineations allow measuring proportions of paths within other structures defined by ROIs, \
+                        label images, or neuropil annotations (e.g., cortical layers, biomarkers, or counterstaining landmarks). \
+                        
+                        
+                        To create a ROI-based delineation: Right-click on %s and pause SNT. Then, create an area ROI \
+                        and click on an unset "Assign" button. Alternatively, use the "Import Delineations" button.
+                        """, (sntui.plugin.isStreamMode()) ? "a materialized crop" : "the image");
+    }
+
     protected JPanel getPanel() {
         final JPanel container = SNTUI.InternalUtils.initTab();
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
@@ -112,16 +124,8 @@ public class DelineationsManager {
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Delineations:",
                 "https://imagej.net/plugins/snt/delineations", true, gbc, false);
         gbc.gridy++;
-        final String msg = """
-                Delineations allow measuring proportions of paths within other structures defined by ROIs, \
-                label images, or neuropil annotations (e.g., cortical layers, biomarkers, or counterstaining landmarks). \
-                
-                
-                To create a ROI-based delineation: Right-click on the image and pause SNT. Then, create an area ROI \
-                and click on an unset "Assign" button. Alternatively, use the import options in the gear menu.
-                """;
         gbc.weighty = 0.1;
-        container.add(GuiUtils.longSmallMsg(msg, container), gbc);
+        container.add(GuiUtils.longSmallMsg(panelHeading(), container), gbc);
         gbc.weighty = 0.5;
         final JScrollPane sp = new JScrollPane(delineationsPanel);
         sp.setMinimumSize(delineationsPanel.getPreferredSize());
@@ -592,12 +596,20 @@ public class DelineationsManager {
         return choiceList.toArray(new String[0]);
     }
 
-    private boolean noAssignmentPossible(final Delineation del) {
-        if (sntui.noPathsError()) return true;
-        if (sntui.plugin.getImagePlus() == null) {
+    private boolean noImagePlusAvailableError() {
+        if (sntui.plugin.isStreamMode() && !sntui.plugin.isMaterializedCrop()) {
+            sntui.guiUtils.error("No materialized crop is available.");
+            return true;
+        }
+        if (!sntui.accessToValidImagePlus()) {
             sntui.guiUtils.error("No image is available.");
             return true;
         }
+        return false;
+    }
+
+    private boolean noAssignmentPossible(final Delineation del) {
+        if (sntui.noPathsError() || noImagePlusAvailableError()) return true;
         if (del.name == null || del.name.trim().isEmpty()) {
             sntui.guiUtils.error("Delineation name cannot be empty.");
             return true;
@@ -907,7 +919,7 @@ public class DelineationsManager {
 
     private ImagePlus getLabelImage() {
         final ImagePlus[] candidates = ImpUtils.getNonSNTOpenImages();
-        final ImagePlus labelImp;
+        ImagePlus labelImp = null;
         if (candidates.length > 0) {
             final String[] titles = Arrays.stream(candidates).map(ImagePlus::getTitle).toArray(String[]::new);
             final String choice = sntui.guiUtils.getChoice("Select the labels/masks image:",
@@ -916,7 +928,8 @@ public class DelineationsManager {
             labelImp = Arrays.stream(candidates).filter(imp -> choice.equals(imp.getTitle()))
                     .findFirst().orElse(null);
         } else {
-            labelImp = ImpUtils.open(sntui.openFile("tif"));
+            final java.io.File f = sntui.openFile("tif");
+            if (f != null) labelImp = ImpUtils.open(f);
         }
         if (labelImp == null) return null;
         if (labelImp.getNChannels() > 1 || labelImp.getNFrames() > 1) {
@@ -1415,7 +1428,7 @@ public class DelineationsManager {
         private JButton assignFromRoiButton() {
             final JButton b = new JButton("Assign");
             b.addActionListener(e -> {
-                if (noAssignmentPossible(this)) return;
+                if (noAssignmentPossible(this) || noImagePlusAvailableError()) return;
                 final Roi roi = sntui.plugin.getImagePlus().getRoi();
                 if (roi == null) {
                     sntui.guiUtils.error("No ROI is currently active. Please create an area ROI first.");
@@ -1471,11 +1484,8 @@ public class DelineationsManager {
                     sntui.guiUtils.error("No ROI assignment has occurred.");
                     return;
                 }
+                if (noImagePlusAvailableError()) return;
                 final ImagePlus imp = sntui.plugin.getImagePlus();
-                if (imp == null) {
-                    sntui.guiUtils.error("No image is available.");
-                    return;
-                }
                 final Roi roi = imp.getRoi();
                 if (this.roi.equals(roi) && roi.isVisible()) {
                     imp.resetRoi(); // hide it

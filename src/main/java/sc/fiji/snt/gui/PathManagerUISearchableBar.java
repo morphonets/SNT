@@ -431,7 +431,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		for (final Component component : getImageFilterMenu().getMenuComponents()) {
 			popup.add(component);
 		}
-		final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.RULER, 1.2f, popup, false);
+		final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.RULER, null, 1.2f, popup, false);
 		button.setToolTipText("Filter by morphometry or image properties");
 		return button;
 	}
@@ -449,7 +449,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final ColorMenu colorFilterMenu = getColorFilterMenu();
 		final JPopupMenu popupMenu = colorFilterMenu.getPopupMenu();
 		popupMenu.setInvoker(colorFilterMenu);
-		final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.COLOR, 1.2f, popupMenu, false);
+		final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.COLOR, null, 1.2f, popupMenu, false);
 		button.setToolTipText(colorFilterMenu.getText());
 		button.putClientProperty("cmdFinder-ignore", "true"); // cmdFinder cannot do much with it
 		return button;
