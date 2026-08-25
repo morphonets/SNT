@@ -176,8 +176,8 @@ public class AnalysisUtils {
 		if (datasetPlus.n ==0) datasetPlus.compute();
 		sb.append("Q1: ").append(SNTUtils.formatDouble(datasetPlus.q1, nDecimals));
 		if (stats instanceof DescriptiveStatistics)
-			sb.append("  Med.: ").append(SNTUtils.formatDouble(//
-					((DescriptiveStatistics) stats).getPercentile(50), nDecimals));
+			// Reuse the cached median from datasetPlus instead of re-sorting the dataset
+			sb.append("  Med.: ").append(SNTUtils.formatDouble(datasetPlus.median, nDecimals));
 		sb.append("  Q3: ").append(SNTUtils.formatDouble(datasetPlus.q3, nDecimals));
 		sb.append("  IQR: ").append(SNTUtils.formatDouble(datasetPlus.q3 - datasetPlus.q1, nDecimals));
 		sb.append("  Bins: ").append(datasetPlus.nBins);
@@ -335,11 +335,14 @@ public class AnalysisUtils {
 		// populate series
 		int counter = 0;
 		for (int i = 0; i < hdps.size(); i++) {
+			final HistogramDatasetPlus hdp = hdps.get(i);
+			hdp.compute(); // no-op if already cached; reuses Q1/median/Q3 below instead of re-sorting
+			final double[] percentileValues = {hdp.q1, hdp.median, hdp.q3};
 			for (int j = 0; j < percentiles.length; j++) {
 				final int p = percentiles[j];
 				final XYSeries series = new XYSeries(String.format("Percentile %d [%02d]", p, i + 1));
-				series.add(hdps.get(i).dStats.getPercentile(p), minY);
-				series.add(hdps.get(i).dStats.getPercentile(p), maxY);
+				series.add(percentileValues[j], minY);
+				series.add(percentileValues[j], maxY);
 				markersDataset.addSeries(series);
 				renderer.setSeriesPaint(counter, colors[i]);
 				renderer.setSeriesOutlinePaint(counter, colors[i]);
@@ -349,7 +352,16 @@ public class AnalysisUtils {
 		}
 	}
 
-	private static void addSecondaryCurveToHist(final XYPlot histogram, final XYSeriesCollection curveDataset, final boolean visibility) {
+	/**
+	 * Whether at least one group has enough points ({@code n > 20}) to fit a GMM. Package-private:
+	 * lets {@code SNTChart} decide synchronously (and cheaply) whether a deferred GMM fit is worth
+	 * dispatching, without having to run (or wait for) the actual EM fit first
+	 */
+	static boolean hasGMMEligibleGroup(final List<HistogramDatasetPlus> hdps) {
+		return hdps != null && hdps.stream().anyMatch(h -> h.n > 20);
+	}
+
+	static void addSecondaryCurveToHist(final XYPlot histogram, final XYSeriesCollection curveDataset, final boolean visibility) {
 
 		assert curveDataset.getSeriesCount() == histogram.getDatasetCount();
 
@@ -418,7 +430,7 @@ public class AnalysisUtils {
 		return getGMMDataset(List.of(hdp), fromX, toX);
 	}
 
-	private static XYSeriesCollection getGMMDataset(final List<HistogramDatasetPlus> hdps, final double fromX, final double toX) {
+	static XYSeriesCollection getGMMDataset(final List<HistogramDatasetPlus> hdps, final double fromX, final double toX) {
 		final XYSeriesCollection dataset = new XYSeriesCollection();
 		final AtomicInteger counter = new AtomicInteger(1);
 		hdps.forEach( hdp -> {
@@ -454,7 +466,7 @@ public class AnalysisUtils {
 	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats, final String description) {
 		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, title);
 		final JFreeChart chart = createHistogram(title, unit, stats, datasetPlus, description);
-		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+		return toHistogramChart(title, chart, datasetPlus);
 	}
 
 	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats) {
@@ -464,7 +476,19 @@ public class AnalysisUtils {
 
 	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats, final HistogramDatasetPlus datasetPlus) {
 		final JFreeChart chart = createHistogram(title, unit, stats, datasetPlus, getSummaryDescription(stats, datasetPlus));
-		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+		return toHistogramChart(title, chart, datasetPlus);
+	}
+
+	/**
+	 * Wraps a single-series histogram chart as a {@link SNTChart}, registering the context needed to
+	 * lazily fit its GMM overlay (see {@link SNTChart#setGMMFitVisible}) rather than fitting one
+	 * eagerly for a curve that is hidden by default
+	 */
+	private static SNTChart toHistogramChart(final String title, final JFreeChart chart, final HistogramDatasetPlus datasetPlus) {
+		final SNTChart sntChart = new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+		final ValueAxis domainAxis = chart.getXYPlot().getDomainAxis();
+		sntChart.setGMMFitContext(List.of(datasetPlus), domainAxis.getRange().getLowerBound(), domainAxis.getRange().getUpperBound());
+		return sntChart;
 	}
 
 	private static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
@@ -492,7 +516,8 @@ public class AnalysisUtils {
 		final double minX = plot.getDomainAxis().getRange().getLowerBound();
 		final double maxX = plot.getDomainAxis().getRange().getUpperBound();
 		addSecondaryCurveToHist(plot, getNormalDataset(datasetPlus, minX, maxX), false);
-		addSecondaryCurveToHist(plot, getGMMDataset(datasetPlus, minX, maxX), false);
+		// GMM fitting (EM) is deferred until requested: see toHistogramChart() below and
+		// SNTChart#setGMMFitVisible, since this overlay is hidden by default and rarely toggled on
 		addQuartileMarkers(plot, datasetPlus, false);
 		return chart;
 	}
@@ -538,14 +563,16 @@ public class AnalysisUtils {
 		}
 		bar_renderer.setShadowVisible(false);
 		if (nSeries==1) chart.removeLegend();
+		final SNTChart sntChart = new SNTChart("Grouped Hist.", chart);
 		if (hdps != null) {
 			final double minX = plot.getDomainAxis(0).getRange().getLowerBound();
 			final double maxX = plot.getDomainAxis(0).getRange().getUpperBound();
 			addSecondaryCurveToHist(plot, getNormalDataset(hdps, minX, maxX), false);
-			addSecondaryCurveToHist(plot, getGMMDataset(hdps, minX, maxX), false);
+			// GMM fitting (EM, one fit per group) is deferred until requested; see setGMMFitContext
+			sntChart.setGMMFitContext(hdps, minX, maxX);
 			addQuartileMarkers(plot, hdps, false);
 		}
-		return new SNTChart("Grouped Hist.", chart);
+		return sntChart;
 	}
 
 	static SNTChart createPolarHistogram(final String normMeasurement, final String unit, final HistogramDataset dataset, final int nSeries,
@@ -819,7 +846,7 @@ public class AnalysisUtils {
 	static class HistogramDatasetPlus {
 		int nBins;
 		long n;
-		double q1, q3, min, max;
+		double q1, q3, median, min, max;
 		HistogramDataset dataset;
 		double histArea;
 		final String label;
@@ -856,7 +883,10 @@ public class AnalysisUtils {
 				return; // already computed
 			}
 			n = dStats.getN();
+			// Cache Q1/median/Q3 here: Percentile re-sorts the full dataset on every call,
+			// so computing them once and reusing avoids repeated O(n log n) sorts elsewhere
 			q1 = dStats.getPercentile(25);
+			median = dStats.getPercentile(50);
 			q3 = dStats.getPercentile(75);
 			min = dStats.getMin();
 			max = dStats.getMax();

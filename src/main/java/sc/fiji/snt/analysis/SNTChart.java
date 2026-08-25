@@ -45,6 +45,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.WindowConstants;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
@@ -72,6 +73,7 @@ import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.DefaultXYDataset;
 import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYSeriesCollection;
 import org.scijava.command.CommandService;
 import org.scijava.plot.CategoryChart;
 import org.scijava.table.Column;
@@ -106,6 +108,11 @@ public class SNTChart extends ChartPanel {
 	private JFrame frame;
 	private String title;
 	private boolean equalizedXY;
+
+	// Deferred GMM (EM) fit: populated by AnalysisUtils when a histogram is built, consumed
+	// (and cleared) the first time setGMMFitVisible(true) actually materializes the curve
+	private List<AnalysisUtils.HistogramDatasetPlus> pendingGmmHdps;
+	private double pendingGmmFromX, pendingGmmToX;
 
 	private static double scalingFactor = 1;
 
@@ -1426,10 +1433,64 @@ public class SNTChart extends ChartPanel {
 	 */
 	public void setGMMFitVisible(final boolean visible) {
 		try {
-			AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot()).forEach( r-> r.setDefaultSeriesVisible(visible));
+			final List<XYItemRenderer> renderers = AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot());
+			if (renderers.isEmpty() && visible && pendingGmmHdps != null) {
+				if (SwingUtilities.isEventDispatchThread()) {
+					// Never run the (EM) fit on the EDT: do it in the background and attach the result once ready
+					fitGMMInBackground();
+				} else {
+					// Off-EDT caller (script, background thread): fit and attach synchronously,
+					// so the curve is guaranteed present by the time this call returns
+					final List<AnalysisUtils.HistogramDatasetPlus> hdps = pendingGmmHdps;
+					final double fromX = pendingGmmFromX, toX = pendingGmmToX;
+					pendingGmmHdps = null;
+					AnalysisUtils.addSecondaryCurveToHist(getXYPlot(), AnalysisUtils.getGMMDataset(hdps, fromX, toX), true);
+				}
+				return;
+			}
+			renderers.forEach(r -> r.setDefaultSeriesVisible(visible));
 		} catch (final NullPointerException | ClassCastException ignored) {
 			// ignored
 		}
+	}
+
+	/**
+	 * Fits the GMM (EM algorithm) off the EDT then hops back onto the EDT to attach the result to the plot, since
+	 * JFreeChart/Swing objects must only be mutated from the EDT. The pending context is claimed immediately, so a
+	 * second click while the fit is running is a no-op rather than a duplicate fit
+	 */
+	private void fitGMMInBackground() {
+		final List<AnalysisUtils.HistogramDatasetPlus> hdps = pendingGmmHdps;
+		final double fromX = pendingGmmFromX, toX = pendingGmmToX;
+		pendingGmmHdps = null;
+		new SwingWorker<XYSeriesCollection, Void>() {
+			@Override
+			protected XYSeriesCollection doInBackground() {
+				return AnalysisUtils.getGMMDataset(hdps, fromX, toX);
+			}
+			@Override
+			protected void done() {
+				try {
+					AnalysisUtils.addSecondaryCurveToHist(getXYPlot(), get(), true);
+				} catch (final Exception ignored) {
+					// fit failed, or chart is no longer displayable; nothing to attach
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Stores the context needed to lazily fit the GMM overlay curve for a histogram, deferring the
+	 * actual (expensive) EM fit until {@link #setGMMFitVisible(boolean)} is called with {@code true}
+	 *
+	 * @param hdps  the per-group histogram data to fit against
+	 * @param fromX the lower bound of the domain range at fit time
+	 * @param toX   the upper bound of the domain range at fit time
+	 */
+	void setGMMFitContext(final List<AnalysisUtils.HistogramDatasetPlus> hdps, final double fromX, final double toX) {
+		this.pendingGmmHdps = hdps;
+		this.pendingGmmFromX = fromX;
+		this.pendingGmmToX = toX;
 	}
 
 	/**
@@ -1646,14 +1707,20 @@ public class SNTChart extends ChartPanel {
         fit2.setEnabled(getChart().getPlot() instanceof XYPlot);
         fit2.addActionListener( e -> {
             try {
-                final List<XYItemRenderer> gmmRenders = AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot());
-                if (gmmRenders.isEmpty()) {
+				if (!fit2.isSelected()) {
+					setGMMFitVisible(false);
+					return;
+				}
+				// The GMM curve is fitted lazily (see setGMMFitVisible/setGMMFitContext), so its
+				// renderer may not exist yet even when the fit is perfectly eligible; check the
+				// cheap eligibility criterion instead of the (possibly not-yet-computed) renderer
+				final boolean alreadyFitted = !AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot()).isEmpty();
+				if (!alreadyFitted && !AnalysisUtils.hasGMMEligibleGroup(pendingGmmHdps)) {
 					new GuiUtils(frame).error("Gaussian mixture model is not available. Note that at least 20 data"
 							+ " points are required for GMM computation.", "Option Not Available");
 					fit2.setSelected(false);
 				} else {
-					//AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
-					gmmRenders.forEach(r -> r.setDefaultSeriesVisible(fit2.isSelected()));
+					setGMMFitVisible(true); // fits in the background if not yet computed, then shows it
 				}
 			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
 				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
@@ -1797,72 +1864,76 @@ public class SNTChart extends ChartPanel {
 	/* Experimental: Not all types of data are supported */
 	protected void exportAsCSV(final File file) throws IllegalStateException {
 		// https://stackoverflow.com/a/58530238
-		final ArrayList<String> csv = new ArrayList<>();
-		switch (getChart().getPlot()) {
-			case XYPlot xyplot -> {
-				for (int d = 0; d < xyplot.getDatasetCount(); d++) {
-					final XYDataset xyDataset = xyplot.getDataset(d);
-					if (!xyplot.getRenderer(d).getDefaultSeriesVisible())
-						continue;
-					csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
-					final int seriesCount = xyDataset.getSeriesCount();
-					for (int i = 0; i < seriesCount; i++) {
-						final int itemCount = xyDataset.getItemCount(i);
-						for (int j = 0; j < itemCount; j++) {
-							final Comparable<?> key = xyDataset.getSeriesKey(i);
-							final Number x = xyDataset.getX(i, j);
-							final Number y = xyDataset.getY(i, j);
-							csv.add(String.format("%s,%s,%s", key, x, y));
-						}
-					}
-				}
-			}
-			case PolarPlot polarPlot -> {
-				csv.add("Series,Angle,Radius");
-				final XYDataset dataset = polarPlot.getDataset();
-				for (int series = 0; series < dataset.getSeriesCount(); series++) {
-					final String seriesName = (String) dataset.getSeriesKey(series);
-					for (int item = 0; item < dataset.getItemCount(series); item++) {
-						final double angle = dataset.getXValue(series, item);
-						final double radius = dataset.getYValue(series, item);
-						csv.add(String.format("%s,%s,%s", seriesName, angle, radius));
-					}
-				}
-			}
-			case CategoryPlot categoryPlotPlot -> {
-				for (int d = 0; d < categoryPlotPlot.getDatasetCount(); d++) {
-					final CategoryDataset categoryDataset = categoryPlotPlot.getDataset(d);
-					if (!categoryPlotPlot.getRenderer(d).getDefaultSeriesVisible())
-						continue;
-					csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
-					final int columnCount = categoryDataset.getColumnCount();
-					final int rowCount = categoryDataset.getRowCount();
-					for (int i = 0; i < rowCount; i++) {
-						for (int j = 0; j < columnCount; j++) {
-							final Comparable<?> key1 = categoryDataset.getRowKey(i);
-							final Comparable<?> key2 = categoryDataset.getColumnKey(j);
-							final Number n = categoryDataset.getValue(i, j);
-							csv.add(String.format("%s,%s,%s", key1, key2, n));
-						}
-					}
-				}
-			}
-			case RingPlot ringPlot -> {
-				final PieDataset<?> dataset = ringPlot.getDataset();
-				for (int i = 0; i < dataset.getItemCount(); i++) {
-					csv.add(String.format("%s,%s", dataset.getKey(i), dataset.getValue(i)));
-				}
-			}
-			case null, default -> throw new IllegalStateException("Export of this type of dataset is not supported.");
-		}
+		// NB: rows are streamed straight to the writer (no in-memory buffering of the whole CSV) and
+		// built via plain concatenation rather than String.format(), since large XY/category datasets
+		// can carry _many_ rows and format-string parsing may not be free at that scale
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-			for (final String line : csv) {
-				writer.append(line);
-				writer.newLine();
+			switch (getChart().getPlot()) {
+				case XYPlot xyplot -> {
+					for (int d = 0; d < xyplot.getDatasetCount(); d++) {
+						final XYDataset xyDataset = xyplot.getDataset(d);
+						if (!xyplot.getRenderer(d).getDefaultSeriesVisible())
+							continue;
+						writeCsvLine(writer, String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
+						final int seriesCount = xyDataset.getSeriesCount();
+						for (int i = 0; i < seriesCount; i++) {
+							final Comparable<?> key = xyDataset.getSeriesKey(i);
+							final int itemCount = xyDataset.getItemCount(i);
+							for (int j = 0; j < itemCount; j++) {
+								final Number x = xyDataset.getX(i, j);
+								final Number y = xyDataset.getY(i, j);
+								writeCsvLine(writer, key + "," + x + "," + y);
+							}
+						}
+					}
+				}
+				case PolarPlot polarPlot -> {
+					writeCsvLine(writer, "Series,Angle,Radius");
+					final XYDataset dataset = polarPlot.getDataset();
+					for (int series = 0; series < dataset.getSeriesCount(); series++) {
+						final String seriesName = (String) dataset.getSeriesKey(series);
+						final int itemCount = dataset.getItemCount(series);
+						for (int item = 0; item < itemCount; item++) {
+							final double angle = dataset.getXValue(series, item);
+							final double radius = dataset.getYValue(series, item);
+							writeCsvLine(writer, seriesName + "," + angle + "," + radius);
+						}
+					}
+				}
+				case CategoryPlot categoryPlotPlot -> {
+					for (int d = 0; d < categoryPlotPlot.getDatasetCount(); d++) {
+						final CategoryDataset categoryDataset = categoryPlotPlot.getDataset(d);
+						if (!categoryPlotPlot.getRenderer(d).getDefaultSeriesVisible())
+							continue;
+						writeCsvLine(writer, String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
+						final int columnCount = categoryDataset.getColumnCount();
+						final int rowCount = categoryDataset.getRowCount();
+						for (int i = 0; i < rowCount; i++) {
+							final Comparable<?> key1 = categoryDataset.getRowKey(i);
+							for (int j = 0; j < columnCount; j++) {
+								final Comparable<?> key2 = categoryDataset.getColumnKey(j);
+								final Number n = categoryDataset.getValue(i, j);
+								writeCsvLine(writer, key1 + "," + key2 + "," + n);
+							}
+						}
+					}
+				}
+				case RingPlot ringPlot -> {
+					final PieDataset<?> dataset = ringPlot.getDataset();
+					for (int i = 0; i < dataset.getItemCount(); i++) {
+						writeCsvLine(writer, dataset.getKey(i) + "," + dataset.getValue(i));
+					}
+				}
+				case null, default -> throw new IllegalStateException("Export of this type of dataset is not supported.");
 			}
 		} catch (final IOException e) {
 			throw new IllegalStateException("Could not write dataset", e);
 		}
+	}
+
+	private static void writeCsvLine(final BufferedWriter writer, final String line) throws IOException {
+		writer.append(line);
+		writer.newLine();
 	}
 
 	private boolean isFlowPlot() {
