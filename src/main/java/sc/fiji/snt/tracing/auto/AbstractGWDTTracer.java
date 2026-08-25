@@ -1849,14 +1849,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         long voxels = 1L;
         for (long dim : dims) voxels *= dim;
         final long estimatedBytes = voxels * 8L * 6L;
-        final long freeHeap = Runtime.getRuntime().maxMemory() - usedHeap();
+        final long freeHeapBytes = SNTUtils.getHeapInfo().availableMB() * 1024L * 1024L;
         // Bail to lazy if the estimate would consume more than half the free heap.
-        return estimatedBytes > freeHeap / 2;
-    }
-
-    private static long usedHeap() {
-        final Runtime rt = Runtime.getRuntime();
-        return rt.totalMemory() - rt.freeMemory();
+        return estimatedBytes > freeHeapBytes / 2;
     }
 
     /**

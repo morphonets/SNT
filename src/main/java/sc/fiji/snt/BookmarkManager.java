@@ -1990,7 +1990,7 @@ class BookmarkTable extends JTable {
         setDefaultEditor(Color.class, new ColorCellEditor());
         // Set icon header for Tag column
         getColumnModel().getColumn(0).setHeaderRenderer(
-                GuiUtils.JTables.iconHeaderRenderer(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, .9f),
+                GuiUtils.JTables.iconHeaderRenderer(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, IconFactory.secondaryColor(),.9f),
                         "Tag (click to sort by category)"));
     }
 

@@ -37,6 +37,7 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.view.Views;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.ScriptInstaller;
@@ -350,12 +351,11 @@ class ChannelUnmixingCard {
                         sigCropped.max(2) - sigCropped.min(2) + 1};
                 final long nPixels = cropDims[0] * cropDims[1] * cropDims[2];
                 final long estimatedBytes = nPixels * 2L * 3L;
-                final Runtime rt = Runtime.getRuntime();
-                final long freeHeap = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
-                if (estimatedBytes > freeHeap / 2) {
+                final long freeHeapMB = SNTUtils.getHeapInfo().availableMB();
+                if (estimatedBytes > freeHeapMB * 1024L * 1024L / 2) {
                     statusLabel.setText(String.format("Slab too large at mip level %d (%d MB needed, %d MB free). "
                                     + "Reduce slab thickness or zoom in to save memory.",
-                            bestLevel, estimatedBytes / (1024 * 1024), freeHeap / (1024 * 1024)));
+                            bestLevel, estimatedBytes / (1024 * 1024), freeHeapMB));
                     return;
                 }
             }

@@ -5805,10 +5805,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             arborChoiceCombo = new JComboBox<>();
             sortArborsButton = sortButton();
             showAllArborsButton = GuiUtils.Buttons.toolbarToggleButton(showAllAction(), "Show all structures",
-                    IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE);
+                    IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE, IconFactory.secondaryColor());
             showAllArborsButton.setSelected(true);
             hideOthersButton = GuiUtils.Buttons.toolbarToggleButton(hideOthersAction(), "Show only selected structure",
-                    IconFactory.GLYPH.EYE_LOW_VISION, IconFactory.GLYPH.EYE_LOW_VISION);
+                    IconFactory.GLYPH.EYE_LOW_VISION, IconFactory.GLYPH.EYE_LOW_VISION, IconFactory.secondaryColor());
 
             // assemble combo box
             arborChoiceCombo.setToolTipText("Jump to a structure (arbor / rooted tree)");
@@ -5871,7 +5871,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private JButton sortButton() {
             final JButton b = new JButton(); //
-            IconFactory.assignIcon(b, IconFactory.GLYPH.SORT, IconFactory.GLYPH.SORT, 1f);
+            IconFactory.assignIcon(b, IconFactory.GLYPH.SORT, IconFactory.GLYPH.SORT, IconFactory.secondaryColor(),1f);
             b.setToolTipText("Sort Structures...");
             b.setActionCommand("Sort Structures...");
             b.addActionListener( e -> {
@@ -6028,7 +6028,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             zMenu.setText("Visiting Zoom Level");
             zMenu.setToolTipText("The magnification to be used when zooming into a node");
             menu.add(zMenu);
-            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MAGNIFIED_LOCATION, 1f, menu);
+            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MAGNIFIED_LOCATION,
+                    IconFactory.secondaryColor(), 1f, menu, true);
             button.setActionCommand("Zoom To Nodes");
             //Too much noise in command Finder: exclude menu
             button.putClientProperty("cmdFinder-ignore", "Zoom To Nodes");
@@ -6093,7 +6094,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private JButton zoomToPathsButton() {
-            final JButton button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, 1f));
+            final JButton button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, IconFactory.secondaryColor(), 1f));
             button.setActionCommand("Zoom To Selected Paths");
             button.addActionListener( e -> {
                 final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
@@ -6175,7 +6176,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             menu.add(mi);
                         }
                     });
-            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.BOOKMARK, .9f, menu);
+            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.BOOKMARK, IconFactory.secondaryColor(),
+                    .9f, menu, true);
             button.putClientProperty("cmdFinder", "Bookmarks");
             button.setToolTipText("Bookmark key locations along selected path(s).\n"
                     + "For QC locations (invalid radius, putative crossovers, etc.), use the Curation Assistant.");

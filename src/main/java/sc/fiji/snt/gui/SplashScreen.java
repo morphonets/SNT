@@ -79,7 +79,7 @@ class SplashScreen extends JWindow {
 		animatedLabel.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 
 		final AtomicInteger iconIndex = new AtomicInteger(0);
-		final Timer loopTimer = new Timer(3000, e -> {
+		final Timer loopTimer = new Timer(2500, e -> {
 			// Atomically advance the index and wrap around (0 -> 1 -> 2 -> 0...)
 			final int nextIndex = iconIndex.updateAndGet(i -> (i + 1) % iconRotator.length);
 			animatedLabel.transitionToIcon(iconRotator[nextIndex]);
@@ -149,7 +149,7 @@ class SplashScreen extends JWindow {
 			nextIcon = newIcon;
 			alpha = 0.0f;
 
-			animator = new Animator(4000, new Animator.TimingTarget() {
+			animator = new Animator(2500, new Animator.TimingTarget() {
 				@Override
 				public void timingEvent(float fraction) {
 					alpha = fraction; // Automatically sweeps from 0.0f to 1.0f

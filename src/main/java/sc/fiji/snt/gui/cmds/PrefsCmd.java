@@ -41,6 +41,7 @@ import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Collections;
@@ -95,6 +96,11 @@ public class PrefsCmd extends OptionsPlugin {
 	@Parameter(label="Use compressed .TRACES files",
 			description="Whether Gzip compression should be use when saving .traces files")
 	private boolean compressTraces;
+
+	@Parameter(label="Clear Cache...", callback="clearCache",
+			description="<HTML>Deletes SNT's disk-backed cache (secondary/filtered images, auto-tracing scratch files, " +
+					"stream data).<br>Safe to clear, but avoid doing so while a tracing session relying on cached/lazy-loaded data is active")
+	private Button clearCacheButton;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "II. Display &amp; Annotations")
 	private String HEADER2;
@@ -256,6 +262,30 @@ public class PrefsCmd extends OptionsPlugin {
 			init(); // update prompt;
 			new GuiUtils().centeredMsg("Preferences reset. You should now restart"
 					+ " SNT for changes to take effect.", "Restart Required");
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void clearCache() {
+		final File cacheDir = SNTUtils.getCacheDir();
+		final boolean confirm = new GuiUtils().getConfirmation(
+				// do not call SNTUtils.getCacheDirSize() here as it may take a while to compute the cache size
+				"Clear SNT's cache?<br>"
+						+ "This removes disk-backed data (e.g., secondary/filtered images, auto-tracing "
+						+ "scratch files, streamed data). If a tracing session is currently relying on cached "
+						+ "data, clearing it now may cause errors until you restart.",
+				"Clear Cache?");
+		if (!confirm) return;
+		try {
+			// It is OK to call SNTUtils.getCacheDirSize() now
+			final long size = SNTUtils.getCacheDirSize();
+			final String sizeString = SNTUtils.formatBytes(size);
+			org.apache.commons.io.FileUtils.deleteDirectory(cacheDir);
+			new GuiUtils().centeredMsg(
+					(size == 0L) ? "Cache cleared but it was already empty." : "Cache cleared (" + sizeString + " removed)."
+					, "Cache Cleared");
+		} catch (final Throwable e) {
+			new GuiUtils().error("Could not fully clear cache:<br>" + e.getMessage());
 		}
 	}
 

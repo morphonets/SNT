@@ -181,11 +181,9 @@ public class TreeToRaster {
 	private static long logPhase(final String phase, final long startNs) {
 		final long now = System.nanoTime();
 		if (SNTUtils.isDebugMode()) {
-			final Runtime rt = Runtime.getRuntime();
-			final long usedMB = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
-			final long maxMB = rt.maxMemory() / (1024 * 1024);
+			final SNTUtils.HeapInfo heap = SNTUtils.getHeapInfo();
 			SNTUtils.log(String.format("TreeToRaster:   %-20s %8.1f ms   [heap %d/%d MB]",
-					phase, (now - startNs) / 1e6, usedMB, maxMB));
+					phase, (now - startNs) / 1e6, heap.usedMB(), heap.maxMB()));
 		}
 		return now;
 	}

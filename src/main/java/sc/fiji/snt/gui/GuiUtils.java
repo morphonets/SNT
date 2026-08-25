@@ -48,6 +48,8 @@ import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.gui.cmds.PrefsCmd;
+import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -1922,59 +1924,172 @@ public class GuiUtils {
 	}
 
 	public static JDialog showAboutDialog() {
-		final JPanel main = new JPanel();
-		main.add(SplashScreen.getIconAsAnimatedLabel());
-		final JPanel side = new JPanel();
-		main.add(side);
-		side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
+		final JPanel main = new JPanel(new GridBagLayout());
+		final GridBagConstraints logoGbc = new GridBagConstraints();
+		logoGbc.gridx = 0;
+		logoGbc.gridy = 0;
+		logoGbc.anchor = GridBagConstraints.CENTER;
+		logoGbc.insets = new Insets(0, 0, 0, 10);
+		main.add(SplashScreen.getIconAsAnimatedLabel(), logoGbc);
+
+		final JPanel side = new JPanel(new GridBagLayout());
+		final GridBagConstraints gbc = defaultGbc();
 		final JLabel title = new JLabel(SNTUtils.getReadableVersion());
 		SplashScreen.assignStyle(title, 2);
-		side.add(title);
+		side.add(title, gbc);
+		gbc.gridy++;
 		final JLabel subTitle = new JLabel("The Framework for Quantitative Neuroanatomy");
 		SplashScreen.assignStyle(subTitle, 1);
-		side.add(subTitle);
-		side.add(new JLabel(" ")); // spacer
-		final String details = getImageJVersion() + "  |  Java " + System.getProperty("java.version");
-		final JLabel ijDetails = leftAlignedLabel(details, "", true);
-		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-		ijDetails.setToolTipText("Displays detailed System Information");
-		side.add(ijDetails);
-		side.add(new JLabel(" ")); // spacer
-		final JPanel urls = new JPanel();
-		side.add(urls);
-		JLabel url = leftAlignedLabel("Release Notes   ", MenuItems.releaseNotesURL(), true);
-		urls.add(url);
-		url = leftAlignedLabel("Documentation   ", "https://imagej.net/plugins/snt/", true);
-		urls.add(url);
-		url = leftAlignedLabel("Forum   ", "https://forum.image.sc/tag/snt", true);
-		urls.add(url);
-		url = leftAlignedLabel("Source   ", "https://github.com/morphonets/SNT/", true);
-		urls.add(url);
-		url = leftAlignedLabel("Manuscript", "https://dx.doi.org/10.1038/s41592-021-01105-7", true);
-		urls.add(url);
-		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
-		final JDialog d = optionPane.createDialog("About SNT...");
-		ijDetails.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(final MouseEvent me) {
-				Timer timer;
-				if (Types.load("org.scijava.plugins.commands.debug.SystemInformation") != null) {
-					ijDetails.setText("<HTML><b>Gathering system information... This may take a while.");
-					SNTUtils.getContext().getService(CommandService.class).run("org.scijava.plugins.commands.debug.SystemInformation", true);
-					timer = new Timer(3000, e -> d.dispose());
-				} else {
-					ijDetails.setText("<HTML>System Information command not found!?");
-					timer = new Timer(3000, e -> ijDetails.setText(details));
-				}
-				timer.setRepeats(false);
-				timer.start();
+		side.add(subTitle, gbc);
+		gbc.gridy++;
+		side.add(new JLabel(" "), gbc); // spacer
+		gbc.gridy++;
+
+		// All info rows below are borderless JButtons (not JLabels styled to look
+		// clickable) so they share the same margin/insets and stay left-aligned
+		final String details = getImageJVersion() + " · Java " + System.getProperty("java.version");
+		final JButton ijDetails = infoButton(details, IconFactory.menuIcon('\ue4e5', true, IconFactory.secondaryColor()));
+		ijDetails.setToolTipText("Click to display detailed system information");
+		side.add(ijDetails, gbc);
+		gbc.gridy++;
+
+		final int threads = SNTPrefs.getThreads();
+		final int cores = Runtime.getRuntime().availableProcessors();
+		final JButton coresDetails = infoButton(threads + "/" + cores + " cores", GLYPH.MICROCHIP);
+		coresDetails.setToolTipText("Threads used by SNT / cores available to the JVM.\nClick to change");
+		coresDetails.addActionListener(e -> SNTUtils.getContext().getService(CommandService.class).run(PrefsCmd.class, true));
+		side.add(coresDetails, gbc);
+		gbc.gridy++;
+
+		final SNTUtils.HeapInfo heapInfo = SNTUtils.getHeapInfo();
+		final JButton heapDetails = infoButton(heapInfo.usedMB() + "/" + heapInfo.maxMB() + " MB memory", GLYPH.GAUGE);
+		heapDetails.setToolTipText("Used/max heap memory.\nClick to open ImageJ's memory monitor");
+		heapDetails.addActionListener(e -> {
+			try {
+				ij.IJ.doCommand("Monitor Memory...");
+			} catch (final Throwable ignored) {
+				reportTempMsgOnButtonLabel(heapDetails, "Could not run \"Monitor Memory\"...", true);}
+		});
+		side.add(heapDetails, gbc);
+		gbc.gridy++;
+
+		final JButton cacheDetails = infoButton("Cache: calculating...", GLYPH.DATABASE);
+		cacheDetails.setToolTipText("Click to open\n" + SNTUtils.getCacheDir().getAbsolutePath());
+		cacheDetails.addActionListener(e -> {
+			try {
+				FileChooser.reveal(SNTUtils.getCacheDir());
+			} catch (final Throwable ex) {
+				reportTempMsgOnButtonLabel(cacheDetails, "Could not reveal cache directory...", true);
 			}
+		});
+		side.add(cacheDetails, gbc);
+		gbc.gridy++;
+
+		final JButton gpuDetails = infoButton("Max OpenGL: querying...", GLYPH.CUBE);
+		gpuDetails.setEnabled(false); // enabled once GLUtils.getInfo() resolves, below
+		side.add(gpuDetails, gbc);
+		gbc.gridy++;
+
+		final GridBagConstraints sideGbc = new GridBagConstraints();
+		sideGbc.gridx = 1;
+		sideGbc.gridy = 0;
+		sideGbc.fill = GridBagConstraints.BOTH;
+		sideGbc.weightx = 1.0;
+		main.add(side, sideGbc);
+
+		final JPanel urls = new JPanel();
+		urls.add(urlButton("Release Notes", MenuItems.releaseNotesURL(), GLYPH.NEWSPAPER));
+		urls.add(urlButton("Documentation", "https://imagej.net/plugins/snt/", GLYPH.BOOK_READER));
+		urls.add(urlButton("Forum", "https://forum.image.sc/tag/snt", GLYPH.COMMENTS));
+		urls.add(urlButton("Source", "https://github.com/morphonets/SNT/", GLYPH.CODE2));
+		urls.add(urlButton("Manuscripts", "https://imagej.net/plugins/snt/faq#how-do-i-cite-snt", GLYPH.FILE));
+		final GridBagConstraints urlsGbc = new GridBagConstraints();
+		urlsGbc.gridx = 0;
+		urlsGbc.gridy = 1;
+		urlsGbc.gridwidth = 2;
+		urlsGbc.insets = new Insets(5, 0, 0, 0);
+		main.add(urls, urlsGbc);
+
+		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
+		final JDialog d = optionPane.createDialog("About SNT");
+		new Thread(() -> {
+			final String cacheSize = SNTUtils.formatBytes(SNTUtils.getCacheDirSize());
+			final GLUtils.Info gpu = GLUtils.getInfo();
+			SwingUtilities.invokeLater(() -> {
+				cacheDetails.setText("Cache: " + cacheSize);
+				if (gpu.available()) {
+					final String gpuText = gpu.renderer() + " (OpenGL " + gpu.version() + " max)";
+					gpuDetails.setText(gpuText);
+					// This is the _best_ context this machine can provide, _not_ necessarily what
+					// Viewer3D/BVV are actually running!
+					gpuDetails.setToolTipText("<HTML>Best OpenGL context available on this machine.<br>" +
+							"Reconstruction Viewer and BigVolumeViewer negotiate their own context<br>" +
+							"and may use a different (often lower) version. Click to copy to clipboard");
+					gpuDetails.setEnabled(true);
+					gpuDetails.addActionListener(e -> {
+						final StringSelection info = new StringSelection(gpu.vendor() + " / " + gpuText);
+						Toolkit.getDefaultToolkit().getSystemClipboard().setContents(info, null);
+						reportTempMsgOnButtonLabel(gpuDetails, "Copied to clipboard!", false);
+					});
+				} else {
+					gpuDetails.setText("Max OpenGL: unavailable");
+				}
+				// Content changed after the dialog was packed/shown: JOptionPane's dialog is
+				// not resizable by the user, but repacking programmatically still works, and
+				// is required here or rows can be squeezed out by the (now stale) fixed size.
+				// NB: pack() alone preserves the dialog's current location; do not also call
+				// setLocationRelativeTo(), or a user-repositioned dialog would snap back to center.
+				d.pack();
+			});
+		}, "SNT-AboutDialog-Info").start();
+		ijDetails.addActionListener(e -> {
+			if (Types.load("org.scijava.plugins.commands.debug.SystemInformation") != null) {
+				reportTempMsgOnButtonLabel(ijDetails, "Gathering system information... This may take a while.", false);
+				SNTUtils.getContext().getService(CommandService.class).run("org.scijava.plugins.commands.debug.SystemInformation", true);
+			} else {
+				reportTempMsgOnButtonLabel(ijDetails, "System Information command not found!?", true);
+			}
+			d.pack(); // NB: no setLocationRelativeTo() here, see comment above
 		});
 		d.setLocationRelativeTo(null);
 		d.setVisible(true);
 		d.toFront();
 		d.setAlwaysOnTop(!d.hasFocus()); // see makeVisible()
 		return d;
+	}
+
+	private static void reportTempMsgOnButtonLabel(final AbstractButton button, final String msg, final boolean error) {
+		final Color color = button.getForeground();
+		final String text = button.getText();
+		button.setForeground((error) ? errorColor() :linkColor());
+		button.setText(msg);
+		new Timer(1500, e2 -> {
+			button.setForeground(color);
+			button.setText(text);
+		}).start();
+	}
+
+	/** Borderless, zero-margin, left-aligned icon+text button used for the About dialog's info rows */
+	private static JButton infoButton(final String text, final Icon icon) {
+		final JButton button = new JButton(text, icon);
+		Buttons.makeBorderless(button);
+		button.setHorizontalAlignment(SwingConstants.LEFT);
+		button.setMargin(new Insets(0, 0, 0, 0));
+		return button;
+	}
+
+	private static JButton infoButton(final String text, final GLYPH glyph) {
+		return infoButton(text, IconFactory.menuIcon(glyph, IconFactory.secondaryColor()));
+	}
+
+	/** Borderless icon+text button that opens {@code url} when clicked */
+	private static JButton urlButton(final String label, final String url, final GLYPH glyph) {
+		final Color c = SNTColor.average(List.of(IconFactory.defaultColor(), IconFactory.selectedColor()));
+		final JButton button = new JButton(label, IconFactory.menuIcon(glyph, c));
+		button.setForeground(c);
+		Buttons.makeBorderless(button);
+		button.addActionListener(e -> openURL(url));
+		return button;
 	}
 
 	public void showDirectory(final File file) {
@@ -3843,7 +3958,7 @@ public class GuiUtils {
 			helpMenu.add(mi);
 			helpMenu.addSeparator();
 
-			final JMenuItem about = new JMenuItem("About...");
+			final JMenuItem about = new JMenuItem("About SNT...");
 			about.setIcon(IconFactory.menuIcon(GLYPH.INFO));
 			about.addActionListener(e -> showAboutDialog());
 			helpMenu.add(about);
@@ -4973,8 +5088,13 @@ public class GuiUtils {
 
 		public static JToggleButton toolbarToggleButton(final Action action, final String tooltipText,
 														final IconFactory.GLYPH glyph1, final IconFactory.GLYPH glyph2) {
+			return toolbarToggleButton(action, tooltipText, glyph1, glyph2, IconFactory.defaultColor());
+		}
+
+		public static JToggleButton toolbarToggleButton(final Action action, final String tooltipText,
+														final IconFactory.GLYPH glyph1, final IconFactory.GLYPH glyph2, final Color color) {
 			final JToggleButton button = new JToggleButton(action);
-			IconFactory.assignIcon(button, glyph1, glyph2);
+			IconFactory.assignIcon(button, glyph1, glyph2, color, 1f);
 			button.setText(null);
 			button.setToolTipText(tooltipText);
 			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);

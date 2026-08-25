@@ -82,24 +82,15 @@ public class GWDTTracerFactory {
      * @return array of [sparseThresholdMB, diskThresholdMB]
      */
     private static long[] getDynamicThresholds() {
-        final Runtime runtime = Runtime.getRuntime();
-
         try {
             // Get JVM memory info
-            final long maxMemoryBytes = runtime.maxMemory();     // -Xmx setting
-            final long totalMemoryBytes = runtime.totalMemory(); // Current heap size
-            final long freeMemoryBytes = runtime.freeMemory();   // Free in current heap
-
-            // Available memory = what we can still allocate
-            final long availableBytes = maxMemoryBytes - (totalMemoryBytes - freeMemoryBytes);
-            final long availableMB = availableBytes / (1024 * 1024);
+            final SNTUtils.HeapInfo heap = SNTUtils.getHeapInfo();
 
             // Conservative: use only 20% of max heap for working memory
-            final long maxMemoryMB = maxMemoryBytes / (1024 * 1024);
-            final long maxWorkingMemoryMB = (long) (maxMemoryMB * MAX_HEAP_FRACTION);
+            final long maxWorkingMemoryMB = (long) (heap.maxMB() * MAX_HEAP_FRACTION);
             SNTUtils.log(String.format("JVM Memory: max=%dMB, available=%dMB, threshold=%.0f%% (~%dMB)",
-                    maxMemoryBytes / (1024 * 1024),
-                    availableMB,
+                    heap.maxMB(),
+                    heap.availableMB(),
                     MAX_HEAP_FRACTION * 100,
                     maxWorkingMemoryMB));
 
@@ -248,20 +239,15 @@ public class GWDTTracerFactory {
      * Useful for debugging memory-related issues.
      */
     public static void printMemoryStatus() {
-        final Runtime runtime = Runtime.getRuntime();
-        final long maxMB = runtime.maxMemory() / (1024 * 1024);
-        final long totalMB = runtime.totalMemory() / (1024 * 1024);
-        final long freeMB = runtime.freeMemory() / (1024 * 1024);
-        final long usedMB = totalMB - freeMB;
-        final long availableMB = maxMB - usedMB;
+        final SNTUtils.HeapInfo heap = SNTUtils.getHeapInfo();
 
         final long[] thresholds = getDynamicThresholds();
 
         System.out.println("=== GWDT Factory Memory Status ===");
-        System.out.println("JVM Max Memory (-Xmx):     " + maxMB + " MB");
-        System.out.println("JVM Current Heap:          " + totalMB + " MB");
-        System.out.println("JVM Used:                  " + usedMB + " MB");
-        System.out.println("JVM Available:             " + availableMB + " MB");
+        System.out.println("JVM Max Memory (-Xmx):     " + heap.maxMB() + " MB");
+        System.out.println("JVM Current Heap:          " + heap.totalMB() + " MB");
+        System.out.println("JVM Used:                  " + heap.usedMB() + " MB");
+        System.out.println("JVM Available:             " + heap.availableMB() + " MB");
         System.out.println();
         System.out.println("Dynamic Thresholds:");
         System.out.println("  Array → Sparse:          " + thresholds[0] + " MB");

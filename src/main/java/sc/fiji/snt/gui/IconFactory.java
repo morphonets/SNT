@@ -416,7 +416,12 @@ public class IconFactory {
     }
 
     public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph, final float scalingFactor) {
-        button.setIcon(buttonIcon(defaultGlyph, defaultColor(), scalingFactor));
+        assignIcon(button, defaultGlyph, selectedGlyph, null, scalingFactor);
+    }
+
+    public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph, final Color color, final float scalingFactor) {
+        final Color c = (color == null) ? defaultColor() : color;
+        button.setIcon(buttonIcon(defaultGlyph, c, scalingFactor));
         button.setDisabledIcon(buttonIcon(defaultGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
         if (button instanceof JToggleButton && selectedGlyph != null) {
             button.setSelectedIcon(buttonIcon(selectedGlyph, selectedColor(), scalingFactor));
@@ -426,7 +431,7 @@ public class IconFactory {
     }
 
     public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph) {
-        assignIcon(button, defaultGlyph, selectedGlyph, 1f);
+        assignIcon(button, defaultGlyph, selectedGlyph, null, 1f);
     }
 
     public static void assignIcon(final JMenuItem item, final GLYPH defaultGlyph) {

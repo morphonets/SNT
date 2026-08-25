@@ -190,7 +190,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         sevCol.setMaxWidth((int) GuiUtils.uiFontSize());
         sevCol.setCellRenderer(new SeverityRenderer());
         sevCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
-                IconFactory.buttonIcon(IconFactory.GLYPH.DANGER, .9f), "Severity (click to sort)"));
+                IconFactory.buttonIcon(IconFactory.GLYPH.DANGER, IconFactory.secondaryColor(), .9f), "Severity (click to sort)"));
         // Message column: fill, with tooltip for truncated text
         final javax.swing.table.TableColumn msgCol = warningsTable.getColumnModel().getColumn(1);
         msgCol.setPreferredWidth(300);
@@ -222,7 +222,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         impactCol.setMaxWidth(impactColWidth * 2);
         impactCol.setCellRenderer(new ImpactRenderer());
         impactCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
-                IconFactory.buttonIcon(IconFactory.GLYPH.SCALE_BALANCED, .9f),
+                IconFactory.buttonIcon(IconFactory.GLYPH.SCALE_BALANCED, IconFactory.secondaryColor(), .9f),
                 "<html>Impact: fraction of the reconstruction affected if this " +
                         "is a true error.<br>Higher = more downstream content at " +
                         "stake. Click to sort."));

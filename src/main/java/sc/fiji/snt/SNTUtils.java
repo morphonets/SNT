@@ -269,6 +269,47 @@ public class SNTUtils {
 		}
 	}
 
+	/**
+	 * Snapshot of JVM heap usage in MB, derived from a single {@link Runtime} read.
+	 *
+	 * @param maxMB       the {@code -Xmx} ceiling
+	 * @param totalMB     the current heap size
+	 * @param usedMB      {@code totalMB} minus current free memory
+	 * @param availableMB {@code maxMB - usedMB}, i.e., how much more can still be allocated
+	 */
+	public record HeapInfo(long maxMB, long totalMB, long usedMB, long availableMB) {}
+
+	/** @return a snapshot of current JVM heap usage */
+	public static HeapInfo getHeapInfo() {
+		final Runtime rt = Runtime.getRuntime();
+		final long maxMB = rt.maxMemory() / (1024 * 1024);
+		final long totalMB = rt.totalMemory() / (1024 * 1024);
+		final long usedMB = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+		return new HeapInfo(maxMB, totalMB, usedMB, maxMB - usedMB);
+	}
+
+	/**
+	 * @param bytes a byte count
+	 * @return a human-readable representation (e.g., "12.3 MB")
+	 */
+	public static String formatBytes(final long bytes) {
+		return org.apache.commons.io.FileUtils.byteCountToDisplaySize(bytes);
+	}
+
+	/**
+	 * Computes the on-disk size of {@link #getCacheDir()}. This walks the whole cache tree, so it can be slow once
+	 * many files have accumulated; avoid calling this on the EDT
+	 *
+	 * @return the cache directory's size in bytes, or 0 if it could not be read
+	 */
+	public static long getCacheDirSize() {
+		try {
+			return org.apache.commons.io.FileUtils.sizeOfDirectory(getCacheDir());
+		} catch (final Exception e) {
+			return 0L;
+		}
+	}
+
 	public static File getUniquelySuffixedTifFile(final File referenceFile) {
 		if (referenceFile != null && !referenceFile.isDirectory() && !referenceFile.getName().endsWith(".tif")) {
 			return getUniquelySuffixedFile(new File(referenceFile.getAbsolutePath() + ".tif"));

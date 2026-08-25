@@ -22,10 +22,6 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import com.jogamp.opengl.GLCapabilities;
-import com.jogamp.opengl.GLDrawableFactory;
-import com.jogamp.opengl.GLOffscreenAutoDrawable;
-import com.jogamp.opengl.GLProfile;
 import net.imagej.ImgPlus;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import org.janelia.saalfeldlab.n5.bdv.N5ViewerTreeCellRenderer;
@@ -48,6 +44,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
@@ -84,7 +81,6 @@ public class BigDataLoaderCmd extends ContextCommand {
             IMS, BDV .xml). Large datasets are opened virtually without loading
             the entire file into memory.""";
 
-    private static final int GL_MAX_3D_TEXTURE_SIZE = 0x8073; // OpenGL constant
     private static final int REACHABILITY_TIMEOUT_MS = 4000;
     private static final String ABORT = "Abort";
     private static final String DOWNSAMPLE = "Downsample to fit";
@@ -349,7 +345,7 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /** Resolves sources, enforces GPU texture limits, then opens BVV. */
     private AbstractBigViewer runBvv(final String[] filePaths) {
-        final int maxTexSize = queryMaxTexture3DSize();
+        final int maxTexSize = GLUtils.getInfo().maxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
         if (resolved == null) return null; // user chose Abort (oversized image or non-pyramidal dataset)
@@ -372,7 +368,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * of a loaded image), but A* has nothing real to search until an image is loaded via the SNTUI.
      */
     private AbstractBigViewer runBvvWithTracing(final String[] filePaths) {
-        final int maxTexSize = queryMaxTexture3DSize();
+        final int maxTexSize = GLUtils.getInfo().maxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         // Resolve the primary volume (img1File, i.e. filePaths[0]) exactly once: startTracingSNT() needs
         // it for calibration/A* wiring, and the viewer needs the very same source. Doing this before
@@ -917,33 +913,6 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
     }
 
-    /**
-     * Queries the GPU's {@code GL_MAX_3D_TEXTURE_SIZE} using an offscreen
-     * JOGL drawable. Returns a conservative default of 2048 if the query fails.
-     */
-    private static int queryMaxTexture3DSize() {
-        try {
-            final GLProfile prof = GLProfile.getDefault();
-            final GLCapabilities caps = new GLCapabilities(prof);
-            final GLDrawableFactory factory = GLDrawableFactory.getFactory(prof);
-            final GLOffscreenAutoDrawable drawable =
-                    factory.createOffscreenAutoDrawable(null, caps, null, 1, 1);
-            drawable.display();
-            drawable.getContext().makeCurrent();
-            try {
-                final int[] val = new int[1];
-                drawable.getContext().getGL().glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, val, 0);
-                SNTUtils.log("BVV: queried GL_MAX_3D_TEXTURE_SIZE = " + val[0]);
-                return val[0] > 0 ? val[0] : 2048;
-            } finally {
-                drawable.getContext().release();
-                drawable.destroy();
-            }
-        } catch (final Exception e) {
-            SNTUtils.log("BVV: GL query failed (" + e.getMessage() + "), using default 2048");
-            return 2048; // conservative fallback (default on macOS!?)
-        }
-    }
 
     private void error(final String msg) {
         GuiUtils.errorPrompt(msg, true);

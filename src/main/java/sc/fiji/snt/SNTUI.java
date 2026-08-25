@@ -4200,9 +4200,8 @@ public class SNTUI extends JDialog {
         final Icon icon = IconFactory.menuIcon(GLYPH.OPEN_FOLDER);
         menu.setIcon(icon);
         final String[] labels = {"Current Workspace", "Change Workspace...", "-", //
-                "Backup(s)", "Sessions", "-", //
+                "Backup(s)", "Sessions", "Cache", "-", //
                 "Current TRACES File", "Image Being Traced", "Last Accessed Folder", "Secondary Layer Image", "-", //
-                "Cache", "-", //
                 "Fiji Scripts"};
         Arrays.stream(labels).forEach(label -> {
             if ("-".equals(label)) {
@@ -4212,11 +4211,27 @@ public class SNTUI extends JDialog {
                 jmi.putClientProperty("cmdFinder-icon", icon);
                 menu.add(jmi);
                 if ("Change Workspace...".equals(label)) {
-                    jmi.setIcon(IconFactory.menuIcon('\ue066', true, GuiUtils.getDisabledComponentColor()));
+                    jmi.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.selectedColor()));
                     jmi.addActionListener(e -> promptUserForWorkspaceChange());
                 } else {
                     if ("Current Workspace".equals(label))
-                        jmi.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.defaultColor()));
+                        jmi.setIcon(IconFactory.menuIcon('\ue066', true));
+                    else if ("Backup(s)".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon('\ue2c5', true));
+                    else if ("Sessions".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon('\uf802', true));
+                    else if ("Secondary Layer Image".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.LAYERS));
+                    else if ("Image Being Traced".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.IMAGE));
+                    else if ("Last Accessed Folder".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+                    else if ("Cache".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.DATABASE));
+                    else if ("Current TRACES File".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.FILE));
+                    else if ("Fiji Scripts".equals(label))
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.SCROLL));
                     jmi.addActionListener(e -> {
                         File f = null;
                         boolean proceed = true;
@@ -4742,7 +4757,7 @@ public class SNTUI extends JDialog {
         toolbar.addSeparator();
 
         // Quick Toggles dropdown
-        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT,  IconFactory.selectedColor(), 1f, quickTogglesMenu(), true);
+        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, IconFactory.selectedColor(), 1f, quickTogglesMenu(), true);
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4934,7 +4949,7 @@ public class SNTUI extends JDialog {
 
     private void updateWorkspaceIndicator() {
         if (plugin.getPrefs().workspaceIsValid()) {
-            workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.defaultColor()));
+            workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.secondaryColor()));
             workspaceIndicator.setToolTipText("Current workspace:\n" + plugin.getPrefs().getWorkspaceDir().getAbsolutePath() + "\nClick to change");
         } else {
             workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, GuiUtils.getDisabledComponentColor()));
