@@ -66,6 +66,7 @@ public class IconFactory {
         BROOM('\uf51a', true), //
         BUG('\uf188', true), //
         BULB('\uf0eb', true), //
+        BULB_2('\uf0eb', false), //
         BULLSEYE('\uf140', true), //
         CALCULATOR('\uf1ec', true), //
         CAMERA('\uf030', true), //

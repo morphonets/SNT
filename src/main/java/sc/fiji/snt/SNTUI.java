@@ -4713,7 +4713,7 @@ public class SNTUI extends JDialog {
         final JToolBar toolbar = new JToolBar();
 
         // Hints button (left-aligned)
-        final JButton hintsIndicator = new JButton(IconFactory.menuIcon('\uf0eb', false, IconFactory.defaultColor()));
+        final JButton hintsIndicator = new JButton(IconFactory.menuIcon(GLYPH.BULB_2, IconFactory.defaultColor()));
         final int[] hintIndex = {0};
         final GuiUtils hintsGUtils = new GuiUtils(hintsIndicator);
         final List<String> hints = hintsGUtils.loadHints();

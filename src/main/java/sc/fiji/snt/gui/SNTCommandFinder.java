@@ -23,6 +23,8 @@
 package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.util.Animator;
+import com.formdev.flatlaf.util.CubicBezierEasing;
 import org.apache.commons.text.WordUtils;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.scijava.util.PlatformUtils;
@@ -41,6 +43,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Implements SNT's Command Palette. An older version of this code is used by Fiji's Script
@@ -53,7 +56,8 @@ public class SNTCommandFinder {
     // Customization/theme
     private static final Color BACKGROUND = getBackgroundColor();
     private Color searchFieldBackground;
-    private static final LevenshteinDistance UNIT_LEVENSHTEIN = LevenshteinDistance.getDefaultInstance();
+    private static final Pattern QUERY_TOKEN_SPLIT = Pattern.compile("\\s+");
+    private static final Pattern ID_TOKEN_SPLIT = Pattern.compile("\\W+");
     // Settings. Ought to become adjustable some day
     private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
             java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | KeyEvent.SHIFT_DOWN_MASK);
@@ -73,7 +77,6 @@ public class SNTCommandFinder {
 
     private Palette frame;
     private ScriptRecorder recorder;
-    private JToggleButton recButton;
     private SearchField searchField;
     private CmdTable table;
     private boolean scriptCall;
@@ -248,7 +251,7 @@ public class SNTCommandFinder {
         searchField.caseButton().addItemListener(e -> {
             caseSensitive = searchField.caseButton().isSelected();
             normGeneration++; // invalidate cached haystacks
-            searchField.setText(searchField.getText());
+            populateList(currentQuery()); // re-filter once directly; avoid setText()'s remove+insert double-fire
         });
         // use regex button for whitespace options
         searchField.regexButton().setText("· ␣");
@@ -257,8 +260,18 @@ public class SNTCommandFinder {
         searchField.regexButton().addItemListener(e -> {
             ignoreWhiteSpace = !searchField.regexButton().isSelected();
             normGeneration++; // invalidate cached haystacks
-            searchField.setText(searchField.getText());
+            populateList(currentQuery()); // re-filter once directly; avoid setText()'s remove+insert double-fire
         });
+    }
+
+    // Case-adjusted but space-preserved: matches() does its own normalization so that fuzzyMatches() always sees the
+    // original tokens. Shared by PromptDocumentListener and the case/whitespace toggle buttons so re-filtering never
+    // goes through setText() (which fires the DocumentListener 2x: once for the removal, once for the reinsertion)
+    private String currentQuery() {
+        final String text = searchField.getText();
+        if (text == null)
+            return "";
+        return (caseSensitive) ? text : text.toLowerCase();
     }
 
     void rebuildIndex() {
@@ -292,7 +305,7 @@ public class SNTCommandFinder {
     private void populateList(final String matchingSubstring) {
         if (cmdScrapper.scrapeFailed())
             cmdScrapper.scrape();
-        final List<CmdAction> list = new ArrayList<>(getSortedMapByQuery(matchingSubstring).values());
+        final List<CmdAction> list = getSortedListByQuery(matchingSubstring);
         final boolean noHits = list.isEmpty();
         if (noHits) list.add(noHitsCmd);
         table.getInternalModel().setData(list);
@@ -302,39 +315,51 @@ public class SNTCommandFinder {
         }
     }
 
-    private Map<String, CmdAction> getSortedMapByQuery(final String matchingSubstring) {
-        final List<Map.Entry<String, CmdAction>> hits = cmdScrapper.getCmdMap().entrySet().stream()
-                .filter(entry -> entry.getValue().matches(matchingSubstring))
-                .toList();
+    /** Pairing of a hit with its rank tier, computed once per hit rather than recomputed per comparison. */
+    private record Scored(CmdAction cmd, int score) {}
 
-        final Map<String, Integer> scoreByKey = new HashMap<>();
-        for (final Map.Entry<String, CmdAction> e : hits) {
-            scoreByKey.put(e.getKey(), getMatchScore(e.getValue(), matchingSubstring));
+    private List<CmdAction> getSortedListByQuery(final String matchingSubstring) {
+        // Leading '$' narrows the palette to Scripts menu entries only, e.g., "$sholl"
+        final boolean scriptsOnly = matchingSubstring.startsWith("$");
+        final String query = scriptsOnly ? matchingSubstring.substring(1) : matchingSubstring;
+        // Query normalization and tokenizing depend only on the settings/query, not on the command
+        // being tested, so both are computed once per keystroke here rather than once per command below
+        final String normalizedQuery = normalize(query);
+        final String[] queryTokens = (query.length() < 2)
+                ? new String[0] : QUERY_TOKEN_SPLIT.split(query.toLowerCase());
+
+        final List<Scored> hits = new ArrayList<>();
+        for (final CmdAction cmd : cmdScrapper.getCmdMap().values()) {
+            if ((!scriptsOnly || cmd.isScript()) && cmd.matches(normalizedQuery, queryTokens)) {
+                hits.add(new Scored(cmd, getMatchScore(cmd, normalizedQuery)));
+            }
         }
-
-        final Comparator<String> advancedComparator = (s1, s2) -> {
-            final int score1 = scoreByKey.get(s1);
-            final int score2 = scoreByKey.get(s2);
-            if (score1 != score2) return Integer.compare(score1, score2);
-            final int alphaCompare = String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
-            return (alphaCompare != 0) ? alphaCompare : s1.compareTo(s2);
-        };
-
-        final Map<String, CmdAction> sortedMap = new TreeMap<>(advancedComparator);
-        hits.forEach(e -> sortedMap.put(e.getKey(), e.getValue()));
-        return sortedMap;
+        hits.sort((a, b) -> {
+            if (a.score() != b.score()) return Integer.compare(a.score(), b.score());
+            final int alphaCompare = String.CASE_INSENSITIVE_ORDER.compare(a.cmd().id, b.cmd().id);
+            return (alphaCompare != 0) ? alphaCompare : a.cmd().id.compareTo(b.cmd().id);
+        });
+        final List<CmdAction> sorted = new ArrayList<>(hits.size());
+        for (final Scored s : hits) sorted.add(s.cmd());
+        return sorted;
     }
 
-    private int getMatchScore(final CmdAction cmd, final String rawQuery) {
-        cmd.ensureNormalized();
-        final String seed = cmd.normalize(rawQuery);
-        if (seed.isEmpty()) return 1; // no query: nothing to rank, alphabetical fallback takes over
-        if (cmd.normId.startsWith(seed)) return 1; // id starts with query: top tier
-        if (cmd.normId.contains(seed))   return 2; // id contains query somewhere: tier 2
-        if (cmd.normTooltip.contains(seed)
-                || cmd.normKeywords.contains(seed)
-                || cmd.normPath.contains(seed)) return 3; // matched, but only via metadata: tier 3
+    private int getMatchScore(final CmdAction cmd, final String normalizedQuery) {
+        // cmd.matches() (called just before this, for every hit) already triggered ensureNormalized()
+        if (normalizedQuery.isEmpty()) return 1; // no query: nothing to rank, alphabetical fallback takes over
+        if (cmd.normId.startsWith(normalizedQuery)) return 1; // id starts with query: top tier
+        if (cmd.normId.contains(normalizedQuery))   return 2; // id contains query somewhere: tier 2
+        if (cmd.normTooltip.contains(normalizedQuery)
+                || cmd.normKeywords.contains(normalizedQuery)
+                || cmd.normPath.contains(normalizedQuery)) return 3; // matched, but only via metadata: tier 3
         return 4; // fuzzy-only hit: last tier
+    }
+
+    // Normalizes a haystack/query string per the current case/whitespace settings
+    private String normalize(final String s) {
+        if (s == null || s.isEmpty()) return "";
+        final String r = caseSensitive ? s : s.toLowerCase();
+        return ignoreWhiteSpace ? r.replace(" ", "") : r;
     }
 
     private void setWarningModeEnabled(final boolean enable) {
@@ -771,6 +796,7 @@ public class SNTCommandFinder {
         actionMap.put(NAME, getAction());
     }
 
+    @SuppressWarnings("unused")
     public JButton getButton(final float scaleFactor) {
         final JButton button = new JButton(getAction());
         button.setIcon(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH, scaleFactor));
@@ -842,22 +868,6 @@ public class SNTCommandFinder {
         toggleVisibility();
     }
 
-    private void initRecorder() {
-        if (recorder == null) {
-            if (sntui == null)
-                recorder = viewer3D.getRecorder(true);
-            else
-                recorder = sntui.getRecorder(true);
-            recorder.addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(final WindowEvent e) {
-                    if (recButton != null) recButton.setSelected(false);
-                    recorder = null;
-                }
-            });
-        }
-    }
-
     private static Color getBackgroundColor() {
         Color c = UIManager.getColor("Popup.background");
         // Fallback1: standard FlatLaf container background
@@ -881,19 +891,97 @@ public class SNTCommandFinder {
         static JToggleButton initButton(final IconFactory.GLYPH glyph, final boolean initialState) {
             final JToggleButton button = new JToggleButton();
             button.setSelected(initialState);
+            styleButton(button, glyph);
+            return button;
+        }
+
+        static JButton initButton(final IconFactory.GLYPH glyph) {
+            final JButton button = new JButton();
+            styleButton(button, glyph);
+            return button;
+        }
+
+        private static void styleButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
             button.setForeground(SNTColor.contrastHueColor(COLOR, button.getBackground()));
             IconFactory.assignIcon(button, glyph, COLOR, .9f);
             button.setFont(button.getFont().deriveFont(SIZE));
             button.setFocusable(false);
-            return button;
         }
 
-        static JLabel initLabel(final String text) {
-            final JLabel label = new JLabel(text);
+        static void styleLabel(final JLabel label) {
             label.setFont(label.getFont().deriveFont(SIZE));
             label.setForeground(SNTColor.contrastHueColor(COLOR, label.getBackground()));
             label.setFocusable(false);
-            return label;
+        }
+    }
+
+    /**
+     * A {@link JLabel} that fades its visibility in/out via a FlatLaf {@link Animator} instead of toggling
+     * {@link #setVisible(boolean)} abruptly.
+     */
+    private static class FadableHintLabel extends JLabel {
+        private static final long serialVersionUID = 1L;
+        private static final int DURATION_MS = 300;
+        private float alpha = 1f; // current opacity: 0f (fully hidden) .. 1f (fully shown)
+        private float offset; // horizontal paint offset in px: 0f == resting position
+        private Animator animator;
+
+        FadableHintLabel(final String text) {
+            super(text);
+        }
+
+        void animateVisibility(final boolean show) {
+            if (animator != null && animator.isRunning()) {
+                animator.stop();
+            }
+            final float startAlpha = alpha;
+            final float endAlpha = show ? 1f : 0f;
+            // travel distance for the slide: reveals move left-to-right (offset -travel -> 0),
+            // hides continue rightward and exit past the label's right edge (offset 0 -> travel)
+            final float travel = Math.max(getWidth(), getPreferredSize().width);
+            final float startOffset = offset;
+            final float endOffset = show ? 0f : travel;
+            if (show) {
+                setVisible(true); // must already be visible for the transition to be seen
+            }
+            if (startAlpha == endAlpha && startOffset == endOffset) {
+                if (!show) setVisible(false);
+                return;
+            }
+            animator = new Animator(DURATION_MS, new Animator.TimingTarget() {
+                @Override
+                public void timingEvent(final float fraction) {
+                    alpha = startAlpha + (endAlpha - startAlpha) * fraction;
+                    offset = startOffset + (endOffset - startOffset) * fraction;
+                    repaint();
+                }
+
+                @Override
+                public void end() {
+                    alpha = endAlpha;
+                    offset = endOffset;
+                    if (!show) setVisible(false); // hide only once fully faded/slid out
+                    repaint();
+                }
+            });
+            animator.setInterpolator(CubicBezierEasing.EASE_IN_OUT);
+            animator.start();
+        }
+
+        @Override
+        protected void paintComponent(final Graphics g) {
+            if (alpha >= 1f && offset == 0f) {
+                super.paintComponent(g);
+                return;
+            }
+            final Graphics2D g2d = (Graphics2D) g.create();
+            // clip to the label's own bounds so the slide never paints over neighboring
+            // toolbar buttons while the text is moving in/out
+            g2d.clipRect(0, 0, getWidth(), getHeight());
+            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.clamp(alpha, 0f, 1f)));
+            g2d.translate(offset, 0);
+            super.paintComponent(g2d);
+            g2d.dispose();
         }
     }
 
@@ -956,12 +1044,9 @@ public class SNTCommandFinder {
             ToolbarButtons.addSpacer(toolbar);
             // section 2: actions
             toolbar.add(revealButton());
-            //toolbar.add(initRecordButton()); // UX pollution: disable recording command
-            // spacer
-            //ToolbarButtons.addSpacer(toolbar);
             // section 3: startup tip
             toolbar.add(Box.createHorizontalGlue());
-            toolbar.add(proHint(toolbar));
+            addProHint(toolbar);
 
             if (frame.isUndecorated())
                 new ComponentMover(frame, toolbar); // make frame draggable through toolbar
@@ -995,61 +1080,41 @@ public class SNTCommandFinder {
             return button;
         }
 
-        JToggleButton initRecordButton() {
-            recButton = ToolbarButtons.initButton(IconFactory.GLYPH.DOTCIRCLE, false);
-            recButton.setToolTipText("Record executed actions in Script Recorder");
-            recButton.setText("Record");
-            recButton.addItemListener(e -> {
-                if (recButton.isSelected()) {
-                    initRecorder();
-                    recorder.setVisible(true);
-                    frame.setVisible(true);
-                } else if (!autoHide && recorder != null && recorder.isVisible()) {
-                    final boolean currentAlwaysOnTop = alwaysOnTop;
-                    frame.setAlwaysOnTop(false);
-                    if (frame.guiUtils.getConfirmation("Close Recorder?", "Dismiss Recorder")) {
-                        recorder.dispose();
-                        recorder = null;
-                    }
-                    frame.setAlwaysOnTop(currentAlwaysOnTop);
-                }
-            });
-            return recButton;
-        }
-
-        JLabel proHint(final JToolBar parent) {
-            final JLabel label = ToolbarButtons.initLabel("HINT: ↑↓ to navigate, ↵ to run, Esc to close ");
+        final void addProHint(final JToolBar parent) {
+            final FadableHintLabel label = new FadableHintLabel("HINT: ↑↓ to navigate, ↵ to run, $ to filter scripts, Esc to close ");
+            ToolbarButtons.styleLabel(label);
             label.setBackground(parent.getBackground());
+            parent.add(label);
+            final JButton button = ToolbarButtons.initButton(IconFactory.GLYPH.BULB_2);
+            button.setToolTipText("Search hints");
+            parent.add(button);
+            // tracked separately from label.isVisible(), which lags behind clicks while a fade is in progress
+            final boolean[] shown = { true };
+            button.addActionListener(e -> {
+                shown[0] = !shown[0];
+                label.animateVisibility(shown[0]);
+            });
             final Timer timer = new Timer(5000, e -> {
-                label.setVisible(false);
-                ((Timer)e.getSource()).stop();
+                shown[0] = false;
+                label.animateVisibility(false);
+                ((Timer) e.getSource()).stop();
             });
             timer.setRepeats(false);
             timer.start();
-            return label;
         }
     }
 
     private class PromptDocumentListener implements DocumentListener {
         public void insertUpdate(final DocumentEvent e) {
-            populateList(getQueryFromSearchField());
+            populateList(currentQuery());
         }
 
         public void removeUpdate(final DocumentEvent e) {
-            populateList(getQueryFromSearchField());
+            populateList(currentQuery());
         }
 
         public void changedUpdate(final DocumentEvent e) {
-            populateList(getQueryFromSearchField());
-        }
-
-        String getQueryFromSearchField() {
-            final String text = searchField.getText();
-            if (text == null)
-                return "";
-            // Return case-adjusted but space-preserved: matches() does its own
-            // normalization so that fuzzyMatches() always sees the original tokens
-            return (caseSensitive) ? text : text.toLowerCase();
+            populateList(currentQuery());
         }
     }
 
@@ -1308,6 +1373,11 @@ public class SNTCommandFinder {
             return button != null;
         }
 
+        /** True if this entry lives under the top-level "Scripts" menu. */
+        boolean isScript() {
+            return !path.isEmpty() && "Scripts".equals(path.getFirst());
+        }
+
         String pathDescription() {
             if (pathDescription == null) {
                 final List<String> tail = path.subList(Math.max(path.size() - maxPath, 0), path.size());
@@ -1341,15 +1411,15 @@ public class SNTCommandFinder {
             return tooltipCache;
         }
 
-        boolean matches(final String rawQuery) {
-            // rawQuery is case-adjusted but space-preserved (getQueryFromSearchField no longer strips)
-            // Normalize here for haystack containment checks; pass raw to fuzzyMatches so its
-            // token splitter sees word boundaries regardless of the ignoreWhiteSpace setting
+        // normalizedQuery and queryTokens are computed once per keystroke by the caller
+        // (getSortedListByQuery), not per CmdAction: they depend only on the search field
+        // text and the case/whitespace settings, so recomputing them here for every
+        // command in the index would just repeat the same work hundreds of times over
+        boolean matches(final String normalizedQuery, final String[] queryTokens) {
             ensureNormalized();
-            final String query = normalize(rawQuery);
-            return normId.contains(query)
-                    || normTooltip.contains(query) || normKeywords.contains(query)
-                    || normPath.contains(query) || fuzzyMatches(rawQuery);
+            return normId.contains(normalizedQuery)
+                    || normTooltip.contains(normalizedQuery) || normKeywords.contains(normalizedQuery)
+                    || normPath.contains(normalizedQuery) || fuzzyMatches(queryTokens);
         }
 
         // Fuzzy fallback: each query token must fuzzy-match at least one id token.
@@ -1358,17 +1428,19 @@ public class SNTCommandFinder {
         // queries with a typo in a single word. Matching is always case-insensitive.
         // Tokens shorter than 2 chars are skipped to avoid false positives on articles
         // and prepositions ("a", "of", etc.).
-        private boolean fuzzyMatches(final String query) {
-            if (query.length() < 2) return false;
-            final String[] queryTokens = query.toLowerCase().split("\\s+");
-            final String[] idTokens = id.toLowerCase().split("\\W+");
+        private boolean fuzzyMatches(final String[] queryTokens) {
+            if (queryTokens.length == 0) return false;
+            final String[] idTokens = idTokens();
             for (final String qt : queryTokens) {
                 if (qt.length() < 2) continue; // skip very short tokens
                 final int threshold = Math.max(1, qt.length() / 3); // 1 error per 3 chars
+                // Threshold-bounded distance bails out early once it's clear a pair can't be
+                // within threshold, instead of always running the full O(len1*len2) DP table
+                final LevenshteinDistance boundedLevenshtein = new LevenshteinDistance(threshold);
                 boolean matched = false;
                 for (final String it : idTokens) {
                     if (it.length() < qt.length() - threshold) continue; // too short to match
-                    if (it.contains(qt) || UNIT_LEVENSHTEIN.apply(qt, it) <= threshold) {
+                    if (it.contains(qt) || boundedLevenshtein.apply(qt, it) >= 0) {
                         matched = true;
                         break;
                     }
@@ -1376,6 +1448,13 @@ public class SNTCommandFinder {
                 if (!matched) return false; // all query tokens must match
             }
             return true;
+        }
+
+        /** Tokenized id, lazily split once (id is immutable, so this never needs to be recomputed). */
+        private String[] idTokensCache;
+        private String[] idTokens() {
+            if (idTokensCache == null) idTokensCache = ID_TOKEN_SPLIT.split(id.toLowerCase());
+            return idTokensCache;
         }
 
         private void ensureNormalized() {
@@ -1399,13 +1478,6 @@ public class SNTCommandFinder {
                 normKeywords = normalize(keywordsHaystack);
             }
             normGen = normGeneration;
-        }
-
-        // Normalizes a haystack string once per normGeneration change.
-        private String normalize(final String s) {
-            if (s == null || s.isEmpty()) return "";
-            final String r = caseSensitive ? s : s.toLowerCase();
-            return ignoreWhiteSpace ? r.replace(" ", "") : r;
         }
 
         void setKeyString(final KeyStroke key) {
