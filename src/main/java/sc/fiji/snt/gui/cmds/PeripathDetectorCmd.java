@@ -37,6 +37,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.analysis.detection.PeripathDetector;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 
@@ -132,6 +133,11 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         // the currently-streamed data when no resident ImagePlus exists
         final Dataset dataset = snt.accessToValidImageData() ? snt.getDataset() : null;
         if (dataset != null) {
+            // Maxima detection below reads the image via Views.extendZero(), which silently returns 0
+            // for any node/window falling outside the sampled data's bounds. While a materialized crop is
+            // active, that data is just the crop's small region, so paths extending past it would be
+            // biased toward "low intensity" with no indication anything was cut off
+            warnIfMaterializedCropActive();
             if (dataset.getChannels() == 1) {
                 // Only 1 channel available
                 resolveInput("channel");
@@ -203,6 +209,24 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             return;
         }
 
+        // Detection always reads from detectionImg (see PeripathDetector). When a materialized crop is active,
+        // extendZero()s to 0 outside the crop's small world extent. A path that never enters the crop would then
+        // just report "no maxima found". See SkeletonizerCmd's use of getMaterializedCropWorldBounds()
+        // pre-filter to just the paths that intersect the crop
+        Collection<Path> pathsToProcess = paths;
+        if (snt.isMaterializedCrop()) {
+            final BoundingBox cropBounds = snt.getMaterializedCropWorldBounds();
+            if (cropBounds != null) {
+                pathsToProcess = paths.stream()
+                        .filter(p -> p.getNodes().stream().anyMatch(cropBounds::contains))
+                        .collect(Collectors.toList());
+                if (pathsToProcess.isEmpty()) {
+                    error("No selected paths intersect the materialized region.");
+                    return;
+                }
+            }
+        }
+
         // Build config
         final PeripathDetector.Config cfg = new PeripathDetector.Config()
                 .prominence(prominence)
@@ -235,11 +259,11 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         // .traces loading) never get canvasOffset/spacing stamped otherwise, and detectionImg is always
         // the CURRENTLY ACTIVE grid (getLoadedData()/getCtSlice3d()), matching
         // snt.getActiveCanvasPixelOffset() (crop-relative while a materialized crop is active)
-        final List<PointInCanvas> originalOffsets = new ArrayList<>(paths.size());
-        final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(paths.size());
+        final List<PointInCanvas> originalOffsets = new ArrayList<>(pathsToProcess.size());
+        final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(pathsToProcess.size());
         final PointInCanvas liveOffset = snt.getActiveCanvasPixelOffset();
         final ij.measure.Calibration liveCal = snt.getCalibration();
-        for (final Path p : paths) {
+        for (final Path p : pathsToProcess) {
             originalOffsets.add(p.getCanvasOffset());
             originalSpacings.add(p.getCalibration());
             p.setCanvasOffset(liveOffset);
@@ -247,10 +271,10 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         }
         final List<Detection> results;
         try {
-            results = PeripathDetector.detect(paths, detectionImg, cfg);
+            results = PeripathDetector.detect(pathsToProcess, detectionImg, cfg);
         } finally {
             int i = 0;
-            for (final Path p : paths) {
+            for (final Path p : pathsToProcess) {
                 p.setCanvasOffset(originalOffsets.get(i));
                 p.setSpacing(originalSpacings.get(i));
                 i++;
@@ -294,12 +318,12 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
 
         } else {
             // Add to ROI Manager: one grouped PointRoi per path
+            // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
+            // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
             final ImagePlus imp = snt.getImagePlus();
             if (imp == null) {
-                // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
-                // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
-                error("ROI output requires an image canvas to be available (Classic mode, or a "
-                        + "materialized crop in Stream mode). Use 'Bookmarked locations' output instead.");
+                error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+                        (snt.isStreamMode() ? "materialized crop" : "valid image")));
                 return;
             }
             RoiManager rm = RoiManager.getInstance2();

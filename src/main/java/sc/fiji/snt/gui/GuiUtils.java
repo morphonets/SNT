@@ -2072,6 +2072,7 @@ public class GuiUtils {
 	/** Borderless, zero-margin, left-aligned icon+text button used for the About dialog's info rows */
 	private static JButton infoButton(final String text, final Icon icon) {
 		final JButton button = new JButton(text, icon);
+		button.setForeground(IconFactory.secondaryColor());
 		Buttons.makeBorderless(button);
 		button.setHorizontalAlignment(SwingConstants.LEFT);
 		button.setMargin(new Insets(0, 0, 0, 0));

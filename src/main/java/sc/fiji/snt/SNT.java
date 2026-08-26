@@ -301,7 +301,7 @@ public class SNT extends MultiDThreePanes implements
 	/*
 	 * The (1-based) channel/frame the currently materialized crop (see MaterializedCrop) was actually read from,
 	 * stamped by installMaterializedCrop() just before initialize(ImagePlus) resets channel/frame to 1/1. Meaningless
-	 * whenever isMaterializedCrop() is false. Always read these from getMaterializedCropChannelFrame()
+	 * whenever isMaterializedCrop() is false. Always read these from getMaterializedCropChannel()/getMaterializedCropFrame()
 	 */
 	private int materializedCropChannel = 1;
 	private int materializedCropFrame = 1;
@@ -940,17 +940,31 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
-	 * @return the (1-based) {@code {channel, frame}} the currently materialized crop (see
-	 *         {@link #materializeDisplayCanvas(BoundingBox)}) was actually read from, or {@code null} if no crop is
-	 *         active. A materialized crop is single-channel/single-frame (whichever was active in the session when it
-	 *         was built, see {@link MaterializedCrop}), not the full multichannel/multiframe source. Useful for callers
-	 *         that need to validate a {@link Path}'s channel/frame against what the crop actually contains, rather than
-	 *         against the crop {@code ImagePlus}'s own reported C/T of 1/1.
+	 * @return the (1-based) channel the currently materialized crop (see {@link #materializeDisplayCanvas(BoundingBox)})
+	 * was actually read from, or {@code null} if no crop is active, or if the crop is genuinely multichannel - in that
+	 * case every one of its channels is resident, so there is no single "the channel it came from" to report, and
+	 * callers should instead treat it like any other resident multichannel image with no restriction.
+	 * @see #getMaterializedCropFrame()
 	 */
-	public int[] getMaterializedCropChannelFrame() {
+	public Integer getMaterializedCropChannel() {
 		if (!isMaterializedCrop()) return null;
 		if (xy.getNChannels() > 1) return null;
-		return new int[] { materializedCropChannel, materializedCropFrame };
+		return materializedCropChannel;
+	}
+
+	/**
+	 * @return the (1-based) frame the currently materialized crop (see  {@link #materializeDisplayCanvas(BoundingBox)})
+	 * as actually read from, or {@code null} if no crop is active. A materialized crop is always single-frame
+	 * regardless of how many channels it captures (see {@link MaterializedCrop#frame()} - a single int, set by
+	 * {@code installMaterializedCropOnEDT()}), so this stays meaningful even for a multichannel crop, where
+	 * {@link #getMaterializedCropChannel()} returns {@code null}.  Callers that only care about frame should use this
+	 * rather than falling  back to {@link #getFrame()} (reset to 1 by any materialized crop, single- or multichannel,
+	 * regardless of its true source frame) when {@link #getMaterializedCropChannel()} is null.
+	 * @see #getMaterializedCropChannel()
+	 */
+	public Integer getMaterializedCropFrame() {
+		if (!isMaterializedCrop()) return null;
+		return materializedCropFrame;
 	}
 
 	/*
@@ -1314,9 +1328,10 @@ public class SNT extends MultiDThreePanes implements
 	 *                 session's own {@link #channel} at the time {@link #buildMaterializedCrop(BoundingBox, boolean)}
 	 *                 ran. Recorded here because {@link #installMaterializedCrop(MaterializedCrop)} calls
 	 *                 {@link #initialize(ImagePlus)} on {@code imp}, which resets this session's {@link #channel}/
-	 *                 {@link #frame} fields to 1/1 (a materialized crop is always single-channel/single-frame, see
-	 *                 {@link #getMaterializedCropChannelFrame()}), so the crop's true source channel/frame would
-	 *                 otherwise be lost
+	 *                 {@link #frame} fields to 1/1 (a materialized crop is always single-frame, and
+	 *                 single-channel unless built by a script like {@code Materialize_Multichannel_Region.groovy},
+	 *                 see {@link #getMaterializedCropChannel()}/{@link #getMaterializedCropFrame()}), so the
+	 *                 crop's true source channel/frame would otherwise be lost
 	 * @param frame    the (1-based) frame the crop's pixel data was actually read from - see {@code channel}
 	 */
 	public record MaterializedCrop(ImagePlus imp, long[] voxelMin, int channel, int frame) {
@@ -1324,8 +1339,8 @@ public class SNT extends MultiDThreePanes implements
 			// Tag intrinsically here rather than relying on every caller (buildMaterializedCrop(), or a script
 			// building its own multichannel crop, see Materialize_Multichannel_Region.groovy) to remember to
 			// call ImpUtils.setIsMaterializedCrop(imp) itself. isMaterializedCrop(imp) drives real behavior
-			// downstream (e.g. getMaterializedCropChannelFrame(), setFieldsFromImage() skipping
-			// assignSpatialSettings()), so this should never depend on caller discipline. Null-safe/idempotent
+			// downstream (e.g. getMaterializedCropChannel()/getMaterializedCropFrame(), setFieldsFromImage()
+			// skipping assignSpatialSettings()), so this should never depend on caller discipline. Null-safe/idempotent
 			ImpUtils.setIsMaterializedCrop(imp);
 		}
 	}
@@ -1487,8 +1502,8 @@ public class SNT extends MultiDThreePanes implements
 		cancelSearch(false);
 		// Stamp the crop's true source channel/frame before initialize(ImagePlus) below resets this session's
 		// own channel/frame fields to 1/1 (crop.imp() always reports getC()==1/getT()==1, see MaterializedCrop.
-		// Consulted later via getMaterializedCropChannelFrame(), e.g. by PathManagerUI's channel/frame
-		// mismatch validation for Path Profiler/Node Profiler/Fit commands
+		// Consulted later via getMaterializedCropChannel()/getMaterializedCropFrame(), e.g. by PathManagerUI's
+		// channel/frame mismatch validation for Path Profiler/Node Profiler/Fit/detection commands
 		materializedCropChannel = crop.channel();
 		materializedCropFrame = crop.frame();
 		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip

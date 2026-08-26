@@ -237,9 +237,12 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
             ui.showStatus(results.size() + " proximity contacts added to Bookmark Manager.", true);
 
         } else {
+            // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
+            // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
             final ImagePlus imp = (snt != null) ? snt.getImagePlus() : null;
             if (imp == null) {
-                error("ROI output requires an image to be loaded.");
+                error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+                        (snt != null && snt.isStreamMode() ? "materialized crop" : "valid image")));
                 return;
             }
             RoiManager rm = RoiManager.getInstance2();

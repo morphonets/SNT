@@ -36,6 +36,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.AlongPathDetector;
 import sc.fiji.snt.analysis.detection.Detection;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 
@@ -118,6 +119,11 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
         final boolean hasImage = dataset != null;
 
         if (hasImage) {
+            // Intensity sampling below reads the image via Views.extendZero(), which silently returns 0
+            // for any node/window falling outside the sampled data's bounds. While a materialized crop is
+            // active, that data is just the crop's small region, so paths extending past it would be
+            // biased toward "low intensity" with no indication anything was cut off
+            warnIfMaterializedCropActive();
             if (dataset.getChannels() == 1) {
                 resolveInput("channel");
             } else {
@@ -194,6 +200,23 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
             intensityImg = null;
         }
 
+        // When intensity filtering reads from a materialized crop, extendZero() (see AlongPathDetector)
+        // silently returns 0 for any node outside the crop's small world extent, which would then fail
+        // the intensity threshold everywhere on a path that never actually enters the crop
+        Collection<Path> pathsToProcess = paths;
+        if (useIntensity && snt.isMaterializedCrop()) {
+            final BoundingBox cropBounds = snt.getMaterializedCropWorldBounds();
+            if (cropBounds != null) {
+                pathsToProcess = paths.stream()
+                        .filter(p -> p.getNodes().stream().anyMatch(cropBounds::contains))
+                        .collect(Collectors.toList());
+                if (pathsToProcess.isEmpty()) {
+                    error("No selected paths intersect the materialized region.");
+                    return;
+                }
+            }
+        }
+
         // Build config
         final AlongPathDetector.Config cfg = new AlongPathDetector.Config()
                 .swellingFactor(swellingFactor)
@@ -215,28 +238,28 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
             // (addTree()/SWC import/.traces loading) never get canvasOffset/spacing stamped otherwise,
             // and intensityImg is always the CURRENTLY ACTIVE grid (getLoadedData()/getCtSlice3d()),
             // matching snt.getActiveCanvasPixelOffset() (crop-relative while a materialized crop is active)
-            final List<PointInCanvas> originalOffsets = new ArrayList<>(paths.size());
-            final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(paths.size());
+            final List<PointInCanvas> originalOffsets = new ArrayList<>(pathsToProcess.size());
+            final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(pathsToProcess.size());
             final PointInCanvas liveOffset = snt.getActiveCanvasPixelOffset();
             final ij.measure.Calibration liveCal = snt.getCalibration();
-            for (final Path p : paths) {
+            for (final Path p : pathsToProcess) {
                 originalOffsets.add(p.getCanvasOffset());
                 originalSpacings.add(p.getCalibration());
                 p.setCanvasOffset(liveOffset);
                 p.setSpacing(liveCal);
             }
             try {
-                results = AlongPathDetector.detect(paths, intensityImg, cfg);
+                results = AlongPathDetector.detect(pathsToProcess, intensityImg, cfg);
             } finally {
                 int i = 0;
-                for (final Path p : paths) {
+                for (final Path p : pathsToProcess) {
                     p.setCanvasOffset(originalOffsets.get(i));
                     p.setSpacing(originalSpacings.get(i));
                     i++;
                 }
             }
         } else {
-            results = AlongPathDetector.detect(paths, intensityImg, cfg);
+            results = AlongPathDetector.detect(pathsToProcess, intensityImg, cfg);
         }
 
         if (results.isEmpty()) {
@@ -274,9 +297,12 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
             ui.showStatus(results.size() + " swellings added to Bookmark Manager.", true);
 
         } else {
+            // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
+            // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
             final ImagePlus imp = (snt != null) ? snt.getImagePlus() : null;
             if (imp == null) {
-                error("ROI output requires an image to be loaded.");
+                error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+                        (snt != null && snt.isStreamMode() ? "materialized crop" : "valid image")));
                 return;
             }
             RoiManager rm = RoiManager.getInstance2();

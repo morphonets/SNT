@@ -3364,8 +3364,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     return;
                 }
                 if (activeCTForPixelSampling() != null) {
-                    // Streamed data with no crop, or a crop that is itself still single-channel/single-frame
-                    // (see SNT#getMaterializedCropChannelFrame()): getDataset() then falls back to wrapping
+                    // Streamed data with no crop, or a crop that is itself still single-channel
+                    // (see SNT#getMaterializedCropChannel()): getDataset() then falls back to wrapping
                     // just that one active CT slice, unlike a resident ImagePlus's (or a genuinely
                     // multichannel crop's) full multichannel/multi-frame Dataset. Paths off that channel/frame
                     // can't be profiled from it. NB: intentionally NOT gated on plugin.isMaterializedCrop()
@@ -3783,7 +3783,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class TimeProfilerCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                if (noValidImagePlusError()) return;
+                if (noValidImagePlusError(
+                        "This option requires the entire image to be loaded into memory (RAM). Note that a "
+                                + "materialized region is a single time point image that does not allow for "
+                                + "timelapse profiling.",
+                        "This option requires the entire image to be loaded into memory.")) return;
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("tree", new Tree(selectedPaths));
                 inputs.put("imp", plugin.getImagePlus());
@@ -5630,15 +5634,33 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private boolean noValidImagePlusError() {
+        return noValidImagePlusError(null, null);
+    }
+
+    private boolean noValidImagePlusError(final String streamModeMsgOverride) {
+        return noValidImagePlusError(streamModeMsgOverride, null);
+    }
+
+    /**
+     * @param streamModeMsgOverride  custom message to show (in place of the default) when
+     *                               {@link SNTUI#accessToValidImagePlus()} fails while in Stream mode. Pass
+     *                               {@code null} for the default, one-size-fits-most wording.
+     * @param classicModeMsgOverride custom message to show (in place of the default) when
+     *                               {@link SNTUI#accessToValidImagePlus()} fails outside Stream mode. Pass
+     *                               {@code null} for the default wording.
+     */
+    private boolean noValidImagePlusError(final String streamModeMsgOverride, final String classicModeMsgOverride) {
         final boolean invalidImage = !plugin.getUI().accessToValidImagePlus();
         if (invalidImage) {
             guiUtils.error((plugin.isStreamMode())
-                    ? "This option requires the entire image to be loaded into memory (RAM) or a materialized region."
-                    : "This option requires valid image data to be loaded.");
+                    ? (streamModeMsgOverride != null) ? streamModeMsgOverride
+                            : "This option requires the entire image to be loaded into memory (RAM) or a materialized region."
+                    : (classicModeMsgOverride != null) ? classicModeMsgOverride
+                            : "This option requires valid image data to be loaded.");
         }
         return invalidImage;
     }
-    
+
     private boolean mixedCTPathSelectionError(final List<Path> selectedPaths) {
         final int channel = selectedPaths.getFirst().getChannel();
         final int frame = selectedPaths.getFirst().getFrame();
@@ -5660,14 +5682,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
      *         fully resident, multichannel/multiframe {@link ij.ImagePlus} is loaded and no crop is materialized, so
      *         any channel/frame can be sampled directly from it. When a crop has been materialized (see
      *         {@link SNT#isMaterializedCrop()}) this is the crop's own captured channel/frame (see
-     *         {@link SNT#getMaterializedCropChannelFrame()}), NOT {@link SNT#getChannel()}/{@link SNT#getFrame()}
-     *         (reset to 1/1 by {@link SNT#initialize(ij.ImagePlus)} for the crop's own, trivial C/T dimensions).
-     *         Otherwise (streamed data, no crop), it is simply {@link SNT#getChannel()}/{@link SNT#getFrame()}, the
-     *         CT slice actually wrapped by {@link SNT#getDataset()}.
+     *         {@link SNT#getMaterializedCropChannel()}/{@link SNT#getMaterializedCropFrame()}), NOT
+     *         {@link SNT#getChannel()}/{@link SNT#getFrame()} (reset to 1/1 by
+     *         {@link SNT#initialize(ij.ImagePlus)} for the crop's own, trivial C/T dimensions). A genuinely
+     *         multichannel crop makes {@link SNT#getMaterializedCropChannel()} return {@code null} (its channel
+     *         component is ambiguous - see that method), which this method treats the same as no restriction
+     *         at all, below. Otherwise (streamed data, no crop), it is simply
+     *         {@link SNT#getChannel()}/{@link SNT#getFrame()}, the CT slice actually wrapped by
+     *         {@link SNT#getDataset()}.
      */
     private int[] activeCTForPixelSampling() {
-        final int[] cropCT = plugin.getMaterializedCropChannelFrame();
-        if (cropCT != null) return cropCT;
+        final Integer cropChannel = plugin.getMaterializedCropChannel();
+        if (cropChannel != null) return new int[] { cropChannel, plugin.getMaterializedCropFrame() };
         return (plugin.getImagePlus() == null) ? new int[] { plugin.getChannel(), plugin.getFrame() } : null;
     }
 
@@ -5726,7 +5752,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
      * paths match the active frame. {@code null} means "abort, do nothing further"
      */
     private List<Path> resolveActiveFramePathSelection(final List<Path> selectedPaths) {
-        final int activeFrame = plugin.getFrame();
+        // See SNT#getMaterializedCropFrame(): a materialized crop resets plugin.getFrame() to 1 (crop.imp()
+        // always reports T=1), so the crop's true source frame must be read from there instead, or a crop
+        // built from a frame other than 1 would report zero matching paths and block detection on data that
+        // is actually correct for them. Deliberately NOT SNT#getMaterializedCropChannel(): that one returns
+        // null for a genuinely multichannel crop (its channel component becomes ambiguous), which is not a
+        // concern here - frame stays meaningful either way, unlike channel
+        final Integer cropFrame = plugin.getMaterializedCropFrame();
+        final int activeFrame = (cropFrame != null) ? cropFrame : plugin.getFrame();
         final List<Path> matching = new ArrayList<>();
         for (final Path p : selectedPaths) {
             if (p.getFrame() == activeFrame) matching.add(p);
