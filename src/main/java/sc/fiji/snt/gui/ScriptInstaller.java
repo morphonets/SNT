@@ -44,6 +44,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.Future;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -53,6 +54,10 @@ import java.util.stream.Collectors;
  * @author Tiago Ferreira
  */
 public class ScriptInstaller implements MenuKeyListener {
+
+	/** Matches requireVersion("x.y.z") calls (any quoted version string) in boilerplate scripts. */
+	private static final Pattern REQUIRE_VERSION_PATTERN = Pattern
+			.compile("(requireVersion\\(\\s*\")[^\"]*(\"\\s*\\))");
 
 	@Parameter
 	private Context context;
@@ -541,7 +546,16 @@ public class ScriptInstaller implements MenuKeyListener {
 		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/Boilerplate/"
 				+ getBoilerPlateFile(extension));
         assert is != null;
-        return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
+        final String script = new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
+        // Boilerplate files have a hardwired requireVersion() call: inject the running SNT version so templates don't
+		// lag behind the release they were generated from
+        final Matcher matcher = REQUIRE_VERSION_PATTERN.matcher(script);
+        final StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(1) + SNTUtils.VERSION + matcher.group(2)));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
 	}
 
 	public static boolean runScript(final String dir, final String file, final Map<String, Object> inputMap) {

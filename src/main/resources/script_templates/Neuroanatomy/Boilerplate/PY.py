@@ -18,7 +18,8 @@ from sc.fiji.snt import Path, PathAndFillManager, SNT, SNTUI, Tree
 from sc.fiji.snt.analysis import GroupedTreeStatistics, MultiTreeStatistics, NodeStatistics, TreeStatistics,\
             ConvexHullAnalyzer, PersistenceAnalyzer, ShollAnalyzer, StrahlerAnalyzer, NodeColorMapper,\
             TreeColorMapper, PathProfiler, PathStraightener, RoiConverter, SNTChart, SNTTable
-from sc.fiji.snt.tracing.auto import BinaryTracer
+from sc.fiji.snt.tracing.auto import AutoTraceConfig, AutoTracer, BinaryTracer, ComponentReconnector,\
+            DiskBackedGWDTTracer, GWDTTracer, GWDTTracerFactory, SomaUtils, SparseGWDTTracer
 from sc.fiji.snt.analysis.graph import DirectedWeightedGraph
 from sc.fiji.snt.analysis.sholl.parsers import TreeParser
 from sc.fiji.snt.annotation import AllenCompartment, AllenUtils, VFBUtils, ZBAtlasUtils

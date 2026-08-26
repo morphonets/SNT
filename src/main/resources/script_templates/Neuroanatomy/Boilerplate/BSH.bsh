@@ -21,6 +21,7 @@ import sc.fiji.snt.analysis.sholl.*;
 import sc.fiji.snt.annotation.*;
 import sc.fiji.snt.io.*;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.tracing.auto.*;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.*;
 
