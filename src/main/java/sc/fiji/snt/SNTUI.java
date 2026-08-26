@@ -5666,7 +5666,7 @@ public class SNTUI extends JDialog {
     }
 
     public JPopupMenu getTracingCanvasPopupMenu() {
-        return plugin.getTracingCanvas().getComponentPopupMenu();
+        return (plugin.getTracingCanvas() == null) ? null : plugin.getTracingCanvas().getComponentPopupMenu();
     }
 
     public TracerCanvas getTracingCanvas() {
@@ -7113,7 +7113,10 @@ public class SNTUI extends JDialog {
                         succeed = loadSWCFile(file);
                     } else if (type == TRACES) {
                         // reset bounding box & spacings of display canvas(es) (if any)
-                        if (!accessToValidImagePlus()) plugin.closeAndResetAllPanes();
+                        // Stream mode has no classic ImagePlus canvas, so accessToValidImagePlus() is always
+                        // false there; excluding it here avoids wiping the streamed/BDV-backed image data via
+                        // closeAndResetAllPanes() (see accessToValidImageData())
+                        if (!accessToValidImagePlus() && !plugin.isStreamMode()) plugin.closeAndResetAllPanes();
                         succeed = plugin.loadTracesFile(file);
                         getPrefs().setAutosaveFile(file);
                     } else {

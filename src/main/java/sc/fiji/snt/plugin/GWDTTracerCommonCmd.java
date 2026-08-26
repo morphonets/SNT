@@ -614,7 +614,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             tree.assignImage(chosenImp);
             tree.list().forEach(path -> path.setCTposition(snt.getChannel(), snt.getFrame()));
             if (proofread) TreeUtils.assignUniqueColors(tree, "dim");
-            pafm.addTree(tree, "GWDT Autotraced");
+            pafm.addTree(tree, "GWDT");
         }
         if (trees.size() > 1) {
             ui.getPathManager().applyDefaultTags("Arbor ID");

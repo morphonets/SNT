@@ -1525,7 +1525,7 @@ public class SNTCommandFinder {
 
         List<AnnotatedComponent> getComponents() {
             final List<AnnotatedComponent> components = new ArrayList<>();
-            if (sntui != null) {
+            if (sntui != null && sntui.getTracingCanvas() != null) {
                 final JPopupMenu canvasPopup = sntui.getTracingCanvasPopupMenu();
                 // Tag the popup so showStandalonePopup can identify it as the TracerCanvas
                 // context menu even when getInvoker() is null (invoker is only set at
