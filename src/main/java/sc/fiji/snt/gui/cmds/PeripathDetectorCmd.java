@@ -60,6 +60,8 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
 
     private static final String RADIUS_ABSOLUTE = "Absolute (physical units)";
     private static final String RADIUS_MULTIPLIER = "Multiplier of node radii";
+    private static final String OUTPUT_BOOKMARKS = "Bookmarked locations";
+    private static final String OUTPUT_ROIS = "ROIs";
 
     @Parameter(label = "Detection channel", min = "1",
             description = "Image channel for maxima detection (1-based index)")
@@ -105,7 +107,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                     + "Set to 0 for automatic (= outer radius).")
     private double mergingDistance = 0;
 
-    @Parameter(label = "Output", choices = {"ROIs", "Bookmarked locations"})
+    @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS})
     private String outputChoice;
 
     @Parameter(label = "Paths", required = false, persist = false)
@@ -122,6 +124,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         if (paths == null || paths.isEmpty()) {
             paths = snt.getUI().getPathManager().getSelectedPaths(true);
         }
+        if (noPathsError()) return;
         // Prefer fitted paths when unfitted ones lack radii
         paths = paths.stream()
                 .map(p -> (!p.hasRadii() && p.getFitted() != null && p.getFitted().hasRadii())
@@ -153,6 +156,10 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         innerRadiusModeChanged();
         outerRadiusModeChanged();
 
+        final MutableModuleItem<String> outputChoiceItem = getInfo().getMutableInput("outputChoice", String.class);
+        // ROI output needs a classic canvas to attach the PointRoi to
+        if (snt.getImagePlus() == null)
+            outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS));
     }
 
     @SuppressWarnings("unused")
@@ -180,17 +187,33 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         }
     }
 
-    @Override
-    public void run() {
+    private boolean noPathsError() {
         if (paths == null || paths.isEmpty()) {
             error("No paths selected for analysis.");
-            return;
+            return true;
         }
+        return false;
+    }
+
+    @Override
+    public void run() {
+        if (noPathsError()) return;
         // NB: not snt.getImagePlus() == null -- see the same note in init() above. Requiring only
         // accessToValidImageData() lets detection work in Stream mode for the case of the currently active channel,
         // via snt.getLoadedData() below
         if (snt == null || !snt.accessToValidImageData()) {
             error("Maxima detection requires valid image data to be loaded.");
+            return;
+        }
+
+        // Short-circuit ROI output as early as possible, before running (possibly expensive)
+        // detection: matches the fall-through condition of the ROI branch further below (anything
+        // that isn't "Bookmarked locations" picked with a UI present, since headless invocations
+        // have no BookmarkManager to add to either)
+        final boolean roiOutput = !(ui != null && OUTPUT_BOOKMARKS.equals(outputChoice));
+        if (roiOutput && snt.getImagePlus() == null) {
+            error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+                    (snt.isStreamMode() ? "materialized crop" : "valid image")));
             return;
         }
 
@@ -269,73 +292,75 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             p.setCanvasOffset(liveOffset);
             p.setSpacing(liveCal);
         }
-        final List<Detection> results;
         try {
-            results = PeripathDetector.detect(pathsToProcess, detectionImg, cfg);
+            final List<Detection> results = PeripathDetector.detect(pathsToProcess, detectionImg, cfg);
+
+            if (results.isEmpty()) {
+                error("No maxima detected with current parameters.");
+                return;
+            }
+
+            SNTUtils.log("Detected " + results.size() + " maxima");
+
+            // Group results by path, resolving fitted paths back to their
+            // unfitted originals so that labels and counts match PathManagerUI
+            final Map<Path, List<Detection>> resultsByPath = results.stream()
+                    .collect(Collectors.groupingBy(v ->
+                        v.path.isFittedVersionOfAnotherPath()
+                                ? v.path.getUnfitted() : v.path
+                    ));
+
+            // Update spine/varicosity counts on paths
+            resultsByPath.forEach((p, detections) -> p.setSpineOrVaricosityCount(
+                    p.getSpineOrVaricosityCount() + detections.size()));
+
+            if (ui != null)
+                ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
+
+            if (ui != null && OUTPUT_BOOKMARKS.equals(outputChoice)) {
+
+                // Add to bookmark manager, tagged per path
+                // NB: Detection#xyzct()/RoiConverter (ROI branch below) read each Path's CURRENT
+                // canvasOffset/calibration to convert back to pixel space, so this must run while
+                // paths are still stamped with the live offset set above. Restoring it beforehand
+                // (see finally below) would silently shift every marker by the session's world-origin
+                // offset for any bulk-loaded Path (import/.traces/demo), whose own canvasOffset
+                // otherwise defaults to (0,0,0) - see PathAndFillManager#assignSpatialSettings()'s NB.
+                resultsByPath.forEach((path, detections) -> {
+                    final List<double[]> locs = detections.stream()
+                            .map(Detection::xyzct)
+                            .collect(Collectors.toList());
+                    ui.getBookmarkManager().add(path.getName() + " Max. ", locs, path.getColor());
+                });
+                resetUI();
+                ui.selectTab("Bookmarks");
+                ui.showStatus(results.size() + " maxima added to Bookmark Manager.", true);
+
+            } else {
+                // Add to ROI Manager: one grouped PointRoi per path
+                // imp/roiOutput already validated up front, before detection ran - see the guard at
+                // the top of run()
+                final ImagePlus imp = snt.getImagePlus();
+                RoiManager rm = RoiManager.getInstance2();
+                if (rm == null) rm = new RoiManager();
+                for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {
+                    final Path path = entry.getKey();
+                    final String name = path.getName() + " (" + entry.getValue().size() + " maxima)";
+                    rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));
+                }
+                resetUI();
+                rm.runCommand("sort");
+                rm.runCommand("show all");
+            }
         } finally {
+            // Restore each Path's original canvasOffset/spacing only now that all output (bookmarks/
+            // ROIs) has been built from the live-offset-stamped state above
             int i = 0;
             for (final Path p : pathsToProcess) {
                 p.setCanvasOffset(originalOffsets.get(i));
                 p.setSpacing(originalSpacings.get(i));
                 i++;
             }
-        }
-
-        if (results.isEmpty()) {
-            error("No maxima detected with current parameters.");
-            return;
-        }
-
-        SNTUtils.log("Detected " + results.size() + " maxima");
-
-        // Group results by path, resolving fitted paths back to their
-        // unfitted originals so that labels and counts match PathManagerUI
-        final Map<Path, List<Detection>> resultsByPath = results.stream()
-                .collect(Collectors.groupingBy(v ->
-                    v.path.isFittedVersionOfAnotherPath()
-                            ? v.path.getUnfitted() : v.path
-                ));
-
-        // Update spine/varicosity counts on paths
-        resultsByPath.forEach((p, detections) -> p.setSpineOrVaricosityCount(
-                p.getSpineOrVaricosityCount() + detections.size()));
-
-        if (ui != null)
-            ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
-
-        if (ui != null && outputChoice.toLowerCase().contains("bookmark")) {
-
-            // Add to bookmark manager, tagged per path
-            resultsByPath.forEach((path, detections) -> {
-                final List<double[]> locs = detections.stream()
-                        .map(Detection::xyzct)
-                        .collect(Collectors.toList());
-                ui.getBookmarkManager().add(path.getName() + " Max. ", locs, path.getColor());
-            });
-            resetUI();
-            ui.selectTab("Bookmarks");
-            ui.showStatus(results.size() + " maxima added to Bookmark Manager.", true);
-
-        } else {
-            // Add to ROI Manager: one grouped PointRoi per path
-            // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
-            // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
-            final ImagePlus imp = snt.getImagePlus();
-            if (imp == null) {
-                error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
-                        (snt.isStreamMode() ? "materialized crop" : "valid image")));
-                return;
-            }
-            RoiManager rm = RoiManager.getInstance2();
-            if (rm == null) rm = new RoiManager();
-            for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {
-                final Path path = entry.getKey();
-                final String name = path.getName() + " (" + entry.getValue().size() + " maxima)";
-                rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));
-            }
-            resetUI();
-            rm.runCommand("sort");
-            rm.runCommand("show all");
         }
     }
 }

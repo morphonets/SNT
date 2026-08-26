@@ -91,7 +91,10 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
                     + "These locations may have naturally enlarged radii and may produce false positives.")
     private boolean excludeJunctions = true;
 
-    @Parameter(label = "Output", choices = {"ROIs", "Bookmarked locations"})
+    private static final String OUTPUT_BOOKMARKS = "Bookmarked locations";
+    private static final String OUTPUT_ROIS = "ROIs";
+
+    @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS})
     private String outputChoice;
 
     @Parameter(label = "Paths", required = false, persist = false)
@@ -106,6 +109,7 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
         if (paths == null || paths.isEmpty()) {
             paths = snt.getUI().getPathManager().getSelectedPaths(true);
         }
+        if (noPathsError()) return;
 
         // If selected paths have no radii but their fitted flavors do have radii, use those instead
         paths = paths.stream()
@@ -140,12 +144,30 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
             mItem.setMaximumValue(0.0);
             resolveInput("channel");
         }
+
+        final MutableModuleItem<String> outputChoiceItem = getInfo().getMutableInput("outputChoice", String.class);
+        // ROI output needs a classic canvas to attach the PointRoi t
+        if (snt.getImagePlus() == null)
+            outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS));
+    }
+
+    private boolean noPathsError() {
+        if (paths == null || paths.isEmpty()) {
+            error("No paths selected for analysis.");
+            return true;
+        }
+        return false;
     }
 
     @Override
     public void run() {
-        if (paths == null || paths.isEmpty()) {
-            error("No paths selected for analysis.");
+        if (noPathsError()) return;
+
+        // Short-circuit ROI output as early as possible, before running
+        final boolean roiOutput = !(ui != null && OUTPUT_BOOKMARKS.equals(outputChoice));
+        if (roiOutput && (snt == null || snt.getImagePlus() == null)) {
+            error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+                    (snt != null && snt.isStreamMode() ? "materialized crop" : "valid image")));
             return;
         }
 
@@ -230,16 +252,18 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
         SNTUtils.log("AlongPathDetectorCmd: " + cfg);
 
         // Run detection
-        final List<Detection> results;
-        if (intensityImg != null) {
-            // Temporarily stamp each path's canvasOffset/spacing from the live session state, so
-            // AlongPathDetector's on-skeleton intensity sampling reads the correct voxel from
-            // intensityImg. Same save/apply/restore idiom as SNT#makePathVolume(): bulk-added paths
-            // (addTree()/SWC import/.traces loading) never get canvasOffset/spacing stamped otherwise,
-            // and intensityImg is always the CURRENTLY ACTIVE grid (getLoadedData()/getCtSlice3d()),
-            // matching snt.getActiveCanvasPixelOffset() (crop-relative while a materialized crop is active)
-            final List<PointInCanvas> originalOffsets = new ArrayList<>(pathsToProcess.size());
-            final List<ij.measure.Calibration> originalSpacings = new ArrayList<>(pathsToProcess.size());
+        // Temporarily stamp each path's canvasOffset/spacing from the live session state. This is needed
+        // regardless of whether intensity filtering is active: it is not just AlongPathDetector's own
+        // on-skeleton sampling that depends on it, but also Detection#xyzct()/RoiConverter's world->pixel
+        // conversion for bookmark/ROI output further below. Same save/apply/restore idiom as
+        // SNT#makePathVolume(): bulk-added paths (addTree()/SWC import/.traces loading) never get
+        // canvasOffset/spacing stamped otherwise (see PathAndFillManager#assignSpatialSettings()'s NB),
+        // so they default to (0,0,0) - wrong whenever the source has a non-zero world-origin offset
+        // (Stream mode). snt can be null when this command runs headless against Paths that already
+        // carry their own correct canvasOffset; leave those untouched.
+        final List<PointInCanvas> originalOffsets = (snt == null) ? null : new ArrayList<>(pathsToProcess.size());
+        final List<ij.measure.Calibration> originalSpacings = (snt == null) ? null : new ArrayList<>(pathsToProcess.size());
+        if (snt != null) {
             final PointInCanvas liveOffset = snt.getActiveCanvasPixelOffset();
             final ij.measure.Calibration liveCal = snt.getCalibration();
             for (final Path p : pathsToProcess) {
@@ -248,9 +272,67 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
                 p.setCanvasOffset(liveOffset);
                 p.setSpacing(liveCal);
             }
-            try {
-                results = AlongPathDetector.detect(pathsToProcess, intensityImg, cfg);
-            } finally {
+        }
+        try {
+            final List<Detection> results = AlongPathDetector.detect(pathsToProcess, intensityImg, cfg);
+
+            if (results.isEmpty()) {
+                error("No swellings detected with current parameters.");
+                return;
+            }
+
+            SNTUtils.log("Detected " + results.size() + " swellings");
+
+            // Group results by path, resolving fitted paths back to their
+            // unfitted originals so that labels and counts match PathManagerUI
+            final Map<Path, List<Detection>> resultsByPath = results.stream()
+                    .collect(Collectors.groupingBy(v ->
+                        v.path.isFittedVersionOfAnotherPath()
+                                ? v.path.getUnfitted() : v.path
+                    ));
+
+            // Update spine/varicosity counts on the (unfitted) paths
+            resultsByPath.forEach((p, detections) -> p.setSpineOrVaricosityCount(
+                    p.getSpineOrVaricosityCount() + detections.size()));
+
+            if (ui != null)
+                ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
+
+            if (ui != null && OUTPUT_BOOKMARKS.equals(outputChoice)) {
+
+                // NB: Detection#xyzct()/RoiConverter (ROI branch below) read each Path's CURRENT
+                // canvasOffset/calibration to convert back to pixel space, so this must run while paths
+                // are still stamped with the live offset set above - see the identical NB in
+                // PeripathDetectorCmd#run()
+                resultsByPath.forEach((path, detections) -> {
+                    final List<double[]> locs = detections.stream()
+                            .map(Detection::xyzct)
+                            .collect(Collectors.toList());
+                    ui.getBookmarkManager().add(path.getName() + " Swelling ", locs, path.getColor());
+                });
+                resetUI();
+                ui.selectTab("Bookmarks");
+                ui.showStatus(results.size() + " swellings added to Bookmark Manager.", true);
+
+            } else {
+                // imp/roiOutput already validated up front, before detection ran - see the guard at
+                // the top of run()
+                final ImagePlus imp = snt.getImagePlus();
+                RoiManager rm = RoiManager.getInstance2();
+                if (rm == null) rm = new RoiManager();
+                for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {
+                    final Path path = entry.getKey();
+                    final String name = path.getName() + " (" + entry.getValue().size() + " swellings)";
+                    rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));
+                }
+                resetUI();
+                rm.runCommand("sort");
+                rm.runCommand("show all");
+            }
+        } finally {
+            // Restore each Path's original canvasOffset/spacing only now that all output (bookmarks/
+            // ROIs) has been built from the live-offset-stamped state above
+            if (snt != null) {
                 int i = 0;
                 for (final Path p : pathsToProcess) {
                     p.setCanvasOffset(originalOffsets.get(i));
@@ -258,63 +340,6 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
                     i++;
                 }
             }
-        } else {
-            results = AlongPathDetector.detect(pathsToProcess, intensityImg, cfg);
-        }
-
-        if (results.isEmpty()) {
-            error("No swellings detected with current parameters.");
-            return;
-        }
-
-        SNTUtils.log("Detected " + results.size() + " swellings");
-
-        // Group results by path, resolving fitted paths back to their
-        // unfitted originals so that labels and counts match PathManagerUI
-        final Map<Path, List<Detection>> resultsByPath = results.stream()
-                .collect(Collectors.groupingBy(v ->
-                    v.path.isFittedVersionOfAnotherPath()
-                            ? v.path.getUnfitted() : v.path
-                ));
-
-        // Update spine/varicosity counts on the (unfitted) paths
-        resultsByPath.forEach((p, detections) -> p.setSpineOrVaricosityCount(
-                p.getSpineOrVaricosityCount() + detections.size()));
-
-        if (ui != null)
-            ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
-
-        if (ui != null && outputChoice.toLowerCase().contains("bookmark")) {
-
-            resultsByPath.forEach((path, detections) -> {
-                final List<double[]> locs = detections.stream()
-                        .map(Detection::xyzct)
-                        .collect(Collectors.toList());
-                ui.getBookmarkManager().add(path.getName() + " Swelling ", locs, path.getColor());
-            });
-            resetUI();
-            ui.selectTab("Bookmarks");
-            ui.showStatus(results.size() + " swellings added to Bookmark Manager.", true);
-
-        } else {
-            // Stream mode without a materialized crop: no classic canvas for RoiManager/PointRoi to
-            // attach to (unlike detection itself above, this really has no Stream-mode equivalent)
-            final ImagePlus imp = (snt != null) ? snt.getImagePlus() : null;
-            if (imp == null) {
-                error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
-                        (snt != null && snt.isStreamMode() ? "materialized crop" : "valid image")));
-                return;
-            }
-            RoiManager rm = RoiManager.getInstance2();
-            if (rm == null) rm = new RoiManager();
-            for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {
-                final Path path = entry.getKey();
-                final String name = path.getName() + " (" + entry.getValue().size() + " swellings)";
-                rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));
-            }
-            resetUI();
-            rm.runCommand("sort");
-            rm.runCommand("show all");
         }
     }
 }
