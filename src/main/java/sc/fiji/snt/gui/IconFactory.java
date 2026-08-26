@@ -496,6 +496,31 @@ public class IconFactory {
         return new AccentIcon(color, (squarify) ? size : size * 2, size);
     }
 
+    /**
+     * Wraps an icon in a fixed-width icon, centering it within a common reference.
+     * @param icon the icon to be matched to reference
+     * @param refIcon reference icon, setting the target width
+     * @return  the centered fixed-width icon
+     */
+    public static Icon fixedWidthIcon(final Icon icon, final Icon refIcon) {
+        final int refWidth = refIcon.getIconWidth();
+        final int width = Math.max(icon.getIconWidth(), refWidth);
+        return new Icon() {
+            @Override
+            public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+                icon.paintIcon(c, g, x + (width - icon.getIconWidth()) / 2, y);
+            }
+            @Override
+            public int getIconWidth() {
+                return width;
+            }
+            @Override
+            public int getIconHeight() {
+                return icon.getIconHeight();
+            }
+        };
+    }
+
     public static int defaultSize() {
         return FADerivedIcon.defSize();
     }

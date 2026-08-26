@@ -30,6 +30,7 @@ import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
@@ -40,6 +41,8 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -495,6 +498,129 @@ public abstract class AbstractBigViewer {
      * @param name the action key (e.g., "align XY plane")
      */
     protected abstract Action getViewerAction(String name);
+
+    /**
+     * Keystrokes bound to BDV/BVV native commands intentionally kept out of the command palette by
+     * {@link #registerNativeCommands}: per-source selection/visibility digits, continuous pan/zoom/
+     * rotate stepping, timepoint stepping, and bookmark set/recall/rotation. These read as noise in
+     * a command finder
+     */
+    protected static final KeyStroke[] NATIVE_KEYS_EXCLUDED_FROM_PALETTE = buildExcludedNativeKeys();
+
+    private static KeyStroke[] buildExcludedNativeKeys() {
+        final List<KeyStroke> keys = new ArrayList<>();
+        for (int vk = KeyEvent.VK_0; vk <= KeyEvent.VK_9; vk++) {
+            keys.add(KeyStroke.getKeyStroke(vk, 0));
+            keys.add(KeyStroke.getKeyStroke(vk, InputEvent.SHIFT_DOWN_MASK));
+        }
+        for (final int vk : new int[]{KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_UP, KeyEvent.VK_DOWN,
+                KeyEvent.VK_COMMA, KeyEvent.VK_PERIOD, KeyEvent.VK_OPEN_BRACKET, KeyEvent.VK_CLOSE_BRACKET,
+                KeyEvent.VK_N, KeyEvent.VK_M, KeyEvent.VK_B, KeyEvent.VK_O}) {
+            keys.add(KeyStroke.getKeyStroke(vk, 0));
+        }
+        keys.add(KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.SHIFT_DOWN_MASK));
+        return keys.toArray(new KeyStroke[0]);
+    }
+
+    /**
+     * Registers this viewer's native (library-level) single-shot commands -- i.e., entries of the BDV/BVV keybindings
+     * {@link ActionMap}, as opposed to SNT's own overlaid commands (see {@link Actions}) -- in {@code commandFinder},
+     * so they become searchable/runnable from the command palette. Meant to be called once per viewer instance, only
+     * while {@link SNT#isStreamMode() Stream mode} is active
+     * <p>
+     * Continuous, held-key or mouse-drag behaviors (pan, rotate, zoom, scroll) are not picked up  by this scrape: they
+     * live elsewhere so they are excluded by construction. {@code excludedTriggers} additionally drops named actions
+     * bound to specific keys that clutter the palette.
+     * </p>
+     *
+     * @param commandFinder    the palette to register into; a no-op if null
+     * @param actionMap        the viewer's concatenated keybindings {@link ActionMap}
+     * @param inputMap         the viewer's concatenated keybindings {@link InputMap}, used only to
+     *                         resolve {@code excludedTriggers} to the action keys they are bound to
+     * @param path             palette category shown for every registered entry, e.g. {@code List.of("Bvv Viewer")}
+     * @param icon             icon applied to every registered entry via {@code Action.SMALL_ICON}; may be null
+     * @param excludedNames    action-map keys to skip outright, matched case-insensitively against the raw
+     *                         (un-prettified) key -- for contextual/"abort this in-progress gesture" natives
+     *                         that have no single dedicated trigger key, or SNT press/release-pair overlays
+     *                         (e.g., "hide annotations (hold)") that only make sense as a held key, never as
+     *                         a one-shot palette command
+     * @param excludedTriggers keystrokes whose bound action should be skipped (the keystroke itself
+     *                         does not need to be a valid trigger for this viewer; unresolved ones are ignored)
+     */
+    protected void registerNativeCommands(final SNTCommandFinder commandFinder, final ActionMap actionMap,
+            final InputMap inputMap, final List<String> path, final Icon icon, final Set<String> excludedNames,
+            final KeyStroke... excludedTriggers) {
+        if (commandFinder == null || actionMap == null) return;
+        final Set<Object> excludedKeys = new HashSet<>();
+        if (inputMap != null) {
+            for (final KeyStroke ks : excludedTriggers) {
+                final Object actionKey = inputMap.get(ks);
+                if (actionKey != null) excludedKeys.add(actionKey);
+            }
+        }
+        final Object[] keys = actionMap.allKeys();
+        if (keys == null) return;
+        for (final Object key : keys) {
+            if (!(key instanceof final String name) || excludedKeys.contains(key)) continue;
+            if (excludedNames != null && excludedNames.contains(name.toLowerCase())) continue;
+            final Action nativeAction = actionMap.get(key);
+            if (nativeAction == null || !nativeAction.isEnabled()) continue;
+            final String label = humanizeActionMapKey(name);
+            final AbstractAction wrapper = new AbstractAction(label) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    nativeAction.actionPerformed(e);
+                }
+            };
+            if (icon != null) wrapper.putValue(Action.SMALL_ICON, icon);
+            commandFinder.registerKeywords(label, path, null, wrapper, null);
+        }
+    }
+
+    /**
+     * Turns a raw action-map key (e.g., "align XY plane", "snt-capture-keyframe") into a palette-friendly
+     * label ("Align XY Plane", "Capture Keyframe"). Reuses {@link GuiUtils#toTitleCase(String)}, but --
+     * unlike that method, which upper-cases a leading "snt" word to flag SNT's own bindings among BDV/BVV's
+     * defaults in the plain keyboard-shortcuts dialog -- drops the "snt" prefix entirely here: in the
+     * palette, SNT's own commands are already distinguished by their {@code path} category and icon, so
+     * repeating "SNT" in every label would just be noise.
+     */
+    private static String humanizeActionMapKey(final String rawKey) {
+        return GuiUtils.toTitleCase(rawKey.replaceFirst("(?i)^snt[- _]+", ""));
+    }
+
+    /**
+     * Action-map keys that {@link #registerNativeCommands} should always skip, shared by every
+     * BDV/BVV-family viewer: natives that only make sense mid-gesture (aborting an in-progress
+     * bookmark placement or manual transform, neither of which has a dedicated trigger key of its
+     * own), and SNT's own press/release-pair or modal-pick overlays -- present under the same literal
+     * keys in both {@code Bvv} and {@code Bdv} -- which are meaningless as a one-shot palette command
+     * (see, e.g., {@code Actions#hideAnnotationsPressAction}).
+     */
+    protected static final Set<String> NATIVE_NAMES_EXCLUDED_FROM_PALETTE = Set.of(
+            "abort bookmark", "abort manual transformation",
+            "snt-pick-sigma-point", "snt-hide-annotations-press", "snt-hide-annotations-release");
+
+    /**
+     * Wires {@code commandFinder}'s own show/toggle shortcut ({@link SNTCommandFinder#getAccelerator()})
+     * into this viewer's keybindings, so it fires while the Bvv/Bdv window itself has focus. Standard
+     * Swing accelerators (as installed by {@link SNTCommandFinder#attach(JDialog)}) don't reach here:
+     * BDV/BVV's behavior-based trigger layer intercepts keystrokes before a component's ordinary
+     * InputMap/ActionMap ever sees them (see the identical constraint noted where {@code sntIMap}/
+     * {@code sntAMap} are built in {@code Bvv}/{@code Bdv}), so the shortcut has to be added to that
+     * same {@code sntIMap}/{@code sntAMap} pair instead, alongside SNT's other viewer-overlay bindings.
+     *
+     * @param sntIMap       the viewer's own SNT-overlay {@link InputMap}, not yet installed via {@code addInputMap}
+     * @param sntAMap       the matching {@link ActionMap}, not yet installed via {@code addActionMap}
+     * @param commandFinder the palette whose accelerator should open/focus it; a no-op if null
+     */
+    protected static void registerCommandFinderAccelerator(final InputMap sntIMap, final ActionMap sntAMap,
+            final SNTCommandFinder commandFinder) {
+        if (commandFinder == null) return;
+        final String actionKey = "snt-toggle-command-finder";
+        sntIMap.put(commandFinder.getAccelerator(), actionKey);
+        sntAMap.put(actionKey, commandFinder.getToggleVisibilityAction());
+    }
 
     /**
      * Adds a Tree to the viewer overlay, assigning it a unique display label.

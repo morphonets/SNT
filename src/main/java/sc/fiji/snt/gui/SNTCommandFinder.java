@@ -87,6 +87,9 @@ public class SNTCommandFinder {
     private boolean reveal;
     private Timer revealTimer;
     private Timer msgTimer;
+    // Guards the two setText() calls in displayTempMsg() so the temporary clear/restore
+    // of the field does not itself fire PromptDocumentListener and re-run a search
+    private boolean suppressDocListener = false;
 
     /**
      * Constructs a new SNTCommandFinder for the specified SNTUI instance.
@@ -284,14 +287,18 @@ public class SNTCommandFinder {
         final String existingPlaceholder = searchField.getClientProperty(FlatClientProperties.PLACEHOLDER_TEXT).toString();
         final String existingText = searchField.getText();
         searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, msg);
+        suppressDocListener = true;
         searchField.setText(null);
+        suppressDocListener = false;
         if (warning) searchField.setBackground(GuiUtils.warningColor());
         msgTimer = new Timer((warning) ? 3000 : 6000, null) {
             @Override
             public void stop() {
                 super.stop();
                 searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, existingPlaceholder);
+                suppressDocListener = true;
                 searchField.setText(existingText);
+                suppressDocListener = false;
                 if (warning) searchField.setBackground(searchFieldBackground);
             }
         };
@@ -788,6 +795,21 @@ public class SNTCommandFinder {
         return false;
     }
 
+    /**
+     * Returns the keyboard shortcut that toggles this palette's visibility.
+     */
+    public KeyStroke getAccelerator() {
+        return ACCELERATOR;
+    }
+
+    /**
+     * Returns the {@link Action} that {@link #getAccelerator()} triggers (toggle visibility; bring to
+     * front and focus the search field if already visible; Shift+accelerator also re-centers the frame).
+     */
+    public Action getToggleVisibilityAction() {
+        return getAction();
+    }
+
     public void attach(final JDialog dialog) {
         final int condition = JPanel.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT; //JPanel.WHEN_IN_FOCUSED_WINDOW;
         final InputMap inputMap = ((JPanel) dialog.getContentPane()).getInputMap(condition);
@@ -845,6 +867,16 @@ public class SNTCommandFinder {
     public AbstractButton getRegisteredComponent(final String label) {
         final CmdAction cmd = cmdScrapper.getCmdAction(label);
         return (cmd == null) ? null : cmd.button;
+    }
+
+    /**
+     * Marks the scraped index stale, e.g., after the tracing canvas's contextual menu
+     * ({@link SNTUI#getTracingCanvasPopupMenu()}) becomes available or unavailable, such as when
+     * a Stream mode materialized crop is created or discarded. The next lazy scrape (palette
+     * open, {@link #getShortcuts()}, etc.) picks up the change; no immediate rescrape happens here
+     */
+    public void invalidateIndex() {
+        cmdScrapper.invalidate();
     }
 
     private void registerMenu(final JMenu menu, final List<String> path) {
@@ -1106,15 +1138,15 @@ public class SNTCommandFinder {
 
     private class PromptDocumentListener implements DocumentListener {
         public void insertUpdate(final DocumentEvent e) {
-            populateList(currentQuery());
+            if (!suppressDocListener) populateList(currentQuery());
         }
 
         public void removeUpdate(final DocumentEvent e) {
-            populateList(currentQuery());
+            if (!suppressDocListener) populateList(currentQuery());
         }
 
         public void changedUpdate(final DocumentEvent e) {
-            populateList(currentQuery());
+            if (!suppressDocListener) populateList(currentQuery());
         }
     }
 
@@ -1518,6 +1550,8 @@ public class SNTCommandFinder {
         private TreeMap<String, CmdAction> combinedCache;
         /** Synthetic entries that survive scrape() cycles (see {@link SNTCommandFinder#registerKeywords}). */
         private final List<CmdAction> extras = new ArrayList<>();
+        /** Set by {@link #invalidate()} when a scraped component may have changed outside a UI edit */
+        private boolean stale;
 
         CmdScrapper() {
             cmdMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -1573,12 +1607,18 @@ public class SNTCommandFinder {
         }
 
         boolean scrapeFailed() {
-            return cmdMap.isEmpty();
+            return stale || cmdMap.isEmpty();
+        }
+
+        /** Marks the index stale so the next lazy {@link #scrapeFailed()} check triggers a rescrape */
+        void invalidate() {
+            stale = true;
         }
 
         void scrape() {
             cmdMap.clear();
             combinedCache = null; // force merge rebuild on next getCmdMap() call
+            stale = false;
             for (final AnnotatedComponent ac : getComponents()) {
                 if (ac != null) scrapeComponent(ac);
             }

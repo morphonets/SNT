@@ -57,7 +57,9 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.*;
 import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
@@ -1424,8 +1426,24 @@ public class Bvv extends AbstractBigViewer {
                     }
                 }
             });
+            // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BVV
+            // window can be opened in classic mode too, and its own keybindings layer needs this regardless
+            if (snt != null && snt.getUI() != null) {
+                registerCommandFinderAccelerator(sntIMap, sntAMap, snt.getUI().getCommandFinder());
+            }
             bvvFrame.getKeybindings().addInputMap("snt", sntIMap);
             bvvFrame.getKeybindings().addActionMap("snt", sntAMap);
+            // Surface BVV's own native commands in the command palette. Stream mode only: in classic
+            // mode the palette already reaches this viewer through SNTUI's regular scraped menus/toolbars
+            if (snt != null && snt.isStreamMode() && snt.getUI() != null) {
+                registerNativeCommands(snt.getUI().getCommandFinder(),
+                        bvvFrame.getKeybindings().getConcatenatedActionMap(),
+                        bvvFrame.getKeybindings().getConcatenatedInputMap(),
+                        List.of("SNT Stream (BVV)"),
+                        new FlatSVGIcon("gui/bdv-logo-light.svg", IconFactory.defaultSize(), IconFactory.defaultSize()),
+                        NATIVE_NAMES_EXCLUDED_FROM_PALETTE,
+                        NATIVE_KEYS_EXCLUDED_FROM_PALETTE);
+            }
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
             resizeCardPanelsAsNeeded(sceneControlsCard);
         }

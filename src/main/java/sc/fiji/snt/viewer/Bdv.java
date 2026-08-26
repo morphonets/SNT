@@ -46,8 +46,10 @@ import net.imglib2.view.Views;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.CommandService;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.cmds.BdvRenderingOptionsCmd;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTPoint;
@@ -874,8 +876,24 @@ public class Bdv extends AbstractBigViewer {
                 sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, 0), "snt-undo-segment"); // see Tracer#undoLastSegment
                 sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
             }
+            // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BDV
+            // window can be opened in classic mode too, and its own keybindings layer needs this regardless
+            if (snt != null && snt.getUI() != null) {
+                registerCommandFinderAccelerator(sntIMap, sntAMap, snt.getUI().getCommandFinder());
+            }
             vf.getKeybindings().addInputMap("snt", sntIMap);
             vf.getKeybindings().addActionMap("snt", sntAMap);
+            // Surface BDV's own native commands in the command palette. Stream mode only: in classic
+            // mode the palette already reaches this viewer through SNTUI's regular scraped menus/toolbars
+            if (snt != null && snt.isStreamMode() && snt.getUI() != null) {
+                registerNativeCommands(snt.getUI().getCommandFinder(),
+                        vf.getKeybindings().getConcatenatedActionMap(),
+                        vf.getKeybindings().getConcatenatedInputMap(),
+                        List.of("SNT Stream (BDV)"),
+                        new FlatSVGIcon("gui/bdv-logo-dark.svg", IconFactory.defaultSize(), IconFactory.defaultSize()),
+                        NATIVE_NAMES_EXCLUDED_FROM_PALETTE,
+                        NATIVE_KEYS_EXCLUDED_FROM_PALETTE);
+            }
         }
     }
 

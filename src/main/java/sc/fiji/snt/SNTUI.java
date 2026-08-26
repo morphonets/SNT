@@ -749,6 +749,13 @@ public class SNTUI extends JDialog {
         commandFinder.runCommand(cmd);
     }
 
+    /**
+     * Returns the command palette instance, so that other components can register their own entries into it.
+     */
+    public SNTCommandFinder getCommandFinder() {
+        return commandFinder;
+    }
+
     protected boolean runCustomCommand(final String cmd) {
         if ("validateImgDimensions".equals(cmd)) {
             validateImgDimensions();
@@ -1117,6 +1124,9 @@ public class SNTUI extends JDialog {
     private void updateMaterializationDependentControls() {
         if (plugin == null || !plugin.isStreamMode()) return;
         final boolean enable = plugin.isMaterializedCrop();
+        // Canvas contextual menu only exists for a materialized crop (getTracingCanvasPopupMenu());
+        // its entries may now need to be added to, or dropped from, commandFinder's scraped index
+        commandFinder.invalidateIndex();
         if (showPathsSelectedRow != null) GuiUtils.enableComponents(showPathsSelectedRow, enable);
         else showPathsSelected.setEnabled(enable);
         partsNearbyCSpinner.setEnabled(enable && isStackAvailable());

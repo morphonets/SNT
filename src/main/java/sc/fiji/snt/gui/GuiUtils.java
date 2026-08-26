@@ -2400,7 +2400,7 @@ public class GuiUtils {
 	/**
 	 * Converts an action-name string to Title Case.
 	 */
-	private static String toTitleCase(final String s) {
+	public static String toTitleCase(final String s) {
 		if (s == null || s.isEmpty()) return s;
 		final String[] words = s.replaceAll("[-_]", " ").split("\\s+");
 		final StringBuilder sb = new StringBuilder();
