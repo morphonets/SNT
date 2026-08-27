@@ -380,6 +380,7 @@ public class BookmarkManager {
         if (sntui != null) {
             SNTUI.InternalUtils.addHoldToToggleKeyListener(table, sntui.plugin);
         }
+        GuiUtils.JTables.installAlternatingRows(table);
         return table;
     }
 

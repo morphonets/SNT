@@ -6593,16 +6593,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final JPanel panel = new JPanel(new GridBagLayout());
             panel.setBackground(ProofReadingTagsToolBar.this.getBackground());
             final GridBagConstraints c = GuiUtils.defaultGbc();
-            // Align the component to the left edge of its cell
-            c.anchor = GridBagConstraints.WEST;
-            // Prevent the component from stretching horizontally
-            c.fill = GridBagConstraints.NONE;
+            c.anchor = GridBagConstraints.CENTER;
+            // Stretch every button to the width of the widest one in the column
+            c.fill = GridBagConstraints.HORIZONTAL;
             // Create color selection components for each tag
             c.insets = new Insets(0, 0, 5, 0);
             final Map<String, ColorChooserButton> colorButtons = new HashMap<>();
             tagsMap.forEach( (tagName, color) -> {
                 final ColorChooserButton colorButton = new ColorChooserButton(color, capitalized(tagName)
                 , 1f, ColorChooserButton.RIGHT);
+                // Pin the icon+label to the left edge so swatches stay aligned in a
+                // column once the buttons are stretched to a common width
+                colorButton.setHorizontalAlignment(SwingConstants.LEFT);
                 GuiUtils.Buttons.makeRoundRect(colorButton);
                 panel.add(colorButton, c);
                 colorButtons.put(tagName, colorButton);
@@ -6611,6 +6613,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // Add reset button
             c.insets.top += 10;
             final JButton resetButton = new JButton("Reset to Defaults", IconFactory.buttonIcon(IconFactory.GLYPH.UNDO, .9f));
+            resetButton.setHorizontalAlignment(SwingConstants.LEFT);
             GuiUtils.Buttons.makeBorderless(resetButton);
             resetButton.addActionListener(e -> {
                 tagsMap.keySet().forEach( tagName -> saveTagColor(tagName, null));

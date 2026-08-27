@@ -39,6 +39,10 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
+import sc.fiji.snt.util.SNTColor;
+
 import javax.swing.*;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
@@ -48,6 +52,7 @@ import java.awt.event.*;
 import java.io.Serial;
 import java.util.List;
 import java.util.*;
+import java.util.stream.IntStream;
 
 
 /**
@@ -101,6 +106,7 @@ public class MeasureUI extends JFrame {
 
 	private MeasureUI(final Context context, final Collection<Tree> trees) {
 		super("SNT Measurements "); // 	important: distinguish from table title
+		//getRootPane().putClientProperty("Window.style", "small");
 		context.inject(this);
 		guiUtils = new GuiUtils(this);
 		panel = new MeasurePanel(trees);
@@ -154,6 +160,22 @@ public class MeasureUI extends JFrame {
 			table.updateDisplay();
 	}
 
+	// Writes value into the given model rows/columns of table in a single pass, firing one
+	// table-changed event instead of the one-event-per-cell behavior of JTable#setValueAt
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static void batchSetValues(final JTable table, final int[] modelRows, final int[] modelColumns,
+			final Object value) {
+		final DefaultTableModel model = (DefaultTableModel) table.getModel();
+		final Vector<Vector> data = model.getDataVector();
+		for (final int r : modelRows) {
+			final Vector<Object> rowVector = data.get(r);
+			for (final int c : modelColumns) {
+				rowVector.set(c, value);
+			}
+		}
+		model.fireTableDataChanged();
+	}
+
 	class MeasurePanel extends JPanel {
 
 		@Serial
@@ -166,7 +188,7 @@ public class MeasureUI extends JFrame {
 		MeasurePanel(final Collection<Tree> trees) {
 
 			// Stats table
-			final JTable statsTable = new JTable(new DefaultTableModel() {
+			final DefaultTableModel statsTableModelImpl = new DefaultTableModel() {
 
 				@Serial
 				private static final long serialVersionUID = 1L;
@@ -180,11 +202,13 @@ public class MeasureUI extends JFrame {
 				public boolean isCellEditable(final int row, final int column) {
 					return column != 0;
 				}
-			});
+			};
+			final JTable statsTable = GuiUtils.JTables.tableWithPlaceholder(statsTableModelImpl,
+					() -> "No metrics selected on the left pane.", null);
 
 			// initialize table mode.
-			statsTableModel = (DefaultTableModel) statsTable.getModel();
-			statsTableModel.addColumn("Chosen Metric");
+			statsTableModel = statsTableModelImpl;
+			statsTableModel.addColumn("Selected Metric");
 
 			// tweak table
 			statsTable.setAutoCreateRowSorter(true);
@@ -192,10 +216,23 @@ public class MeasureUI extends JFrame {
 			for (final String metric : allFlags) {
 				statsTableModel.addColumn(metric);
 			}
+			final SelectAllHeader[] statHeaders = new SelectAllHeader[statsTable.getColumnCount()];
 			for (int i = 1; i < statsTable.getColumnCount(); ++i) {
-				statsTable.getColumnModel().getColumn(i)
-						.setHeaderRenderer(new SelectAllHeader(statsTable, i, statsTable.getColumnName(i)));
+				final SelectAllHeader statHeader = new SelectAllHeader(statsTable, i, statsTable.getColumnName(i));
+				statsTable.getColumnModel().getColumn(i).setHeaderRenderer(statHeader);
+				statHeaders[i] = statHeader;
 			}
+			// Set the two panes of the dialog visually apart, now that all columns are in place
+			GuiUtils.JTables.installAlternatingRows(statsTable);
+			// Keep each column header's tri-state checkbox in sync with individual cell edits:
+			// any change to the stats table (row add/remove, or a single cell toggle) recomputes
+			// every header so a mixed column is shown as indeterminate
+			statsTableModel.addTableModelListener(e -> {
+				for (final SelectAllHeader statHeader : statHeaders) {
+					if (statHeader != null) statHeader.refreshState();
+				}
+				statsTable.getTableHeader().repaint();
+			});
 			// Enlarge default width of first column. Another option would be to have all
 			// columns to auto-fit at all times, e.g., https://stackoverflow.com/a/25570812.
 			// Maybe that would be better?
@@ -209,8 +246,7 @@ public class MeasureUI extends JFrame {
 			statsTable.addComponentListener(new ComponentAdapter() {
 				@Override
 				public void componentResized(final ComponentEvent e) {
-					// https://stackoverflow.com/a/5741867
-					statsTable.scrollRectToVisible(statsTable.getCellRect(statsTable.getRowCount() - 1, 0, true));
+					GuiUtils.JTables.scrollToBottom(statsTable);
 				}
 			});
 
@@ -228,6 +264,56 @@ public class MeasureUI extends JFrame {
 					final List<Object> selectedMetrics = new ArrayList<>(
 							Arrays.asList(metricList.getCheckBoxListSelectedValues()));
 					addMetricsToStatsTableModel(selectedMetrics);
+				}
+			});
+
+			// Help icon: a small "?" glyph docked to the right edge of the row, shown only for
+			// the currently selected (highlighted) row; clicking it opens that metric's
+			// documentation -- the same action as the popup menu's "Define Highlighted Metric..."
+			// A real JButton isn't practical here: JList renderers are painted stand-ins, not live
+			// components, so instead the hand cursor + a link-colored icon give the same "this is
+			// clickable" feedback, tracked only for the one row where the icon can ever be shown.
+			final MetricListRenderer metricListRenderer = new MetricListRenderer(metricList);
+			metricList.setCellRenderer(metricListRenderer);
+			// The highlighted row can change (click, arrow keys) without the mouse itself moving,
+			// which would otherwise leave a stale hover state applied to whichever row is newly selected
+			metricList.addListSelectionListener(e -> {
+				if (!e.getValueIsAdjusting() && metricListRenderer.isIconHovered()) {
+					metricListRenderer.setIconHovered(false);
+					metricList.repaint();
+				}
+			});
+			metricList.addMouseMotionListener(new MouseMotionAdapter() {
+				@Override
+				public void mouseMoved(final MouseEvent e) {
+					final int row = metricList.getSelectedIndex();
+					final boolean overIcon = row >= 0
+							&& metricListRenderer.helpIconRect(metricList.getCellBounds(row, row)).contains(e.getPoint());
+					if (overIcon != metricListRenderer.isIconHovered()) {
+						metricListRenderer.setIconHovered(overIcon);
+						if (row >= 0) metricList.repaint(metricList.getCellBounds(row, row));
+					}
+					metricList.setCursor(Cursor.getPredefinedCursor(overIcon ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+				}
+			});
+			metricList.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseExited(final MouseEvent e) {
+					if (metricListRenderer.isIconHovered()) {
+						metricListRenderer.setIconHovered(false);
+						final int row = metricList.getSelectedIndex();
+						if (row >= 0) metricList.repaint(metricList.getCellBounds(row, row));
+					}
+					metricList.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+				}
+
+				@Override
+				public void mouseClicked(final MouseEvent e) {
+					final int row = metricList.getSelectedIndex();
+					if (row < 0) return;
+					if (metricListRenderer.helpIconRect(metricList.getCellBounds(row, row)).contains(e.getPoint())) {
+						showMetricHelp(metricList.getModel().getElementAt(row).toString());
+					}
 				}
 			});
 
@@ -261,7 +347,13 @@ public class MeasureUI extends JFrame {
 			c.fill = GridBagConstraints.BOTH;
 			c.weightx = 0.0; // do not fill width when resizing panel
 			c.gridheight = 1;
-			add(new JScrollPane(metricList), c);
+			final JScrollPane metricListScrollPane = new JScrollPane(metricList);
+			// The help icon is painted over the cell, not part of its own preferred (text-only)
+			// width, so widen the list a tad to keep it from overlapping long metric names
+			final Dimension metricListPreferredSize = metricListScrollPane.getPreferredSize();
+			metricListScrollPane.setPreferredSize(new Dimension(
+					metricListPreferredSize.width + metricListRenderer.extraWidth(), metricListPreferredSize.height));
+			add(metricListScrollPane, c);
 
 			c.gridy = 1;
 			c.weighty = 0; // do not allow panel to fill height when resizing pane
@@ -398,13 +490,12 @@ public class MeasureUI extends JFrame {
 		private void showHelp() {
 			GuiUtils.showHTMLDialog("<p><b>How to Measure Reconstructions:</b></p>"//
 					+ "<ol>"//
-					+ "<li>Select metrics on the left panel. Use the search box to highlight items and "//
-					+ "options in the contextual menu to apply selections</li>"//
-					+ "<li>Select statistics on the right panel (NB: clicking on a column header selects "//
-					+ "all of its rows)</li>"//
-					+ "<li>Adjust options in the gear menu</li>"//
-					+ "<li>Toggle the option 'Split by Compartment' as needed</li>"//
+					+ "<li>Select metrics on the left panel. <i>Tip</i>: Use the search box on the bottom left and "//
+					+ "the right-click options for faster selection(s)</li>"//
+					+ "<li>Select statistics on the right panel</li>"//
+					+ "<li>Toggle the 'Split by Compartment' option as needed</li>"//
 					+ "<li>Press 'Measure'</li>"//
+					+ "<li>Use the gear menu for common actions</li>"//
 					+ "</ol>"//
 					+ "<p><b>Notes on Metrics:</b></p>"//
 					+ "<ul>"//
@@ -488,18 +579,19 @@ public class MeasureUI extends JFrame {
 				}
 			}
 
-			// Batch table updates to minimize UI repaints
-			// Remove rows in reverse order (already done in removeRows)
-			removeRows(statsTableModel, rowsToRemove);
-
-			// Add only new metrics (not already in table)
+			// Collect only new metrics (not already in table)
 			final boolean[] defChoices = getLastChosenStats();
+			final List<Vector<Object>> rowsToAdd = new ArrayList<>();
 			for (final Object metric : metrics) {
 				if (!existingMetricsSet.contains(metric)) {
-					statsTableModel.addRow(new Object[] { metric, defChoices[0], defChoices[1],
-							defChoices[2], defChoices[3], defChoices[4], defChoices[5] });
+					rowsToAdd.add(new Vector<>(Arrays.asList(metric, defChoices[0], defChoices[1],
+							defChoices[2], defChoices[3], defChoices[4], defChoices[5], defChoices[6])));
 				}
 			}
+
+			// Apply removal and addition together, firing a single table-changed event for the
+			// whole selection change instead of one removeRow/addRow event per row
+			batchUpdateRows(statsTableModel, rowsToRemove, rowsToAdd);
 		}
 
 		private boolean[] getLastChosenStats() {
@@ -524,11 +616,17 @@ public class MeasureUI extends JFrame {
 			}
 		}
 
-		private void removeRows(final DefaultTableModel model, final List<Integer> indices) {
-			Collections.sort(indices);
-			for (int i = indices.size() - 1; i >= 0; i--) {
-				model.removeRow(indices.get(i));
+		@SuppressWarnings({"rawtypes"})
+		private void batchUpdateRows(final DefaultTableModel model, final List<Integer> rowsToRemove,
+				final List<Vector<Object>> rowsToAdd) {
+			if (rowsToRemove.isEmpty() && rowsToAdd.isEmpty()) return;
+			final Vector<Vector> data = model.getDataVector();
+			Collections.sort(rowsToRemove);
+			for (int i = rowsToRemove.size() - 1; i >= 0; i--) {
+				data.remove(rowsToRemove.get(i).intValue());
 			}
+			data.addAll(rowsToAdd);
+			model.fireTableDataChanged();
 		}
 
 		private JPopupMenu listPopupMenu() {
@@ -576,12 +674,12 @@ public class MeasureUI extends JFrame {
 				return;
 			}
 			metricList.setValueIsAdjusting(true);
-            for (int index : indices) {
-                if (select)
-                    metricList.addCheckBoxListSelectedIndex(index);
-                else
-                    metricList.removeCheckBoxListSelectedIndex(index);
-            }
+			for (final int index : indices) {
+				if (select)
+					metricList.addCheckBoxListSelectedIndex(index);
+				else
+					metricList.removeCheckBoxListSelectedIndex(index);
+			}
 			metricList.setValueIsAdjusting(false);
 		}
 
@@ -591,17 +689,107 @@ public class MeasureUI extends JFrame {
 				UIManager.getLookAndFeel().provideErrorFeedback(this);
 				return;
 			}
-			String metric = metricList.getModel().getElementAt(idx).toString();
-            metric = switch (metric) {
-                case TreeStatistics.X_COORDINATES, TreeStatistics.Y_COORDINATES, TreeStatistics.Z_COORDINATES ->
-                        "xyz-coordinates";
-                default -> metric.replace(".", "").replace(":", "")//
-                        .replace("(", "").replace(")", "") //
-                        .replace("[", "").replace("]", "") //
-                        .replace("/", "").replace("\\", "") //
-                        .replace(" ", "-");
-            };
+			showMetricHelp(metricList.getModel().getElementAt(idx).toString());
+		}
+
+		private void showMetricHelp(String metric) {
+			metric = switch (metric) {
+				case TreeStatistics.X_COORDINATES, TreeStatistics.Y_COORDINATES, TreeStatistics.Z_COORDINATES ->
+						"xyz-coordinates";
+				default -> metric.replace(".", "").replace(":", "")//
+						.replace("(", "").replace(")", "") //
+						.replace("[", "").replace("]", "") //
+						.replace("/", "").replace("\\", "") //
+						.replace(" ", "-");
+			};
 			GuiUtils.openURL("https://imagej.net/plugins/snt/metrics#" + metric.toLowerCase());
+		}
+
+		/**
+		 * List cell renderer that augments the default metric-name label with a help icon docked
+		 * to the row's right edge, shown only for the currently selected (highlighted) row.
+		 */
+		private static class MetricListRenderer extends DefaultListCellRenderer {
+
+			@Serial
+			private static final long serialVersionUID = 1L;
+			private static final int ICON_MARGIN = 6;
+			private final int iconWidth;
+			private Icon helpIcon;
+			private Icon helpIconHover;
+			private Color helpIconColor;
+			private boolean showIcon;
+			private boolean iconHovered;
+
+			MetricListRenderer(final JList<?> list) {
+				// The reference icon's width only depends on the list's font size, not on color,
+				// so it's safe to build once, up front.
+				iconWidth = IconFactory.get(IconFactory.GLYPH.QUESTION, list.getFont().getSize() * 1.5f, null).getIconWidth();
+				// Placeholder tint, just so helpIcon/helpIconHover have valid dimensions the moment
+				// extraWidth() is consulted during dialog layout, before the list is ever painted.
+				// list.getSelectionForeground() -- the color we actually want -- isn't reliably
+				// resolved yet at construction time (the list hasn't been realized/painted), so the
+				// real tint is (re)applied lazily in getListCellRendererComponent below.
+				updateIcons(list, list.getForeground());
+			}
+
+			/** (Re)builds the glyph icons tinted for the given color, if it actually changed. */
+			private void updateIcons(final JList<?> list, final Color color) {
+				if (color.equals(helpIconColor)) return;
+				helpIconColor = color;
+				// Only visible when the row is selected; tinted with the selection foreground so it
+				// reads consistently with the row's own (also selection-colored) text
+				final Icon glyph = IconFactory.listIcon(list, IconFactory.GLYPH.QUESTION, color);
+				helpIcon = IconFactory.fixedWidthIcon(glyph, iconWidth);
+				// Only visible when the row is selected AND the mouse is hovering it; contrasted
+				// against the selection foreground so it additionally signals "clickable"
+				final Icon hoverGlyph = IconFactory.listIcon(list, IconFactory.GLYPH.QUESTION,
+						SNTColor.contrastColor(color));
+				helpIconHover = IconFactory.fixedWidthIcon(hoverGlyph, iconWidth);
+			}
+
+			/** Extra horizontal space the help icon needs beyond the cell's own (text-only) width. */
+			int extraWidth() {
+				return helpIcon.getIconWidth() + ICON_MARGIN * 2;
+			}
+
+			/** Bounds of the help icon within rowBounds (row-local or list-space; both work). */
+			Rectangle helpIconRect(final Rectangle rowBounds) {
+				return new Rectangle(rowBounds.x + rowBounds.width - helpIcon.getIconWidth() - ICON_MARGIN,
+						rowBounds.y + (rowBounds.height - helpIcon.getIconHeight()) / 2,
+						helpIcon.getIconWidth(), helpIcon.getIconHeight());
+			}
+
+			boolean isIconHovered() {
+				return iconHovered;
+			}
+
+			void setIconHovered(final boolean iconHovered) {
+				this.iconHovered = iconHovered;
+			}
+
+			@Override
+			public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index,
+					final boolean isSelected, final boolean cellHasFocus) {
+				super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+				showIcon = isSelected;
+				if (isSelected) {
+					// super's call above already resolved the real, current selection foreground
+					// onto this component -- use that instead of list.getSelectionForeground()
+					// directly, which can still be stale if queried before the list was painted
+					updateIcons(list, getForeground());
+				}
+				return this;
+			}
+
+			@Override
+			protected void paintComponent(final Graphics g) {
+				super.paintComponent(g);
+				if (showIcon) {
+					final Rectangle r = helpIconRect(new Rectangle(0, 0, getWidth(), getHeight()));
+					(iconHovered ? helpIconHover : helpIcon).paintIcon(this, g, r.x, r.y);
+				}
+			}
 		}
 
 	}
@@ -655,7 +843,10 @@ public class MeasureUI extends JFrame {
 			return false;
 		}
 
-		private void measureTree(final Tree tree) {
+		private int measureTree(final Tree tree) {
+			// Resolved once so the metric loop below does not repeat a linear
+			// row-header scan (org.scijava.table.Table#getRowIndex) on every write
+			final int treeRow = getOrCreateRow(tree.getLabel());
 			final TreeStatistics tStats = new TreeStatistics(tree);
 			TreeStatistics.setExactMetricMatch(true);
 			for (int row = 0; row < tableModel.getRowCount(); ++row) {
@@ -665,14 +856,21 @@ public class MeasureUI extends JFrame {
 				SummaryStatistics summaryStatistics = getSummaryStatistics(tStats, metric);
 				final String metricHeader = getMetricHeader(tStats, metric);
 				if (summaryStatistics.getN() < 1) {
-					table.set(metricHeader, tree.getLabel(), "Err");
+					table.set(metricHeader, treeRow, "Err");
 				} else if (summaryStatistics.getN() == 1) {
-					table.set(metricHeader + " [Single value]", tree.getLabel(), summaryStatistics.getSum());
+					table.set(metricHeader + " [Single value]", treeRow, summaryStatistics.getSum());
 				} else {
-					processColumnsOfStatChoices(row, summaryStatistics, metricHeader, tree.getLabel());
+					processColumnsOfStatChoices(row, summaryStatistics, metricHeader, treeRow);
 				}
 			}
 			tStats.dispose();
+			return treeRow;
+		}
+
+		// Gets the row index for rowHeader, creating the row if not yet present
+		private int getOrCreateRow(final String rowHeader) {
+			final int idx = table.getRowIndex(rowHeader);
+			return (idx == -1) ? table.insertRow(rowHeader) : idx;
 		}
 
 		private void assignNodeValuesAsNeeded(final Tree tree, final String metric) {
@@ -700,14 +898,14 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void processColumnsOfStatChoices(final int row, final SummaryStatistics summaryStatistics,
-									final String metricHeader, final String treeLabel) {
+									final String metricHeader, final int treeRow) {
 			for (int column = 1; column < tableModel.getColumnCount(); ++column) {
 				final Object cell = tableModel.getValueAt(row, column);
 				if (cell == null || !(boolean) cell) continue;
 
 				final String measurement = tableModel.getColumnName(column);
 				final double value = calculateStatisticalValue(summaryStatistics, measurement);
-				table.set(metricHeader + " [" + measurement + "]", treeLabel, value);
+				table.set(metricHeader + " [" + measurement + "]", treeRow, value);
 			}
 		}
 
@@ -744,8 +942,8 @@ public class MeasureUI extends JFrame {
 						for (final int type : compartments)
 							measureTree(tree.subTree(type));
 					} else {
-						measureTree(tree);
-						table.set("No. of compartments", tree.getLabel(), compartments.size());
+						final int treeRow = measureTree(tree);
+						table.set("No. of compartments", treeRow, compartments.size());
 					}
 				}
 				return null;
@@ -775,37 +973,48 @@ public class MeasureUI extends JFrame {
 	}
 
 	/**
-     * A TableCellRenderer that selects all or none of a Boolean column.
-     * <p>
-     * Adapted from <a href="https://stackoverflow.com/a/7137801">stackoverflow</a>
-     */
-	static class SelectAllHeader extends JToggleButton implements TableCellRenderer {
+	 * A TableCellRenderer that selects, deselects, or shows a mixed state for an entire Boolean
+	 * column, using a tri-state checkbox: clicking always selects/deselects the whole column; the
+	 * indeterminate ("-") state is shown automatically whenever the column's cells disagree, and is
+	 * never itself reachable by clicking the header (see {@link #refreshState()}).
+	 * <p>
+	 * The checkbox is wrapped in a plain panel rather than being the renderer itself: FlatLaf's
+	 * checkbox UI does not reliably honor a border/opaque background set directly on the checkbox
+	 * (both get silently swallowed), so the panel -- not the checkbox -- owns the header cell's
+	 * border and background, and the checkbox sits on top of it non-opaque.
+	 */
+	static class SelectAllHeader extends JPanel implements TableCellRenderer {
 
 		@Serial
 		private static final long serialVersionUID = 1L;
-		private static final String ALL_SELECTED = "✓ ";
-		private final String label;
 		private final JTable table;
-        private final JTableHeader header;
+		private final JTableHeader header;
 		private final TableColumnModel tcm;
 		private final int targetColumn;
-		private int viewColumn;
+		private final FlatTriStateCheckBox checkBox;
 
 		public SelectAllHeader(final JTable table, final int targetColumn, final String label) {
-			super(label);
-			this.label = label;
+			super(new FlowLayout(FlowLayout.CENTER, 4, 2));
 			this.table = table;
-            TableModel tableModel = table.getModel();
+			final TableModel tableModel = table.getModel();
 			if (tableModel.getColumnClass(targetColumn) != Boolean.class) {
 				throw new IllegalArgumentException("Boolean column required.");
 			}
 			this.targetColumn = targetColumn;
 			this.header = table.getTableHeader();
 			this.tcm = table.getColumnModel();
+			this.checkBox = new FlatTriStateCheckBox(label);
+			// Indeterminate is a display-only state driven by refreshState(): clicking the
+			// header must only ever select or deselect the whole column
+			checkBox.setAllowIndeterminate(false);
+			checkBox.setOpaque(false);
+			checkBox.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+			checkBox.addActionListener(new ActionHandler());
+			add(checkBox);
 			this.applyUI();
-			this.addItemListener(new ItemHandler());
 			header.addMouseListener(new MouseHandler());
-			setToolTipText("Click to toggle entire column");
+			setToolTipText("Click to select/deselect entire column");
+			refreshState();
 		}
 
 		@Override
@@ -814,15 +1023,39 @@ public class MeasureUI extends JFrame {
 			return this;
 		}
 
-		private class ItemHandler implements ItemListener {
+		/** Recomputes and displays this header's checkbox state from the current column values. */
+		void refreshState() {
+			// Read row count and values through the model only (never table.getRowCount(), which
+			// goes through the RowSorter and can be transiently stale: fireTableDataChanged()
+			// notifies listeners in REVERSE registration order, so this listener can run before
+			// the RowSorter has processed the same event)
+			final TableModel model = table.getModel();
+			boolean anyTrue = false;
+			boolean anyFalse = false;
+			for (int row = 0; row < model.getRowCount(); row++) {
+				if (Boolean.TRUE.equals(model.getValueAt(row, targetColumn))) {
+					anyTrue = true;
+				} else {
+					anyFalse = true;
+				}
+				if (anyTrue && anyFalse) break;
+			}
+			if (anyTrue && anyFalse) {
+				checkBox.setState(FlatTriStateCheckBox.State.INDETERMINATE);
+			} else if (anyTrue) {
+				checkBox.setState(FlatTriStateCheckBox.State.SELECTED);
+			} else {
+				checkBox.setState(FlatTriStateCheckBox.State.UNSELECTED);
+			}
+		}
+
+		private class ActionHandler implements ActionListener {
 
 			@Override
-			public void itemStateChanged(final ItemEvent e) {
-				final boolean state = e.getStateChange() == ItemEvent.SELECTED;
-				setText((state) ? ALL_SELECTED + label : label);
-				for (int r = 0; r < table.getRowCount(); r++) {
-					table.setValueAt(state, r, viewColumn);
-				}
+			public void actionPerformed(final ActionEvent e) {
+				final boolean select = checkBox.getState() == FlatTriStateCheckBox.State.SELECTED;
+				final int[] modelRows = IntStream.range(0, table.getModel().getRowCount()).toArray();
+				batchSetValues(table, modelRows, new int[] { targetColumn }, select);
 			}
 		}
 
@@ -833,20 +1066,24 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void applyUI() {
-			this.setFont(UIManager.getFont("TableHeader.font"));
+			this.setOpaque(true);
 			this.setBorder(UIManager.getBorder("TableHeader.cellBorder"));
 			this.setBackground(UIManager.getColor("TableHeader.background"));
 			this.setForeground(UIManager.getColor("TableHeader.foreground"));
+			if (checkBox != null) {
+				checkBox.setFont(UIManager.getFont("TableHeader.font"));
+				checkBox.setForeground(UIManager.getColor("TableHeader.foreground"));
+			}
 		}
 
 		private class MouseHandler extends MouseAdapter {
 
 			@Override
 			public void mouseClicked(final MouseEvent e) {
-				viewColumn = header.columnAtPoint(e.getPoint());
+				final int viewColumn = header.columnAtPoint(e.getPoint());
 				final int modelColumn = tcm.getColumn(viewColumn).getModelIndex();
 				if (modelColumn == targetColumn) {
-					doClick();
+					checkBox.doClick();
 				}
 			}
 		}
@@ -856,7 +1093,6 @@ public class MeasureUI extends JFrame {
 	static class TablePopupMenu extends JPopupMenu {
 		@Serial
 		private static final long serialVersionUID = 1L;
-		private int rowAtClickPoint;
 		private int columnAtClickPoint;
 		private final JTable table;
 
@@ -870,7 +1106,6 @@ public class MeasureUI extends JFrame {
 					SwingUtilities.invokeLater(() -> {
 						final Point clickPoint = SwingUtilities.convertPoint(TablePopupMenu.this, new Point(0, 0),
 								table);
-						rowAtClickPoint = table.rowAtPoint(clickPoint);
 						columnAtClickPoint = table.columnAtPoint(clickPoint);
 						for (final MenuElement element : getSubElements()) {
 							if (!(element instanceof JMenuItem))
@@ -927,33 +1162,30 @@ public class MeasureUI extends JFrame {
 			if (columnAtClickPoint == 0)
 				// This is the metric String column, we don't want to change this
 				return;
-			for (int i = 0; i < table.getRowCount(); i++) {
-				table.setValueAt(state, i, columnAtClickPoint);
-			}
-		}
-
-		@SuppressWarnings("unused")
-		private void setRowState(final boolean state) {
-			// Boolean columns start at idx == 1
-			for (int i = 1; i < table.getColumnCount(); i++) {
-				table.setValueAt(state, rowAtClickPoint, i);
-			}
+			final int modelColumn = table.convertColumnIndexToModel(columnAtClickPoint);
+			// Model row count, not table.getRowCount() (the view, via the RowSorter): "all rows"
+			// must mean every row that actually exists in the model
+			final int[] modelRows = IntStream.range(0, table.getModel().getRowCount()).toArray();
+			batchSetValues(table, modelRows, new int[] { modelColumn }, state);
 		}
 
 		private void setAllState(final boolean state) {
-			for (int row = 0; row < table.getRowCount(); row++) {
-				for (int col = 1; col < table.getColumnCount(); col++) { // Skip metric String column
-					table.setValueAt(state, row, col);
-				}
-			}
+			// Model row count, not table.getRowCount() (the view, via the RowSorter): "all rows"
+			// must mean every row that actually exists in the model
+			final int[] modelRows = IntStream.range(0, table.getModel().getRowCount()).toArray();
+			// Skip metric String column (col 0)
+			final int[] modelColumns = IntStream.range(1, table.getColumnCount())
+					.map(table::convertColumnIndexToModel).toArray();
+			batchSetValues(table, modelRows, modelColumns, state);
 		}
 
 		private void setSelectedRowsState(final boolean state) {
-            for (int selectedIndex : table.getSelectedRows()) {
-                for (int col = 1; col < table.getColumnCount(); col++) { // Skip metric String column
-                    table.setValueAt(state, selectedIndex, col);
-                }
-            }
+			final int[] modelRows = Arrays.stream(table.getSelectedRows())
+					.map(table::convertRowIndexToModel).toArray();
+			// Skip metric String column (col 0)
+			final int[] modelColumns = IntStream.range(1, table.getColumnCount())
+					.map(table::convertColumnIndexToModel).toArray();
+			batchSetValues(table, modelRows, modelColumns, state);
 		}
 
 	}

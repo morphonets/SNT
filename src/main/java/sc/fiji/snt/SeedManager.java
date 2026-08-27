@@ -409,6 +409,8 @@ public class SeedManager extends JPanel {
             pushTableSelectionToOverlay();
         });
 
+        GuiUtils.JTables.installAlternatingRows(seedTable);
+
         // Double-click a row -> navigate the canvas to that seed (mirrors the
         // Bookmark Manager pattern). Editing is available via the toolbar
         // button and right-click menu; all cells are read-only, so there's

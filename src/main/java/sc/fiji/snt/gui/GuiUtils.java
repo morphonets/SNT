@@ -1948,21 +1948,22 @@ public class GuiUtils {
 		// All info rows below are borderless JButtons (not JLabels styled to look
 		// clickable) so they share the same margin/insets and stay left-aligned
 		final String details = getImageJVersion() + " · Java " + System.getProperty("java.version");
-		final JButton ijDetails = infoButton(details, IconFactory.menuIcon('\ue4e5', true, IconFactory.secondaryColor()));
+		final Icon refIcon = IconFactory.buttonIcon('\ue4e5', true, IconFactory.secondaryColor());
+		final JButton ijDetails = infoButton(details, refIcon, refIcon);
 		ijDetails.setToolTipText("Click to display detailed system information");
 		side.add(ijDetails, gbc);
 		gbc.gridy++;
 
 		final int threads = SNTPrefs.getThreads();
 		final int cores = Runtime.getRuntime().availableProcessors();
-		final JButton coresDetails = infoButton(threads + "/" + cores + " cores", GLYPH.MICROCHIP);
+		final JButton coresDetails = infoButton(threads + "/" + cores + " cores", GLYPH.MICROCHIP, refIcon);
 		coresDetails.setToolTipText("Threads used by SNT / cores available to the JVM.\nClick to change");
 		coresDetails.addActionListener(e -> SNTUtils.getContext().getService(CommandService.class).run(PrefsCmd.class, true));
 		side.add(coresDetails, gbc);
 		gbc.gridy++;
 
 		final SNTUtils.HeapInfo heapInfo = SNTUtils.getHeapInfo();
-		final JButton heapDetails = infoButton(heapInfo.usedMB() + "/" + heapInfo.maxMB() + " MB memory", GLYPH.GAUGE);
+		final JButton heapDetails = infoButton(heapInfo.usedMB() + "/" + heapInfo.maxMB() + " MB memory", GLYPH.GAUGE, refIcon);
 		heapDetails.setToolTipText("Used/max heap memory.\nClick to open ImageJ's memory monitor");
 		heapDetails.addActionListener(e -> {
 			try {
@@ -1973,7 +1974,7 @@ public class GuiUtils {
 		side.add(heapDetails, gbc);
 		gbc.gridy++;
 
-		final JButton cacheDetails = infoButton("Cache: calculating...", GLYPH.DATABASE);
+		final JButton cacheDetails = infoButton("Cache: calculating...", GLYPH.DATABASE, refIcon);
 		cacheDetails.setToolTipText("Click to open\n" + SNTUtils.getCacheDir().getAbsolutePath());
 		cacheDetails.addActionListener(e -> {
 			try {
@@ -1985,7 +1986,7 @@ public class GuiUtils {
 		side.add(cacheDetails, gbc);
 		gbc.gridy++;
 
-		final JButton gpuDetails = infoButton("Max OpenGL: querying...", GLYPH.CUBE);
+		final JButton gpuDetails = infoButton("Max OpenGL: querying...", GLYPH.CUBE, refIcon);
 		gpuDetails.setEnabled(false); // enabled once GLUtils.getInfo() resolves, below
 		side.add(gpuDetails, gbc);
 		gbc.gridy++;
@@ -2070,8 +2071,8 @@ public class GuiUtils {
 	}
 
 	/** Borderless, zero-margin, left-aligned icon+text button used for the About dialog's info rows */
-	private static JButton infoButton(final String text, final Icon icon) {
-		final JButton button = new JButton(text, icon);
+	private static JButton infoButton(final String text, final Icon icon, final Icon refIcon) {
+		final JButton button = new JButton(text, IconFactory.fixedWidthIcon(icon, refIcon));
 		button.setForeground(IconFactory.secondaryColor());
 		Buttons.makeBorderless(button);
 		button.setHorizontalAlignment(SwingConstants.LEFT);
@@ -2079,14 +2080,14 @@ public class GuiUtils {
 		return button;
 	}
 
-	private static JButton infoButton(final String text, final GLYPH glyph) {
-		return infoButton(text, IconFactory.menuIcon(glyph, IconFactory.secondaryColor()));
+	private static JButton infoButton(final String text, final GLYPH glyph, final Icon refIcon) {
+		return infoButton(text, IconFactory.buttonIcon(glyph, IconFactory.secondaryColor(), 1f), refIcon);
 	}
 
 	/** Borderless icon+text button that opens {@code url} when clicked */
 	private static JButton urlButton(final String label, final String url, final GLYPH glyph) {
 		final Color c = SNTColor.average(List.of(IconFactory.defaultColor(), IconFactory.selectedColor()));
-		final JButton button = new JButton(label, IconFactory.menuIcon(glyph, c));
+		final JButton button = new JButton(label, IconFactory.buttonIcon(glyph, c, 1f));
 		button.setForeground(c);
 		Buttons.makeBorderless(button);
 		button.addActionListener(e -> openURL(url));
@@ -4219,6 +4220,38 @@ public class GuiUtils {
 		}
 
 		/**
+		 * Applies a subtle alternating-row background tint to a table (zebra striping), without requiring a custom
+		 * {@code JTable} subclass. Wraps the default renderer registered for each of the table's column classes so
+		 * that unselected rows alternate between the table's own background and a slight tint towards its foreground
+		 * color.
+		 * <p>
+		 * Only affects columns that rely on the class-based default renderer (the normal case). A column with a renderer
+		 * assigned directly via {@link javax.swing.table.TableColumn#setCellRenderer(javax.swing.table.TableCellRenderer)}
+		 * bypasses the class-based lookup and is left untouched by this method.
+		 *
+		 * @param table the table to stripe
+		 */
+		public static void installAlternatingRows(final JTable table) {
+			final double tintWeight = 0.06; // small values (0.05-0.08) work best
+			final Set<Class<?>> columnClasses = new LinkedHashSet<>();
+			for (int i = 0; i < table.getColumnCount(); i++) {
+				columnClasses.add(table.getColumnClass(i));
+			}
+			for (final Class<?> columnClass : columnClasses) {
+				final javax.swing.table.TableCellRenderer original = table.getDefaultRenderer(columnClass);
+				if (original == null) continue;
+				table.setDefaultRenderer(columnClass, (tbl, value, isSelected, hasFocus, row, column) -> {
+					final Component c = original.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
+					if (!isSelected) {
+						c.setBackground((row % 2 == 0) ? tbl.getBackground()
+								: SNTColor.mix(tbl.getBackground(), tbl.getForeground(), tintWeight));
+					}
+					return c;
+				});
+			}
+		}
+
+		/**
 		 * Auto-sizes the preferred width of the given column to fit its content,
 		 * with padding.
 		 *
@@ -4533,7 +4566,7 @@ public class GuiUtils {
 		 *
 		 * @param table the table to scroll (must be inside a {@link JScrollPane})
 		 */
-		private static void scrollToBottom(final JTable table) {
+		public static void scrollToBottom(final JTable table) {
 			SwingUtilities.invokeLater(() -> {
 				table.revalidate();
 				SwingUtilities.invokeLater(() -> {

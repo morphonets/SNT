@@ -299,7 +299,11 @@ public class IconFactory {
     }
 
     public static Icon listIcon(final JList<?> list, final GLYPH entry) {
-        return new FADerivedIcon(entry.id, list.getFont().getSize() * 0.9f, list.getForeground(), entry.solid);
+        return listIcon(list, entry, list.getForeground());
+    }
+
+    public static Icon listIcon(final JList<?> list, final GLYPH entry, final Color color) {
+        return new FADerivedIcon(entry.id, list.getFont().getSize() * 0.9f, color, entry.solid);
     }
 
     public static void assignTabIcon(final JTabbedPane tabbedPane, final int tabIndex, final GLYPH entry) {
@@ -503,7 +507,16 @@ public class IconFactory {
      * @return  the centered fixed-width icon
      */
     public static Icon fixedWidthIcon(final Icon icon, final Icon refIcon) {
-        final int refWidth = refIcon.getIconWidth();
+        return IconFactory.fixedWidthIcon(icon, refIcon.getIconWidth());
+    }
+
+    /**
+     * Wraps an icon in a fixed-width icon, centering it within a common reference.
+     * @param icon the icon to be matched to reference
+     * @param refWidth the target width
+     * @return  the centered fixed-width icon
+     */
+    public static Icon fixedWidthIcon(final Icon icon, final int refWidth) {
         final int width = Math.max(icon.getIconWidth(), refWidth);
         return new Icon() {
             @Override
