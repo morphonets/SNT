@@ -34,8 +34,6 @@ import javax.swing.*;
 import javax.swing.text.BadLocationException;
 import java.awt.*;
 import java.awt.event.ActionListener;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Implements minor customizations to {@link EditorPane} for usage by SNT.
@@ -113,7 +111,7 @@ public class SNTEditorPane extends EditorPane {
             ///
         }
         if (prefix != null) append(prefix);
-        append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm:ss")));
+        append(GuiUtils.getTimeStamp());
         if (suffix != null) append(suffix);
         setCaretPosition(getDocument().getLength());
     }

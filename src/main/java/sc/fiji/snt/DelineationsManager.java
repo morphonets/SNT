@@ -1523,7 +1523,7 @@ public class DelineationsManager {
         private void updateWidget() {
             clearButton.setEnabled(roi != null);
             revealButton.setEnabled(roi != null && roi != DUMMY_ROI);
-            final Color color = (roi == null) ? IconFactory.defaultColor() : IconFactory.selectedColor();
+            final Color color = (roi == null) ? IconFactory.secondaryColor() : IconFactory.selectedColor();
             assignButton.setIcon(IconFactory.buttonIcon('\uf359', true, color));
         }
 

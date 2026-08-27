@@ -1052,7 +1052,7 @@ public class SeedManager extends JPanel {
             loadFromROIs();
         });
         menu.addSeparator();
-        jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
+        jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon(IconFactory.GLYPH.HOUSE_LAPTOP));
         jmi.setToolTipText("Loads stored seeds");
         menu.add(jmi);
         jmi.addActionListener(e -> loadFromSessionDir());
@@ -1077,7 +1077,7 @@ public class SeedManager extends JPanel {
             saveToROIs();
         });
         menu.addSeparator();
-        jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
+        jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon(IconFactory.GLYPH.HOUSE_LAPTOP));
         jmi.setToolTipText("Saves seeds to the current session as seeds.csv");
         menu.add(jmi);
         jmi.addActionListener(e -> saveToSessionDir());

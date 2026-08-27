@@ -40,7 +40,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-import org.scijava.ui.UIService;
 import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -55,11 +54,7 @@ import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.*;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.ImgUtils;
-import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.TreeUtils;
+import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
@@ -104,8 +99,8 @@ public class SNTUI extends JDialog {
     private JLabel activeCTposBadge; // See updateActiveCTposBadge()
     protected JSpinner snapWindowXYsizeSpinner;
     protected JSpinner snapWindowZsizeSpinner;
-    private JButton showOrHidePathList;
-    private JButton showOrHideFillList = new JButton(); // must be initialized
+    private JToggleButton showOrHidePathList;
+    private JToggleButton showOrHideFillList = new JToggleButton(); // must be initialized
     private JMenuItem quitMenuItem;
     private JLabel statusText;
     private JLabel statusBarText;
@@ -358,7 +353,9 @@ public class SNTUI extends JDialog {
         ++c1.gridy;
         tab1.add(snappingPanel(), c1);
         ++c1.gridy;
-        InternalUtils.addSeparatorWithURL(tab1, "Interactive Tracing:", true, c1);
+        final JLabel jl = InternalUtils.addSeparatorWithURL(tab1, "Interactive Tracing:", true, c1);
+        CalloutManager.add(jl, CalloutManager.AUTO,
+                "Section headings like this one link<br>directly to online documentation.", calloutGroup(), 6);
         ++c1.gridy;
         tab1.add(aStarPanel(), c1);
         ++c1.gridy;
@@ -475,6 +472,11 @@ public class SNTUI extends JDialog {
         final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
 
         tabbedPane.addTab("Assistant", curationManager.getPanel());
+        CalloutManager.add(curationManager.getPanel(), CalloutManager.AUTO,
+                "The different tabs aggregate controls by workflow. This<br>" +
+                        "one hosts the Curation Assistant that can warn you of<br>" +
+                        "mistakes in paths as you trace, edit, or complete them.",
+                calloutGroup(), 8);
         tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
         tabbedPane.addTab("3D", tab3);
         tabbedPane.addTab("Delineations", delineationsManager.getPanel());
@@ -520,6 +522,7 @@ public class SNTUI extends JDialog {
                 this.pmUI.addWindowStateListener(evt -> {
                     if ((evt.getNewState() & Frame.ICONIFIED) == Frame.ICONIFIED) {
                         showOrHidePathList.setText("Show Path Manager");
+                        showOrHidePathList.setSelected(false);
                     }
                 });
                 this.pmUI.addWindowListener(new WindowAdapter() {
@@ -527,6 +530,7 @@ public class SNTUI extends JDialog {
                     @Override
                     public void windowClosing(final WindowEvent e) {
                         showOrHidePathList.setText("Show Path Manager");
+                        showOrHidePathList.setSelected(false);
                     }
                 });
             }
@@ -544,6 +548,7 @@ public class SNTUI extends JDialog {
                 this.fmUI.addWindowStateListener(evt -> {
                     if (showOrHideFillList != null && (evt.getNewState() & Frame.ICONIFIED) == Frame.ICONIFIED) {
                         showOrHideFillList.setText("Show Fill Manager");
+                        showOrHideFillList.setSelected(false);
                     }
                 });
                 this.fmUI.addWindowListener(new WindowAdapter() {
@@ -551,6 +556,7 @@ public class SNTUI extends JDialog {
                     @Override
                     public void windowClosing(final WindowEvent e) {
                         showOrHideFillList.setText("Show Fill Manager");
+                        showOrHideFillList.setSelected(false);
                     }
                 });
             }
@@ -558,7 +564,25 @@ public class SNTUI extends JDialog {
         } else {
             this.fmUI = fmUI;
         }
+    }
 
+    /**
+     * Registers a callout pointing at the tracing canvas or a suitable substitute is no exists. Called from
+     * {@link #showCallouts(boolean)}, i.e., freshly re-evaluated every time the tour is opened or advanced,
+     * so it always reflects the current image state regardless of when (or whether) an image was loaded
+     */
+    private void appendImageCalloutToCalloutsReel() {
+        // plugin.getTracingCanvas() is never null by itself: a dummy, zero-sized placeholder canvas
+        // exists even before any image is loaded, so we need to check for an actual valid image.
+        final boolean hasImage = accessToValidImagePlus(); // this includes a materialized crop in stream mode
+        final Component fallbackOwner = (plugin.isStreamMode()) ? rebuildCanvasButton : sourcePanel;
+        final Component owner = hasImage ? plugin.getTracingCanvas() : fallbackOwner;
+        final String imgLabel = (plugin.isStreamMode()) ? "materialized crop" : "image";
+        final String imgArticle = (plugin.isStreamMode()) ? "a" : "an";
+        final String message = hasImage
+                ? "Right-click on the " + imgLabel + " for path editing<br>controls, including paint mode."
+                : "Once you load " + imgArticle + " " + imgLabel + ", right-click on it for<br>path editing controls, including paint mode.";
+        CalloutManager.add(owner, CalloutManager.AUTO, message, calloutGroup(), CalloutManager.size() + 1);
     }
 
     private JTabbedPane initTabbedPane() {
@@ -781,7 +805,6 @@ public class SNTUI extends JDialog {
         final AbstractBigViewer activeViewer = getActiveBigViewer();
         return (plugin.isStreamMode() && activeViewer != null) ? activeViewer.getMarkerManager() : bookmarkManager;
     }
-
 
     /**
      * Gets the Bookmark Manager pane.
@@ -1018,6 +1041,11 @@ public class SNTUI extends JDialog {
         if (recorder != null) recorder.dispose();
         dispose();
         plugin.dispose(); // will save prefs, dispose pathAndFillManager, etc.
+        // Callouts registered under this session (SNTUI, BDV/BVV, PathManagerUI, ...) all share calloutGroup() as their
+        // group key; without this, they persist in CalloutManager's registrations list. _Must_ run before plugin is
+        // nulled below, since calloutGroup() needs it
+        CalloutManager.clearGroup(calloutGroup());
+
         // NB: If visible Reconstruction Plotter will remain open
         ImagePlus.removeImageListener(listener);
         plugin = null;
@@ -1041,8 +1069,20 @@ public class SNTUI extends JDialog {
         sciViewSNT = null;
         GuiUtils.closeAllPlots();
         GuiUtils.closeAllTables();
+        // Pending notices can carry actions that reference this (now-disposed) session's viewers/UI,
+        // so we'll wipe any pending notices
+        GuiUtils.clearPendingNotices();
         GuiUtils.restoreLookAndFeel();
         return true;
+    }
+
+    /**
+     * This session's {@link CalloutManager} group key: every callout registered by SNTUI, PathManagerUI, Bdv,
+     * and Bvv for this session shares it (see {@link CalloutManager#groupFor(Object)}), so they display and
+     * dismiss as one chain regardless of which of those windows registered them
+     */
+    private String calloutGroup() {
+        return CalloutManager.groupFor(plugin);
     }
 
     private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {
@@ -1232,7 +1272,7 @@ public class SNTUI extends JDialog {
                     // get() wraps whatever doInBackground() threw in an ExecutionException; unwrap so
                     // the message matches what the synchronous call used to show.
                     final Throwable cause = (ex.getCause() != null) ? ex.getCause() : ex;
-                    guiUtils.error(cause.getMessage(), "Cannot Materialize Region");
+                    guiError(cause.getMessage(), "Cannot Materialize Region");
                 } finally {
                     rebuildCanvasButton.setEnabled(true);
                     resetState();
@@ -1739,15 +1779,39 @@ public class SNTUI extends JDialog {
         plugin.pauseTracing(!plugin.accessToValidImageData() || plugin.tracingHalted, false); // will set UI state
     }
 
+    /**
+     * Displays an error message.
+     *
+     * @param msg the error message
+     */
     public void error(final String msg) {
-        plugin.error(msg);
+        plugin.error(msg); // centered on active window (ImageWindow, etc.)
     }
 
     private void error(final Throwable throwable) {
-        final String msg = throwable.getMessage();
+        final String msg = (throwable.getMessage() == null) ? "Unknown error" : throwable.getMessage();
         final String adjMsg = msg.substring(0, 1).toUpperCase() + msg.substring(1);
+        SNTUtils.error(adjMsg, throwable, false); // already surfaced synchronously via the modal dialog below
         guiUtils.error("Unfortunately an error occurred: <i>" + adjMsg + "</i>. See Console for details.");
-        throwable.printStackTrace();
+    }
+
+    /*
+     * These guiError(...) overloads mirror GuiUtils#error(...) but additionally log the message via
+     * SNTUtils.error(..., false) first, giving every internal validation/failure dialog a permanent record,
+     */
+    private void guiError(final String msg) {
+        //SNTUtils.error(msg, false);
+        guiUtils.error(msg);
+    }
+
+    private void guiError(final String msg, final String title) {
+        //SNTUtils.error(msg, false);
+        guiUtils.error(msg, title);
+    }
+
+    private void guiError(final String msg, final String title, final String helpURI) {
+        //SNTUtils.error(msg, false);
+        guiUtils.error(msg, title, helpURI);
     }
 
     public void showMessage(final String msg, final String title) {
@@ -1781,7 +1845,7 @@ public class SNTUI extends JDialog {
         frameSpinner.setEnabled(hasFrames);
         applyPositionButton.addActionListener(e -> {
             if (!plugin.accessToValidImageData() && plugin.getLoadedData() == null) {
-                guiUtils.error("There is no valid image data to be loaded.");
+                guiError("There is no valid image data to be loaded.");
                 return;
             }
             if (!plugin.accessToValidImageData() && plugin.getLoadedData() != null) {
@@ -1789,7 +1853,7 @@ public class SNTUI extends JDialog {
                 return;
             }
             if (plugin.getImagePlus() == null) {
-                guiUtils.error("Tracing image is no longer available.");
+                guiError("Tracing image is no longer available.");
                 return;
             }
             if (imgDimensionsChanged() && guiUtils.getConfirmation(
@@ -1862,7 +1926,7 @@ public class SNTUI extends JDialog {
                 "Original Image Closed", "Recover", "Ignore")) {
             plugin.initialize(cached);
             if (ImpUtils.isVirtualStack(cached))
-                guiUtils.error("Data was recovered as a virtual stack. Some functionality may not be available.");
+                guiError("Data was recovered as a virtual stack. Some functionality may not be available.");
         }
     }
 
@@ -1928,7 +1992,7 @@ public class SNTUI extends JDialog {
                 noValidImagePlusError();
                 mipCS.setSelected(false);
             } else if (plugin.is2D()) {
-                guiUtils.error(plugin.getImagePlus().getTitle() + " has no depth. Cannot generate projection.");
+                guiError(plugin.getImagePlus().getTitle() + " has no depth. Cannot generate projection.");
                 mipCS.setSelected(false);
             } else {
                 plugin.showMIPOverlays(false, (mipCS.isSelected()) ? (int) mipCS.getValue() * 0.01 : 0);
@@ -1946,16 +2010,16 @@ public class SNTUI extends JDialog {
         refreshPanesButton.addActionListener(e -> {
             final boolean noImageData = !plugin.accessToValidImageData();
             if (noImageData && pathAndFillManager.size() == 0) {
-                guiUtils.error("No paths exist to compute side-view canvases.");
+                guiError("No paths exist to compute side-view canvases.");
                 return;
             }
             if (plugin.getImagePlus() == null) {
-                guiUtils.error("There is no loaded image. Please load one or create a display canvas.",
+                guiError("There is no loaded image. Please load one or create a display canvas.",
                         "No Canvas Exist");
                 return;
             }
             if (plugin.is2D()) {
-                guiUtils.error(plugin.getImagePlus().getTitle() + " has no depth. Cannot generate side views!");
+                guiError(plugin.getImagePlus().getTitle() + " has no depth. Cannot generate side views!");
                 return;
             }
             showStatus("Rebuilding ZY/XZ views...", false);
@@ -1968,7 +2032,7 @@ public class SNTUI extends JDialog {
                 refreshPanesButton.setText("Rebuild ZY/XZ views");
             } catch (final Throwable t) {
                 if (t instanceof OutOfMemoryError) {
-                    guiUtils.error("Out of Memory: There is not enough RAM to load side views!");
+                    guiError("Out of Memory: There is not enough RAM to load side views!");
                 } else {
                     error(t);
                 }
@@ -1988,7 +2052,7 @@ public class SNTUI extends JDialog {
         updateRebuildCanvasButton();
         rebuildCanvasButton.addActionListener(e -> {
             if (pathAndFillManager.size() == 0 && !plugin.isStreamMode()) {
-                guiUtils.error("No paths exist to compute a display canvas.");
+                guiError("No paths exist to compute a display canvas.");
                 return;
             }
             if (plugin.isStreamMode()) {
@@ -2019,7 +2083,7 @@ public class SNTUI extends JDialog {
                 showStatus("Canvas rebuilt...", true);
             } catch (final Throwable t) {
                 if (t instanceof OutOfMemoryError) {
-                    guiUtils.error("Out of Memory: There is not enough RAM to create a canvas this large.");
+                    guiError("Out of Memory: There is not enough RAM to create a canvas this large.");
                 } else {
                     error(t);
                 }
@@ -2034,7 +2098,7 @@ public class SNTUI extends JDialog {
         invertLutButton.addActionListener(e -> {
             final ImagePlus imp = plugin.getImagePlus();
             if (imp == null) {
-                guiUtils.error((plugin.isStreamMode()) ? "No materialized region exists." : "No image available.", "No Image Exists");
+                guiError((plugin.isStreamMode()) ? "No materialized region exists." : "No image available.", "No Image Exists");
             } else if (ImpUtils.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
                 switch(imp.getProcessor().get(0, 0)) {
                     case 0 -> imp.getProcessor().set(128);
@@ -2094,35 +2158,22 @@ public class SNTUI extends JDialog {
     }
 
     private void validateImgDimensions() {
-        if (plugin.getPrefs().getTemp(SNTPrefs.RESIZE_REQUIRED, false)) {
-            final boolean nag = plugin.getPrefs().getTemp("canvasResize-nag", true);
-            if (nag) {
-                final Boolean userPrompt = guiUtils.getPersistentWarning(mismatchedImageWarningMsg(),
-                        "Mismatched Image Dimensions");
-                if (userPrompt != null) // do nothing if user dismissed the dialog
-                    plugin.getPrefs().setTemp("canvasResize-nag", !userPrompt);
-            } else {
-                showStatus("Some nodes rendered outside image!", false);
-            }
+        if (!plugin.getPrefs().getTemp(SNTPrefs.RESIZE_REQUIRED, false) || plugin.isStreamMode()) {
+            // In stream mode there is nothing to suggest: PathAndFillManager has already been sent as queueNotice via SNTUtils.warn()
+            return;
         }
-    }
-
-    private String mismatchedImageWarningMsg() {
-        if (plugin.isStreamMode()) {
-            return "Some nodes are being displayed outside the image volume: Perhaps reconstruction(s) have been loaded from mismatched file(s)?";
-        }
-        final StringBuilder sb = new StringBuilder("Some nodes are being displayed outside the image canvas. To visualize them you can:<ul>");
+        final StringBuilder sb = new StringBuilder("<HTML>To visualize out-of-bounds nodes you can:<ul>");
         String type = "canvas";
         if (plugin.accessToValidImageData()) {
             type = "image";
-            sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
-            sb.append("<li>Close the current image and create a Display Canvas using <i>Create Canvas</i> in the Options pane</li>");
+            sb.append("<li>Use Image&rarr;Adjust&rarr;Canvas Size..., then press <i>Reload</i> in the Main tab</li>");
+            sb.append("<li>Close image then use <i>Create Canvas</i> in the Options tab</li>");
         }
         else {
-            sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
+            sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options tab</li>");
         }
-        sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
-        return sb.toString();
+        sb.append("<li>Replace current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
+        GuiUtils.queueNotice(sb.toString(), null, null);
     }
 
     private void updateSinglePaneFlag() {
@@ -2680,7 +2731,7 @@ public class SNTUI extends JDialog {
 
                     if (VIEWER_WITH_IMAGE.equals(selectedKey)) {
                         if (null == plugin.getImagePlus()) {
-                            guiUtils.error("There is no valid image data to initialize the viewer with.");
+                            guiError("There is no valid image data to initialize the viewer with.");
                             resetChoice();
                             return;
                         }
@@ -2709,7 +2760,7 @@ public class SNTUI extends JDialog {
                             univ.init(window);
                         } catch (final Throwable ignored) {
                             // see https://github.com/morphonets/SNT/issues/136
-                            guiUtils.error(
+                            guiError(
                                     "An exception occurred. Viewer may not be functional. Please consider using previous viewers.");
                         }
                     } else {
@@ -2737,7 +2788,7 @@ public class SNTUI extends JDialog {
                     showStatus("3D Viewer enabled: " + selectedKey, true);
 
                 } catch (final Throwable ex) {
-                    guiUtils.error("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
+                    guiError("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
                     ex.printStackTrace();
                 } finally {
                     resetChoice();
@@ -2775,7 +2826,7 @@ public class SNTUI extends JDialog {
                     univChoice.addItem(iw3d.getTitle());
                 }
             } catch (final Throwable ex) {
-                guiUtils.error("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
+                guiError("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
                 ex.printStackTrace();
             }
             showStatus("Viewers list updated...", true);
@@ -2799,7 +2850,7 @@ public class SNTUI extends JDialog {
                     showStatus("Labels image loaded...", true);
 
                 } catch (final Exception exc) {
-                    guiUtils.error("Could not open " + imageFile.getAbsolutePath() + ". Maybe it is not a valid image?",
+                    guiError("Could not open " + imageFile.getAbsolutePath() + ". Maybe it is not a valid image?",
                             "IO Error");
                     exc.printStackTrace();
                 }
@@ -2982,7 +3033,7 @@ public class SNTUI extends JDialog {
         final JButton syncRecViewer = viewerPanelBuilder.createSyncButton("Sync Reconstruction Viewer");
         syncRecViewer.addActionListener(e -> {
             if (recViewer == null || recViewerFrame == null) {
-                guiUtils.error("Reconstruction Viewer is not open.");
+                guiError("Reconstruction Viewer is not open.");
                 openRecViewer.setEnabled(true);
             } else {
                 recViewer.syncPathManagerList();
@@ -3056,7 +3107,7 @@ public class SNTUI extends JDialog {
         svSyncPathManager = viewerPanelBuilder.createSyncButton("Sync sciview");
         svSyncPathManager.addActionListener(e -> {
             if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
-                guiUtils.error("sciview is not open.");
+                guiError("sciview is not open.");
                 openSciView.setEnabled(true);
             } else {
                 sciViewSNT.syncPathManagerList();
@@ -3094,7 +3145,7 @@ public class SNTUI extends JDialog {
         final JButton syncBVV = viewerPanelBuilder.createSyncButton("Sync Big Volume Viewer");
         syncBVV.addActionListener(e -> {
             if (bvvSNT == null) {
-                guiUtils.error("Big Volume Viewer is not open.");
+                guiError("Big Volume Viewer is not open.");
                 openBVV.setEnabled(true);
             } else {
                 bvvSNT.syncPathManagerList();
@@ -3134,7 +3185,7 @@ public class SNTUI extends JDialog {
         final JButton syncBDV = viewerPanelBuilder.createSyncButton("Sync Big Data Viewer");
         syncBDV.addActionListener(e -> {
             if (bdvSNT == null) {
-                guiUtils.error("Big Data Viewer is not open.");
+                guiError("Big Data Viewer is not open.");
                 openBDV.setEnabled(true);
             } else {
                 bdvSNT.syncPathManagerList();
@@ -3199,7 +3250,7 @@ public class SNTUI extends JDialog {
     }
 
     private void no3DCapabilitiesError(final String viewer) {
-        SwingUtilities.invokeLater(() -> guiUtils.error(viewer + " could not be initialized. Your installation seems "
+        SwingUtilities.invokeLater(() -> guiError(viewer + " could not be initialized. Your installation seems "
                 + "to be missing essential 3D libraries. Please use the updater to install any "
                 + "missing files. See Console for details.", "Error: Dependencies Missing"));
     }
@@ -3271,6 +3322,8 @@ public class SNTUI extends JDialog {
         abortButton.addActionListener(e -> abortCurrentOperation());
         if (plugin.isStreamMode())
             statusText.setIcon(IconFactory.get(GLYPH.STREAM, statusText.getFont().getSize(), statusText.getForeground()));
+        CalloutManager.add(statusText, CalloutManager.AUTO, "Use this panel every time SNT asks you a question.",
+                calloutGroup(), 5);
         return InternalUtils.statusPanel(statusText, keepSegment, junkSegment, completePath, abortButton);
     }
 
@@ -3397,7 +3450,7 @@ public class SNTUI extends JDialog {
 
     private void loadSecondaryImageFile(final File imgFile) {
         if (!SNTUtils.fileAvailable(imgFile)) {
-            guiUtils.error("Current file path is not valid.");
+            guiError("Current file path is not valid.");
             return;
         }
         plugin.secondaryImageFile = imgFile;
@@ -3510,7 +3563,7 @@ public class SNTUI extends JDialog {
                 try {
                     final String errorMsg = (String) get();
                     if (errorMsg != null) {
-                        guiUtils.error(errorMsg);
+                        guiError(errorMsg);
                         flushData();
                     }
                 } catch (InterruptedException | ExecutionException e) {
@@ -3548,8 +3601,32 @@ public class SNTUI extends JDialog {
         menuBar.add(viewMenu());
         menuBar.add(GuiUtils.MenuItems.helpMenu(commandFinder));
         menuBar.add(Box.createHorizontalGlue());
-        menuBar.add(commandFinder.getMenuItem(true));
+        final AbstractButton ab = commandFinder.getMenuItem(true);
+        menuBar.add(ab);
+        CalloutManager.add(ab, CalloutManager.AUTO,
+                "This is your Command Palette: fuzzy-search actions, commands,<br>" +
+                        "and shortcuts by keyword. Use <b>" + GuiUtils.ctrlKey() + "+Shift+P</b> to access it.",
+                calloutGroup(), 4);
         return menuBar;
+    }
+
+    /**
+     * Displays a short first-run walkthrough pointing out a few key
+     * controls. Callouts already dismissed by the user are skipped; pass
+     * {@code forceReplay} to clear that state and show the walkthrough
+     * again, e.g., from a "Replay Onboarding Tips" menu command. If a
+     * chain is already on screen, {@code forceReplay} advances it instead
+     * (repeated clicks of the "tour" button is how users page through it)
+     */
+    private void showCallouts(final boolean forceReplay) {
+        appendImageCalloutToCalloutsReel();
+        if (forceReplay) {
+            // ensure path manager is visible for the full tour
+            setPathListVisible(true, false);
+            CalloutManager.showAllOrAdvance(calloutGroup());
+        } else {
+            CalloutManager.showPending(calloutGroup());
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -3766,6 +3843,9 @@ public class SNTUI extends JDialog {
         final JMenuItem urlItem = getImportActionMenuItem(ImportAction.URL);
         urlItem.setIcon(IconFactory.menuIcon(GLYPH.GLOBE));
         importSubmenu.add(urlItem);
+        CalloutManager.add(fileMenu, CalloutManager.AUTO,
+                "Use <i>File &gt; Load Demo Dataset...</i> to explore SNT<br>using sample images and reconstructions.",
+                calloutGroup(), 1);
         return fileMenu;
     }
 
@@ -3837,7 +3917,9 @@ public class SNTUI extends JDialog {
         jmiBinaryFile.setToolTipText("Runs automated tracing on a segmented image file or\n" +
                 "directory of images with optional SWC export.");
         menu.add(jmiBinaryFile);
-
+        CalloutManager.add(menu, CalloutManager.AUTO,
+                String.format("Use the <i>%s</i> menu for fully-automated<br>reconstruction tasks.", menu.getText()),
+                calloutGroup(), 2);
         return menu;
     }
 
@@ -3925,7 +4007,7 @@ public class SNTUI extends JDialog {
                 final TreeStatistics ta = new TreeStatistics(tree);
                 ta.setContext(plugin.getContext());
                 if (ta.getParsedTree().isEmpty()) {
-                    guiUtils.error("None of the selected paths could be measured.");
+                    guiError("None of the selected paths could be measured.");
                     return;
                 }
                 ta.setTable(pmUI.getTable(), PathManagerUI.TABLE_TITLE);
@@ -3937,6 +4019,9 @@ public class SNTUI extends JDialog {
             }
         });
         analysisMenu.add(measureMenuItem);
+        CalloutManager.add(analysisMenu, CalloutManager.AUTO,
+                String.format("Use the <i>%s</i> menu for actions that<br>operate on complete structures.", analysisMenu.getText()),
+                calloutGroup(), 3);
         return analysisMenu;
     }
 
@@ -4059,7 +4144,7 @@ public class SNTUI extends JDialog {
                 return;
             final ImagePlus imp = plugin.getSecondaryDataAsImp();
             if (imp == null) {
-                guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
+                guiError("Somehow image could not be created.", "Secondary Image Unavailable?");
             } else {
                 imp.show();
             }
@@ -4071,16 +4156,20 @@ public class SNTUI extends JDialog {
             try {
                 Window console = GuiUtils.getConsole();
                 if (console == null) {
-                    plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
-                    console = GuiUtils.getConsole(); // Get the newly created console
-                }
-                if (console != null) {
-                    console.setVisible(!console.isVisible());
+                    GuiUtils.showConsole();
+                    console = GuiUtils.getConsole();
+                    positionConsole(console);
+                } else if (!console.isVisible()) {
+                    // NB: Fiji creates the Console frame during its own startup (hidden, at a fixed location),
+                    // so it may already exist, but not yet positioned by us
+                    positionConsole(console);
+                    console.setVisible(true);
+                } else {
+                    console.setVisible(false);
                 }
             } catch (final Exception ex) {
-                guiUtils.error(
+                guiError(
                         "Could not toggle Fiji's built-in Console. Please use Fiji's Window>Console command directly.");
-                SNTUtils.error("Toggle console error", ex);
             }
         });
         viewMenu.add(consoleJMI);
@@ -4174,7 +4263,7 @@ public class SNTUI extends JDialog {
                 pathAndFillManager.exportToCSV(saveFile);
             } catch (final IOException ioe) {
                 showStatus("Exporting failed.", true);
-                guiUtils.error("Writing traces to '" + savePath + "' failed. See Console for details.");
+                guiError("Writing traces to '" + savePath + "' failed. See Console for details.");
                 changeState(preExportingState);
                 ioe.printStackTrace();
                 return;
@@ -4221,11 +4310,11 @@ public class SNTUI extends JDialog {
                 jmi.putClientProperty("cmdFinder-icon", icon);
                 menu.add(jmi);
                 if ("Change Workspace...".equals(label)) {
-                    jmi.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.selectedColor()));
+                    jmi.setIcon(IconFactory.menuIcon(GLYPH.HOUSE_LAPTOP, IconFactory.selectedColor()));
                     jmi.addActionListener(e -> promptUserForWorkspaceChange());
                 } else {
                     if ("Current Workspace".equals(label))
-                        jmi.setIcon(IconFactory.menuIcon('\ue066', true));
+                        jmi.setIcon(IconFactory.menuIcon(GLYPH.HOUSE_LAPTOP));
                     else if ("Backup(s)".equals(label))
                         jmi.setIcon(IconFactory.menuIcon('\ue2c5', true));
                     else if ("Sessions".equals(label))
@@ -4252,7 +4341,7 @@ public class SNTUI extends JDialog {
                             case "Current TRACES File" -> {
                                 f = getPrefs().getAutosaveFile();
                                 if (f == null) {
-                                    guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
+                                    guiError("Current tracings do not seem to be associated with a TRACES file.");
                                     proceed = false;
                                 }
                             }
@@ -4332,6 +4421,9 @@ public class SNTUI extends JDialog {
         showPathsSelected = new JCheckBox(InternalUtils.hotKeyLabel("1. Only selected paths (hide deselected)", "1"),
                 plugin.showOnlySelectedPaths);
         showPathsSelected.addItemListener(listener);
+        CalloutManager.add(showPathsSelected, CalloutManager.AUTO,
+                "Underlined, bold characters like this <u><b>1</b></u> highlight<br>the single-key shortcut of an action.",
+                calloutGroup(), 7);
 
         showPathsSelectedRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         showPathsSelectedRow.add(showPathsSelected);
@@ -4379,7 +4471,7 @@ public class SNTUI extends JDialog {
         colorChooser1.setName("Color for Selected Paths");
         colorChooser1.addColorChangedListener(newColor -> {
             if (SNTPrefs.deselectedPathColor().equals(newColor)) {
-                guiUtils.error("Selected and deselected colors cannot be the same.");
+                guiError("Selected and deselected colors cannot be the same.");
                 colorChooser1.setSelectedColor(SNTPrefs.selectedPathColor(), true);
             } else {
                 plugin.setSelectedColor(newColor);
@@ -4390,7 +4482,7 @@ public class SNTUI extends JDialog {
         colorChooser2.setName("Color for Deselected Paths");
         colorChooser2.addColorChangedListener(newColor -> {
             if (SNTPrefs.selectedPathColor().equals(newColor)) {
-                guiUtils.error("Selected and deselected colors cannot be the same.");
+                guiError("Selected and deselected colors cannot be the same.");
                 colorChooser2.setSelectedColor(SNTPrefs.deselectedPathColor(), true);
             } else {
                 plugin.setDeselectedColor(newColor);
@@ -4636,7 +4728,7 @@ public class SNTUI extends JDialog {
                         // stays disabled: statistics for the whole image have now been computed once
                     } catch (final Exception ex) {
                         SNTUtils.error("Failed to compute image statistics", ex);
-                        guiUtils.error("Could not compute statistics: " + ex.getMessage());
+                        guiError("Could not compute statistics: " + ex.getMessage());
                         onceRbmi.setSelected(false);
                         onceRbmi.setEnabled(true);
                         if (plugin.getUseSubVolumeStats()) autoRbmi.setSelected(true);
@@ -4718,45 +4810,102 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel hideWindowsPanel() {
-        showOrHidePathList = new JButton("Show Path Manager");
+        showOrHidePathList = new JToggleButton("Show Path Manager");
         showOrHidePathList.addActionListener(listener);
         registerInCommandFinder(showOrHidePathList, "Show/Hide Path Manager", "Main Tab");
-        showOrHideFillList = new JButton();
+        // Icon reflects the action, matching the button text: eye while offering to "Show", eye-slash once selected/offering to "Hide"
+        IconFactory.assignIcon(showOrHidePathList, GLYPH.EYE, GLYPH.EYE_SLASH, IconFactory.secondaryColor(),
+                IconFactory.secondaryColor(), .8f); // Tweak: make icon a tad discrete
+        showOrHideFillList = new JToggleButton();
         showOrHideFillList.addActionListener(listener);
         registerInCommandFinder(showOrHideFillList, "Show/Hide Fill Manager", "Main Tab");
-        final JPanel hideWindowsPanel = new JPanel(new GridBagLayout());
-        final GridBagConstraints gdb = new GridBagConstraints();
-        gdb.fill = GridBagConstraints.HORIZONTAL;
-        gdb.weightx = 0.5;
-        hideWindowsPanel.add(showOrHidePathList, gdb);
-        gdb.gridx = 1;
-        hideWindowsPanel.add(showOrHideFillList, gdb);
+        IconFactory.assignIcon(showOrHideFillList, GLYPH.EYE, GLYPH.EYE_SLASH, IconFactory.secondaryColor(),
+                IconFactory.secondaryColor(), .8f);
+        // GridLayout forces both buttons to always  occupy exactly 50% of the panel width regardless of text length
+        final JPanel hideWindowsPanel = new JPanel(new GridLayout(1, 2));
+        hideWindowsPanel.add(showOrHidePathList);
+        hideWindowsPanel.add(showOrHideFillList);
         return hideWindowsPanel;
     }
 
+    // Defaults for status bar icons: 1f scaling; IconFactory.secondaryColor() throughout
     private JPanel statusBar() {
         final JToolBar toolbar = new JToolBar();
 
+        // onboard tour buttons
+        final Icon tourOnIcon = IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
+                1f, IconFactory.selectedColor());
+        final Icon tourOffIcon = IconFactory.buttonIcon(GLYPH.PERSON_CHALKBOARD, IconFactory.secondaryColor(), 1f);
+        final JButton calloutTour = new JButton(tourOffIcon);
+        calloutTour.setDisabledIcon(IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
+                1f, GuiUtils.getDisabledComponentColor()));
+        calloutTour.setToolTipText("<html>Start the onboarding tour of SNT's interface</html>");
+
+        // Resume-pause button (hidden by default). Default (unselected) glyph is PAUSE: The button is only visible
+        // while the tour is playing, so the icon it starts with must show the action a click would take (pause it),
+        // consistent with the selected (paused) state showing PLAY
+        final JToggleButton resumePauseTour = new JToggleButton();
+        IconFactory.assignIcon(resumePauseTour, GLYPH.PAUSE, GLYPH.PLAY, IconFactory.selectedColor(), 1f);
+        resumePauseTour.setVisible(false);
+        resumePauseTour.setToolTipText("<html>Pause/resume tour (or press Escape)</html>");
+
+        // Add listeners to the buttons
+        calloutTour.addActionListener(e -> showCallouts(true));
+        resumePauseTour.addItemListener(e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED)
+                CalloutManager.pause(calloutGroup());
+            else
+                CalloutManager.resume(calloutGroup());
+        });
+
+        // Centralize button's look into a single source of truth: whenever CalloutManager's state changes for any
+        // reason: Escape pausing the chain, or a callout's own "Got It!" button running it to completion will keep
+        // everything in sync
+        final Runnable refreshTourControls = () -> {
+            final boolean active = CalloutManager.isActive(calloutGroup());
+            final boolean paused = CalloutManager.isPaused(calloutGroup());
+            calloutTour.setIcon(active ? tourOnIcon : tourOffIcon);
+            calloutTour.setToolTipText((active)
+                    ? "<html>Move to next callout</html>"
+                    : "<html>Start the onboarding tour of SNT's interface</html>");
+            calloutTour.setEnabled(!paused);
+            resumePauseTour.setVisible(active);
+            resumePauseTour.setSelected(paused);
+        };
+        CalloutManager.addStateListener(refreshTourControls, calloutGroup());
+
         // Hints button (left-aligned)
-        final JButton hintsIndicator = new JButton(IconFactory.menuIcon(GLYPH.BULB_2, IconFactory.defaultColor()));
+        final JButton hintsIndicator = new JButton(IconFactory.buttonIcon(GLYPH.BULB_2, IconFactory.secondaryColor(), 1f));
         final int[] hintIndex = {0};
-        final GuiUtils hintsGUtils = new GuiUtils(hintsIndicator);
-        final List<String> hints = hintsGUtils.loadHints();
-        hintsIndicator.setToolTipText("Click for a hint");
-        hintsIndicator.addActionListener( e -> {
-            hintsGUtils.showHint(hints.get(hintIndex[0]));
+        // Lod Tips common to both modes. Mode-specific tips (traditional ImagePlus vs stream mode) are added on top
+        final String mCropReplacement = (plugin.isStreamMode()) ? "Materialized crop — " : "";
+        final String ctrlKeyReplacement = GuiUtils.ctrlKey();
+        final List<String> hints = CalloutManager.loadTips(SNTUI.class,
+                plugin.isStreamMode() ? List.of("gui/hints-common.txt", "gui/hints-stream.txt")
+                        : List.of("gui/hints-common.txt", "gui/hints-standard.txt"),
+                line -> line.replace("ctrlKey()", ctrlKeyReplacement).replace("mCrop()", mCropReplacement));
+        hintsIndicator.setToolTipText("Click for a useful hint");
+        hintsIndicator.addActionListener(e -> {
+            CalloutManager.showTip(hintsIndicator, hints.get(hintIndex[0]), CalloutManager.AUTO, 10000);
             hintIndex[0] = (hintIndex[0] + 1) % hints.size();
         });
+
+        final JButton kbdSheet = GuiUtils.Buttons.keyboardCheatSheetButton(IconFactory.secondaryColor(), 1f);
+
+        // first section of the toolbar
+        toolbar.add(calloutTour);
+        toolbar.add(resumePauseTour);
+        toolbar.addSeparator();
         toolbar.add(hintsIndicator);
         toolbar.addSeparator();
-        toolbar.add(GuiUtils.Buttons.keyboardCheatSheetButton());
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
+        toolbar.add(kbdSheet);
         toolbar.addSeparator();
 
         // Workspace indicator
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
         workspaceIndicator = new JButton();
-        workspaceIndicator.addActionListener( e -> {
+        workspaceIndicator.addActionListener(e -> {
             if (getPrefs().workspaceIsValid())
                 guiUtils.showDirectory(getPrefs().getWorkspaceDir());
             else
@@ -4766,8 +4915,14 @@ public class SNTUI extends JDialog {
         toolbar.add(workspaceIndicator);
         toolbar.addSeparator();
 
+        // Notification center: badged whenever GuiUtils has queued a system notice
+        final JButton notification = GuiUtils.Buttons.notificationCenterButton(IconFactory.secondaryColor(), 1f);
+        toolbar.add(notification);
+        toolbar.addSeparator();
+
         // Quick Toggles dropdown
-        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, IconFactory.selectedColor(), 1f, quickTogglesMenu(), true);
+        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, IconFactory.selectedColor(),
+                1f, quickTogglesMenu(), true);
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4785,6 +4940,30 @@ public class SNTUI extends JDialog {
                 }
             }
         });
+
+        // Add callouts of the most important buttons. MAX_VALUE ensures calloutTour will always be the last callout
+        CalloutManager.add(notification, CalloutManager.AUTO,
+                "Notifications (warnings, suggestions, or<br>non-urgent errors) are displayed here.", calloutGroup(), 9);
+        CalloutManager.add(workspaceIndicator, CalloutManager.AUTO,
+                "This is the active workspace directory indicator.<br>Click to change it.", calloutGroup(), 10);
+        CalloutManager.add(calloutTour, CalloutManager.AUTO,
+                "Tour complete! Click this button any time to replay it.", calloutGroup(), Integer.MAX_VALUE);
+
+        // Register components in the palette
+        calloutTour.setActionCommand("Onboarding Tour");
+        calloutTour.putClientProperty("cmdFinder-keywords", "hints,tips,walkthrough,tutorial,start");
+        registerInCommandFinder(calloutTour, null, "Status Bar");
+        hintsIndicator.setActionCommand("Productivity Hints");
+        registerInCommandFinder(hintsIndicator, null, "Status Bar");
+        kbdSheet.setActionCommand("Keyboard Shortcuts Cheatsheet");
+        registerInCommandFinder(kbdSheet, null, "Status Bar");
+        notification.setActionCommand("Notifications");
+        notification.putClientProperty("cmdFinder-keywords", "alerts");
+        registerInCommandFinder(notification, null, "Status Bar");
+        workspaceIndicator.setActionCommand("Workspace Indicator");
+        registerInCommandFinder(workspaceIndicator, null, "Status Bar");
+        quickToggles.setActionCommand("Quick Toggles");
+        registerInCommandFinder(quickToggles, null, "Status Bar");
 
         final JPanel panel = new JPanel(new BorderLayout());
         panel.add(toolbar, BorderLayout.NORTH);
@@ -4854,7 +5033,7 @@ public class SNTUI extends JDialog {
                     if (useSnapWindow.isEnabled()) {
                         useSnapWindow.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected());
                     } else {
-                        guiUtils.error(String.format("%s is currently disabled.", useSnapWindow.getText()));
+                        guiError(String.format("%s is currently disabled.", useSnapWindow.getText()));
                     }
                     ((JCheckBoxMenuItem) e.getSource()).setSelected(useSnapWindow.isSelected()); // re-sync, e.g., no valid image exists
                 },
@@ -4875,7 +5054,7 @@ public class SNTUI extends JDialog {
                     if (secLayerActivateCheckbox.isEnabled()) {
                         secLayerActivateCheckbox.doClick();
                     } else {
-                        guiUtils.error(String.format("%s is currently disabled.", secLayerActivateCheckbox.getText()));
+                        guiError(String.format("%s is currently disabled.", secLayerActivateCheckbox.getText()));
                         ((JCheckBoxMenuItem) e.getSource()).setSelected(false); // re-sync
                     }
                 },
@@ -4959,10 +5138,10 @@ public class SNTUI extends JDialog {
 
     private void updateWorkspaceIndicator() {
         if (plugin.getPrefs().workspaceIsValid()) {
-            workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.secondaryColor()));
+            workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, IconFactory.secondaryColor(), 1f));
             workspaceIndicator.setToolTipText("Current workspace:\n" + plugin.getPrefs().getWorkspaceDir().getAbsolutePath() + "\nClick to change");
         } else {
-            workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, GuiUtils.getDisabledComponentColor()));
+            workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, GuiUtils.getDisabledComponentColor(), 1f));
             workspaceIndicator.setToolTipText("Workspace unavailable.\nClick to configure");
         }
     }
@@ -4996,7 +5175,7 @@ public class SNTUI extends JDialog {
             } else {
                 msg.append("the secondary image does not seem to be valid.");
             }
-            guiUtils.error(msg.toString(), "Error", "https://imagej.net/plugins/snt/extending#tubular-geodesics");
+            guiError(msg.toString(), "Error", "https://imagej.net/plugins/snt/extending#tubular-geodesics");
         }
         return tgInstalled && tgAvailable;
     }
@@ -5105,7 +5284,7 @@ public class SNTUI extends JDialog {
                     final String s2 = s1.length() <= max ? s1 : "..." + s1.substring(s1.length() - max + 3);
                     showStatus("Workspace created: " + s2, true);
                 } else {
-                    guiUtils.error("Could not create default workspace at:<br>" + defaultDir.getAbsolutePath());
+                    guiError("Could not create default workspace at:<br>" + defaultDir.getAbsolutePath());
                 }
                 updateWorkspaceIndicator();
             }
@@ -5137,9 +5316,13 @@ public class SNTUI extends JDialog {
             SNTUtils.setIsLoading(false);
             if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
             InternalUtils.ijmLogMessage();
-            promptForAutoTracingAsAppropriate();
-            guiUtils.notifyIfNewVersion(0);
-            guiUtils.notifyIfOldVersion(5000); // check after 5s to avoid slowing startup
+            notifyBinaryAutoTracingAvailableAsAppropriate();
+            GuiUtils.notifyIfNewVersion(0);
+            GuiUtils.notifyIfOldVersion(5000); // check after 5s to avoid slowing startup
+            if (SNTPrefs.firstRun()) {
+                GuiUtils.queueNotice("<HTML><b>You seem to be running SNT for the first time.</b><br>" +
+                        "Would you like to run the Onboarding tour now?", null, () -> showCallouts(true));
+            }
             getPrefs().set("def-gui-width", ""+getWidth());
             getPrefs().set("def-gui-height", ""+getHeight());
             // check for workspace validity only if user previously wants to be reminded
@@ -5150,22 +5333,23 @@ public class SNTUI extends JDialog {
         });
     }
 
-    protected void promptForAutoTracingAsAppropriate() {
+    private void notifyBinaryAutoTracingAvailableAsAppropriate() {
         if (plugin.getPrefs().getTemp("autotracing-prompt-armed", true)) {
-            final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
-            boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
             if (accessToValidImagePlus() && plugin.getImagePlus().isVisible() && ImpUtils.isBinary(plugin.getImagePlus())) {
-                if (nag) {
-                    final boolean[] options = guiUtils.getPersistentConfirmation(
-                            "Image is eligible for fully automated reconstruction. Would you like to attempt it now?",
-                            "Run Auto-tracing?");
-                    plugin.getPrefs().setTemp("autotracing-run", run = options[0]);
-                    plugin.getPrefs().setTemp("autotracing-nag", !options[1]);
-                }
-                if (run)
-                    runAutotracingOnImage(BinaryTracerCmd.class);
+                final String impTitle = plugin.getImagePlus().getTitle();
+                GuiUtils.queueNotice(
+                        String.format("<HTML><b>%s is eligible for fully automated reconstruction.</b><br>"
+                                + "Click here to attempt it now.", GuiUtils.escapeHtml(impTitle)),
+                        null, () -> {
+                            if (!accessToValidImagePlus() || !ImpUtils.isBinary(plugin.getImagePlus()))
+                                guiError(String.format("%s no longer available.", impTitle));
+                            else
+                                runAutotracingOnImage(BinaryTracerCmd.class);
+                        });
             }
         }
+        // Re-arm unconditionally: the four setTemp(..., false) call sites (SNTUI's reopen-cached-data and load-demo
+        // paths, BinaryTracerCmd, SNTService#initialize) each suppress only the ONE upcoming call to this method
         plugin.getPrefs().setTemp("autotracing-prompt-armed", true);
     }
 
@@ -5208,7 +5392,7 @@ public class SNTUI extends JDialog {
             return false; // user pressed cancel
         }
         if (Double.isNaN(minMax[0]) || Double.isNaN(minMax[1])) {
-            guiUtils.error("Invalid range. Please specify two valid numbers separated by a single hyphen.");
+            guiError("Invalid range. Please specify two valid numbers separated by a single hyphen.");
             return false;
         }
         if (useSecondary) {
@@ -5260,6 +5444,19 @@ public class SNTUI extends JDialog {
     private record DialogLayout(int nextColumnX, int usableY, int usableRight, int usableBottom, int w, int h) {}
 
     /**
+     * The (scijava) Console always appears at (0,0), on top of SNTUI. This repositions it, so that it does
+     * not occlude the main dialog.
+     */
+    private void positionConsole(final Window console) {
+        if (console == null) return;
+        final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
+        final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
+        if (w == -1 || h == -1) return;
+        final Rectangle usable = InternalUtils.usableScreenBounds(this);
+        console.setBounds(usable.x, usable.y + usable.height - h / 3, w * 2, h / 3);
+    }
+
+    /**
      * Positions SNTUI, PathManagerUI, FillManagerUI, and the Console, i.e., the part of "Arrange Dialogs"
      * shared by classic and Stream mode.
      *
@@ -5279,10 +5476,7 @@ public class SNTUI extends JDialog {
         setBounds(usable.x, usable.y, w, h);
         pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, usable.y, w, h);
         fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, usable.y);
-        final Window console = GuiUtils.getConsole();
-        if (console != null) {
-            console.setBounds(usable.x, usable.y + usable.height - h / 3, w * 2, h / 3);
-        }
+        positionConsole(GuiUtils.getConsole());
         final int nextColumnX = pmUI.getLocation().x + w + InternalUtils.MARGIN;
         return new DialogLayout(nextColumnX, usable.y, usable.x + usable.width, usable.y + usable.height, w, h);
     }
@@ -5318,7 +5512,7 @@ public class SNTUI extends JDialog {
                     cachedDataFallbackPrompt();
                     return;
                 } else
-                    guiUtils.error("XY view is not available.");
+                    guiError("XY view is not available.");
             }
             return;
         }
@@ -5367,7 +5561,7 @@ public class SNTUI extends JDialog {
             } else {
                 msg = "View is no longer accessible. " + "You can (re)build it using \"Rebuild ZY/XZ views\".";
             }
-            guiUtils.error(msg);
+            guiError(msg);
             mItem.setSelected(false);
             return;
         }
@@ -5383,7 +5577,7 @@ public class SNTUI extends JDialog {
                 viewerMenuItem.addItemListener(e -> {
                     if (adjusting[0]) return;
                     if (plugin.get3DUniverse() == null || !plugin.use3DViewer) {
-                        guiUtils.error("Legacy 3D Viewer is not active.");
+                        guiError("Legacy 3D Viewer is not active.");
                         adjusting[0] = true;
                         viewerMenuItem.setSelected(false);
                         adjusting[0] = false;
@@ -5397,7 +5591,7 @@ public class SNTUI extends JDialog {
                     if (adjusting[0]) return;
                     final AbstractBigViewer viewer = (viewerDescription.contains("BVV")) ? bvvSNT : bdvSNT;
                     if (viewer == null || viewer.getViewerFrame() == null) {
-                        guiUtils.error(viewerDescription + " is not active.");
+                        guiError(viewerDescription + " is not active.");
                         adjusting[0] = true;
                         viewerMenuItem.setSelected(false);
                         adjusting[0] = false;
@@ -5418,7 +5612,7 @@ public class SNTUI extends JDialog {
     private boolean noPathsError(final String extraMsg) {
         final boolean noPaths = pathAndFillManager.size() == 0;
         if (noPaths)
-            guiUtils.error("There are no traced paths." + extraMsg);
+            guiError("There are no traced paths." + extraMsg);
         return noPaths;
     }
 
@@ -5438,11 +5632,15 @@ public class SNTUI extends JDialog {
             pmUI.setVisible(true);
             if (toFront)
                 pmUI.toFront();
-            if (showOrHidePathList != null)
-                showOrHidePathList.setText("  Hide Path Manager");
+            if (showOrHidePathList != null) {
+                showOrHidePathList.setText("Hide Path Manager");
+                showOrHidePathList.setSelected(true);
+            }
         } else {
-            if (showOrHidePathList != null)
+            if (showOrHidePathList != null) {
                 showOrHidePathList.setText("Show Path Manager");
+                showOrHidePathList.setSelected(false);
+            }
             pmUI.setVisible(false);
         }
     }
@@ -5451,12 +5649,16 @@ public class SNTUI extends JDialog {
         assert SwingUtilities.isEventDispatchThread();
         if (makeVisible) {
             fmUI.setVisible(true);
-            if (showOrHideFillList != null)
-                showOrHideFillList.setText("  Hide Fill Manager");
+            if (showOrHideFillList != null) {
+                showOrHideFillList.setText("Hide Fill Manager");
+                showOrHideFillList.setSelected(true);
+            }
             fmUI.toFront();
         } else {
-            if (showOrHideFillList != null)
+            if (showOrHideFillList != null) {
                 showOrHideFillList.setText("Show Fill Manager");
+                showOrHideFillList.setSelected(false);
+            }
             fmUI.setVisible(false);
         }
     }
@@ -5732,7 +5934,7 @@ public class SNTUI extends JDialog {
         plugin.enableSnapCursor(validImage);
         resetState();
         arrangeCanvases(false);
-        promptForAutoTracingAsAppropriate();
+        notifyBinaryAutoTracingAvailableAsAppropriate();
         listener.tracingImageID = (plugin.getImagePlus() == null) ? 0 : plugin.getImagePlus().getID();
     }
 
@@ -5965,7 +6167,7 @@ public class SNTUI extends JDialog {
 
     boolean noSecondaryDataAvailableError() {
         if (!plugin.isSecondaryDataAvailable()) {
-            guiUtils.error("No secondary image has been defined. Please create or load one first.", "Secondary Image Unavailable");
+            guiError("No secondary image has been defined. Please create or load one first.", "Secondary Image Unavailable");
             setSecondaryLayerTracingSelected(false);
             return true;
         }
@@ -6018,13 +6220,13 @@ public class SNTUI extends JDialog {
      * that need a genuine, RAM-resident {@link ij.ImagePlus} - see {@link #noValidImagePlusError()} for those.
      */
     protected void noValidImageDataError() {
-        guiUtils.error((plugin.isStreamMode())
+        guiError((plugin.isStreamMode())
                 ? "This option requires valid image data to be accessible: either a materialized crop, or an active streamed source."
                 : "This option requires valid image data to be loaded.");
     }
 
     private void noValidImageDataErrorExtended() {
-        guiUtils.error((plugin.isStreamMode())
+        guiError((plugin.isStreamMode())
                 ? "This option requires valid image data to be accessible: either a materialized crop, or an active "
                   + "streamed source. The image should have bright foreground structures on a dark background."
                 : "This option requires valid image data to be loaded. " +
@@ -6038,7 +6240,7 @@ public class SNTUI extends JDialog {
      * {@link SNT#isStreamMode()}: RAM residency is what is actually missing either way.
      */
     private void noValidImagePlusError() {
-        guiUtils.error("This option requires the entire image to be loaded into memory (RAM).");
+        guiError("This option requires the entire image to be loaded into memory (RAM).");
     }
 
     private boolean okToReplaceSecLayer() {
@@ -6287,7 +6489,8 @@ public class SNTUI extends JDialog {
         private void toggleFillListVisibility() {
             assert SwingUtilities.isEventDispatchThread();
             if (!plugin.accessToValidImageData()) {
-                guiUtils.error("Paths can only be filled when valid image data is available.");
+                showOrHideFillList.setSelected(false);
+                guiError("Paths can only be filled when valid image data is available.");
             } else {
                 synchronized (fmUI) {
                     setFillListVisible(!fmUI.isVisible());
@@ -6328,7 +6531,7 @@ public class SNTUI extends JDialog {
 
         private boolean initialize() {
             if (preRunState == SNTUI.EDITING && plugin.getEditingPath() != null) {
-                guiUtils.error(
+                guiError(
                         "Please finish editing " + plugin.getEditingPath().getName() + " before running this command.");
                 return false;
             }
@@ -6343,7 +6546,7 @@ public class SNTUI extends JDialog {
                 cmdService.run(cmd, true, inputs);
             } catch (final OutOfMemoryError e) {
                 e.printStackTrace();
-                guiUtils.error("There is not enough memory to complete command. See Console for details.");
+                guiError("There is not enough memory to complete command. See Console for details.");
             } finally {
                 if (preRunState != getState())
                     changeState(preRunState);
@@ -6397,7 +6600,7 @@ public class SNTUI extends JDialog {
 
         private boolean initialize() {
             if (preRunState == SNTUI.EDITING && plugin.getEditingPath() != null) {
-                guiUtils.error(
+                guiError(
                         "Please finish editing " + plugin.getEditingPath().getName() + " before running this command.");
                 return false;
             }
@@ -6428,7 +6631,7 @@ public class SNTUI extends JDialog {
         @Override
         protected void process(final List<Object> chunks) {
             final String msg = (String) chunks.getFirst();
-            guiUtils.error(msg);
+            guiError(msg);
         }
 
         @Override
@@ -6514,12 +6717,12 @@ public class SNTUI extends JDialog {
             return -1;
         }
 
-        static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
+        static JLabel addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
                                         final GridBagConstraints c) {
-            addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c, false);
+            return addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c, false);
         }
 
-        static void addSeparatorWithURL(final JComponent component, final String label, final String baseUrl,
+        static JLabel addSeparatorWithURL(final JComponent component, final String label, final String baseUrl,
                                         final boolean vgap, final GridBagConstraints c, final boolean streamIcon) {
             final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
             final String uri = baseUrl + "#" + anchor;
@@ -6530,6 +6733,7 @@ public class SNTUI extends JDialog {
                 jLabel.setToolTipText("These options apply only to a materialized crop, not the live Bdv/Bvv scene");
             }
             GuiUtils.addSeparator(component, jLabel, vgap, c);
+            return jLabel;
         }
 
         static String hotKeyLabel(final String text, final String key) {
@@ -6711,16 +6915,16 @@ public class SNTUI extends JDialog {
     private void addFileDrop(final Component component, final GuiUtils guiUtils) {
         new FileDrop(component, files -> {
             if (files.length == 0) { // Is this even possible?
-                guiUtils.error("Dropped file(s) not recognized.");
+                guiError("Dropped file(s) not recognized.");
                 return;
             }
             if (files.length > 1) {
-                guiUtils.error("Ony a single file (or directory) can be imported using drag-and-drop.");
+                guiError("Ony a single file (or directory) can be imported using drag-and-drop.");
                 return;
             }
             final int type = InternalUtils.getImportActionType(files[0]);
             if (type == -1) {
-                guiUtils.error(files[0].getName() + " cannot be imported using drag-and-drop.");
+                guiError(files[0].getName() + " cannot be imported using drag-and-drop.");
                 return;
             }
             new ImportAction(type, files[0]).run();
@@ -6867,7 +7071,7 @@ public class SNTUI extends JDialog {
             plugin.discreteMsg(String.format("Saved to %s...", targetFile.getName()));
             plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY, targetFile.getAbsolutePath());
         } else {
-            plugin.discreteMsg("File could not be saved! Please use File> menu instead.");
+            error("File could not be saved! Please use File> menu instead.");
         }
     }
 
@@ -6883,7 +7087,7 @@ public class SNTUI extends JDialog {
             plugin.setUnsavedChanges(false);
         } catch (final IOException ioe) {
             showStatus("Saving failed.", true);
-            guiUtils.error(String.format("File could not be saved: %s. See Console for details.", ioe.getMessage()));
+            guiError(String.format("File could not be saved: %s. See Console for details.", ioe.getMessage()));
             changeState(preSavingState);
             plugin.setUnsavedChanges(true);
             ioe.printStackTrace();
@@ -7079,10 +7283,10 @@ public class SNTUI extends JDialog {
                                 }
                             }
                         } else {
-                            guiUtils.error("No valid tree data found in the Neurolucida file.");
+                            guiError("No valid tree data found in the Neurolucida file.");
                         }
                     } catch (final IOException ex) {
-                        guiUtils.error("Failed to import Neurolucida file: " + ex.getMessage());
+                        guiError("Failed to import Neurolucida file: " + ex.getMessage());
                     }
                     changeState(priorState);
                 }
@@ -7108,9 +7312,9 @@ public class SNTUI extends JDialog {
                         if (succeed && recorder != null)
                             recorder.recordComment("Detected option: \"" + url + "\"");
                         else if (!succeed)
-                            guiUtils.error("No internet connection or no valid reconstruction(s) found at the specified URL.");
+                            guiError("No internet connection or no valid reconstruction(s) found at the specified URL.");
                     } catch (final IllegalArgumentException ex) {
-                        guiUtils.error("Could not load data from URL: " + ex.getMessage());
+                        guiError("Could not load data from URL: " + ex.getMessage());
                     }
                     if (succeed) validateImgDimensions();
                     changeState(priorState);
@@ -7163,7 +7367,7 @@ public class SNTUI extends JDialog {
                     offsets[0], offsets[1], offsets[2], scales[0], scales[1], scales[2], scales[3],
                     importDialog.isReplacePaths());
             if (!success)
-                guiUtils.error(f.getAbsolutePath() + " does not seem to contain valid SWC data.");
+                guiError(f.getAbsolutePath() + " does not seem to contain valid SWC data.");
             return success;
         }
         return false;

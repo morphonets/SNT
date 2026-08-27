@@ -1,0 +1,12 @@
+# SNT Tips -- Stream mode only: image is a lazily-loaded BDV/BVV-backed source, not fully materialized in-core
+# Lines starting with # are comments and will be ignored
+# Tips are plain text, not HTML: '&', '<', '>' are escaped automatically
+# 'ctrlKey()'' will be replaced by 'Cmd' on macOS; 'Ctrl' on linux/Windows
+# 'mCrop()' will be replaced by 'Materialized crop — ' when in stream mode
+
+BVV and BDV support Imaris (.ims), N5, OME-ZARR, and BDV/XML files: just drag and drop their paths into the Big Data... prompt
+Place 3D markers with the M hotkey and double-click a bookmark to fly to it
+Use BVV's slab controls to restrict path visibility to a Z-slab around the current plane
+Take a BVV snapshot with Shift+S
+BVV can subtract (un-mix) channels for cleaner multi-channel visualization
+When a dataset exceeds the GPU's max texture size, BVV will offer automatic N5 conversion

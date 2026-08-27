@@ -741,10 +741,7 @@ public class SNTCommandFinder {
     }
 
     private void recordComment(final String string) {
-        if (recorder == null)
-            System.out.println(">> " + string);
-        else
-            recorder.recordComment(string);
+        if (recorder != null) recorder.recordComment(string);
     }
 
     /**

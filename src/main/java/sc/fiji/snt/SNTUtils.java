@@ -97,6 +97,15 @@ public class SNTUtils {
 	private static SNT plugin;
 	private static HashMap<Integer, Viewer3D> viewerMap;
 
+	// Minimum gap between UI notices mirrored from warn()/error() (see queueUINotice()). warn()/error() have
+	// far fewer call sites than log() (which is why they -- unlike log() -- are mirrored to the notification
+	// queue at all), but a single call site can still fire in a tight loop (e.g., once per out-of-bounds voxel
+	// while rasterizing a badly-calibrated Path). Throttling here bounds how often that floods the EDT with
+	// queueNotice()/invokeLater() work, without throttling logService itself, so the log/console record stays
+	// complete regardless
+	private static final long UI_NOTICE_THROTTLE_MS = 300;
+	private static volatile long lastUINoticeMs;
+
 	private SNTUtils() {}
 
 	private static void initialize() {
@@ -154,9 +163,19 @@ public class SNTUtils {
 	}
 
 	public static synchronized void error(final String string) {
-        if (!initialized) initialize();
-        logService.error("[SNT] " + string);
-    }
+		error(string, null, true);
+	}
+
+	/**
+	 * As {@link #error(String)}, but allows suppressing the notification-center mirroring, e.g., when the
+	 * caller has already surfaced the message to the user synchronously (a modal dialog)
+	 *
+	 * @param string the message
+	 * @param queueNotice whether to also mirror the message into the notification-center queue
+	 */
+	public static synchronized void error(final String string, final boolean queueNotice) {
+		error(string, null, queueNotice);
+	}
 
 	protected static void setPlugin(final SNT plugin) {
 		synchronized (SNTUtils.class) {
@@ -183,11 +202,24 @@ public class SNTUtils {
 	}
 
 	public static synchronized void error(final String string, final Throwable t)  {
+		error(string, t, true);
+	}
+
+	/**
+	 * As {@link #error(String, Throwable)}, but allows suppressing the notification-center mirroring, e.g.,
+	 * when the caller has already surfaced the message to the user synchronously (a modal dialog)
+	 *
+	 * @param string the message
+	 * @param t the associated exception, or null
+	 * @param queueNotice whether to also mirror the message into the notification-center queue
+	 */
+	public static synchronized void error(final String string, final Throwable t, final boolean queueNotice)  {
 		if (!initialized) initialize();
 		if (t == null)
 			logService.error("[SNT] " + string);
 		else
 			logService.error("[SNT] " + string, t);
+		if (queueNotice) queueUINotice(string, GuiUtils.PendingNotice.ERROR);
 	}
 
 	public static synchronized void log(final String string) {
@@ -199,6 +231,24 @@ public class SNTUtils {
 	public static synchronized void warn(final String string) {
 		if (!initialized) initialize();
 		logService.warn("[SNT] " + string);
+		queueUINotice(string, GuiUtils.PendingNotice.WARN);
+	}
+
+	/**
+	 * Mirrors a warn/error message into the notification-center queue (see {@link GuiUtils#queueNotice}), but
+	 * only when an SNTUI actually exists: {@code error()}/{@code warn()} are called heavily from headless/PySNT
+	 * scripts (no UI, nothing to notify) and from search/filler/scripting threads, so this should remain responsive
+	 * in those cases.
+	 *
+	 * @param string the message, as passed to {@code error()}/{@code warn()}
+	 * @param level the notice's severity
+	 */
+	private static void queueUINotice(final String string, final int level) {
+		if (getInstance() == null || getInstance().getUI() == null) return;
+		final long now = System.currentTimeMillis();
+		if (now - lastUINoticeMs < UI_NOTICE_THROTTLE_MS) return; // dropped: logService above already recorded it
+		lastUINoticeMs = now;
+		GuiUtils.queueNotice(string, null, GuiUtils::showConsole, level);
 	}
 
 	public static void csvQuoteAndPrint(final PrintWriter pw, final Object o) {
@@ -446,12 +496,7 @@ public class SNTUtils {
 		SNT.verbose = b;
 		if (isDebugMode()) {
 			log("Entering debug mode...");
-			try {
-				final ConsolePane<?> console = getContext().service(UIService.class).getDefaultUI().getConsolePane();
-				if (console != null) console.show();
-			} catch (final Exception ignored) {
-				// do nothing;
-			}
+			if (getInstance() != null && getInstance().getUI() != null) GuiUtils.showConsole();
 		}
 	}
 
@@ -729,14 +774,14 @@ public class SNTUtils {
 				if (ij.IJ.getInstance() != null)
 					context = (Context) ij.IJ.runPlugIn("org.scijava.Context", "");
 			} catch (final Throwable ex) {
-				System.out.println("[ERROR] [SNT] Failed to retrieve context from IJ1: " + ex.getMessage());
+				System.err.println("[SNTUtils] Failed to retrieve context from IJ1: " + ex.getMessage());
 			} finally {
 				if (context == null) {
 					standaloneContext = true;
 					try {
 						context = new Context();
 					} catch (final Throwable e) {
-						System.out.println("[SNTUtils] Full SciJava context could not be initialized: " + e.getMessage());
+						System.err.println("[SNTUtils] Full SciJava context could not be initialized: " + e.getMessage());
 						System.out.print("[SNTUtils] Trying initialization with preset services...");
 						// FIXME: When running SNT outside IJ, some services fail to initialize!?
 						// We'll try to initialize a context with the services known to be needed by SNT
@@ -758,7 +803,7 @@ public class SNTUtils {
 					}
 				});
 				if (context != null)
-					System.out.printf("[INFO] [SNT] %d scijava services loaded%n", context.getServiceIndex().size());
+					System.out.printf("[INFO] [SNTUtils] %d scijava services loaded%n", context.getServiceIndex().size());
 			}
 		}
 		return context;

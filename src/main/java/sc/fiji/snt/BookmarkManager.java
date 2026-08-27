@@ -922,7 +922,7 @@ public class BookmarkManager {
                 recordCmd("load(rm.getRoisAsArray())");
             });
             menu.addSeparator();
-            jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
+            jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon(IconFactory.GLYPH.HOUSE_LAPTOP));
             menu.add(jmi);
             jmi.addActionListener(e -> {
                 final File workspaceDir = sntui.getOrPromptForWorkspace();
@@ -996,7 +996,7 @@ public class BookmarkManager {
                 recordCmd("toRoiManager()");
             });
             menu.addSeparator();
-            jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
+            jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon(IconFactory.GLYPH.HOUSE_LAPTOP));
             menu.add(jmi);
             jmi.addActionListener(e -> {
                 final File workspaceDir = sntui.getOrPromptForWorkspace();

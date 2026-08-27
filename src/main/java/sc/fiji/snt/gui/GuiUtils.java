@@ -26,6 +26,7 @@ import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.icons.FlatClearIcon;
 import com.formdev.flatlaf.ui.FlatLineBorder;
+import com.formdev.flatlaf.util.Animator;
 import com.formdev.flatlaf.util.SystemFileChooser;
 import com.formdev.flatlaf.util.UIScale;
 import com.jidesoft.plaf.LookAndFeelFactory;
@@ -37,7 +38,10 @@ import com.jidesoft.utils.ProductNames;
 import ij.gui.PlotWindow;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.CommandService;
+import org.scijava.log.LogLevel;
 import org.scijava.ui.DialogPrompt.Result;
+import org.scijava.ui.UIService;
+import org.scijava.ui.console.ConsolePane;
 import org.scijava.ui.swing.SwingDialog;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
@@ -86,6 +90,8 @@ import java.nio.file.StandardCopyOption;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
 import java.util.function.Consumer;
@@ -93,6 +99,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -111,8 +118,22 @@ public class GuiUtils {
 	private boolean popupExceptionTriggered;
 	private static JColorChooser colorChooser;
 	private static Color disabledColor;
-	private JidePopup tipPopup;
 	private JidePopup popup;
+	// Process-wide (not per-GuiUtils-instance) notification queue: GuiUtils instances are created ad hoc all over
+	// the codebase, often as one-off objects tied to some specific parent window/dialog rather than the "main"
+	// SNTUI's own guiUtils field, so a per-instance queue would silently strand notices queued from any of those.
+	// SNT itself already behaves as an app-wide singleton whenever an SNTUI exists (see the SNTUtils.getInstance()
+	// guard in BigDataLoaderCmd), so a single static queue matches the app's actual architecture
+	private static final List<PendingNotice> pendingNotices = new CopyOnWriteArrayList<>();
+	private static volatile Runnable notificationsListener;
+
+	/**
+	 * Hard cap on the number of queued notices. A guard against a script/loop (e.g., a runaway PySNT script
+	 * hitting {@code SNTUtils.error()}/{@code warn()} repeatedly) flooding the queue: once reached, the oldest
+	 * notice is dropped to make room for the new one, so the queue -- and the popup listing it -- stays bounded
+	 * no matter how many notices are queued over a session
+	 */
+	private static final int MAX_PENDING_NOTICES = 50;
 
 	public GuiUtils(final Component parent) {
 		setParent(parent);
@@ -166,7 +187,108 @@ public class GuiUtils {
 		}
 	}
 
-	public void notifyIfNewVersion(final int msDelayBeforeShow) {
+	/**
+	 * A notification message queued for a persistent notification-center UI element. Unlike a transient popup
+	 * (see {@link #showNotification}, an entry here is only removed by an explicit
+	 * {@link #dismissPendingNotice(PendingNotice)} (or {@link #clearPendingNotices()}), so it survives indefinitely
+	 * until the user actually acts on it
+	 *
+	 * @param html     the notification's HTML-formatted message
+	 * @param url      an optional URL to be opened if the message is clicked, or null
+	 * @param action   an optional in-app action to be run if the message is clicked, or null. Unlike {@code url}
+	 *                 (a link to somewhere outside the application)
+	 * @param logLevel the notice's severity as defined by {@link org.scijava.log.LogLevel}, used to pick an accent icon for it.
+	 */
+	public record PendingNotice(String html, String url, Runnable action, int logLevel) {
+
+		public final static int INFO = LogLevel.INFO;
+		public final static int WARN = LogLevel.WARN;
+		public final static int ERROR = LogLevel.ERROR;
+
+		public PendingNotice(final String html, final String url, final Runnable action) {
+			this(html, url, action, org.scijava.log.LogLevel.INFO);
+		}
+	}
+
+	/**
+	 * @return an unmodifiable snapshot of the notifications currently queued
+	 */
+	public static List<PendingNotice> getPendingNotices() {
+		return List.copyOf(pendingNotices);
+	}
+
+	/**
+	 * @return true if one or more notifications are queued
+	 */
+	public static boolean hasPendingNotices() {
+		return !pendingNotices.isEmpty();
+	}
+
+	/**
+	 * Queues a notification for the (single, process-wide) notification-center UI element (see
+	 * {@link #setNotificationsListener}). Does not display anything itself (see {@link #notify(String, int)} for that)
+	 *
+	 * @param html   the notification's HTML-formatted message
+	 * @param url    an optional URL to be opened if the message is clicked, or null
+	 * @param action an optional in-app action to be run if the message is clicked, or null
+	 */
+	public static void queueNotice(final String html, final String url, final Runnable action) {
+		queueNotice(html, url, action, org.scijava.log.LogLevel.INFO);
+	}
+
+	/**
+	 * As {@link #queueNotice(String, String, Runnable)}, but also specifying the notice's severity
+	 *
+	 * @param logLevel the notice's severity as defined by {@link org.scijava.log.LogLevel}, used to pick an accent icon for it
+	 */
+	public static void queueNotice(final String html, final String url, final Runnable action,
+								   final int logLevel) {
+		while (pendingNotices.size() >= MAX_PENDING_NOTICES) {
+			try {
+				pendingNotices.removeFirst();
+			} catch (final IndexOutOfBoundsException ignored) {
+				break; // another thread already drained it
+			}
+		}
+		pendingNotices.add(new PendingNotice(html, url, action, logLevel));
+		fireNotificationsChanged();
+	}
+
+	/**
+	 * Removes a single notice from the queue, e.g., once the user has seen/acted on it. Other queued notices
+	 * are left untouched.
+	 *
+	 * @param notice the notice to remove, typically one previously returned by {@link #getPendingNotices()}
+	 */
+	public static void dismissPendingNotice(final PendingNotice notice) {
+		if (pendingNotices.remove(notice)) fireNotificationsChanged();
+	}
+
+	/**
+	 * Empties the notification queue, e.g., once the user has seen/acknowledged all of its contents.
+	 */
+	public static void clearPendingNotices() {
+		pendingNotices.clear();
+		fireNotificationsChanged();
+	}
+
+	/**
+	 * Registers the listener invoked (on the EDT) whenever the pending-notifications queue changes (an entry is
+	 * added or removed). Intended for driving a UI element, such as a status bar button, that needs to reflect
+	 * {@link #hasPendingNotices()} accurately. There is only one queue process-wide, so registering a new
+	 * listener replaces whichever one was previously set
+	 *
+	 * @param listener the listener to be run on change, or null to unregister
+	 */
+	public static void setNotificationsListener(final Runnable listener) {
+		notificationsListener = listener;
+	}
+
+	private static void fireNotificationsChanged() {
+		if (notificationsListener != null) SwingUtilities.invokeLater(notificationsListener);
+	}
+
+	public static void notifyIfNewVersion(final int msDelayBeforeShow) {
 		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
 				final String s = """
@@ -174,7 +296,7 @@ public class GuiUtils {
 						&nbsp;<b>SNT was updated: Click here to find out what is new!</b>
 						<br>&nbsp;Tip: You may want to run <i>File › Reset and Restart...</i> to clear outdated settings.
 						""";
-				showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true, -1);
+				queueNotice(s, MenuItems.releaseNotesURL(), null);
 			}
 		});
 		timer.setRepeats(false);
@@ -191,7 +313,7 @@ public class GuiUtils {
 	 *
 	 * @param msDelayBeforeCheck delay in ms before the background check starts
 	 */
-	public void notifyIfOldVersion(final int msDelayBeforeCheck) {
+	public static void notifyIfOldVersion(final int msDelayBeforeCheck) {
 		final Timer timer = new Timer(msDelayBeforeCheck, e -> {
 			new Thread(() -> {
 				try {
@@ -224,7 +346,7 @@ public class GuiUtils {
 									&nbsp;<b>A newer version of SNT seems to be available!</b>
 									<br>&nbsp;Run the Fiji updater (<i>Help › Update...</i>) to get it.
 									""";
-							showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true, -1);
+							queueNotice(s, MenuItems.releaseNotesURL(), null);
 						});
 					}
 				} catch (final Exception ignored) {
@@ -234,55 +356,6 @@ public class GuiUtils {
 		});
 		timer.setRepeats(false);
 		timer.start();
-	}
-
-	private JidePopup assembleNotification(final String msg, final Number msDelay) {
-		StringBuilder parsedMsg;
-		if (!msg.startsWith("<HTML>")) {
-			final String[] lines = msg.split("\n");
-			parsedMsg = new StringBuilder("<HTML><div style='width:300px;font-family:sans-serif'><b>" + lines[0] + "</b>");
-			for (int i = 1; i < lines.length; i++) {
-				parsedMsg.append("<br>").append(lines[i]);
-			}
-		}
-		else
-			parsedMsg = new StringBuilder(msg);
-		return assembleNotification(new JLabel(parsedMsg.toString()), false, msDelay.intValue());
-	}
-
-	public void showHint(final String tip) {
-		if (tipPopup != null && tipPopup.isPopupVisible()) {
-			tipPopup.hidePopupImmediately();
-		}
-		tipPopup = assembleNotification(tip, -1);
-		SwingUtilities.invokeLater(() -> {
-			if (parent != null) {
-				final Point p = parent.getLocationOnScreen();
-				tipPopup.showPopup(p.x + parent.getWidth(), p.y);
-			} else {
-				tipPopup.showPopup(SwingConstants.NORTH_EAST);
-			}
-		});
-	}
-
-	public List<String> loadHints() {
-		final List<String> tips = new ArrayList<>();
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                Objects.requireNonNull(classloader.getResourceAsStream(("gui/hints.txt")))))) {
-			String line;
-			while ((line = reader.readLine()) != null) {
-				line = line.trim();
-				if (!line.isEmpty() && !line.startsWith("#")) { // Skip empty lines and comments
-					tips.add(line.replace("ctrlKey()", ctrlKey()));
-				}
-			}
-		} catch (final Exception e) {
-			SNTUtils.error("Failed to load tips", e);
-			tips.add("No tips available"); // Fallback
-		}
-		Collections.shuffle(tips);
-		return tips;
 	}
 
 	private JidePopup showNotification(final JLabel msg, final boolean disposeOnClick, final int displayDuration) {
@@ -388,18 +461,82 @@ public class GuiUtils {
 	}
 
 	/**
-	 * Displays a floating notification in the upper corner of the active screen
-	 * @param msg The message to be displayed
-	 * @param msDelayBeforeShow the amount (in ms) of time before notification shouls be displayed
+	 * Holder for the Markdown-emphasis patterns used by {@link #markdownToHtml(String)}. The four {@link Pattern}
+	 * compile calls only happen when {@link #markdownToHtml(String)} is actually invoked.
+	 */
+	private static final class MarkdownPatterns {
+		/** **bold** (double-asterisk emphasis) */
+		private static final Pattern BOLD_STAR = Pattern.compile("\\*\\*(.+?)\\*\\*");
+		/** __bold__ (double-underscore emphasis) */
+		private static final Pattern BOLD_UNDERSCORE = Pattern.compile("__(.+?)__");
+		/** *italic* (single-asterisk emphasis) */
+		private static final Pattern ITALIC_STAR = Pattern.compile("\\*(.+?)\\*");
+		/**
+		 * _italic_ (single-underscore emphasis), requiring a non-word character (or start/end of string) on
+		 * either side, so that intraword underscores (e.g., in {@code my_file_name.txt} or
+		 * {@code some_variable}) are left untouched
+		 */
+		private static final Pattern ITALIC_UNDERSCORE = Pattern.compile("(?<!\\w)_(.+?)_(?!\\w)");
+	}
+
+	/**
+	 * Converts a minimal, deliberately limited subset of Markdown (bold: {@code **text**} or
+	 * {@code __text__}; italic: {@code *text*} or {@code _text_}) into HTML. The input is
+	 * first run through {@link #escapeHtml(String)}, so a literal '&lt;', '&gt;', or '&amp;' in {@code text}
+	 * is preserved as-is rather than read as markup, and only the recognized emphasis markers are turned
+	 * into {@code <b>}/{@code <i>} tags; everything else is left as plain (now HTML-safe) text.
+	 *
+	 * @param text the plain text, optionally containing basic Markdown emphasis markers
+	 * @return HTML-escaped text with recognized Markdown emphasis converted to {@code <b>}/{@code <i>} tags
+	 */
+	public static String markdownToHtml(final String text) {
+		String html = escapeHtml(text);
+		html = MarkdownPatterns.BOLD_STAR.matcher(html).replaceAll("<b>$1</b>");
+		html = MarkdownPatterns.BOLD_UNDERSCORE.matcher(html).replaceAll("<b>$1</b>");
+		html = MarkdownPatterns.ITALIC_STAR.matcher(html).replaceAll("<i>$1</i>");
+		html = MarkdownPatterns.ITALIC_UNDERSCORE.matcher(html).replaceAll("<i>$1</i>");
+		return html;
+	}
+
+	/**
+	 * Displays a floating notification in the upper corner of the active screen.
+	 *
+	 * @param msg the message to be displayed. May include a minimal subset of Markdown for emphasis:
+	 *            {@code **bold**}/{@code __bold__} and {@code *italic*}/{@code _italic_} see
+	 *            {@link #markdownToHtml(String)}. Anything else, including literal '&lt;'/'&gt;'/'&amp;', is
+	 *            treated as plain text.
+	 * @see #notify(String, int)
+	 */
+	public static void notify(final String msg) {
+		notify(msg, 0);
+	}
+
+	/**
+	 * Displays a floating notification in the upper corner of the active screen.
+	 *
+	 * @param msg               the message to be displayed. May include a minimal subset of Markdown for emphasis:
+	 *                          {@code **bold**}/{@code __bold__} and {@code *italic*}/{@code _italic_} see
+	 *                          {@link #markdownToHtml(String)}. Anything else, including literal '&lt;'/'&gt;'/'&amp;', is
+	 *                          treated as plain text.
+	 * @param msDelayBeforeShow the amount (in ms) of time before notification should be displayed
 	 */
 	public static void notify(final String msg, final int msDelayBeforeShow) {
 		final GuiUtils guiUtils = new GuiUtils(null);
 		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			Toolkit.getDefaultToolkit().beep(); // System beep
-			guiUtils.showNotification(guiUtils.getLabel(msg), true, -1);
+			final String finalMsg = GuiUtils.markdownToHtml(msg);
+			final JidePopup toast = guiUtils.showNotification(new JLabel(Buttons.wrapHtml(finalMsg)), true, -1);
+			if (SNTUtils.getInstance() != null) {
+				final String datedMsg = String.format("%s (%s)", finalMsg, getTimeStamp());
+				queueNotice(Buttons.wrapHtml(datedMsg), null, toast::hidePopupImmediately);
+			}
 		});
 		timer.setRepeats(false);
 		timer.start();
+	}
+
+	public static String getTimeStamp() {
+		return LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEE dd MMM yyyy, HH:mm:ss"));
 	}
 
 	private JidePopup getPopup(final String msg) {
@@ -1987,7 +2124,6 @@ public class GuiUtils {
 		gbc.gridy++;
 
 		final JButton gpuDetails = infoButton("Max OpenGL: querying...", GLYPH.CUBE, refIcon);
-		gpuDetails.setEnabled(false); // enabled once GLUtils.getInfo() resolves, below
 		side.add(gpuDetails, gbc);
 		gbc.gridy++;
 
@@ -2026,7 +2162,6 @@ public class GuiUtils {
 					gpuDetails.setToolTipText("<HTML>Best OpenGL context available on this machine.<br>" +
 							"Reconstruction Viewer and BigVolumeViewer negotiate their own context<br>" +
 							"and may use a different (often lower) version. Click to copy to clipboard");
-					gpuDetails.setEnabled(true);
 					gpuDetails.addActionListener(e -> {
 						final StringSelection info = new StringSelection(gpu.vendor() + " / " + gpuText);
 						Toolkit.getDefaultToolkit().getSystemClipboard().setContents(info, null);
@@ -2034,6 +2169,7 @@ public class GuiUtils {
 					});
 				} else {
 					gpuDetails.setText("Max OpenGL: unavailable");
+					gpuDetails.setEnabled(false);
 				}
 				// Content changed after the dialog was packed/shown: JOptionPane's dialog is
 				// not resizable by the user, but repacking programmatically still works, and
@@ -2263,6 +2399,18 @@ public class GuiUtils {
 		return l.getFontMetrics(l.getFont()).stringWidth(text);
 	}
 
+	/**
+	 * Escapes the handful of characters that are meaningful to an HTML parser. Use before placing plain text
+	 * inside HTML markup, so that a stray '&lt;'/'&amp;' in it is displayed literally instead of being misread as
+	 * markup (an unescaped '&lt;'  in particular would otherwise be parsed as the start of a tag and swallow the rest
+	 * of the text)
+	 *
+	 * @param text the plain text to escape
+	 */
+	public static String escapeHtml(final String text) {
+		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+	}
+
 	public static JLabel leftAlignedLabel(final String text, final boolean enabled) {
 		return leftAlignedLabel(text, null, enabled);
 	}
@@ -2270,10 +2418,26 @@ public class GuiUtils {
 	public static JLabel leftAlignedLabel(final String text, final String uri,
 										  final boolean enabled)
 	{
+		return leftAlignedLabel(text, uri, null, enabled);
+	}
+
+	/**
+	 * As {@link #leftAlignedLabel(String, String, boolean)}, but also (or instead of a {@code uri}) running an
+	 * in-app action on click -- e.g., for a label that should trigger something within the application, such
+	 * as starting a wizard/tour, rather than (or in addition to) opening an external link.
+	 *
+	 * @param text the label's (HTML-formatted, if applicable) text
+	 * @param uri an optional URL to be opened on click, or null
+	 * @param action an optional action to be run on click (after {@code uri}, if any, is opened), or null
+	 * @param enabled whether the label starts off enabled (a disabled label ignores clicks)
+	 */
+	public static JLabel leftAlignedLabel(final String text, final String uri, final Runnable action,
+										  final boolean enabled)
+	{
 		final JLabel label = new JLabel(text);
 		label.setHorizontalAlignment(SwingConstants.LEFT);
 		label.setEnabled(enabled);
-		if (uri != null && Desktop.isDesktopSupported()) {
+		if ((uri != null && Desktop.isDesktopSupported()) || action != null) {
 			label.addMouseListener(new MouseAdapter() {
 				@Override
 				public void mouseEntered(final MouseEvent e) {
@@ -2289,7 +2453,9 @@ public class GuiUtils {
 
 				@Override
 				public void mouseClicked(final MouseEvent e) {
-					if (label.isEnabled()) openURL(uri);
+					if (!label.isEnabled()) return;
+					if (uri != null && Desktop.isDesktopSupported()) openURL(uri);
+					if (action != null) action.run();
 				}
 			});
 		}
@@ -2430,6 +2596,16 @@ public class GuiUtils {
 			}
 		}
 		return null;
+	}
+
+	/** Brings the (scijava) console pane to front */
+	public static void showConsole() {
+		try {
+			final ConsolePane<?> console = SNTUtils.getContext().service(UIService.class).getDefaultUI().getConsolePane();
+			if (console != null) console.show();
+		} catch (final Exception ignored) {
+			// do nothing
+		}
 	}
 
 	public static JColorChooser colorChooser(final Color defaultValue) {
@@ -4979,9 +5155,132 @@ public class GuiUtils {
 			return button;
 		}
 
-		public static JButton keyboardCheatSheetButton() {
+		/**
+		 * Creates a "notification center" bell button reflecting the (single, process-wide) pending-notices
+		 * queue (see {@link GuiUtils#queueNotice}): badged with a small corner dot whenever a notice is
+		 * queued, and, on click, listing (and letting the user dismiss/act on) whatever is currently pending.
+		 * Add the returned button to a toolbar/panel; icon state, badge, and popup are all wired automatically
+		 *
+		 * @return the fully wired button
+		 */
+		public static JButton notificationCenterButton(final Color color, final float scalingFactor) {
+			final Icon bellIcon = IconFactory.buttonIcon(GLYPH.BELL, color, scalingFactor);
+			final JButton button = new JButton(bellIcon);
+			final Icon bellBadgedIcon = IconFactory.notificationIcon(bellIcon, GuiUtils.errorColor(),
+					button.getBackground());
+			final Runnable refresh = () -> {
+				button.setIcon((GuiUtils.hasPendingNotices()) ? bellBadgedIcon : bellIcon);
+				button.setToolTipText("Notifications");
+			};
+			GuiUtils.setNotificationsListener(refresh);
+			refresh.run();
+			button.addActionListener(e -> showNotificationCenterPopup(button));
+			return button;
+		}
+
+		/**
+		 * Popup shown by {@link #notificationCenterButton(Color, float)}. Clicking a listed notice dismisses only
+		 * that notice (not the whole queue), so an unrelated notice the user hasn't seen yet isn't silently
+		 * swept away along with it. The most recently queued notice is listed first, and a "Clear All" is appended
+		 * so the whole queue can be dismissed in one go.
+		 */
+		private static void showNotificationCenterPopup(final JButton invoker) {
+			final List<PendingNotice> notices = GuiUtils.getPendingNotices();
+			final JPopupMenu popup = new JPopupMenu();
+			if (notices.isEmpty()) {
+				popup.add(noticeToLabel(new PendingNotice("<HTML>You are all caught up.<br>" +
+						"Suggestions, events, and warnings will appear here",
+						null, null), null));
+			} else {
+				// notices is oldest-first (arrival order); walk it backwards so the newest is listed first
+				for (int i = notices.size() - 1; i >= 0; i--) {
+					if (i < notices.size() - 1) popup.addSeparator();
+					final PendingNotice notice = notices.get(i);
+					// A plain JLabel doesn't auto-close the popup on click
+					final Runnable onClick = () -> {
+						GuiUtils.dismissPendingNotice(notice);
+						popup.setVisible(false);
+						if (notice.action() != null) notice.action().run();
+					};
+					popup.add(noticeToLabel(notice, onClick));
+				}
+				popup.addSeparator();
+				final JMenuItem clearAllItem = new JMenuItem("Clear All", IconFactory.menuIcon(GLYPH.TRASH));
+				clearAllItem.addActionListener(e -> GuiUtils.clearPendingNotices());
+				popup.add(clearAllItem);
+			}
+			popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2);
+		}
+
+		/**
+		 * Target pixel width (per line) for a plain-text (non-HTML) notice, so a long notice does not dwarf the
+		 * short, hand-authored HTML notices sharing the same popup. See {@link #noticeToLabel}
+		 */
+		private static final int NOTICE_MAX_WIDTH = 500;
+
+		/**
+		 * Number of lines a plain-text notice may wrap onto before being truncated. Generous on purpose: a notice
+		 * that is only a word or two over a single line's worth still displays in full instead of being cut down
+		 * to one line, while a pathologically long message (e.g., a runaway loop's worth of near-identical text)
+		 * is still bounded rather than growing the popup indefinitely
+		 */
+		private static final int NOTICE_MAX_LINES = 3;
+
+		private static JLabel noticeToLabel(final PendingNotice notice, final Runnable onClick) {
+			final boolean enabled = notice.url() != null || notice.action() != null || onClick != null;
+			final boolean isHtml = notice.html().startsWith("<HTML>") || notice.html().startsWith("<html>");
+			// Hand-authored notices (version updates, tour prompt, CurationManager, etc.) are already curated,
+			// trusted HTML and are rendered as-is. Plain-text notices (from SNTUtils.warn()/error(), which can be
+			// of any length and contain arbitrary characters, e.g., a file path) are truncated (on a word boundary,
+			// measuring the raw text) to a generous multi-line budget, THEN escaped and wrapped in HTML so they
+			// wrap instead of overflowing -- escaping has to happen after truncation, not before, since cutting an
+			// already-escaped string at a character offset risks slicing an entity (e.g., "&amp;") in half
+			final String display;
+			String tooltip = null;
+			if (isHtml) {
+				display = notice.html();
+			} else {
+				final String raw = notice.html();
+				final String truncated = truncateToWidth(raw, NOTICE_MAX_WIDTH * NOTICE_MAX_LINES);
+				display = wrapHtml(GuiUtils.escapeHtml(truncated));
+				if (!truncated.equals(raw)) tooltip = wrapHtml(GuiUtils.escapeHtml(raw)); // full text, still wrapped
+			}
+			final JLabel label = GuiUtils.leftAlignedLabel(display, notice.url(), onClick, enabled);
+			if (tooltip != null) label.setToolTipText(tooltip);
+			label.setBorder(new EmptyBorder(4, 8, 4, 8));
+			switch (notice.logLevel()) {
+				case LogLevel.ERROR -> label.setIcon(IconFactory.accentIcon(GuiUtils.errorColor(), true));
+				case LogLevel.WARN -> label.setIcon(IconFactory.accentIcon(GuiUtils.warningColor(), true));
+				default -> label.setIcon(IconFactory.accentIcon(GuiUtils.linkColor(), true));
+			}
+			return label;
+		}
+
+		private static String wrapHtml(final String escapedText) {
+			return "<HTML><div width=" + NOTICE_MAX_WIDTH + ">" + escapedText + "</div>";
+		}
+
+		/**
+		 * Truncates plain text to fit within {@code maxWidth} pixels (appending an ellipsis), measuring width via
+		 * {@link GuiUtils#renderedWidth}. Backs off to the previous word boundary, if any, so the ellipsis doesn't
+		 * follow half a word. Returns {@code text} unchanged if it already fits.
+		 */
+		private static String truncateToWidth(final String text, final int maxWidth) {
+			if (GuiUtils.renderedWidth(text) <= maxWidth) return text;
+			final String ellipsis = "...";
+			int lo = 0, hi = text.length();
+			while (lo < hi) {
+				final int mid = (lo + hi + 1) / 2;
+				if (GuiUtils.renderedWidth(text.substring(0, mid) + ellipsis) <= maxWidth) lo = mid; else hi = mid - 1;
+			}
+			final int lastSpace = text.lastIndexOf(' ', lo - 1);
+			if (lastSpace > 0) lo = lastSpace;
+			return text.substring(0, lo).stripTrailing() + ellipsis;
+		}
+
+		public static JButton keyboardCheatSheetButton(final Color color, final float scalingFactor) {
 			final String fallbackURL = "https://imagej.net/plugins/snt/key-shortcuts";
-			final JButton button = new JButton(IconFactory.menuIcon(GLYPH.KEYBOARD));
+			final JButton button = new JButton(IconFactory.buttonIcon(GLYPH.KEYBOARD, color, scalingFactor));
 			button.setToolTipText("List keyboard shortcuts");
 			button.addActionListener(e -> {
 				final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
@@ -5154,6 +5453,111 @@ public class GuiUtils {
 				}
 			}
 			return null;
+		}
+
+		/**
+		 * Briefly "blinks" {@code button}'s icon a handful of times towards a color-inverted negative of itself/
+		 * <p>
+		 * The negative is derived from {@code button}'s own current icon (rasterized once into a {@link BufferedImage},
+		 * RGB channels inverted pixel-by-pixel, alpha left untouched). Crossfades the two directly (same technique as
+		 * {@code SplashScreen}'s icon transitions.
+		 * </p>
+		 * <p>
+		 * Stops immediately, rather than running to completion, the moment {@code button} is actually clicked, and
+		 * restores {@code button}'s original icon either way once done.
+		 * </p>
+		 *
+		 * @param button          the button to be 'blinked'
+		 * @param animationCycles the no. of animation cycles. Setting it to {@code -1} applies a default.
+		 */
+		public static void blink(final AbstractButton button, final int animationCycles) {
+			final int ANIMATION_DURATION = 80000; // ms
+			final int cycles = (animationCycles < 0) ? 60 : animationCycles; // # of pulses over the animation's run
+			final Icon originalIcon = button.getIcon();
+			if (originalIcon == null)
+				return;
+			final int w = originalIcon.getIconWidth();
+			final int h = originalIcon.getIconHeight();
+			if (w <= 0 || h <= 0)
+				return;
+			final BufferedImage snapshot = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+			final Graphics2D sg = snapshot.createGraphics();
+			try {
+				GuiUtils.setRenderingHints(sg);
+				sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+				originalIcon.paintIcon(button, sg, 0, 0);
+			} finally {
+				sg.dispose();
+			}
+			// invert RGB in place, pixel by pixel; alpha (the icon's actual shape/antialiasing) is left untouched,
+			// so only the "ink" color flips, not which pixels are painted at all
+			for (int py = 0; py < h; py++) {
+				for (int px = 0; px < w; px++) {
+					final int argb = snapshot.getRGB(px, py);
+					final int a = argb >>> 24;
+					if (a == 0)
+						continue; // fully transparent: nothing to invert
+					final int r = 255 - ((argb >> 16) & 0xff);
+					final int g = 255 - ((argb >> 8) & 0xff);
+					final int b = 255 - (argb & 0xff);
+					snapshot.setRGB(px, py, (a << 24) | (r << 16) | (g << 8) | b);
+				}
+			}
+			final Icon negativeIcon = new ImageIcon(snapshot);
+			// 0 == only originalIcon visible, 1 == only negativeIcon visible
+			final float[] alpha = {0f};
+			final Icon blendIcon = new Icon() {
+				@Override
+				public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+					originalIcon.paintIcon(c, g, x, y);
+					if (alpha[0] > 0f) {
+						final Graphics2D g2 = (Graphics2D) g.create();
+						try {
+							g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha[0]));
+							negativeIcon.paintIcon(c, g2, x, y);
+						} finally {
+							g2.dispose();
+						}
+					}
+				}
+
+				@Override
+				public int getIconWidth() {
+					return originalIcon.getIconWidth();
+				}
+
+				@Override
+				public int getIconHeight() {
+					return originalIcon.getIconHeight();
+				}
+			};
+			button.setIcon(blendIcon);
+			final Animator animator = new Animator(ANIMATION_DURATION, new Animator.TimingTarget() {
+				@Override
+				public void timingEvent(final float fraction) {
+					final float envelope = 1f - fraction; // linear decay: full strength -> nothing
+					final float wave = (float) Math.abs(Math.sin(fraction * cycles * Math.PI));
+					alpha[0] = envelope * wave;
+					button.repaint();
+				}
+
+				@Override
+				public void end() {
+					button.setIcon(originalIcon);
+				}
+			});
+			final ActionListener stopOnClick = new ActionListener() {
+				@Override
+				public void actionPerformed(final ActionEvent e) {
+					if (animator.isRunning())
+						animator.stop();
+					// never leave blendIcon installed once the user has acted on the nudge
+					button.setIcon(originalIcon);
+					button.removeActionListener(this);
+				}
+			};
+			button.addActionListener(stopOnClick);
+			animator.start();
 		}
 
 		public static class StackedButton extends JPanel {

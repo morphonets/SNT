@@ -108,6 +108,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private Collection<ImagePlus> openImps;
 	private ImagePlus sourceImp;
 	private File currentImageFile;
+	private boolean calibrationInvalid;
 
 	@Override
 	public void initialize() {
@@ -339,6 +340,15 @@ public class SNTLoaderCmd extends DynamicCommand {
 			final int frame = (sourceImp == null) ? 1 : sourceImp.getFrame();
 			snt.initialize(singlePane, channel, frame);
 			snt.startUI();
+			if (calibrationInvalid) {
+				GuiUtils.queueNotice(
+						"<HTML><b>Spatial calibration of startup image appears to be invalid.</b><br>"
+								+ "Click here to set it, or run <i>Image&gt;Properties...</i>.",
+						null, () -> {
+							snt.getUI().toFront();
+							ij.IJ.doCommand(snt.getImagePlus(), "Properties...");
+						}, GuiUtils.PendingNotice.WARN);
+			}
 		}
 		catch (final OutOfMemoryError error) {
 			final StringBuilder sb = new StringBuilder(
@@ -373,7 +383,8 @@ public class SNTLoaderCmd extends DynamicCommand {
 		if (!cal.scaled() || (sourceImp.getZ() > 1 && (cal.pixelDepth < cal.pixelHeight ||
 			cal.pixelDepth < cal.pixelWidth)))
 		{
-			return new GuiUtils().getConfirmation("Spatial calibration of " +
+			calibrationInvalid = true;
+			return new GuiUtils(null).getConfirmation("Spatial calibration of " +
 				sourceImp.getTitle() +
 				" appears to be unset or inaccurate. Continue nevertheless?<br><br>" +
 							"It is highly recommended that you set the appropriate pixel size as " +

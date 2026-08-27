@@ -1250,7 +1250,7 @@ public abstract class AbstractBigViewer {
      *
      * @param parent component used to anchor the dialog
      */
-    protected void showCalibrationDialog(final java.awt.Component parent) {
+    public void showCalibrationDialog(final java.awt.Component parent) {
         final double[] curCal = getCalibration();
         final double[] defaultSpacing = {
                 curCal != null && curCal.length > 0 ? curCal[0] : 1.0,

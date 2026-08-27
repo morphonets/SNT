@@ -1,0 +1,24 @@
+# SNT Tips -- Traditional (non-Stream) mode only: assume a fully materialized, in-core image
+# Lines starting with # are comments and will be ignored
+# Tips are plain text, not HTML: '&', '<', '>' are escaped automatically
+# 'ctrlKey()'' will be replaced by 'Cmd' on macOS; 'Ctrl' on linux/Windows
+# 'mCrop()' will be replaced by 'Materialized crop — ' when in stream mode
+
+# Visualization
+Overlay a MIP at low opacity (Options tab) to see the full structure while tracing
+Open the Big Volume Viewer (3D tab) for GPU-accelerated volume rendering alongside tracings
+
+# Tracing
+Press Shift+B to bookmark the cursor location
+Enable 'Rubber Band' tracing (Algorithm settings in the Main tab) for a live path preview that follows the cursor
+Press Shift+P to pause tracing operations temporarily
+Use File→Save Tracings & Open Next/Previous Image (ctrlKey()+Shift+O / ctrlKey()+Alt+O) to iterate through a folder of images
+Disable 'Confirm temporary segments' (Options tab) for streamlined tracing: Click to confirm segments; Double-click to finish path
+When 'Confirm temporary segments' is active (Options tab), press Y twice to quickly finish a path
+When 'Confirm temporary segments' is active (Options tab), press N twice to cancel a path including the start node
+
+# Misc
+Load demo datasets (File→Load Demo Dataset) to practice or test features
+
+# Data Management
+Drag and drop an image file into the Path Manager to load it

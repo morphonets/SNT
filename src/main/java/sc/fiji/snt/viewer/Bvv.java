@@ -58,10 +58,7 @@ import sc.fiji.snt.*;
 import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.SNTCommandFinder;
-import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.ScriptInstaller;
+import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.*;
@@ -1443,6 +1440,12 @@ public class Bvv extends AbstractBigViewer {
                         new FlatSVGIcon("gui/bdv-logo-light.svg", IconFactory.defaultSize(), IconFactory.defaultSize()),
                         NATIVE_NAMES_EXCLUDED_FROM_PALETTE,
                         NATIVE_KEYS_EXCLUDED_FROM_PALETTE);
+
+                // Add callouts for the on-boarding tour
+                CalloutManager.add(sceneControlsCard, CalloutManager.AUTO,
+                        "This toolbar allows for quick scene adjustments.", CalloutManager.groupFor(snt), CalloutManager.size() + 1);
+                CalloutManager.add(sntAnnotationsCard, CalloutManager.AUTO,
+                        "This toolbar controls tracing operations<br>and rendering of annotations.", CalloutManager.groupFor(snt), CalloutManager.size() + 1);
             }
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
             resizeCardPanelsAsNeeded(sceneControlsCard);

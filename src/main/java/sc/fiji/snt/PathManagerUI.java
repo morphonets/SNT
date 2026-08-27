@@ -150,6 +150,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         tree.setDoubleBuffered(true);
         tree.addTreeSelectionListener(this);
         SNTUI.InternalUtils.addHoldToToggleKeyListener(tree, plugin);
+
         proofReadingToolBar = new ProofReadingTagsToolBar();
         add(proofReadingToolBar, BorderLayout.PAGE_START);
 
@@ -473,7 +474,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         advanced.add(jmi);
 
-
         final JPopupMenu popup = new JPopupMenu();
         popup.putClientProperty("owner", this); // see SNTCommandFinder#revealMenuItem()
         popup.add(getDeleteMenuItem(multiPathListener));
@@ -542,6 +542,27 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         });
         pack();
+        addCallOuts();
+    }
+
+    private void addCallOuts() { // group callouts by "plugin" (similarly to SNTUI), see CalloutManager#groupFor
+        final String group = CalloutManager.groupFor(plugin);
+        int n = CalloutManager.size() + 1;
+        CalloutManager.add(this, CalloutManager.AUTO,
+                "Traced paths are listed here. The Path Manager allows you<br>" +
+                        "to select, tag, measure, and analyze groups of paths.", group, n++);
+        CalloutManager.add(menuBar, CalloutManager.AUTO,
+                "These menu commands apply to selected<br>" +
+                        "paths or <i>all</i> paths if none are selected.", group, n++);
+        CalloutManager.add(proofReadingToolBar, CalloutManager.AUTO,
+                "The <i>Proofreading Toolbar</i> allows you<br>" +
+                        "to tag paths by completion level.", group, n++);
+        CalloutManager.add(navToolbar, CalloutManager.AUTO,
+                "The <i>Navigation Toolbar</i> allows you to select<br>" +
+                        "structures and zoom into path selections.", group, n++);
+        CalloutManager.add(searchableBar, CalloutManager.AUTO,
+                "The <i>Filtering Toolbar</i> allows you to select paths based<br>" +
+                        "on morphological, locational, or annotation criteria.", group, n);
     }
 
     private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
@@ -2750,7 +2771,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         if (s.trim().isEmpty()) {
                             p.setName("");
                         } else if (getPathAndFillManager().getPathFromName(s, false) != null) {
-                            displayTmpMsg("There is already a path named:\n('" + s + "')");
+                            guiUtils.error("There is already a path named:\n('" + s + "')");
                             return;
                         } else {// Otherwise this is OK, change the name:
                             p.setName(s);
@@ -4209,7 +4230,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     if (replacements > 0) {
                         refreshManager(false, false, selectedPaths);
                         plugin.setUnsavedChanges(true);
-                        guiUtils.floatingMsg(String.format("%d/%d path(s) renamed.", replacements, selectedPaths.size()), true);
+                        displayTmpMsg(String.format("%d/%d path(s) renamed.", replacements, selectedPaths.size()));
                     } else {
                         guiUtils.error(String.format("None of the %d paths matched the specified pattern.", selectedPaths.size()));
                     }
@@ -4311,7 +4332,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     navToolbar.restoreFullModelState();
                 }
                 applyActiveTags(selectedPaths);
-                guiUtils.tempMsg("Command finished.");
+                displayTmpMsg("Command finished.");
                 plugin.updateAllViewers();
                 plugin.setUnsavedChanges(true);
             }
@@ -4353,7 +4374,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     if (!p.isFittedVersionOfAnotherPath()) p.setRadius(userRad);
                 });
                 removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.MEAN_RADIUS_TAG_CMD, !noRadius, false);
-                guiUtils.tempMsg("Command finished. Fitted path(s) ignored.");
+                displayTmpMsg("Command finished. Fitted path(s) ignored.");
                 plugin.updateAllViewers();
                 plugin.setUnsavedChanges(true);
             }
@@ -5245,9 +5266,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             if (factor == 1d) return;
 
             // Warn if corrected Z values would exceed image bounds
+            int oobNodes = 0;
             if (plugin.accessToValidImageData()) {
                 final double maxZ = plugin.depth - 1;
-                int oobNodes = 0;
                 for (final Path p : selectedPaths) {
                     final Path pathToUse = p.getUseFitted() ? p.getFitted() : p;
                     for (int node = 0; node < pathToUse.size(); node++) {
@@ -5270,7 +5291,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
             plugin.updateAllViewers();
             plugin.setUnsavedChanges(true);
-            guiUtils.tempMsg("Z-correction applied (×" + SNTUtils.formatDouble(factor, 3) + ")");
+            if (oobNodes > 0) {
+                // Mirror the same handling used by PathAndFillManager#checkForAppropriateImageDimensions():
+                // flag the canvas as needing a resize, and log/queue a WARN notice
+                plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
+                SNTUtils.warn(oobNodes + " node(s) now lay outside the image volume after Z-correction (×"
+                        + SNTUtils.formatDouble(factor, 3) + ")");
+            }
+            displayTmpMsg("Z-correction applied (×" + SNTUtils.formatDouble(factor, 3) + ")");
         }
 
         private class ResetFitsCommand implements PathCommand {

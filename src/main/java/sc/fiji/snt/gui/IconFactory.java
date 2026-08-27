@@ -55,6 +55,7 @@ public class IconFactory {
         ARROWS_TO_EYE('\ue4bf', true), //
         ARROWS_DLUR('\uf422', true), //
         BARCODE('\uf02a', true), //
+        BELL('\uf0f3', true), //
         BEZIER_CURVE('\uf55b', true),//
         BINOCULARS('\uf1e5', true), //
         BOLD('\uf032', true),//
@@ -81,6 +82,7 @@ public class IconFactory {
         CHILD('\uf1ae', true), //
         CHILDREN('\ue4e1', true), //
         CIRCLE('\uf192', false), //
+        CIRCLE_RIGHT('\uf35a', true), //
         CIRCLE_XMARK('\uf057', false), //
         CLOCK_ROTATE_LEFT('\uf1da', true), //
         CLIPBOARD('\uf328', false), //
@@ -139,6 +141,7 @@ public class IconFactory {
         HEART_CIRCLE_BOLT('\ue4fc', true), //
         HEART_PULSE('\uf21e', true), //
         HOME('\uf015', true), //
+        HOUSE_LAPTOP('\ue066', true), //
         ID('\uf2c1', false), //
         ID_ALT('\uf47f', true), //
         INFO('\uf129', true), //
@@ -170,8 +173,10 @@ public class IconFactory {
         OPEN_FOLDER('\uf07c', false), //
         OPTIONS('\uf013', true), //
         PASTE('\uf0ea', true), //
+        PAUSE('\uf28b', true), //
         PEN('\uf303', true), //
         PERSON_CHALKBOARD('\ue53d', true),//
+        PLAY('\uf144', true), //
         POINTER('\uf245', true), //
         PLUS('\uf0fe', false), //
         PREVIOUS('\uf35b', false), //
@@ -328,6 +333,47 @@ public class IconFactory {
         return dropdownIcon(entry1, scalingFactor, color, rightIcon);
     }
 
+    /**
+     * Overlays a small notification dot on an icon's upper right corner within the icon's own  bounds
+     * (the icon's reported size is unchanged). 
+     *
+     * @param icon the source icon
+     * @param dotColor the dot's fill color
+     * @param ringColor contrast ring color around the dot, or null for no ring
+     * @see assignNotification(AbstractButton, Color)
+     */
+    public static Icon notificationIcon(final Icon icon, final Color dotColor, final Color ringColor) {
+        final int iconW = icon.getIconWidth();
+        final int d = Math.max(6, Math.round(iconW * .5f));
+        return new Icon() {
+            @Override
+            public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+                icon.paintIcon(c, g, x, y);
+                final Graphics2D g2 = (Graphics2D) g.create();
+                GuiUtils.setRenderingHints(g2);
+                final int dx = x + iconW - d;
+                final int dy = y;
+                if (ringColor != null) {
+                    g2.setColor(ringColor); // faint ring for contrast against the underlying glyph/background
+                    g2.fillOval(dx - 1, dy - 1, d + 2, d + 2);
+                }
+                g2.setColor(dotColor);
+                g2.fillOval(dx, dy, d, d);
+                g2.dispose();
+            }
+
+            @Override
+            public int getIconWidth() {
+                return icon.getIconWidth();
+            }
+
+            @Override
+            public int getIconHeight() {
+                return icon.getIconHeight();
+            }
+        };
+    }
+
     public static Icon dropdownMenuIcon(final GLYPH entry, final float scalingFactor, final Color color) {
         Icon chevron = UIManager.getIcon("Tree.expandedIcon");
         if (chevron != null && color != null && !color.equals(defaultColor())) chevron = averagedIcon(chevron, color);
@@ -424,13 +470,18 @@ public class IconFactory {
     }
 
     public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph, final Color color, final float scalingFactor) {
-        final Color c = (color == null) ? defaultColor() : color;
+        assignIcon(button, defaultGlyph, selectedGlyph, color, null, scalingFactor);
+    }
+
+    public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph, final Color defaultColor,
+                                  final Color selectedColor, final float scalingFactor) {
+        final Color c = (defaultColor == null) ? defaultColor() : defaultColor;
         button.setIcon(buttonIcon(defaultGlyph, c, scalingFactor));
         button.setDisabledIcon(buttonIcon(defaultGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
         if (button instanceof JToggleButton && selectedGlyph != null) {
-            button.setSelectedIcon(buttonIcon(selectedGlyph, selectedColor(), scalingFactor));
-            button.setDisabledSelectedIcon(buttonIcon(selectedGlyph,
-                    SNTColor.average(List.of(GuiUtils.getDisabledComponentColor(), selectedColor())), scalingFactor));
+            button.setSelectedIcon(buttonIcon(selectedGlyph, (selectedColor == null) ? selectedColor() : selectedColor, scalingFactor));
+            button.setDisabledSelectedIcon(buttonIcon(selectedGlyph, (selectedColor == null) ? disabledSelectedColor()
+                    : SNTColor.average(List.of(GuiUtils.getDisabledComponentColor(), selectedColor)), scalingFactor));
         }
     }
 
@@ -446,6 +497,24 @@ public class IconFactory {
     public static void assignIcon(final JMenuItem item, final char symbol, final boolean solid, final Color color) {
         item.setIcon(menuIcon(symbol, solid, color));
         item.setDisabledIcon(menuIcon(symbol, solid, GuiUtils.getDisabledComponentColor()));
+    }
+
+    /**
+     * Decorates a button's icon(s) with a notification dot in the upper right corner, wrapping whichever icons are
+     * already assigned (including selected/disabled states for a {@link JToggleButton})
+     *
+     * @param button the button to decorate
+     * @param dotColor the dot's fill color (e.g., Color.RED)
+     * @see #notificationIcon(Icon, Color, Color) 
+     */
+    public static void assignNotification(final AbstractButton button, final Color dotColor) {
+        final Color bkgColor = button.getBackground();
+        if (button.getIcon() != null) button.setIcon(notificationIcon(button.getIcon(), dotColor, bkgColor));
+        if (button.getDisabledIcon() != null) button.setDisabledIcon(notificationIcon(button.getDisabledIcon(), dotColor, bkgColor));
+        if (button instanceof JToggleButton) {
+            if (button.getSelectedIcon() != null) button.setSelectedIcon(notificationIcon(button.getSelectedIcon(), dotColor, bkgColor));
+            if (button.getDisabledSelectedIcon() != null) button.setDisabledSelectedIcon(notificationIcon(button.getDisabledSelectedIcon(), dotColor, bkgColor));
+        }
     }
 
     public static Color defaultColor() {
@@ -469,6 +538,14 @@ public class IconFactory {
 
     public static Color selectedColor() {
         return UIManager.getColor("List.selectionBackground");
+    }
+
+    /**
+     * @return a faded version of {@link #selectedColor()}, for a disabled icon/button that should still read
+     * as "selected"/"active".
+     */
+    public static Color disabledSelectedColor() {
+        return SNTColor.average(List.of(GuiUtils.getDisabledComponentColor(), selectedColor()));
     }
 
     public static Icon nodeIcon(final Color color) {

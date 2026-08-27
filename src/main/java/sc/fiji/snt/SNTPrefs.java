@@ -109,6 +109,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String WORKSPACE_KEY = "tracing.snt.workspace";
 	private static final String NEXT_IMG_FILTER_KEY = "tracing.snt.nextimg";
 	private static final String FAST_CROP_MATERIALIZATION_KEY = "tracing.snt.fastcropmat";
+	private static final String FIRST_RUN_KEY = "tracing.snt.firstrun";
 
 	/** recent directory */
 	private static File recentDir;
@@ -467,6 +468,18 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	/**
+	 * Checks if SNT has ever been run before on this system, consuming the check in the process: the very first
+	 * call ever made to this method returns {@code true}; every call after that returns {@code false}.
+	 *
+	 * @return true only the very first time this is ever called (or after preferences have been cleared)
+	 */
+	public static boolean firstRun() {
+		final boolean first = !Prefs.get(FIRST_RUN_KEY, false);
+		if (first) Prefs.set(FIRST_RUN_KEY, true);
+		return first;
+	}
+
+	/**
 	 * Sets the number of threads to use for multi-threaded operations.
 	 *
 	 * @param n the number of threads (if less than 1, uses available processors)
@@ -551,6 +564,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(FILTERED_IMG_PATH, null);
 		Prefs.set(NEXT_IMG_FILTER_KEY, null);
 		Prefs.set(WORKSPACE_KEY, null);
+		Prefs.set(FIRST_RUN_KEY, null);
 		setLookAndFeel(null);
 		setThreads(0);
 		wipeSessionPrefs();

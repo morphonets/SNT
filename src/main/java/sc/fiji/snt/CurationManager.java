@@ -1277,10 +1277,17 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     } else {
                         sntui.showStatus(String.format("Full scan completed: %d issue(s) found", warnings.size())
                                 + outOfCropNote, true);
+                        // A full scan can run for a while (network/disk-bound image checks) and, when
+                        // triggered via calibrateFromTrees() after autotracing, without any direct click
+                        GuiUtils.queueNotice(String.format("<HTML><b>Full scan completed: %d issue(s) found.</b><br>" +
+                                        "Click here to review them.", warnings.size()),
+                                null, () -> sntui.selectTab("Assistant"));
                     }
                 } catch (final Exception ex) {
                     SNTUtils.log("Full scan failed: " + ex.getMessage());
                     sntui.showStatus("Full scan failed. See log.", true);
+                    GuiUtils.queueNotice("<HTML><b>Full scan failed.</b><br>Click here for the Assistant tab.",
+                            null, () -> sntui.selectTab("Assistant"));
                 }
             }
         }.execute();
@@ -1368,6 +1375,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     final PlausibilityCalibrator.CalibrationResult result = get();
                     if (result == null) {
                         sntui.showStatus("Auto-calibration failed.", true);
+                        // This chain runs programmatically after autotracing, with no direct click behind it
+                        GuiUtils.queueNotice("<HTML><b>Auto-calibration (after autotracing) failed.</b><br>" +
+                                        "None of the freshly traced data yielded a valid calibration.",
+                                null, () -> sntui.selectTab("Assistant"));
                         return;
                     }
                     SNTUtils.log("PlausibilityCalibrator (auto):\n" + result.toTable());
@@ -1378,11 +1389,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     sntui.selectTab("Assistant");
                     sntui.showStatus(String.format("Calibrated from %d tree(s). Scanning...", result.getTreeCount()), true);
                     // Chain directly into a full scan: all validation guards (parameters selected, paths
-                    // exist, image loaded) should pass since we just calibrated from freshly traced data
+                    // exist, image loaded) should pass since we just calibrated from freshly traced data.
+                    // Its own done() queues a notice of the scan's outcome, so nothing further is needed here
                     runOnDemandAsync();
                 } catch (final Exception ex) {
                     SNTUtils.log("Auto-calibration failed: " + ex.getMessage());
                     sntui.showStatus("Auto-calibration failed. See log.", true);
+                    GuiUtils.queueNotice("<HTML><b>Auto-calibration (after autotracing) failed.</b><br>See log.",
+                            null, () -> sntui.selectTab("Assistant"));
                 }
             }
         }.execute();

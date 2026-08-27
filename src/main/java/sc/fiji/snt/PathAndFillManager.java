@@ -3172,7 +3172,7 @@ public class PathAndFillManager extends DefaultHandler implements
             if (!pluginBoundingBox.contains(boundingBox)) {
                 plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
                 SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
-                        + "adjust import options or resize current image canvas");
+                        + "adjust import options, scale paths, or check for mismatched files");
             }
         }
     }

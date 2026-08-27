@@ -27,6 +27,7 @@ import bdv.viewer.ViewerFrame;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.type.numeric.NumericType;
 import sc.fiji.snt.*;
+import sc.fiji.snt.gui.CalloutManager;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.BoundingBox;
 import bdv.util.BdvFunctions;
@@ -49,7 +50,6 @@ import org.scijava.command.CommandService;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.cmds.BdvRenderingOptionsCmd;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTPoint;
@@ -822,9 +822,11 @@ public class Bdv extends AbstractBigViewer {
         bdvHandle.getSplitPanel().setCollapsed(false);
         final BdvActions actions = new BdvActions();
         final bdv.ui.CardPanel cp = bdvHandle.getCardPanel();
+        JComponent sceneControls = null;
+        JComponent sntControls = null;
         if (cp != null) {
-            cp.addCard("Scene Controls", buildSceneControlToolbar(), true);
-            cp.addCard("SNT Controls", sntAnnotationsCard(actions), true);
+            cp.addCard("Scene Controls", sceneControls = buildSceneControlToolbar(), true);
+            cp.addCard("SNT Controls", sntControls = sntAnnotationsCard(actions), true);
             SwingUtilities.invokeLater(() -> {
                 cp.setCardExpanded("Groups", false);
                 cp.setCardExpanded("Scene Controls", true);
@@ -893,6 +895,16 @@ public class Bdv extends AbstractBigViewer {
                         new FlatSVGIcon("gui/bdv-logo-dark.svg", IconFactory.defaultSize(), IconFactory.defaultSize()),
                         NATIVE_NAMES_EXCLUDED_FROM_PALETTE,
                         NATIVE_KEYS_EXCLUDED_FROM_PALETTE);
+
+                // Add callouts for the on-boarding tour
+                if (sceneControls != null) {
+                    CalloutManager.add(sceneControls, CalloutManager.AUTO,
+                            "This toolbar allows for quick scene adjustments.", CalloutManager.groupFor(snt), CalloutManager.size() + 1);
+                }
+                if (sntControls != null) {
+                    CalloutManager.add(sntControls, CalloutManager.AUTO,
+                            "This toolbar controls tracing operations<br>and rendering of annotations.", CalloutManager.groupFor(snt), CalloutManager.size() + 1);
+                }
             }
         }
     }

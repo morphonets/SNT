@@ -237,12 +237,15 @@ public class BigDataLoaderCmd extends ContextCommand {
         } finally {
             SNTUtils.setIsLoading(false);
             if (viewer != null && viewer.getViewerFrame() != null && BoundingBox.UNSET_SPACING_UNIT.equals(viewer.getPhysicalUnit())) {
-                AbstractBigViewer finalViewer = viewer;
-                SwingUtilities.invokeLater(() -> {
-                    new GuiUtils(finalViewer.getViewerFrame()).warning(
-                            "<HTML>Spatial calibration values appear to be invalid.<br>" +
-                                    "To adjust them, right-click the scale bar button in <i>Scene Controls</i>.");
-                });
+                // viewer is reassigned above, so it is not effectively final: capture it for the lambda below
+                final AbstractBigViewer finalViewer = viewer;
+                GuiUtils.queueNotice(
+                        "<HTML><b>Spatial calibration values appear to be invalid.</b><br>"
+                                + "Click here to set it, or right-click the scale bar button in <i>Scene Controls</i>.",
+                        null, () -> {
+                            finalViewer.getViewerFrame().toFront();
+                            finalViewer.showCalibrationDialog(finalViewer.getViewerFrame());
+                        }, GuiUtils.PendingNotice.WARN);
             }
         }
     }
