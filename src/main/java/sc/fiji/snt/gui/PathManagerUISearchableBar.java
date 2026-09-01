@@ -70,7 +70,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		_extraButtons.add(createColorFilteringButton());
 		_extraButtons.add(createTagFilteringButton());
 		_extraButtons.add(createMorphoFilteringButton());
-		_extraButtons.add(createSubFilteringButton());
+		GuiUtils.Buttons.addToGroup(_extraButtons); // Organize buttons in group for FlatLaf's mouse over effect
+		_extraButtons.add(createSubFilteringButton()); // excluded from group
 		setVisibleButtons(SHOW_NAVIGATION | SHOW_STATUS | SHOW_HIGHLIGHTS);
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui.getPathAndFillManager().size()));
 		_highlightsButton.setToolTipText("Select all paths matching the current search");

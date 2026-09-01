@@ -22,9 +22,11 @@
 
 package sc.fiji.snt.gui;
 
+import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.SearchableBarIconsFactory;
+import com.jidesoft.swing.TreeSearchable;
 import com.jidesoft.swing.WholeWordsSupport;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
@@ -32,12 +34,14 @@ import com.jidesoft.swing.event.SearchableListener;
 import sc.fiji.snt.SNTUtils;
 
 import javax.swing.*;
+import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Implements a SearchableBar following SNT's UI.
@@ -48,7 +52,7 @@ public class SNTSearchableBar extends SearchableBar {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
-	private static final int DELAY_MS = 100;
+	private static final int DELAY_MS = 200;
 	protected List<AbstractButton> _extraButtons;
 
 	private String statusLabelPlaceholder;
@@ -60,6 +64,23 @@ public class SNTSearchableBar extends SearchableBar {
 	private final List<String> builtinSearchHistory;
 	protected boolean subFilteringEnabled;
 	private final boolean compactNavigation;
+
+
+	public SNTSearchableBar(final JTree jTree) {
+		this(SNTSearchableBar.newTreeSearchable(jTree));
+	}
+
+	public SNTSearchableBar(final JList<?> list) {
+		this(SNTSearchableBar.newListSearchable(list));
+	}
+
+	public SNTSearchableBar(final JTree jTree, final String placeholder) {
+		this(SNTSearchableBar.newTreeSearchable(jTree), placeholder);
+	}
+
+	public SNTSearchableBar(final JList<?> list, final String placeholder) {
+		this(SNTSearchableBar.newListSearchable(list), placeholder);
+	}
 
 	public SNTSearchableBar(final Searchable searchable) {
 		this(searchable, "Type to select");
@@ -79,6 +100,139 @@ public class SNTSearchableBar extends SearchableBar {
 		setMaxHistoryLength(0); // disable default history. We'll use builtinSearchHistory
 		setHighlightAll(true);
 		init(placeholder); // should be the last call in the constructor
+	}
+
+	/**
+	 * Creates a {@link TreeSearchable} that scrolls only to the current match rather than once per hit.
+	 * A plain {@code TreeSearchable} scrolls on every  call to its {@code setSelectedIndex()}, and
+	 * {@code highlightAll()} (on by default here, see {@link #setHighlightAll(boolean)}) calls it once per
+	 * match, so a large/deep tree ends up scrolling repeatedly on every keystroke instead of just once.
+	 * <p>
+	 * Also turns on {@link TreeSearchable#setRecursive(boolean)}, which defaults to {@code false} in jide-oss: with
+	 * it off, matches are only  looked for among the currently visible (expanded) rows, so a collapsed branch is
+	 * invisible to the search, not just to the eye
+	 *
+	 * @param tree the tree to be searched
+	 * @return a scroll-throttled, fully-recursive searchable wrapping {@code tree}
+	 */
+	public static Searchable newTreeSearchable(final JTree tree) {
+		final TreeSearchable searchable = new TreeSearchable(tree) {
+			private boolean suppressScroll;
+			private TreePath firstMatch;
+
+			@Override
+			protected void highlightAll() {
+				firstMatch = null;
+				suppressScroll = true;
+				try {
+					super.highlightAll();
+				} finally {
+					suppressScroll = false;
+				}
+				if (firstMatch != null) GuiUtils.JTrees.scrollDirectlyTo(tree, firstMatch);
+			}
+
+			@Override
+			public int findFromCursor(final String s) {
+				// with match-count on (see setShowMatchCount()), this walks EVERY element from the start to count all
+				// matches, calling setSelectedIndex() once per match; If left unsuppressed that alone scrolls through
+				// the whole tree before the real, single search result is even selected!
+				final boolean wasSuppressed = suppressScroll;
+				suppressScroll = true;
+				try {
+					return super.findFromCursor(s);
+				} finally {
+					suppressScroll = wasSuppressed;
+				}
+			}
+
+			@Override
+			protected void setSelectedIndex(final int index, final boolean incremental) {
+				if (!suppressScroll) {
+					super.setSelectedIndex(index, incremental);
+					return;
+				}
+				// same selection logic as TreeSearchable#setSelectedIndex, minus
+				// the scrollRowToVisible()/scrollPathToVisible() call
+				if (!isRecursive()) {
+					if (incremental) tree.addSelectionInterval(index, index);
+					else tree.setSelectionRow(index);
+				} else if (getElementAt(index) instanceof TreePath path) {
+					if (firstMatch == null) firstMatch = path;
+					if (incremental) tree.addSelectionPath(path);
+					else tree.setSelectionPath(path);
+				}
+			}
+		};
+		searchable.setRecursive(true);
+		return searchable;
+	}
+
+	/**
+	 * Same as {@link #newListSearchable(JList, Function)}, with the default {@code toString()}-based element converter
+	 *
+	 * @param list the list to be searched
+	 * @return a scroll-throttled searchable wrapping {@code list}
+	 */
+	public static Searchable newListSearchable(final JList<?> list) {
+		return newListSearchable(list, null);
+	}
+
+	/**
+	 * Creates a {@link ListSearchable} with the same scroll-throttling and match-counting fixes as
+	 * {@link #newTreeSearchable(JTree)}.
+	 *
+	 * @param list the list to be searched
+	 * @param elementConverter optional; converts a list element to the string matched against, or {@code null} to use
+	 *                         the element's own {@code toString()}
+	 * @return a scroll-throttled searchable wrapping {@code list}
+	 */
+	public static Searchable newListSearchable(final JList<?> list, final Function<Object, String> elementConverter) {
+		return new ListSearchable(list) {
+			private boolean suppressScroll;
+			private int firstMatch = -1;
+
+			@Override
+			protected String convertElementToString(final Object object) {
+				return (elementConverter != null) ? elementConverter.apply(object) : super.convertElementToString(object);
+			}
+
+			@Override
+			public int findFromCursor(final String s) {
+				final boolean wasSuppressed = suppressScroll;
+				suppressScroll = true;
+				try {
+					return super.findFromCursor(s);
+				} finally {
+					suppressScroll = wasSuppressed;
+				}
+			}
+
+			@Override
+			protected void highlightAll() {
+				firstMatch = -1;
+				suppressScroll = true;
+				try {
+					super.highlightAll();
+				} finally {
+					suppressScroll = false;
+				}
+				if (firstMatch != -1) list.ensureIndexIsVisible(firstMatch);
+			}
+
+			@Override
+			public void setSelectedIndex(final int index, final boolean incremental) {
+				if (!suppressScroll) {
+					super.setSelectedIndex(index, incremental);
+					return;
+				}
+				// same selection logic as ListSearchable#setSelectedIndex,
+				// minus the ensureIndexIsVisible() call
+				if (incremental) list.addSelectionInterval(index, index);
+				else if (list.getSelectedIndex() != index) list.setSelectedIndex(index);
+				if (firstMatch == -1 && index >= 0) firstMatch = index;
+			}
+		};
 	}
 
 	@Override

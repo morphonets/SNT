@@ -23,7 +23,6 @@
 package sc.fiji.snt;
 
 import com.jidesoft.swing.Searchable;
-import com.jidesoft.swing.TreeSearchable;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.measure.Calibration;
@@ -797,8 +796,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 rebuild = true;
             }
             p.disconnectFromAll();
-            pathAndFillManager.deletePath(p);
         }
+        // NB: We use pathAndFillManager.deletePaths(Collection): it fires a single resetListeners() at the end,
+        // so that PathManagerUI#setPathList() (that triggers a full HelpfulTreeModel rebuild) runs only once
+        pathAndFillManager.deletePaths(pathsToBeDeleted);
         if (all) {
             pathAndFillManager.resetIDs();
             deselectAllTagsMenu();
@@ -1704,7 +1705,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private static final long serialVersionUID = 1L;
         private static final String ROOT_LABEL = "All Paths";
-        private final TreeSearchable searchable;
+        private final Searchable searchable;
 
         public HelpfulJTree() {
             super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
@@ -1718,7 +1719,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // stream mode double-click can zoom to the path instead of expanding/collapsing
             setToggleClickCount(0);
             setRowHeight(getFontMetrics(getFont()).getHeight()); // otherwise viewport too small!?
-            searchable = new TreeSearchable(this);
+            searchable = SNTSearchableBar.newTreeSearchable(this);
             final Timer timer = new Timer(400, ev -> getSNT().getUI().getRecorder(false)
                     .recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")",
                             searchable.getSearchingText())));
@@ -3724,11 +3725,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     return;
                 }
 
-                // Delete original paths
-                for (final Path p : orderedPaths) {
-                    p.disconnectFromAll();
-                    getPathAndFillManager().deletePath(p);
-                }
+                // Delete original paths (disconnect first, then a single batch deletion as w/ PathManagerUI#deletePaths(Collection)
+                orderedPaths.forEach(Path::disconnectFromAll);
+                getPathAndFillManager().deletePaths(orderedPaths);
 
                 // Add merged path and restore IDs
                 getPathAndFillManager().addPath(mergedPath, false, false);

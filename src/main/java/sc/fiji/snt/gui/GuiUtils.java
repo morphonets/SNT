@@ -31,7 +31,7 @@ import com.formdev.flatlaf.util.SystemFileChooser;
 import com.formdev.flatlaf.util.UIScale;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
-import com.jidesoft.swing.ListSearchable;
+import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.TableSearchable;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.utils.ProductNames;
@@ -736,13 +736,10 @@ public class GuiUtils {
 		gbc.gridy++;
 		panel.add(ScrollPanes.create(ta), gbc);
 		if (choices.length >  4) {
-			final ListSearchable searchable = new ListSearchable(list) {
-				@Override
-				protected String convertElementToString(Object object) {
-					final int idx = listModel.indexOf(object);
-					return (choices[idx] + " " + descriptions[idx]).replaceAll("\\r?\\n", " ");
-				}
-			};
+			final Searchable searchable = SNTSearchableBar.newListSearchable(list, object -> {
+				final int idx = listModel.indexOf(object);
+				return (choices[idx] + " " + descriptions[idx]).replaceAll("\\r?\\n", " ");
+			});
 			final SNTSearchableBar searchableBar = new SNTSearchableBar(searchable);
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_STATUS);
 			searchableBar.setHighlightAll(false); // only one item can be selected in the choice list
@@ -5058,6 +5055,24 @@ public class GuiUtils {
 			}
 		}
 
+		/**
+		 * Centers the row for {@code path} in its enclosing viewport in a single move.
+		 *
+		 * @param tree the tree being scrolled
+		 * @param path the path to center in view
+		 */
+		public static void scrollDirectlyTo(final JTree tree, final TreePath path) {
+			tree.makeVisible(path); // expand collapsed ancestors, no scrolling yet
+			final Rectangle bounds = tree.getPathBounds(path);
+			if (bounds == null) return;
+			if (tree.getParent() instanceof JViewport viewport) {
+				final int y = Math.max(0, bounds.y - (viewport.getExtentSize().height - bounds.height) / 2);
+				viewport.setViewPosition(new Point(0, y));
+			} else {
+				tree.scrollRectToVisible(bounds);
+			}
+		}
+
 	}
 
 	public static class Buttons {
@@ -5068,6 +5083,11 @@ public class GuiUtils {
 		private static final String[] DEFAULT_LUTS =
 				{"Distinct", "Fire", "Ice", "Plasma", "Red-Green", "Spectrum", "Viridis"};
 
+
+		public static void addToGroup(final List<AbstractButton> buttons) {
+			final ButtonGroup buttonGroup = new ButtonGroup();
+			for (final AbstractButton button : buttons) buttonGroup.add(button);
+		}
 
 		public static ButtonGroup noneSelectedButtonGroup() {
             return new ButtonGroup() {

@@ -23,7 +23,6 @@
 package sc.fiji.snt.gui;
 
 import com.jidesoft.swing.CheckBoxList;
-import com.jidesoft.swing.ListSearchable;
 import net.imagej.ImageJ;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
@@ -318,7 +317,7 @@ public class MeasureUI extends JFrame {
 			});
 
 			// searchable
-			final SNTSearchableBar searchableBar = new SNTSearchableBar(new ListSearchable(metricList),
+			final SNTSearchableBar searchableBar = new SNTSearchableBar(metricList,
 					"Search " + allMetrics.size() + " metrics");
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);

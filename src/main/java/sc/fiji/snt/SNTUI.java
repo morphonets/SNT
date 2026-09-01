@@ -4467,7 +4467,7 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel colorOptionsPanel() {
-        final ColorChooserButton colorChooser1 = new ColorChooserButton(SNTPrefs.selectedPathColor(), "Selected: ");
+        final ColorChooserButton colorChooser1 = new ColorChooserButton(SNTPrefs.selectedPathColor(), " Selected: ");
         colorChooser1.setName("Color for Selected Paths");
         colorChooser1.addColorChangedListener(newColor -> {
             if (SNTPrefs.deselectedPathColor().equals(newColor)) {
@@ -4514,9 +4514,13 @@ public class SNTUI extends JDialog {
         toolbar.add(Box.createHorizontalGlue());
         toolbar.add(colorChooser1);
         toolbar.add(resetButton1);
+        GuiUtils.Buttons.addToGroup(List.of(colorChooser1, resetButton1));
+        toolbar.add(Box.createHorizontalStrut(InternalUtils.MARGIN * 2));
         toolbar.addSeparator();
+        toolbar.add(Box.createHorizontalStrut(InternalUtils.MARGIN * 2));
         toolbar.add(colorChooser2);
         toolbar.add(resetButton2);
+        GuiUtils.Buttons.addToGroup(List.of(colorChooser2, resetButton2));
         toolbar.add(Box.createHorizontalGlue());
         final JPanel panel = new JPanel(new BorderLayout());
         panel.add(toolbar, BorderLayout.CENTER);

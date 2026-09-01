@@ -23,7 +23,6 @@
 package sc.fiji.snt.gui;
 
 import com.jidesoft.swing.CheckBoxTree;
-import com.jidesoft.swing.TreeSearchable;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -613,7 +612,7 @@ public class OntologyBrowser extends JPanel {
             tree.setExpandsSelectedPaths(true);
 
             // Search bar
-            searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
+            searchableBar = new SNTSearchableBar(tree);
             searchableBar.setHighlightAll(true);
             searchableBar.setShowMatchCount(true);
             searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
@@ -979,6 +978,9 @@ public class OntologyBrowser extends JPanel {
         BrowserTree(final DefaultTreeModel model) {
             super(model);
             setLargeModel(true);
+            // A fixed row height is what actually lets setLargeModel() work. Without it, setLargeModel() alone
+            // silently does nothing without it!
+            setRowHeight(getFontMetrics(getFont()).getHeight());
         }
 
         @Override

@@ -4425,7 +4425,7 @@ public class Viewer3D {
         private ManagerPanel() {
             super();
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-            searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
+            searchableBar = new SNTSearchableBar(managerList);
             searchableBar.setGuiUtils(mgrGuiUtils);
             searchableBar.setVisibleButtons(//SNTSearchableBar.SHOW_CLOSE |
                     SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
