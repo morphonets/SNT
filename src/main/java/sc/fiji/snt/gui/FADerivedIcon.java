@@ -45,17 +45,22 @@ class FADerivedIcon implements Icon {
     private static final Font fontSolid = loadFont("fa-solid-900.ttf");
     private static final java.util.Map<Float, Font> fontRegularCache = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.Map<Float, Font> fontSolidCache = new java.util.concurrent.ConcurrentHashMap<>();
+    // Component-free metrics context: avoids creating a Canvas/Toolkit peer per icon
+    private static final java.awt.font.FontRenderContext FRC = new java.awt.font.FontRenderContext(null, true, true);
     private static int DEF_SIZE;
 
     private final Paint color;
     private final Font font;
     private final String symbol;
-    private int w;
+    private final int width;
+    private final int ascent;
 
     FADerivedIcon(final char iconID, final float size, final Paint color, final boolean solid) {
         this.color = color;
         font = getFont(solid, size);
         symbol = String.valueOf(iconID);
+        width = (int) Math.ceil(font.getStringBounds(symbol, FRC).getWidth());
+        ascent = (int) Math.ceil(font.getLineMetrics(symbol, FRC).getAscent());
     }
 
     private static Font loadFont(final String fontName) {
@@ -75,13 +80,13 @@ class FADerivedIcon implements Icon {
     }
 
     @Override
-    public synchronized void paintIcon(final Component ignored, final Graphics g, final int x, final int y) {
+    public void paintIcon(final Component ignored, final Graphics g, final int x, final int y) {
         final Graphics2D graphics = (Graphics2D) g;
         GuiUtils.setRenderingHints(graphics);
         final Font previousFont = graphics.getFont();
         graphics.setFont(font);
         graphics.setPaint(color);
-        graphics.drawString(symbol, x, y + graphics.getFontMetrics(font).getAscent());
+        graphics.drawString(symbol, x, y + ascent);
         graphics.setFont(previousFont);
     }
 
@@ -113,12 +118,7 @@ class FADerivedIcon implements Icon {
      */
     @Override
     public int getIconWidth() {
-        if (w == 0) {
-            // Use Canvas for font metrics - more lightweight than creating JLabel
-            final Canvas canvas = new Canvas();
-            w = canvas.getFontMetrics(font).stringWidth(symbol);
-        }
-        return w;
+        return width;
     }
 
     static Font getFont(final boolean solid) {
@@ -137,4 +137,8 @@ class FADerivedIcon implements Icon {
         }
         return DEF_SIZE;
     }
+
+    static void resetDefSize() {
+        DEF_SIZE = 0;
+    }  // Called by IconFactory's Look and Feel listener
 }

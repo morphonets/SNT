@@ -265,8 +265,8 @@ public class BookmarkManager {
             // stream mode or viewer initialized from SNTUI. Tracing capabilities available
             return """
                     This pane stores image locations that you can quickly (re)visit while tracing. \
-                    Bookmarks can be saved to the workspace directory using the toolbar button or via File>Save \
-                    Session.
+                    Bookmarks can be saved to the workspace directory using the export button in \
+                    the bottom toolbar or via File>SaveSession.
                     
                     To create a bookmark: press M in the viewer. To bookmark other positions along paths use the menu \
                     in the navigation toolbar of the Path Manager. Hold H to temporarily hide bookmarked markers.
@@ -275,8 +275,8 @@ public class BookmarkManager {
         // traditional (ImagePlus) mode
         return """
                 This pane stores image locations that you can quickly (re)visit while tracing. \
-                Bookmarks can be saved to the workspace directory using the toolbar button or via File>Save \
-                Session.
+                Bookmarks can be saved to the workspace directory using the export button in \
+                the bottom toolbar or via File>Save Session.\
                 
                 To create a bookmark: Right-click on the image and choose "Bookmark Cursor Location" from \
                 the contextual menu (or press Shift+B). To bookmark other positions along paths use the menu \

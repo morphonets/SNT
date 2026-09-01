@@ -59,7 +59,7 @@ public class CheckboxSpinner extends JPanel {
 	public void appendIcon(final IconFactory.GLYPH glyph, final String tooltip) {
 		iconLabel = new JLabel("  ");
 		label.setIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), IconFactory.defaultColor()));
-		label.setDisabledIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), GuiUtils.getDisabledComponentColor()));
+		label.setDisabledIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), IconFactory.disabledColor()));
 		label.setHorizontalTextPosition(SwingConstants.LEADING);
 		if (tooltip != null) iconLabel.setToolTipText(tooltip);
 		add(iconLabel);

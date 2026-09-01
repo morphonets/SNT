@@ -355,7 +355,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         panel.add(GuiUtils.longSmallMsg("Flags implausible morphology in real time and on demand. "
                 + "Adjust thresholds below to calibrate for specific cell types. "
                 + "Double-click an issue to navigate to its location; "
-                + "right-click the issues table for actions.", panel), gbc);
+                + "right-click the Issues table for actions.", panel), gbc);
         gbc.gridy++;
         // Parameters region (live + on-demand). Wrapped in a scroll pane so that when the user shrinks the top half of
         // the split below the  params' natural height, the content scrolls instead of clipping.  The two sections are

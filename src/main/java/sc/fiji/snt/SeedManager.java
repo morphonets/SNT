@@ -223,7 +223,7 @@ public class SeedManager extends JPanel {
     }
 
     private JMenuItem getTransparencyMenuItem() {
-        final JMenuItem menuItem = new JMenuItem("Transparency...");
+        final JMenuItem menuItem = new JMenuItem("Transparency...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
         menuItem.setToolTipText("Adjust seed transparency");
         menuItem.addActionListener(e -> {
             // overlay.getTransparency() is an OPACITY multiplier (1.0 = fully opaque),

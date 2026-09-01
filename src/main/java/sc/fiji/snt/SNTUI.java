@@ -1150,8 +1150,8 @@ public class SNTUI extends JDialog {
     }
 
     private JLabel materializedCropBadge(final float badgeScaling) {
-        final JLabel badge = new JLabel(IconFactory.get(GLYPH.CROP, GuiUtils.uiFontSize() * badgeScaling, IconFactory.defaultColor()));
-        badge.setDisabledIcon(IconFactory.get(GLYPH.CROP, GuiUtils.uiFontSize(), GuiUtils.getDisabledComponentColor()));
+        final JLabel badge = new JLabel(IconFactory.get(GLYPH.CROP, IconFactory.defaultSize() * badgeScaling, IconFactory.defaultColor()));
+        badge.setDisabledIcon(IconFactory.get(GLYPH.CROP, IconFactory.defaultSize() * badgeScaling, IconFactory.disabledColor()));
         badge.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
         return badge;
     }
@@ -1194,13 +1194,13 @@ public class SNTUI extends JDialog {
         if (plugin.isMaterializedCrop()) {
             return new ActiveCTposHint(
                     IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.defaultColor()),
-                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, GuiUtils.getDisabledComponentColor()),
+                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.disabledColor()),
                     "Filters by timepoint on the live Bvv/Bdv scene, and by channel and timepoint on "
                             + "the materialized crop's canvas");
         }
         return new ActiveCTposHint(
-                IconFactory.get(GLYPH.STREAM, GuiUtils.uiFontSize(), IconFactory.defaultColor()),
-                IconFactory.get(GLYPH.STREAM, GuiUtils.uiFontSize(), GuiUtils.getDisabledComponentColor()),
+                IconFactory.get(GLYPH.STREAM, IconFactory.defaultSize(), IconFactory.defaultColor()),
+                IconFactory.get(GLYPH.STREAM, IconFactory.defaultSize(), IconFactory.disabledColor()),
                 "Filters by timepoint on the live Bvv/Bdv scene.\n" +
                         "Channel has no effect here: use the viewer's Source panel to isolate channels)");
     }
@@ -4379,7 +4379,7 @@ public class SNTUI extends JDialog {
         File newDir = guiUtils.getFile(plugin.getPrefs().getWorkspaceDir(), "/");
         if (newDir == null) {
             updateWorkspaceIndicator();
-            return; // User cancelled
+            return; // User canceled
         }
         final String newDirName = newDir.getName().toLowerCase();
         if (!newDirName.endsWith("workspace") && !newDirName.contains("snt")) {
@@ -4838,7 +4838,7 @@ public class SNTUI extends JDialog {
         final Icon tourOffIcon = IconFactory.buttonIcon(GLYPH.PERSON_CHALKBOARD, IconFactory.secondaryColor(), 1f);
         final JButton calloutTour = new JButton(tourOffIcon);
         calloutTour.setDisabledIcon(IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
-                1f, GuiUtils.getDisabledComponentColor()));
+                1f, IconFactory.disabledColor()));
         calloutTour.setToolTipText("<html>Start the onboarding tour of SNT's interface</html>");
 
         // Resume-pause button (hidden by default). Default (unselected) glyph is PAUSE: The button is only visible
@@ -5019,7 +5019,7 @@ public class SNTUI extends JDialog {
         if (plugin.isStreamMode()) {
             // Composite icon: DOTCIRCLE (what the toggle does) + CROP (scope: materialized crop only)
             diameters.setIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-            diameters.setDisabledIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, GuiUtils.getDisabledComponentColor()));
+            diameters.setDisabledIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
             diameters.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
         } else {
             IconFactory.assignIcon(diameters, GLYPH.DOTCIRCLE);
@@ -5042,7 +5042,7 @@ public class SNTUI extends JDialog {
         if (plugin.isStreamMode()) {
             // Composite icon: POINTER (what the toggle does) + CROP (scope: materialized crop only)
             snap.setIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-            snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, GuiUtils.getDisabledComponentColor()));
+            snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
             snap.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
         } else {
             IconFactory.assignIcon(snap, GLYPH.POINTER);
@@ -5117,7 +5117,7 @@ public class SNTUI extends JDialog {
                 if (plugin.isStreamMode()) {
                     // Re-derived on every open: materialization may have changed since construction
                     snap.setIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-                    snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, GuiUtils.getDisabledComponentColor()));
+                    snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
                 }
                 secLayer.setSelected(secLayerActivateCheckbox.isSelected());
                 secLayer.setEnabled(secLayerActivateCheckbox.isEnabled() && currentState != SNT_PAUSED);
@@ -5141,7 +5141,9 @@ public class SNTUI extends JDialog {
             workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, IconFactory.secondaryColor(), 1f));
             workspaceIndicator.setToolTipText("Current workspace:\n" + plugin.getPrefs().getWorkspaceDir().getAbsolutePath() + "\nClick to change");
         } else {
-            workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, GuiUtils.getDisabledComponentColor(), 1f));
+            GuiUtils.queueNotice("<HTML><b>Workspace directory invalid or unset.</b><br>" +
+                    "Click here to configure a new path.", null, this::getOrPromptForWorkspace, GuiUtils.PendingNotice.WARN);
+            workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, IconFactory.disabledColor(), 1f));
             workspaceIndicator.setToolTipText("Workspace unavailable.\nClick to configure");
         }
     }
@@ -5272,7 +5274,11 @@ public class SNTUI extends JDialog {
                 null, // no "info text"
                 "Do not remind me again", true); // Default checkbox to true
 
-        if (result == null) return null; // Dialog closed/canceled
+        if (result == null) {
+            GuiUtils.queueNotice("<HTML><b>Workspace directory invalid or unset.</b><br>" +
+                    "Click here to configure a new path.", null, this::getOrPromptForWorkspace, GuiUtils.PendingNotice.WARN);
+            return null; // Dialog closed/canceled
+        }
         final String choice = (String) result[0];
         final boolean doNotRemind = (boolean) result[1];
         switch (choice) {

@@ -77,7 +77,7 @@ public class NotesUI {
         gbc.gridy++;
         final String msg = """
                 This pane allows you to jot down notes during tracing. \
-                Notes can be saved to the workspace directory using the toolbar button \
+                Notes can be saved to the workspace directory using the toolbar options \
                 or via File › Save Session. Markdown syntax is supported.
                 """;
         gbc.weighty = 0.0;

@@ -165,6 +165,12 @@ public class SearchField extends FlatTextField {
         return iconColor;
     }
 
+    // Called by SNTCommandFinder's Look and Feel listener: iconColor is cached forever
+    // once resolved, so a theme switch would leave it stuck without this reset
+    static void resetIconColor() {
+        iconColor = null;
+    }
+
     public static Color backgroundColor() {
         Color searchBg = UIManager.getColor("SearchField.background");
         if (searchBg == null) {

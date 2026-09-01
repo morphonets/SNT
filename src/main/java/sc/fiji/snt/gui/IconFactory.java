@@ -247,6 +247,44 @@ public class IconFactory {
 
     private static Color DEF_COLOR;
 
+    // Shared cache of FADerivedIcon instances, so one instance can be shared
+    private static final java.util.Map<IconKey, Icon> ICON_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record IconKey(char symbol, float size, int colorRGB, boolean solid) {}
+
+    private static Icon cachedIcon(final char symbol, final float size, final Color color, final boolean solid) {
+        final IconKey key = new IconKey(symbol, size, (color == null) ? 0 : color.getRGB(), solid);
+        return ICON_CACHE.computeIfAbsent(key, k -> new FADerivedIcon(symbol, size, color, solid));
+    }
+
+    private static Color DISABLED_COLOR;
+
+    public static Color disabledColor() {
+        if (DISABLED_COLOR == null) {
+            try {
+                DISABLED_COLOR = UIManager.getColor("MenuItem.disabledForeground");
+            } catch (final Exception ignored) {
+                DISABLED_COLOR = Color.GRAY; // e.g. headless mode
+            }
+        }
+        return DISABLED_COLOR;
+    }
+
+    // DEF_COLOR, DISABLED_COLOR, ICON_CACHE and FADerivedIcon.DEF_SIZE are all derived from the
+    // active Look and Feel but cached forever once resolved. Without this listener, switching
+    // themes mid-session updates every native eaves these stuck on whatever the LaF used to be.
+    // NodeIcon is specific to the Path Manager tree and remain unaffected
+    static {
+        UIManager.addPropertyChangeListener(evt -> {
+            if ("lookAndFeel".equals(evt.getPropertyName())) {
+                DEF_COLOR = null;
+                DISABLED_COLOR = null;
+                ICON_CACHE.clear();
+                FADerivedIcon.resetDefSize();
+            }
+        });
+    }
+
     /**
      * Creates a new icon from a Font Awesome glyph.
      *
@@ -256,7 +294,7 @@ public class IconFactory {
      * @return the icon
      */
     public static Icon get(final GLYPH entry, final float size, final Color color) {
-        return new FADerivedIcon(entry.id, size, color, entry.solid);
+        return cachedIcon(entry.id, size, color, entry.solid);
     }
 
     /**
@@ -272,19 +310,19 @@ public class IconFactory {
     }
 
     public static Icon buttonIcon(final GLYPH entry, final Color color, final float scalingFactor) {
-        return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, color, entry.solid);
+        return cachedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, color, entry.solid);
     }
 
     public static Icon buttonIcon(final GLYPH entry, final float scalingFactor) {
-        return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, defaultColor(), entry.solid);
+        return cachedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, defaultColor(), entry.solid);
     }
 
     public static Icon buttonIcon(final char symbol, final boolean solid, final Color color) {
-        return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
+        return cachedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
     }
 
     public static Icon buttonIcon(final char symbol, final boolean solid) {
-        return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, defaultColor(), solid);
+        return cachedIcon(symbol, FADerivedIcon.defSize() * 1f, defaultColor(), solid);
     }
 
     public static Icon menuIcon(final GLYPH entry) {
@@ -292,15 +330,15 @@ public class IconFactory {
     }
 
     public static Icon menuIcon(final GLYPH entry, final Color color) {
-        return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * 0.9f, color, entry.solid);
+        return cachedIcon(entry.id, FADerivedIcon.defSize() * 0.9f, color, entry.solid);
     }
 
     public static Icon menuIcon(final char symbol, final boolean solid) {
-        return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 0.9f, defaultColor(), solid);
+        return cachedIcon(symbol, FADerivedIcon.defSize() * 0.9f, defaultColor(), solid);
     }
 
     public static Icon menuIcon(final char symbol, final boolean solid, final Color color) {
-        return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
+        return cachedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
     }
 
     public static Icon listIcon(final JList<?> list, final GLYPH entry) {
@@ -308,14 +346,14 @@ public class IconFactory {
     }
 
     public static Icon listIcon(final JList<?> list, final GLYPH entry, final Color color) {
-        return new FADerivedIcon(entry.id, list.getFont().getSize() * 0.9f, color, entry.solid);
+        return cachedIcon(entry.id, list.getFont().getSize() * 0.9f, color, entry.solid);
     }
 
     public static void assignTabIcon(final JTabbedPane tabbedPane, final int tabIndex, final GLYPH entry) {
         tabbedPane.setIconAt(tabIndex,
-                new FADerivedIcon(entry.id, tabbedPane.getFont().getSize(), tabbedPane.getForeground(), entry.solid));
+                cachedIcon(entry.id, tabbedPane.getFont().getSize(), tabbedPane.getForeground(), entry.solid));
         tabbedPane.setDisabledIconAt(tabIndex,
-                new FADerivedIcon(entry.id, tabbedPane.getFont().getSize(), GuiUtils.getDisabledComponentColor(), entry.solid));
+                cachedIcon(entry.id, tabbedPane.getFont().getSize(), disabledColor(), entry.solid));
     }
 
     public static TitledBorder bottomBorder(final char symbol, final boolean solid) {
@@ -329,7 +367,7 @@ public class IconFactory {
     }
 
     public static Icon doubleIcon(final GLYPH entry1, final GLYPH entry2, final float scalingFactor, final Color color) {
-        final Icon rightIcon = new FADerivedIcon(entry2.id, scalingFactor * FADerivedIcon.defSize(), color, entry2.solid);
+        final Icon rightIcon = cachedIcon(entry2.id, scalingFactor * FADerivedIcon.defSize(), color, entry2.solid);
         return dropdownIcon(entry1, scalingFactor, color, rightIcon);
     }
 
@@ -388,7 +426,7 @@ public class IconFactory {
             final Icon rightIcon;
 
             DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon) {
-                leftIcon = new FADerivedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid);
+                leftIcon = cachedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid);
                 this.rightIcon = rightIcon;
             }
 
@@ -457,10 +495,10 @@ public class IconFactory {
                                   final Color disabledColor, final float scalingFactor) {
         final Color defColor = (defaultColor == null) ? defaultColor() : defaultColor;
         button.setIcon(buttonIcon(glyph, defColor, scalingFactor));
-        button.setDisabledIcon(buttonIcon(glyph, (disabledColor == null) ? GuiUtils.getDisabledComponentColor() : disabledColor, scalingFactor));
+        button.setDisabledIcon(buttonIcon(glyph, (disabledColor == null) ? disabledColor() : disabledColor, scalingFactor));
         if (button instanceof JToggleButton) {
             button.setSelectedIcon(IconFactory.buttonIcon(glyph, selectedColor(), scalingFactor));
-            final Color c = SNTColor.mix((disabledColor == null) ? GuiUtils.getDisabledComponentColor() : disabledColor, selectedColor(), .5f);
+            final Color c = SNTColor.mix((disabledColor == null) ? disabledColor() : disabledColor, selectedColor(), .5f);
             button.setDisabledSelectedIcon(buttonIcon(glyph, c, scalingFactor));
         }
     }
@@ -477,11 +515,11 @@ public class IconFactory {
                                   final Color selectedColor, final float scalingFactor) {
         final Color c = (defaultColor == null) ? defaultColor() : defaultColor;
         button.setIcon(buttonIcon(defaultGlyph, c, scalingFactor));
-        button.setDisabledIcon(buttonIcon(defaultGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
+        button.setDisabledIcon(buttonIcon(defaultGlyph, disabledColor(), scalingFactor));
         if (button instanceof JToggleButton && selectedGlyph != null) {
             button.setSelectedIcon(buttonIcon(selectedGlyph, (selectedColor == null) ? selectedColor() : selectedColor, scalingFactor));
             button.setDisabledSelectedIcon(buttonIcon(selectedGlyph, (selectedColor == null) ? disabledSelectedColor()
-                    : SNTColor.average(List.of(GuiUtils.getDisabledComponentColor(), selectedColor)), scalingFactor));
+                    : SNTColor.average(List.of(disabledColor(), selectedColor)), scalingFactor));
         }
     }
 
@@ -491,12 +529,12 @@ public class IconFactory {
 
     public static void assignIcon(final JMenuItem item, final GLYPH defaultGlyph) {
         item.setIcon(menuIcon(defaultGlyph));
-        item.setDisabledIcon(menuIcon(defaultGlyph, GuiUtils.getDisabledComponentColor()));
+        item.setDisabledIcon(menuIcon(defaultGlyph, disabledColor()));
     }
 
     public static void assignIcon(final JMenuItem item, final char symbol, final boolean solid, final Color color) {
         item.setIcon(menuIcon(symbol, solid, color));
-        item.setDisabledIcon(menuIcon(symbol, solid, GuiUtils.getDisabledComponentColor()));
+        item.setDisabledIcon(menuIcon(symbol, solid, disabledColor()));
     }
 
     /**
@@ -545,29 +583,29 @@ public class IconFactory {
      * as "selected"/"active".
      */
     public static Color disabledSelectedColor() {
-        return SNTColor.average(List.of(GuiUtils.getDisabledComponentColor(), selectedColor()));
+        return SNTColor.average(List.of(disabledColor(), selectedColor()));
     }
 
     public static Icon nodeIcon(final Color color) {
-        return new NodeIcon(color, false, true, false);
+        return cachedNodeIcon(color, false, true, false);
     }
 
     public static Icon nodeIcon(final Color color, final boolean isLeaf, final boolean isExpanded) {
         if (isLeaf)
-            return new NodeIcon(color, false, true, false);
+            return cachedNodeIcon(color, false, true, false);
         else if (isExpanded)
-            return new NodeIcon(color, false, false, true);
+            return cachedNodeIcon(color, false, false, true);
         else
-            return new NodeIcon(color, false, false, false);
+            return cachedNodeIcon(color, false, false, false);
     }
 
     public static Icon nodeIconMulticolor(final boolean isLeaf, final boolean isExpanded) {
         if (isLeaf)
-            return new NodeIcon(null, true, true, false);
+            return cachedNodeIcon(null, true, true, false);
         else if (isExpanded)
-            return new NodeIcon(null, true, false, true);
+            return cachedNodeIcon(null, true, false, true);
         else
-            return new NodeIcon(null, true, false, false);
+            return cachedNodeIcon(null, true, false, false);
     }
 
     public static Icon accentIcon(final Color color, final boolean squarify) {
@@ -616,6 +654,19 @@ public class IconFactory {
     }
 
     /* Creation of colorful JTree node icons */
+
+    // NodeIcon instances are cached by their (color, kind) combination: PathManagerUI's
+    // tree cell renderer requests one for every visible row on every repaint, so without
+    // this cache the same handful of icons get reallocated on every scroll/selection change
+    private static final java.util.Map<NodeIconKey, Icon> NODE_ICON_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record NodeIconKey(int colorRGB, boolean hasColor, boolean multiColor, boolean isLeaf, boolean isExpanded) {}
+
+    private static Icon cachedNodeIcon(final Color color, final boolean multiColor, final boolean isLeaf, final boolean isExpanded) {
+        final NodeIconKey key = new NodeIconKey((color == null) ? 0 : color.getRGB(), color != null, multiColor, isLeaf, isExpanded);
+        return NODE_ICON_CACHE.computeIfAbsent(key, k -> new NodeIcon(color, multiColor, isLeaf, isExpanded));
+    }
+
     private static class NodeIcon implements Icon {
 
         private static final int SIZE = preferredIconSize();
@@ -646,8 +697,11 @@ public class IconFactory {
         }
 
         static int preferredIconSize() {
-            final JTree tree = new JTree();
-            final int size = tree.getFontMetrics(tree.getFont()).getAscent();
+            Font font = UIManager.getFont("Tree.font");
+            if (font == null) font = UIManager.getFont("Label.font");
+            if (font == null) font = new Font(Font.SANS_SERIF, Font.PLAIN, FADerivedIcon.defSize());
+            final java.awt.font.FontRenderContext frc = new java.awt.font.FontRenderContext(null, true, true);
+            final int size = (int) Math.ceil(font.getLineMetrics("M", frc).getAscent());
             return (size % 2 == 0) ? size - 1 : size;
         }
 

@@ -41,6 +41,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.*;
+import java.beans.PropertyChangeListener;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -54,8 +55,16 @@ public class SNTCommandFinder {
     private static final String NAME = "Command Palette";
 
     // Customization/theme
-    private static final Color BACKGROUND = getBackgroundColor();
+    private static Color BACKGROUND = getBackgroundColor();
     private Color searchFieldBackground;
+
+    // Unlike BACKGROUND/COLOR/mainColor/selectionColor (reset by the static listener below), searchFieldBackground
+    // is set per-instance, so each instance needs its own listener, removed  in dispose()
+    private final PropertyChangeListener lafListener = evt -> {
+        if ("lookAndFeel".equals(evt.getPropertyName())) {
+            searchFieldBackground = SearchField.backgroundColor();
+        }
+    };
     private static final Pattern QUERY_TOKEN_SPLIT = Pattern.compile("\\s+");
     private static final Pattern ID_TOKEN_SPLIT = Pattern.compile("\\W+");
     // Settings. Ought to become adjustable some day
@@ -104,6 +113,7 @@ public class SNTCommandFinder {
         maxPath = 2;
         keyWordsToIgnoreInMenuPaths = List.of("Full List"); // alias menus listing cmds elsewhere
         widestCmd = "Auto-load Channel/frame When Starting New Paths  ";
+        UIManager.addPropertyChangeListener(lafListener);
     }
 
     /**
@@ -119,6 +129,7 @@ public class SNTCommandFinder {
         maxPath = 1;
         keyWordsToIgnoreInMenuPaths = Collections.singletonList("Select"); // None, All, Trees, etc.: hard to interpreter w/o context
         widestCmd = "Rebuild Index of Actions/Commands.. ";
+        UIManager.addPropertyChangeListener(lafListener);
     }
 
     static Font refFont() {
@@ -170,6 +181,7 @@ public class SNTCommandFinder {
         if (frame != null)
             frame.dispose();
         frame = null;
+        UIManager.removePropertyChangeListener(lafListener);
     }
 
     private void autoHide() {
@@ -906,9 +918,22 @@ public class SNTCommandFinder {
         return c;
     }
 
+    // Without this listener, switching themes  mid-session leaves the palette's static colors stuck
+    static {
+        UIManager.addPropertyChangeListener(evt -> {
+            if ("lookAndFeel".equals(evt.getPropertyName())) {
+                BACKGROUND = getBackgroundColor();
+                SearchField.resetIconColor();
+                ToolbarButtons.COLOR = SearchField.iconColor();
+                CmdTableRenderer.mainColor = IconFactory.secondaryColor();
+                CmdTableRenderer.selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
+            }
+        });
+    }
+
     private static class ToolbarButtons {
         static final float SIZE = IconFactory.defaultSize() * .9f;
-        static final Color COLOR = SearchField.iconColor();
+        static Color COLOR = SearchField.iconColor();
 
         static void addSpacer(final JToolBar toolbar) {
             final int spacer = (int)(SIZE/2);
@@ -1299,8 +1324,8 @@ public class SNTCommandFinder {
         private static final long serialVersionUID = 1L;
         private static final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1.1f);
         private static final Font col2Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
-        private static final Color mainColor = IconFactory.secondaryColor();
-        private static final Color selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
+        private static Color mainColor = IconFactory.secondaryColor();
+        private static Color selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
 
         @Override
         public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,

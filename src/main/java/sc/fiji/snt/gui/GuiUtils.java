@@ -76,6 +76,7 @@ import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
+import java.awt.font.FontRenderContext;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -117,7 +118,6 @@ public class GuiUtils {
 	private Component parent;
 	private boolean popupExceptionTriggered;
 	private static JColorChooser colorChooser;
-	private static Color disabledColor;
 	private JidePopup popup;
 	// Process-wide (not per-GuiUtils-instance) notification queue: GuiUtils instances are created ad hoc all over
 	// the codebase, often as one-off objects tied to some specific parent window/dialog rather than the "main"
@@ -1960,7 +1960,7 @@ public class GuiUtils {
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
 		if (!enabled) {
 			label.setEnabled(false);
-			label.setForeground(disabledColor);
+			label.setForeground(IconFactory.disabledColor());
 		}
 		return label;
 	}
@@ -2394,9 +2394,13 @@ public class GuiUtils {
 		menu.add(label);
 	}
 
+	// Shared, Component-free metrics context reused by renderedWidth() and MenuItems#defaultHeight():
+	private static final FontRenderContext RENDER_CONTEXT = new FontRenderContext(null, true, true);
+
 	public static int renderedWidth(final String text) {
-		final JLabel l = new JLabel();
-		return l.getFontMetrics(l.getFont()).stringWidth(text);
+		Font font = UIManager.getFont("Label.font");
+		if (font == null) font = new JLabel().getFont();
+		return (int) Math.ceil(font.getStringBounds(text, RENDER_CONTEXT).getWidth());
 	}
 
 	/**
@@ -2656,15 +2660,8 @@ public class GuiUtils {
 		return (c != null) ? c : FALLBACK_SELECTION_COLOR;
 	}
 
-	public static Color getDisabledComponentColor() {
-		if (disabledColor == null) {
-			try {
-				disabledColor = UIManager.getColor("MenuItem.disabledForeground");
-			} catch (final Exception ignored) {
-				disabledColor = Color.GRAY; // e.g. headless mode
-			}
-		}
-		return disabledColor;
+	public static Color getDisabledComponentColor() { // kept here for backwards compatibility
+		return IconFactory.disabledColor();
 	}
 
 	public static String getClipboardText() {
@@ -3201,7 +3198,7 @@ public class GuiUtils {
 		final int GAP = component.getFontMetrics(font).stringWidth("W");
 		if (component.getHeight() < HEIGHT || component.getWidth() < HEIGHT) return;
 		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		g.setColor(getDisabledComponentColor());
+		g.setColor(IconFactory.disabledColor());
 		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, GAP/2.5f, new float[] { GAP/2.5f },
 				0.0f));
 		final RoundRectangle2D.Double rect = new RoundRectangle2D.Double(GAP, component.getHeight() - GAP * 4 - HEIGHT,
@@ -3933,8 +3930,7 @@ public class GuiUtils {
 		public static int defaultHeight() {
 			Font font = UIManager.getDefaults().getFont("CheckBoxMenuItem.font");
 			if (font == null) font = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
-			final Canvas c = new Canvas();
-			return c.getFontMetrics(font).getHeight();
+			return (int) Math.ceil(font.getLineMetrics("M", RENDER_CONTEXT).getHeight());
 		}
 
 		public static void contrastOptions(final JComponent menuOrPopupMenu, final JComponent component, final boolean includeSeparator) {
@@ -4413,14 +4409,27 @@ public class GuiUtils {
 			for (int i = 0; i < table.getColumnCount(); i++) {
 				columnClasses.add(table.getColumnClass(i));
 			}
+			// Tint color only depends on the table's current bg/fg, which rarely change between repaints. Stash it here
+			// instead of re-mixing on every cell of every repaint
+			final Color[] tintCache = new Color[3]; // [lastBg, lastFg, mixedTint]
 			for (final Class<?> columnClass : columnClasses) {
 				final javax.swing.table.TableCellRenderer original = table.getDefaultRenderer(columnClass);
 				if (original == null) continue;
 				table.setDefaultRenderer(columnClass, (tbl, value, isSelected, hasFocus, row, column) -> {
 					final Component c = original.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
 					if (!isSelected) {
-						c.setBackground((row % 2 == 0) ? tbl.getBackground()
-								: SNTColor.mix(tbl.getBackground(), tbl.getForeground(), tintWeight));
+						final Color bg = tbl.getBackground();
+						final Color fg = tbl.getForeground();
+						if (row % 2 == 0) {
+							c.setBackground(bg);
+						} else {
+							if (!bg.equals(tintCache[0]) || !fg.equals(tintCache[1])) {
+								tintCache[0] = bg;
+								tintCache[1] = fg;
+								tintCache[2] = SNTColor.mix(bg, fg, tintWeight);
+							}
+							c.setBackground(tintCache[2]);
+						}
 					}
 					return c;
 				});
@@ -4705,7 +4714,7 @@ public class GuiUtils {
 					if (getModel().getRowCount() == 0) {
 						final Graphics2D g2 = (Graphics2D) g;
 						GuiUtils.setRenderingHints(g2);
-						g2.setColor(GuiUtils.getDisabledComponentColor());
+						g2.setColor(IconFactory.disabledColor());
 						final FontMetrics fm = g2.getFontMetrics();
 						final String primary = line1.get();
 						final String secondary = (line2 != null) ? line2.get() : null;
@@ -5140,7 +5149,7 @@ public class GuiUtils {
 						? IconFactory.dropdownMenuIcon(glyph, scalingFactor, color)
 						: IconFactory.buttonIcon(glyph, color, scalingFactor));
 				this.popupMenu = popupMenu;
-				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, GuiUtils.getDisabledComponentColor()));
+				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.disabledColor()));
 				// Store a back-reference so callers can locate this button from the popup alone
 				// (getInvoker() is only set at show() time, i.e. after the first click)
 				popupMenu.putClientProperty("owner", this);
@@ -5334,26 +5343,26 @@ public class GuiUtils {
 		public static JButton histogram() {
 			final JButton button = new JButton();
 			makeSmallBorderless(button, GLYPH.CHART, UIManager.getColor("Spinner.buttonArrowColor"),
-					getDisabledComponentColor());
+					IconFactory.disabledColor());
 			return button;
 		}
 
 		public static JButton show(final Color color) {
 			final JButton button = new JButton();
-			makeSmallBorderless(button, GLYPH.EYE, color, getDisabledComponentColor());
+			makeSmallBorderless(button, GLYPH.EYE, color, IconFactory.disabledColor());
 			return button;
 		}
 
 		public static JButton delete(final Color color) {
 			final JButton button = new JButton();
-			makeSmallBorderless(button, GLYPH.TRASH, color, getDisabledComponentColor());
+			makeSmallBorderless(button, GLYPH.TRASH, color, IconFactory.disabledColor());
 			return button;
 		}
 
 		public static JToggleButton edit() {
 			final JToggleButton button = new JToggleButton();
 			makeSmallBorderless(button, GLYPH.PEN, UIManager.getColor("Spinner.buttonArrowColor"),
-					getDisabledComponentColor());
+					IconFactory.disabledColor());
 			return button;
 		}
 
@@ -5580,7 +5589,7 @@ public class GuiUtils {
 
 			private static JButton makeHalfButton(final GLYPH glyph, final ActionListener listener) {
 				final JButton btn = new JButton();
-				IconFactory.assignIcon(btn, glyph, IconFactory.defaultColor(), getDisabledComponentColor(), 1f);
+				IconFactory.assignIcon(btn, glyph, IconFactory.defaultColor(), IconFactory.disabledColor(), 1f);
 				if (listener != null) btn.addActionListener(listener);
 				btn.setMargin(new Insets(0, 0, 0, 0));
 				makeBorderless(btn);
