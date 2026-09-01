@@ -35,8 +35,6 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 
 import javax.swing.*;
-import javax.swing.event.MenuKeyEvent;
-import javax.swing.event.MenuKeyListener;
 import java.awt.*;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.*;
@@ -53,7 +51,7 @@ import java.util.stream.Collectors;
  * 
  * @author Tiago Ferreira
  */
-public class ScriptInstaller implements MenuKeyListener {
+public class ScriptInstaller {
 
 	/** Matches requireVersion("x.y.z") calls (any quoted version string) in boilerplate scripts. */
 	private static final Pattern REQUIRE_VERSION_PATTERN = Pattern
@@ -76,7 +74,6 @@ public class ScriptInstaller implements MenuKeyListener {
 	private TreeSet<ScriptInfo> scripts;
 	private static TextEditor editor;
 
-	private boolean openInsteadOfRun;
 	private Icon cmdFinderIcon;
 
 	public ScriptInstaller(final Context context, final Component parent){
@@ -227,33 +224,17 @@ public class ScriptInstaller implements MenuKeyListener {
         };
 	}
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
-		final JMenuItem mItem = new JMenuItem(getScriptLabel(si, trimExtension));
-		mItem.setToolTipText("Click to run script. Click holding Shift to open it");
+		final IconActionableMenuItem mItem = new IconActionableMenuItem(getScriptLabel(si, trimExtension), revealIcon);
+		mItem.setToolTipText("Click to run script. Click the icon to open it");
 		mItem.putClientProperty("cmdFinder-icon", getCmdFinderIcon());
-		mItem.addMenuKeyListener(this);
-		mItem.addChangeListener(e -> updateMenuItemIcon(mItem));
-		mItem.addActionListener(e -> {
-			if (openInsteadOfRun) {
-				openScript(si);
-			} else {
-				runScript(si);
-			}
-			openInsteadOfRun = false;
-		});
+		mItem.addActionListener(e -> runScript(si));
+		mItem.addIconActionListener(e -> openScript(si));
 		return mItem;
 	}
 
 	private Icon getCmdFinderIcon() {
 		if (cmdFinderIcon == null) cmdFinderIcon = IconFactory.menuIcon('\uf70e', true, IconFactory.secondaryColor());
 		return cmdFinderIcon;
-	}
-
-	private void updateMenuItemIcon(final JMenuItem item) {
-		if (openInsteadOfRun && (item.isSelected() || item.isArmed())) {
-			item.setIcon(revealIcon);
-		} else {
-			item.setIcon(null);
-		}
 	}
 
 	private String[] getDirAndFilename(final String resourcePath) {
@@ -458,7 +439,6 @@ public class ScriptInstaller implements MenuKeyListener {
 					: "<a href='" + java.nio.file.Paths.get(scriptsDir).toUri() + "'>scripts directory</a> ")
             + "while including <i>SNT</i> in the filename (e.g., <tt>" //
             + getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
-            + "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
             + "Many other programming examples are available through the Script Editor's " //
             + "<i>Templates> Neuroanatomy></i> menu.<br>Please submit a pull request to " //
             + "<a href='https://github.com/morphonets/SNT/'>SNT's repository</a> if " //
@@ -507,31 +487,6 @@ public class ScriptInstaller implements MenuKeyListener {
             }
 		}
 		return "";
-	}
-
-	private void setOpenInsteadOfRun(final boolean b) {
-		openInsteadOfRun = b;
-		final MenuElement[] selectedMenuPath = MenuSelectionManager.defaultManager().getSelectedPath();
-		if (selectedMenuPath.length == 0)
-			return;
-		final MenuElement lastElem = selectedMenuPath[selectedMenuPath.length - 1];
-		if (lastElem instanceof JMenuItem)
-			updateMenuItemIcon((JMenuItem) lastElem);
-	}
-
-	@Override
-	public void menuKeyTyped(final MenuKeyEvent e) {
-		// ignored
-	}
-
-	@Override
-	public void menuKeyPressed(final MenuKeyEvent e) {
-		setOpenInsteadOfRun(e.isShiftDown() || e.isAltDown());
-	}
-
-	@Override
-	public void menuKeyReleased(final MenuKeyEvent e) {
-		setOpenInsteadOfRun(e.isShiftDown() || e.isAltDown());
 	}
 
 	public static void newScript(final String contents, final String scriptNameWithExtension) {
