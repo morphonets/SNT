@@ -41,6 +41,7 @@ import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.util.Types;
+import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
@@ -1869,7 +1870,7 @@ public class SNTUI extends JDialog {
         });
 
         final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load channel/frame when starting new paths", plugin.autoCT);
-        commandFinder.register(autoCTcheckbox, "Toggle Auto-load CT Position of New Paths",
+        registerInCommandFinder(autoCTcheckbox, "Toggle Auto-load CT Position of New Paths",
                 "Main Tab", "Data Source");
         GuiUtils.addTooltip(autoCTcheckbox, "Automatically loads the active channel and frame of the starting " +
                 "node of newly created paths.<br>" +
@@ -2624,7 +2625,7 @@ public class SNTUI extends JDialog {
         prefsButton.addActionListener(e -> (new CmdRunner(PrefsCmd.class)).execute());
         gdb.fill = GridBagConstraints.NONE;
         miscPanel.add(prefsButton, gdb);
-        commandFinder.register(prefsButton, "Options tab");
+        registerInCommandFinder(prefsButton, "Options tab");
         return miscPanel;
     }
 
@@ -3340,16 +3341,16 @@ public class SNTUI extends JDialog {
         final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
                 IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
-        commandFinder.register(mi1, "Main tab", "Interactive tracing (II Layer)");
+        registerInCommandFinder(mi1, "Main tab", "Interactive tracing (II Layer)");
         mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
         mi1.addActionListener(e -> runSecondaryLayerWizard(true));
         final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
         mi2.addActionListener(e -> loadSecondaryImage(true));
         mi2.setEnabled(!plugin.isStreamMode());
-        commandFinder.register(mi2, "Main tab", "Interactive tracing (II Layer)");
+        registerInCommandFinder(mi2, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
         mi3.addActionListener(e -> loadSecondaryImage(false));
-        commandFinder.register(mi3, "Main tab", "Interactive tracing (II Layer)");
+        registerInCommandFinder(mi3, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
         registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Interactive tracing");
         mi4.addActionListener(e -> {
@@ -3371,7 +3372,7 @@ public class SNTUI extends JDialog {
             (new DynamicCmdRunner(WekaModelLoader.class, null)).run();
         });
         ScriptRecorder.setRecordingCall(mi5, "snt.getUI().runCommand(\"From Labkit/TWS Model...\")");
-        commandFinder.register(mi5, "Main tab", "Interactive tracing (II Layer)");
+        registerInCommandFinder(mi5, "Main tab", "Interactive tracing (II Layer)");
         GuiUtils.addSeparator(secLayerMenu, "Create:");
         secLayerMenu.add(mi1);
         GuiUtils.addSeparator(secLayerMenu, "Load Precomputed:");
@@ -3384,7 +3385,7 @@ public class SNTUI extends JDialog {
         secLayerMenu.addSeparator();
         final JMenuItem mi6 = GuiUtils.MenuItems.openHelpURL("Help on Secondary Layers",
                 "https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
-        commandFinder.register(mi6, "Main tab", "Interactive tracing (II Layer)");
+        registerInCommandFinder(mi6, "Main tab", "Interactive tracing (II Layer)");
         secLayerMenu.add(mi6);
 
         // Assemble panel
@@ -4467,14 +4468,14 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel colorOptionsPanel() {
-        final ColorChooserButton colorChooser1 = new ColorChooserButton(SNTPrefs.selectedPathColor(), " Selected: ");
+        final ColorChooserButton colorChooser1 = new ColorChooserButton(SNTPrefs.selectedPathColor(), "Selected: ");
         colorChooser1.setName("Color for Selected Paths");
         colorChooser1.addColorChangedListener(newColor -> {
             if (SNTPrefs.deselectedPathColor().equals(newColor)) {
                 guiError("Selected and deselected colors cannot be the same.");
-                colorChooser1.setSelectedColor(SNTPrefs.selectedPathColor(), true);
+                colorChooser1.setSelectedColor(SNTPrefs.selectedPathColor(), false); // revert only, no need to re-notify
             } else {
-                plugin.setSelectedColor(newColor);
+                plugin.setSelectedAndDeselectedColors(newColor, SNTPrefs.deselectedPathColor());
             }
         });
         registerInCommandFinder(colorChooser1, "Default color for selected paths", "Main Tab");
@@ -4483,13 +4484,13 @@ public class SNTUI extends JDialog {
         colorChooser2.addColorChangedListener(newColor -> {
             if (SNTPrefs.selectedPathColor().equals(newColor)) {
                 guiError("Selected and deselected colors cannot be the same.");
-                colorChooser2.setSelectedColor(SNTPrefs.deselectedPathColor(), true);
+                colorChooser2.setSelectedColor(SNTPrefs.deselectedPathColor(), false); // revert only, no need to re-notify
             } else {
-                plugin.setDeselectedColor(newColor);
+                plugin.setSelectedAndDeselectedColors(SNTPrefs.selectedPathColor(), newColor);
             }
         });
         registerInCommandFinder(colorChooser2, "Default color for deselected paths", "Main Tab");
-        final JCheckBox jcheckbox = new JCheckBox("Override color tags with default colors", !plugin.getPrefs().getDisplayCustomPathColors());
+        final JCheckBox jcheckbox = new JCheckBox("Enforce default colors over Path Manager tags", !plugin.getPrefs().getDisplayCustomPathColors());
         //jcheckbox.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
         GuiUtils.addTooltip(jcheckbox,
                 "Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
@@ -4499,33 +4500,111 @@ public class SNTUI extends JDialog {
             plugin.getPrefs().setDisplayCustomPathColors(!jcheckbox.isSelected());
             plugin.updateTracingViewers(true);
         });
-        final JButton resetButton1 = resetButton("default path colors");
+        final JButton resetButton1 = resetButton("default selected color");
         resetButton1.addActionListener( e-> {
             colorChooser1.setSelectedColor(SNTPrefs.DEFAULT_SELECTED_COLOR, true);
-            showStatus("Default path colors reset", true);
+            showStatus("Selected color reset", true);
         });
-        final JButton resetButton2 = resetButton("default path colors");
+        final JButton resetButton2 = resetButton("default deselected color");
         resetButton2.addActionListener( e-> {
             colorChooser2.setSelectedColor(SNTPrefs.DEFAULT_DESELECTED_COLOR, true);
-            showStatus("Default path colors reset", true);
+            showStatus("Deselected color reset", true);
         });
+
+
+        // Assemble elements
         final JToolBar toolbar = new JToolBar();
+        toolbar.setFloatable(false);
         toolbar.setBackground(null);
-        toolbar.add(Box.createHorizontalGlue());
+        toolbar.setBorder(null); // don't let the toolbar add its own inset
+        toolbar.setMargin(null);
+        final int gap = jcheckbox.getIconTextGap();
+        for (final ColorChooserButton cb : new ColorChooserButton[]{colorChooser1, colorChooser2}) {
+            final Insets m = cb.getMargin();
+            cb.setMargin(new Insets(m.top, gap, m.bottom, m.right));
+        }
+        GuiUtils.Buttons.addToGroup(List.of(colorChooser1, resetButton1));
         toolbar.add(colorChooser1);
         toolbar.add(resetButton1);
-        GuiUtils.Buttons.addToGroup(List.of(colorChooser1, resetButton1));
-        toolbar.add(Box.createHorizontalStrut(InternalUtils.MARGIN * 2));
+        toolbar.add(Box.createHorizontalStrut(InternalUtils.MARGIN));
         toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalStrut(InternalUtils.MARGIN * 2));
+        toolbar.add(Box.createHorizontalStrut(InternalUtils.MARGIN));
         toolbar.add(colorChooser2);
         toolbar.add(resetButton2);
         GuiUtils.Buttons.addToGroup(List.of(colorChooser2, resetButton2));
-        toolbar.add(Box.createHorizontalGlue());
-        final JPanel panel = new JPanel(new BorderLayout());
-        panel.add(toolbar, BorderLayout.CENTER);
-        panel.add(jcheckbox, BorderLayout.SOUTH);
+
+        final JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBorder(null);
+        topPanel.add(toolbar, BorderLayout.WEST);
+        topPanel.add(resetPathColorsOptionsButton(colorChooser1, colorChooser2, jcheckbox), BorderLayout.EAST);
+
+        final JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        bottomPanel.setBorder(null);
+        bottomPanel.add(jcheckbox);
+
+        final JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(null); // don't let the panel add its own inset
+        panel.add(topPanel);
+        panel.add(bottomPanel);
         return panel;
+    }
+
+    private JButton resetPathColorsOptionsButton(final ColorChooserButton selected, final ColorChooserButton deselected,
+            final JCheckBox enforceDefaultColorsCheckbox) {
+        final JPopupMenu optionsMenu = new JPopupMenu();
+        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(GLYPH.DROPLET, 1f, optionsMenu);
+        GuiUtils.addTooltip(optionsButton, "More options for default path colors");
+        JMenuItem jmi = new JMenuItem("Swap Selected/Deselected Colors", IconFactory.menuIcon(GLYPH.ARROWS_LR));
+        jmi.addActionListener(e -> {
+            final Color currentSelected = selected.getSelectedColor();
+            final Color currentDeselected = deselected.getSelectedColor();
+            // Bypass the ColorChooserButtons' own "colors cannot match" guard. Set both
+            // colors in one call so only one BVV/BDV resync/repaint happens, not two racing
+            // ones (see SNT#setSelectedAndDeselectedColors)
+            selected.setSelectedColor(currentDeselected, false);
+            deselected.setSelectedColor(currentSelected, false);
+            plugin.setSelectedAndDeselectedColors(currentDeselected, currentSelected);
+            showStatus("Selected/Deselected colors swapped", true);
+        });
+        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
+        optionsMenu.add(jmi);
+        jmi = new JMenuItem("Use Colorblind-Safe Colors", IconFactory.menuIcon(GLYPH.EYE_LOW_VISION));
+        jmi.setToolTipText("Applies an Okabe-Ito colorblind-safe yellow/sky-blue pair");
+        jmi.addActionListener(e -> {
+            selected.setSelectedColor(SNTPrefs.COLORBLIND_SAFE_SELECTED_COLOR, false);
+            deselected.setSelectedColor(SNTPrefs.COLORBLIND_SAFE_DESELECTED_COLOR, false);
+            plugin.setSelectedAndDeselectedColors(SNTPrefs.COLORBLIND_SAFE_SELECTED_COLOR,
+                    SNTPrefs.COLORBLIND_SAFE_DESELECTED_COLOR);
+            showStatus("Colorblind-safe path colors applied", true);
+        });
+        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
+        optionsMenu.add(jmi);
+        optionsMenu.addSeparator();
+        jmi = new JMenuItem("Discard All Path Manager Color Tags/Mappings...", IconFactory.menuIcon(GLYPH.BROOM));
+        jmi.addActionListener(e -> {
+            if (!noPathsError() && guiUtils.getConfirmation(
+                    "Remove color mappings/tags from all paths?", "Reset Path Colors?")) {
+                ColorMapper.unMap(pathAndFillManager.getPaths());
+                plugin.updateAllViewers();
+            }
+        });
+        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
+        optionsMenu.add(jmi);
+        optionsMenu.addSeparator();
+        jmi = new JMenuItem("Reset Defaults", IconFactory.menuIcon(GLYPH.UNDO));
+        jmi.addActionListener(e -> {
+            // Bypass the guard/listener on all three settings and drive plugin/prefs directly
+            selected.setSelectedColor(SNTPrefs.DEFAULT_SELECTED_COLOR, false);
+            deselected.setSelectedColor(SNTPrefs.DEFAULT_DESELECTED_COLOR, false);
+            plugin.setSelectedAndDeselectedColors(SNTPrefs.DEFAULT_SELECTED_COLOR, SNTPrefs.DEFAULT_DESELECTED_COLOR);
+            enforceDefaultColorsCheckbox.setSelected(SNTPrefs.DEFAULT_ENFORCE_DEFAULT_PATH_COLORS);
+            plugin.getPrefs().setDisplayCustomPathColors(!SNTPrefs.DEFAULT_ENFORCE_DEFAULT_PATH_COLORS);
+            showStatus("Color settings reset", true);
+        });
+        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
+        optionsMenu.add(jmi);
+        return optionsButton;
     }
 
     private JPanel snappingPanel() {
@@ -4672,7 +4751,7 @@ public class SNTUI extends JDialog {
         // the best one visually (SigmaPalette-style)
         final JMenuItem tuneCost = new JMenuItem("Cost Function Selection Wizard...", IconFactory.menuIcon(GLYPH.WIZARD));
         tuneCost.setToolTipText("Compare cost-function variants on a probe segment to pick the most suitable one");
-        commandFinder.register(tuneCost, "Main tab", "Interactive Tracing", "Algorithm Settings");
+        registerInCommandFinder(tuneCost, null, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tuneCost.addActionListener(e -> {
             final CommandService cs = plugin.getContext().getService(CommandService.class);
             if (cs != null) cs.run(CostFunctionSelectionCmd.class, true);
@@ -4760,7 +4839,7 @@ public class SNTUI extends JDialog {
         final JRadioButtonMenuItem rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
         GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse."
                 + "(ala NeuronJ).<br>Click to confirm each segment. <b>Only recommended for 2D images.");
-        commandFinder.register(rubberBandTracingRbmi, "Main tab", "Interactive Tracing", "Algorithm Settings");
+        registerInCommandFinder(rubberBandTracingRbmi, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tracingModeButtonGroup.add(standardTracingRbmi);
         tracingModeButtonGroup.add(rubberBandTracingRbmi);
         optionsMenu.add(standardTracingRbmi);

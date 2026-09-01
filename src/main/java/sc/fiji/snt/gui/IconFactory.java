@@ -115,6 +115,7 @@ public class IconFactory {
         DOWNLOAD('\uf019', true), //
         DOTCIRCLE('\uf192', true), //
         DRAFT('\uf568', true), //
+        DROPLET('\uf043', true ), //
         ELLIPSIS('\uf141', true), //
         EQUALS('\uf52c', true), //
         EXPAND('\uf065', true), //

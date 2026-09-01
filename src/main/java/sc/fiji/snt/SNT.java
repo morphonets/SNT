@@ -5186,17 +5186,16 @@ public class SNT extends MultiDThreePanes implements
 		}).start();
 	}
 
-	protected void setSelectedColor(final Color newColor) {
-		SNTPrefs.setSelectedPathColor(newColor);
+	/**
+	 * Sets default path colors.
+	 *
+	 * @param newSelectedColor   new default color for selected paths
+	 * @param newDeselectedColor new default color for deselected paths
+	 */
+	protected void setSelectedAndDeselectedColors(final Color newSelectedColor, final Color newDeselectedColor) {
+		SNTPrefs.setSelectedPathColor(newSelectedColor);
+		SNTPrefs.setDeselectedPathColor(newDeselectedColor);
 		selectedColor3f = Utils.toColor3f(SNTPrefs.selectedPathColor());
-		if (getUI() != null && getUI().bvvSNT != null) {
-			getUI().bvvSNT.getRenderingOptions().selectedColor = SNTPrefs.selectedPathColor();
-		}
-		updateTracingViewers(true);
-	}
-
-	protected void setDeselectedColor(final Color newColor) {
-		SNTPrefs.setDeselectedPathColor(newColor);
 		deselectedColor3f = Utils.toColor3f(SNTPrefs.deselectedPathColor());
 		if (getUI() != null && getUI().recViewer != null) {
 			getUI().recViewer.setDefaultColor(new ColorRGB(SNTPrefs.deselectedPathColor().getRed(),
@@ -5204,7 +5203,12 @@ public class SNT extends MultiDThreePanes implements
 			if (pathAndFillManager.size() > 0) getUI().recViewer.syncPathManagerList();
 		}
 		if (getUI() != null && getUI().bvvSNT != null) {
+			getUI().bvvSNT.getRenderingOptions().selectedColor = SNTPrefs.selectedPathColor();
 			getUI().bvvSNT.getRenderingOptions().fallbackColor = SNTPrefs.deselectedPathColor();
+		}
+		if (getUI() != null && getUI().bdvSNT != null) {
+			getUI().bdvSNT.getRenderingOptions().selectedColor = SNTPrefs.selectedPathColor();
+			getUI().bdvSNT.getRenderingOptions().fallbackColor = SNTPrefs.deselectedPathColor();
 		}
 		updateTracingViewers(true);
 	}
