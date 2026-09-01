@@ -1826,6 +1826,11 @@ public class SNT extends MultiDThreePanes implements
 	 * NB: in the streamed-data fallback, the returned Dataset only ever contains a single channel/
 	 * frame (whichever is currently active): {@link #ctSlice3d} is a single C/T slice by construction. Commands that
 	 * need every channel or frame simultaneously will still require a resident {@link ImagePlus}.
+	 * <p>
+	 * NB2: a materialized crop (see {@link #isMaterializedCrop()}) always has a resident {@link ImagePlus}
+	 * (the crop itself), so it never takes the streamed-data fallback above, returning the crop's own Dataset as-is,
+	 * matching whatever {@link #buildMaterializedCrop(BoundingBox)} captured
+	 * (see {@link #getMaterializedCropChannel()}/{@link #getMaterializedCropFrame()}).
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public Dataset getDataset() {

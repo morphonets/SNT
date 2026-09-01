@@ -108,14 +108,19 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		statusService.showStatus("Applying Color Code...");
 		SNTUtils.log("Color Coding Tree (" + measurementChoice + ") using " + lutChoice);
 
-		if (dataset != null && TreeColorMapper.VALUES.equals(measurementChoice)) {
-			SNTUtils.log("Assigning values...");
-			for (final Tree tree : trees) {
-				final PathProfiler profiler = new PathProfiler(tree, dataset);
-				profiler.setRadius(0);
-				profiler.setShape(ProfileProcessor.Shape.LINE);
-				profiler.setMetric(ProfileProcessor.Metric.MEAN);
-				profiler.assignValues();
+		if (TreeColorMapper.VALUES.equals(measurementChoice)) {
+			if (dataset == null || (snt != null && !snt.accessToValidImageData())) {
+				error(String.format("%s can only be assigned when valid image data exists.", TreeColorMapper.VALUES));
+				return;
+			} else {
+				SNTUtils.log("Assigning values...");
+				for (final Tree tree : trees) {
+					final PathProfiler profiler = new PathProfiler(tree, dataset);
+					profiler.setRadius(0);
+					profiler.setShape(ProfileProcessor.Shape.LINE);
+					profiler.setMetric(ProfileProcessor.Metric.MEAN);
+					profiler.assignValues();
+				}
 			}
 		}
 

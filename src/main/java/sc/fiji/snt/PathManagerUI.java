@@ -2822,11 +2822,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         guiUtils.error("No valid image data is accessible for profiling.");
                         return;
                     }
-                    // Streamed data (e.g. BVV): getDataset() falls back to wrapping just the currently active
-                    // CT's slice (ctSlice3d) - or, if a crop has been materialized (see
-                    // SNT#isMaterializedCrop()), the crop's own single captured channel/frame (see
-                    // activeCTForPixelSampling()) - rather than a full multichannel/multiframe Dataset. A
-                    // path off that channel/frame can't be profiled from it
+                    // See PlotProfileCommand
                     final int[] activeCT = activeCTForPixelSampling();
                     if (activeCT != null && (p.getChannel() != activeCT[0] || p.getFrame() != activeCT[1])) {
                         guiUtils.error("This path is not associated with the active channel ("
@@ -3969,6 +3965,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 input.put("onlyConnectivitySafeMetrics", true);
                 input.put("measurementChoice", TreeColorMapper.PATH_FRAME);
                 input.put("runFigCreator", false);
+                input.put("dataset", plugin.getDataset());
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(TreeMapperCmd.class, true, input);
             }
@@ -3989,6 +3986,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 input.put("onlyConnectivitySafeMetrics", true);
                 input.put("measurementChoice", TreeColorMapper.PATH_AVG_SPINE_DENSITY);
                 input.put("runFigCreator", false);
+                input.put("dataset", plugin.getDataset());
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(TreeMapperCmd.class, true, input);
             }
@@ -4068,6 +4066,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     return;
                 final Map<String, Object> input = new HashMap<>();
                 input.put("trees", trees);
+                input.put("dataset", plugin.getDataset());
                 plugin.getContext().getService(CommandService.class).run(TreeMapperCmd.class, true, input);
                 refreshManager(false, true, selectedPaths);
             }

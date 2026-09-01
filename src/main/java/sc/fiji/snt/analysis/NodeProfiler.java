@@ -254,6 +254,11 @@ public class NodeProfiler extends CommonDynamicCmd {
 					"Specified channel " + channel + " out of range: Only [0-" + dataset.getChannels() + "[ allowed");
 	}
 
+	/* See same method in {@link PathProfiler#resolveChannelIndex(Path)} */
+	private int resolveChannelIndex(final Path p) {
+		return (dataset.getChannels() == 1) ? 0 : p.getChannel() - 1;
+	}
+
 	private String getXAxisLabel(final Path path) {
 		initAvgStepAndUnitAsNeeded(path);
 		return String.format("Distance to center (%s) [%s%s]", unit, shape.toString().toLowerCase(),
@@ -281,7 +286,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @return The profile
 	 */
 	public <T extends RealType<T>> SortedMap<Integer, List<Double>> getValues(final Path p) {
-		return getValues(p, p.getChannel() - 1, p.getFrame() - 1);
+		return getValues(p, resolveChannelIndex(p), p.getFrame() - 1);
 	}
 
 	/**
@@ -395,7 +400,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @return the profiled raw data in tabular form (1 column-per profiled node)
 	 */
 	public SNTTable getTable(final Path path) {
-		return getTable(path, path.getChannel() - 1);
+		return getTable(path, resolveChannelIndex(path));
 	}
 
 	/**

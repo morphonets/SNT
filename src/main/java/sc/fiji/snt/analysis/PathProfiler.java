@@ -431,6 +431,18 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
+	 * Resolves a Path's own recorded channel to a 0-based index into {@code dataset}. A materialized
+	 * single-channel crop (see SNT#isMaterializedCrop()) always exposes exactly one channel (index 0),
+	 * but a Path added before the crop was built still carries its original, pre-crop channel (see
+	 * SNT#getMaterializedCropChannel()). Without this, such a Path would fail #validateChannelRange(int)
+	 * here even after PathManagerUI#resolveActiveCTPathSelection(List) already confirmed it belongs to
+	 * the crop, whenever that original channel wasn't 1
+	 */
+	private int resolveChannelIndex(final Path p) {
+		return (dataset.getChannels() == 1) ? 0 : p.getChannel() - 1;
+	}
+
+	/**
 	 * Calls {@link #assignValues(Path)} on the Paths of the profiled Tree
 	 */
 	public void assignValues() throws IllegalArgumentException {
@@ -468,7 +480,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * @throws IllegalArgumentException if image does not contain the path's channel
 	 */
 	public void assignValues(final Path p) throws IllegalArgumentException {
-		assignValues(p, p.getChannel() - 1);
+		assignValues(p, resolveChannelIndex(p));
 	}
 
 	/**
@@ -535,8 +547,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private Map<String, double[]> getValuesAsArray(final Path p) {
 		if (!p.hasNodeValues()) assignValues(p);
-		return getValuesAsArray(p, p.getChannel());
-
+		return getValuesAsArray(p, resolveChannelIndex(p));
 	}
 	private Map<String, double[]> getValuesAsArray(final Path p, final int channel) {
 		if (!valuesAssignedToTree || channel != lastprofiledChannel)
@@ -610,7 +621,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * @return the profile
 	 */
 	public Map<String, List<Double>> getValues(final Path p) {
-		return getValues(p, p.getChannel() - 1);
+		return getValues(p, resolveChannelIndex(p));
 	}
 
 	/**
