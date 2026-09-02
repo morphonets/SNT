@@ -78,7 +78,7 @@ public class GraphGeneratorCmd extends CommonDynamicCmd {
 		ij.ui().showUI();
 		SNTService sntService = ij.context().getService(SNTService.class);
 		final HashMap<String, Object> inputs = new HashMap<>();
-		inputs.put("tree", sntService.demoTrees().get(0));
+		inputs.put("tree", sntService.demoTrees().getFirst());
 		ij.command().run(GraphGeneratorCmd.class, true, inputs);
 	}
 

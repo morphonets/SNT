@@ -53,7 +53,7 @@ public class NeurolucidaImporter {
     private double xScale = 1.0; // µm per pixel (from <scale>)
     private double yScale = 1.0;
     private double zSpacing = 1.0; // µm per slice (from <zspacing>)
-    private final String spacingUnits = "µm";
+    private static final String spacingUnits = "µm";
     private final List<Tree> trees = new ArrayList<>();
     private final List<double[]> markerPoints = new ArrayList<>(); // x,y,z centroids
     private final List<String> markerLabels = new ArrayList<>();

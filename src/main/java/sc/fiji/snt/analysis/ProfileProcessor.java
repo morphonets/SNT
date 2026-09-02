@@ -47,8 +47,6 @@ import java.util.concurrent.Callable;
 
 import org.apache.commons.lang3.StringUtils;
 
-import static sc.fiji.snt.util.ImgUtils.outOfBounds;
-
 /**
  * Profile intensities within local neighborhoods around {@link Path}
  * {@link sc.fiji.snt.util.PointInImage}s
@@ -341,7 +339,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (!outOfBounds(pos, intervalMin, intervalMax))
+			if (!ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				values.add(cursor.get().getRealDouble());
 		}
 		return values;
@@ -353,7 +351,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			sum += cursor.get().getRealDouble();
 		}
@@ -366,7 +364,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			min = Math.min(min, cursor.get().getRealDouble());
 		}
@@ -379,7 +377,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			max = Math.max(max, cursor.get().getRealDouble());
 		}
@@ -393,7 +391,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			sum += cursor.get().getRealDouble();
 			count++;
@@ -407,7 +405,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			vals.add(cursor.get().getRealDouble());
 		}
@@ -421,7 +419,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			vals.add(cursor.get().getRealDouble());
 		}
@@ -436,7 +434,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			cursor.fwd();
 			final long[] pos = new long[cursor.numDimensions()];
 			cursor.localize(pos);
-			if (outOfBounds(pos, intervalMin, intervalMax))
+			if (ImgUtils.outOfBounds(pos, intervalMin, intervalMax))
 				continue;
 			final double v = cursor.get().getRealDouble();
 			sum += v;

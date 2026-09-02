@@ -163,8 +163,8 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			if (y4Values != null)
 				addSeries(plot, yAxisMetric4, xValues, y4Values, uniqueColors[seriesCounter++]);
 			if (plot.getItems().size() == 1) {
-				plot.yAxis().setLabel(plot.getItems().get(0).getLabel());
-				plot.getItems().get(0).setLegendVisible(false);
+				plot.yAxis().setLabel(plot.getItems().getFirst().getLabel());
+				plot.getItems().getFirst().setLegendVisible(false);
 			}
 			new SNTChart((anyMetric) ? "SNT: MultiMetric Plot" : "SNT: Density Profile", plot).show();
 		}
@@ -206,7 +206,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		final Map<String, Object> input = new HashMap<>();
 		input.put("paths", tree.list());
 		input.put("anyMetric", false);

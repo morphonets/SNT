@@ -256,7 +256,7 @@ public class NodeColorMapper extends ColorMapper {
 
 	/* IDE debug method */
 	public static void main(final String... args) {
-		final Tree tree = new SNTService().demoTrees().get(0);
+		final Tree tree = new SNTService().demoTrees().getFirst();
 		final List<PointInImage> nodes = tree.getNodes();
 		final NodeStatistics<?> nodeStats = new NodeStatistics<>(nodes);
 		final NodeColorMapper mapper = new NodeColorMapper(nodeStats);

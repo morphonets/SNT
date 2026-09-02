@@ -27,12 +27,10 @@ import com.formdev.flatlaf.extras.components.FlatTextField;
 import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
 import com.formdev.flatlaf.ui.FlatRoundBorder;
-import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * An enhanced text field for search operations with built-in options for case-sensitive,

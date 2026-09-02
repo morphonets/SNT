@@ -416,7 +416,7 @@ public class SciViewSNT {
 				return;
 			case 1:
 				// single point soma: http://neuromorpho.org/SomaFormat.html
-				final PointInImage sCenter = somaPoints.get(0);
+				final PointInImage sCenter = somaPoints.getFirst();
 				somaSubShape = sciView.addSphere(convertPIIToVector3(sCenter), DEF_NODE_RADIUS, col);
 				return;
 			case 3:

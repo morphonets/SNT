@@ -110,15 +110,11 @@ public class AddTextAnnotationCmd extends InteractiveCommand {
 	}
 
 	private int getStyle(final String style) {
-		switch (style.toLowerCase()) {
-		case "italic":
-			return Font.ITALIC;
-		case "bold":
-			return Font.BOLD;
-		case "plain":
-		default:
-			return Font.PLAIN;
-		}
+        return switch (style.toLowerCase()) {
+            case "italic" -> Font.ITALIC;
+            case "bold" -> Font.BOLD;
+            default -> Font.PLAIN;
+        };
 	}
 
 	/** IDE debug method. */

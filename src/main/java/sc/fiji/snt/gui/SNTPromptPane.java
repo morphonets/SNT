@@ -35,8 +35,6 @@ import javax.swing.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 
-import static java.awt.event.KeyEvent.*;
-
 /**
  * Syntax-highlighted prompt pane for the SNT scripting REPL. Replaces the
  * vanilla {@link JTextArea} used by the upstream SciJava {@code PromptPane}
@@ -78,7 +76,7 @@ public abstract class SNTPromptPane implements UIComponent<JTextArea> {
             public void keyPressed(final KeyEvent event) {
                 final int code = event.getKeyCode();
                 switch (code) {
-                    case VK_ENTER:
+                    case KeyEvent.VK_ENTER:
                         if (executing) {
                             event.consume();
                             return;
@@ -91,13 +89,13 @@ public abstract class SNTPromptPane implements UIComponent<JTextArea> {
                             event.consume();
                         }
                         break;
-                    case VK_UP:
+                    case KeyEvent.VK_UP:
                         if (isOnFirstLine()) {
                             up();
                             event.consume();
                         }
                         break;
-                    case VK_DOWN:
+                    case KeyEvent.VK_DOWN:
                         if (isOnLastLine()) {
                             down();
                             event.consume();

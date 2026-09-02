@@ -27,7 +27,6 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.ui.DialogPrompt;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;

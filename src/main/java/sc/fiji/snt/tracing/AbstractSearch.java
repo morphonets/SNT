@@ -36,7 +36,6 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchProgressCallback;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -73,7 +72,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     // Precomputed neighbor distances for [xdiff+1][ydiff+1][zdiff+1] where diff ∈ {-1, 0, 1}
     protected double[][][] neighborDistances;
 
-    protected final boolean verbose = SNTUtils.isDebugMode();
+    protected static final boolean verbose = SNTUtils.isDebugMode();
 
 
     protected AbstractSearch(final ImagePlus imagePlus, final int timeoutSeconds, final long reportEveryMilliseconds)

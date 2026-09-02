@@ -287,9 +287,8 @@ public class ComponentMover extends MouseAdapter
         //  Making sure autoscrolls is false will allow for smoother dragging of
         //  individual components
 
-        if (destination instanceof JComponent)
+        if (destination instanceof JComponent jc)
         {
-            JComponent jc = (JComponent)destination;
             autoscrolls = jc.getAutoscrolls();
             jc.setAutoscrolls( false );
         }

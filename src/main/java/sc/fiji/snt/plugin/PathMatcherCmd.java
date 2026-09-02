@@ -179,7 +179,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 					"customTagPattern", "directionMatching", "directionMatchingRange", "inputRange",
 					"pathOrderMatching", "startNodeLocationMatching", "typeTagMatching", "xNeighborhood",
 					"yNeighborhood", "zNeighborhood", "wipeExistingMatches", "SPACER1", "SPACER2", "SPACER3", "SPACER4")
-					.forEach(input -> resolveInput(input));
+					.forEach(this::resolveInput);
 		} else {
 			resolveInput("applyDefaults");
 		}
@@ -407,7 +407,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		final Map<String, Object> input = new HashMap<>();
 		input.put("paths", tree.list());
 		ij.command().run(PathMatcherCmd.class, true, input);

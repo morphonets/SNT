@@ -36,7 +36,6 @@ import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;

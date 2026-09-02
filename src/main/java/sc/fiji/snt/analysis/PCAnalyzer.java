@@ -35,7 +35,6 @@ import sc.fiji.snt.util.SNTPoint;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
 /**

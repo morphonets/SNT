@@ -2650,7 +2650,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
     }
 
-    private class JTreeMenuItem extends JMenuItem implements ActionListener {
+    private final class JTreeMenuItem extends JMenuItem implements ActionListener {
 
         private static final long serialVersionUID = 1L;
         private static final String COLLAPSE_ALL_CMD = "Collapse All";
@@ -2704,7 +2704,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
     }
 
-    private class JTreeCheckboxMenuItem extends JCheckBoxMenuItem implements ItemListener {
+    private final class JTreeCheckboxMenuItem extends JCheckBoxMenuItem implements ItemListener {
 
         private static final long serialVersionUID = 1L;
         private static final String TOGGLE_NAV_TOOLBAR = "Navigation Toolbar";
@@ -3006,7 +3006,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     /** ActionListener for JCheckBoxMenuItem's "default tags" */
-    private class TagMenuItem extends JCheckBoxMenuItem implements ActionListener {
+    private final class TagMenuItem extends JCheckBoxMenuItem implements ActionListener {
 
         private static final long serialVersionUID = 1L;
 

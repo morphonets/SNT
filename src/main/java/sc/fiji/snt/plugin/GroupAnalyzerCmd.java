@@ -132,7 +132,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	private void init() {
 		final List<String> mChoices = TreeStatistics.getMetrics("common");
 		mChoices.sort(Comparator.naturalOrder());
-		mChoices.add(0, "None. Skip measurements");
+		mChoices.addFirst("None. Skip measurements");
 		final MutableModuleItem<String> mInput = getInfo().getMutableInput("metric", String.class);
 		mInput.setChoices(mChoices);
 		metricChanged();
@@ -327,22 +327,15 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	}
 
 	private String getDirPath(final String groupLabel) {
-		switch(groupLabel.substring(groupLabel.length() - 1)) {
-			case "1":
-				return (validFile(g1File)) ? g1File.getAbsolutePath() : "N/A";
-			case "2":
-				return (validFile(g2File)) ? g2File.getAbsolutePath() : "N/A";
-			case "3":
-				return (validFile(g3File)) ? g3File.getAbsolutePath() : "N/A";
-			case "4":
-				return (validFile(g4File)) ? g4File.getAbsolutePath() : "N/A";
-			case "5":
-				return (validFile(g5File)) ? g5File.getAbsolutePath() : "N/A";
-			case "6":
-				return (validFile(g6File)) ? g6File.getAbsolutePath() : "N/A";
-			default:
-				return "N/A";
-		}
+        return switch (groupLabel.substring(groupLabel.length() - 1)) {
+            case "1" -> (validFile(g1File)) ? g1File.getAbsolutePath() : "N/A";
+            case "2" -> (validFile(g2File)) ? g2File.getAbsolutePath() : "N/A";
+            case "3" -> (validFile(g3File)) ? g3File.getAbsolutePath() : "N/A";
+            case "4" -> (validFile(g4File)) ? g4File.getAbsolutePath() : "N/A";
+            case "5" -> (validFile(g5File)) ? g5File.getAbsolutePath() : "N/A";
+            case "6" -> (validFile(g6File)) ? g6File.getAbsolutePath() : "N/A";
+            default -> "N/A";
+        };
 	}
 
 	private void displayGroup(final GroupedTreeStatistics stats, String group, final double min, final double max) {
@@ -357,7 +350,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		SwingUtilities.invokeLater(viewer::show);
 	}
 
-	final boolean isMetricMappable(final String metric) {
+	boolean isMetricMappable(final String metric) {
 		return MultiTreeColorMapper.getMetrics().contains(metric);
 	}
 

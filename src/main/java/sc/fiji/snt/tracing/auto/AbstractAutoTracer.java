@@ -23,11 +23,9 @@
 package sc.fiji.snt.tracing.auto;
 
 import ij.gui.Roi;
-import net.imagej.ops.OpService;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.morphology.distance.DistanceTransform;
-import net.imglib2.histogram.Histogram1d;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.type.logic.BitType;
@@ -35,7 +33,6 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;

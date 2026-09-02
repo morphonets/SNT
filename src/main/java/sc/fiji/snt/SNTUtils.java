@@ -68,6 +68,10 @@ import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -674,6 +678,14 @@ public class SNTUtils {
 				// Skip problematic files
 			}
 		}
+	}
+
+	/**
+	 * Returns the current date-time truncated to whole seconds, e.g., for stamping exported content with a
+	 * generation time.
+	 */
+	public static LocalDateTime nowTruncatedToSeconds() {
+		return LocalDateTime.of(LocalDate.now(), LocalTime.now().truncatedTo(ChronoUnit.SECONDS));
 	}
 
 	public static String getTimeStamp() {

@@ -94,8 +94,9 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
         // which contains the 2nd level of BrainAnnotation keys, each of which points to a list of the lowest level
         // compartments in that region.
         // For example, Cerebral Cortex -> Somatomotor areas -> MOs, MOp
-        Map<BrainAnnotation, Map<BrainAnnotation, List<BrainAnnotation>>> parentMap2 = new HashMap<>();
-        for (BrainAnnotation key : parentMap.keySet()) {
+        final Map<BrainAnnotation, Map<BrainAnnotation, List<BrainAnnotation>>> parentMap2 = new HashMap<>();
+        for (final Map.Entry<BrainAnnotation, List<BrainAnnotation>> entry : parentMap.entrySet()) {
+            BrainAnnotation key = entry.getKey();
             if (key == null) continue;
             int keyLevel = key.getOntologyDepth();
             BrainAnnotation parentKey;
@@ -108,7 +109,7 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             if (!parentMap2.containsKey(parentKey)) {
                 parentMap2.put(parentKey, new HashMap<>());
             }
-            parentMap2.get(parentKey).put(key, parentMap.get(key));
+            parentMap2.get(parentKey).put(key, entry.getValue());
         }
 
         List<BrainAnnotation> sortedAnnotationList = new ArrayList<>();

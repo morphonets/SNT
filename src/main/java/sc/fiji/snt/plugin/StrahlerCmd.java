@@ -609,23 +609,23 @@ public class StrahlerCmd extends ContextCommand {
 
 		@Override
 		public Map<Integer, Double> getLengths() {
-			return aggregateDoubleMaps(a -> a.getLengths());
+			return aggregateDoubleMaps(StrahlerAnalyzer::getLengths);
 		}
 
 		@Override
 		public Map<Integer, Double> getBranchCounts() {
-			return aggregateDoubleMaps(a -> a.getBranchCounts());
+			return aggregateDoubleMaps(StrahlerAnalyzer::getBranchCounts);
 		}
 
 		@Override
 		public Map<Integer, Double> getBranchPointCounts() {
-			return aggregateDoubleMaps(a -> a.getBranchPointCounts());
+			return aggregateDoubleMaps(StrahlerAnalyzer::getBranchPointCounts);
 		}
 
 		@Override
 		public Map<Integer, Double> getBifurcationRatios() {
 			// Bifurcation ratios should be averaged, not summed
-			return averageDoubleMaps(a -> a.getBifurcationRatios());
+			return averageDoubleMaps(StrahlerAnalyzer::getBifurcationRatios);
 		}
 
 		@Override
@@ -639,12 +639,12 @@ public class StrahlerCmd extends ContextCommand {
 
 		@Override
 		public Map<Integer, Double> getAvgContractions() {
-			return averageDoubleMaps(a -> a.getAvgContractions());
+			return averageDoubleMaps(StrahlerAnalyzer::getAvgContractions);
 		}
 
 		@Override
 		public Map<Integer, Double> getAvgFragmentations() {
-			return averageDoubleMaps(a -> a.getAvgFragmentations());
+			return averageDoubleMaps(StrahlerAnalyzer::getAvgFragmentations);
 		}
 
 		@Override

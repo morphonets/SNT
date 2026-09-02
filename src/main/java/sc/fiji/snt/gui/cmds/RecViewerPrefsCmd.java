@@ -46,22 +46,22 @@ import java.io.File;
 	initializer = "init")
 public class RecViewerPrefsCmd extends ContextCommand {
 
-	public static String DEF_SNAPSHOT_DIR = System.getProperty("user.home") +
+	public static final String DEF_SNAPSHOT_DIR = System.getProperty("user.home") +
 		File.separator + "Desktop" + File.separator + "SNTsnapshots";
 	/** Default rotation angle for 3D viewer animations (360 degrees) */
-	public static float DEF_ROTATION_ANGLE = 360f;
+	public static final float DEF_ROTATION_ANGLE = 360f;
 	/** Default rotation duration for 3D viewer animations (12 seconds) */
-	public static double DEF_ROTATION_DURATION = 12;
+	public static final double DEF_ROTATION_DURATION = 12;
 	/** Default frames per second for 3D viewer animations */
-	public static int DEF_ROTATION_FPS = 30;
+	public static final int DEF_ROTATION_FPS = 30;
 	/** Default animation mode for 3D viewer rotations */
-	public static String DEF_ANIMATION_MODE = "Full Rotation";
+	public static final String DEF_ANIMATION_MODE = "Full Rotation";
 	/** Default sensitivity setting for 3D viewer controls */
-	public static String DEF_CONTROLS_SENSITIVITY = "High";
+	public static final String DEF_CONTROLS_SENSITIVITY = "High";
 	/** Default WYSIWYG snapshot mode (off: use GL readback) */
-	public static boolean DEF_SNAPSHOT_WYSIWYG = false;
+	public static final boolean DEF_SNAPSHOT_WYSIWYG = false;
 	/** Default file extension for scripts */
-	public static String DEF_SCRIPT_EXTENSION = ".groovy";
+	public static final String DEF_SCRIPT_EXTENSION = ".groovy";
 
 	@Parameter(
 		label = "<HTML><b>I. Snapshot Recordings:",

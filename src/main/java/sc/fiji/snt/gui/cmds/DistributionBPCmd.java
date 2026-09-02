@@ -108,7 +108,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 		measurementChoiceInput1.setChoices(choices);
 		final MutableModuleItem<String> measurementChoiceInput2 = getInfo()
 				.getMutableInput("measurementChoice2", String.class);
-		choices.add(0, "-- None --");
+		choices.addFirst("-- None --");
 		measurementChoiceInput2.setChoices(choices);
 
 		// Do not set value, otherwise we'll overwrite any input passed to CommandService
@@ -159,7 +159,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			if (charts.size() > 1) {
 				SNTChart.combine(charts).show();
 			} else {
-				charts.get(0).show();
+				charts.getFirst().show();
 			}
 			resetUI();
 		} catch (final IllegalArgumentException | NullPointerException ex) {

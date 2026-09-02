@@ -190,22 +190,15 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 	}
 
 	private DoublePredicate thresholdPredicate() {
-		switch(thresholdCriterion) {
-		case "<":
-			return (x) -> { return x < thresholdValue; };
-		case "≤":
-			return (x) -> { return x <= thresholdValue; };
-		case ">":
-			return (x) -> { return x > thresholdValue; };
-		case "≥":
-			return (x) -> { return x >= thresholdValue; };
-		case "=":
-			return (x) -> { return x == thresholdValue; };
-		case "≠":
-			return (x) -> { return x != thresholdValue; };
-		default:
-			return null;
-		}
+        return switch (thresholdCriterion) {
+            case "<" -> (x) -> x < thresholdValue;
+            case "≤" -> (x) -> x <= thresholdValue;
+            case ">" -> (x) -> x > thresholdValue;
+            case "≥" -> (x) -> x >= thresholdValue;
+            case "=" -> (x) -> x == thresholdValue;
+            case "≠" -> (x) -> x != thresholdValue;
+            default -> null;
+        };
 	}
 
 	private DoublePredicate nonZeroPredicate() {

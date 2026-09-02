@@ -23,7 +23,6 @@
 package sc.fiji.snt.hyperpanes;
 
 import java.awt.*;
-import java.awt.Color;
 import java.awt.image.ColorModel;
 
 import ij.ImagePlus;
@@ -704,17 +703,12 @@ public class MultiDThreePanes implements PaneOwner {
 	{
 		int n = -1;
 
-		switch (plane) {
-			case XY_PLANE:
-				n = xy.getNSlices();
-				break;
-			case XZ_PLANE:
-				n = xz.getNSlices();
-				break;
-			case ZY_PLANE:
-				n = zy.getNSlices();
-				break;
-		}
+        n = switch (plane) {
+            case XY_PLANE -> xy.getNSlices();
+            case XZ_PLANE -> xz.getNSlices();
+            case ZY_PLANE -> zy.getNSlices();
+            default -> n;
+        };
 
 		final int[][] result = new int[n][3];
 

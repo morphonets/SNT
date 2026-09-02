@@ -398,7 +398,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
 
     private void saveSeedsFile() {
         final sc.fiji.snt.seed.SeedOverlay overlay = snt.getSeedOverlay();
-        if (overlay == null || overlay.size() == 0) return;
+        if (overlay == null || overlay.isEmpty()) return;
         try {
             final File file = new File(sessionDir, "seeds.csv");
             overlay.saveAs(file);

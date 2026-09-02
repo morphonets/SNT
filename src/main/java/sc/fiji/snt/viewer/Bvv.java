@@ -55,7 +55,6 @@ import org.jdom2.JDOMException;
 import org.scijava.command.CommandService;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.*;
-import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import sc.fiji.snt.gui.*;
@@ -64,9 +63,6 @@ import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Path2D;
@@ -114,7 +110,7 @@ public class Bvv extends AbstractBigViewer {
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
-    private final long CENTER_ANIMATION_DURATION_MS = 250;
+    private static final long CENTER_ANIMATION_DURATION_MS = 250;
 
     // Tracing-click recenter gating (see registerCenterOnDoubleClickListener). Strategy is stored on
     // renderingOptions.strategy (see AbstractBigViewer.RecenterStrategy) rather than a field here, so
@@ -1852,7 +1848,7 @@ public class Bvv extends AbstractBigViewer {
     private JToggleButton scaledToggleButton(final Action action, final IconFactory.GLYPH glyph, final String tooltipText) {
         final JToggleButton button = new JToggleButton(action);
         button.setText(null);
-        IconFactory.assignIcon(button, glyph, (Color) null, (float) 1.1);
+        IconFactory.assignIcon(button, glyph, (Color) null, 1.1f);
         button.setToolTipText(tooltipText);
         return button;
     }

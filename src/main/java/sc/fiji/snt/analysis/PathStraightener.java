@@ -115,8 +115,8 @@ public class PathStraightener {
 				final ImageProcessor ip = straighten(ch);
 				if (ip != null) ips.add(ip);
 			}
-			final ImageStack stack = new ImageStack(ips.get(0).getWidth(), ips.get(0).getHeight());
-			ips.forEach(ip -> stack.addSlice(ip));
+			final ImageStack stack = new ImageStack(ips.getFirst().getWidth(), ips.getFirst().getHeight());
+			ips.forEach(stack::addSlice);
 			result = new ImagePlus("", stack);
 			result.setDimensions(imp.getNChannels(), 1, 1);
 			result = new CompositeImage(result, currentMode);
@@ -174,8 +174,8 @@ public class PathStraightener {
 	private ImageProcessor combineHorizontally(final List<ImageProcessor> ips) {
 		if (ips.isEmpty())
 			return null;
-		final int maxWidth = ips.stream().mapToInt(ip -> ip.getWidth()).sum();
-		final ImageProcessor holder = ips.get(0).createProcessor(maxWidth, getWidth());
+		final int maxWidth = ips.stream().mapToInt(ImageProcessor::getWidth).sum();
+		final ImageProcessor holder = ips.getFirst().createProcessor(maxWidth, getWidth());
 		holder.setBackgroundValue(0);
 		holder.fill();
 		int xloc = 0;

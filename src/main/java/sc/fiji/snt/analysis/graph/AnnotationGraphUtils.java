@@ -41,11 +41,11 @@ public class AnnotationGraphUtils {
     public static AnnotationGraph union(Collection<AnnotationGraph> graphs) {
         List<Set<HashableVertex>> vertexSets = getHashableVertexSetList(graphs);
         List<Set<HashableEdge>> edgeSets = getHashableEdgeSetList(graphs);
-        Set<HashableVertex> vertexResult = vertexSets.get(0);
+        Set<HashableVertex> vertexResult = vertexSets.getFirst();
         for (Set<HashableVertex> vertexSet : vertexSets) {
             vertexResult.addAll(vertexSet);
         }
-        Set<HashableEdge> edgeResult = edgeSets.get(0);
+        Set<HashableEdge> edgeResult = edgeSets.getFirst();
         for (Set<HashableEdge> edgeSet : edgeSets) {
             edgeResult.addAll(edgeSet);
         }
@@ -63,11 +63,11 @@ public class AnnotationGraphUtils {
     public static AnnotationGraph intersection(Collection<AnnotationGraph> graphs) {
         List<Set<HashableVertex>> vertexSets = getHashableVertexSetList(graphs);
         List<Set<HashableEdge>> edgeSets = getHashableEdgeSetList(graphs);
-        Set<HashableVertex> vertexResult = vertexSets.get(0);
+        Set<HashableVertex> vertexResult = vertexSets.getFirst();
         for (Set<HashableVertex> vertexSet : vertexSets) {
             vertexResult.addAll(vertexSet);
         }
-        Set<HashableEdge> edgeResult = edgeSets.get(0);
+        Set<HashableEdge> edgeResult = edgeSets.getFirst();
         for (Set<HashableEdge> edgeSet : edgeSets) {
             edgeResult.retainAll(edgeSet);
         }
@@ -179,10 +179,9 @@ public class AnnotationGraphUtils {
             if (this == o) {
                 return true;
             }
-            if (!(o instanceof HashableEdge)) {
+            if (!(o instanceof HashableEdge other)) {
                 return false;
             }
-            HashableEdge other = (HashableEdge) o;
             return this.toString().equals(other.toString());
         }
 
@@ -213,10 +212,9 @@ public class AnnotationGraphUtils {
             if (this == o) {
                 return true;
             }
-            if (!(o instanceof HashableVertex)) {
+            if (!(o instanceof HashableVertex other)) {
                 return false;
             }
-            HashableVertex other = (HashableVertex) o;
             return getVertex().id() == other.getVertex().id();
         }
 

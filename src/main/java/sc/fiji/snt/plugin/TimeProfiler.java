@@ -121,13 +121,13 @@ public class TimeProfiler extends PathProfiler {
         }
     }
 
-    final Frame showTimeProfileAsHeatmap(final int ch) throws InterruptedException, InvocationTargetException {
+    Frame showTimeProfileAsHeatmap(final int ch) throws InterruptedException, InvocationTargetException {
         if (filteredPaths.size() == 1)
             return showTimeProfileAsHeatmap(filteredPaths.iterator().next(), ch);
         return showTimeProfileAsHeatmap(filteredPaths, ch);
     }
 
-    final void showTimeProfileAsTable(final int ch) throws InterruptedException, InvocationTargetException {
+    void showTimeProfileAsTable(final int ch) throws InterruptedException, InvocationTargetException {
         // NB: filteredPaths.size(), not tree.list().size() -- see showTimeProfileAsHeatmap(int) above: tree
         // may still have >1 paths even when only one survives  the "size() > 2" filter into filteredPaths
         if (filteredPaths.size() == 1)

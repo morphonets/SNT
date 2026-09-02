@@ -70,8 +70,6 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.Future;
 
-import static sc.fiji.snt.plugin.ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE;
-
 /**
  * Implements SNT's commands for Sholl Analysis of {@link Tree}s.
  *
@@ -152,7 +150,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 	private String polynomialChoice;
 
 	@Parameter(label = "<html>&nbsp;", callback = "polynomialDegreeChanged", stepSize="1",
-			min = "0", max = "" + ALLOWED_MAX_DEGREE, style = NumberWidget.SLIDER_STYLE)
+			min = "0", max = "" + ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE, style = NumberWidget.SLIDER_STYLE)
 	private int polynomialDegree;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,

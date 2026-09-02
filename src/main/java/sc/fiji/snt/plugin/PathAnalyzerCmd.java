@@ -228,7 +228,7 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		GuiUtils.LAF.setLookAndFeel();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		final ArrayList<Path> collection = new ArrayList<>();
 		collection.add(tree.get(0));
 		collection.add(tree.get(5));

@@ -162,10 +162,9 @@ class EditorMenuBar extends JMenuBar
 					}
 				}));
 		item.addActionListener(e -> {
-			if (e.getSource() instanceof EditorActions.TogglePropertyItem) {
+			if (e.getSource() instanceof TogglePropertyItem toggleItem) {
 				final mxGraphComponent graphComponent = editor.getGraphComponent();
-				EditorActions.TogglePropertyItem toggleItem = (EditorActions.TogglePropertyItem) e.getSource();
-				if (toggleItem.isSelected()) {
+                if (toggleItem.isSelected()) {
 					// Scrolls the view to the center
 					SwingUtilities.invokeLater(() -> {
 						graphComponent.scrollToCenter(true);

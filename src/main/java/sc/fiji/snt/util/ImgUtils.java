@@ -39,7 +39,6 @@ import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.converter.Converters;
 import net.imglib2.converter.RealUnsignedShortConverter;
 import net.imglib2.display.ColorTable;
-import net.imglib2.Cursor;
 import net.imglib2.img.Img;
 import net.imglib2.img.ImgView;
 import net.imglib2.img.array.ArrayImgFactory;

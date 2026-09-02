@@ -96,42 +96,24 @@ public class VFBUtils {
 	 * @return the SNT point defining the (X,Y,Z) center of brain mesh.
 	 */
 	public static SNTPoint brainBarycentre(final String templateBrain) {
-		switch (getNormalizedTemplateLabel(templateBrain)) {
-		case JFRC2018_MESH_LABEL:
-			return JFRC2018_BRAIN_BARYCENTRE;
-		case JFRC2_MESH_LABEL:
-			return JFRC2_BRAIN_BARYCENTRE;
-		case JFRC3_MESH_LABEL:
-			return JFRC3_BRAIN_BARYCENTRE;
-		case FCWB_MESH_LABEL:
-			return FCWB_BRAIN_BARYCENTRE;
-		default:
-			throw new IllegalArgumentException("Invalid argument");
-		}
+        return switch (getNormalizedTemplateLabel(templateBrain)) {
+            case JFRC2018_MESH_LABEL -> JFRC2018_BRAIN_BARYCENTRE;
+            case JFRC2_MESH_LABEL -> JFRC2_BRAIN_BARYCENTRE;
+            case JFRC3_MESH_LABEL -> JFRC3_BRAIN_BARYCENTRE;
+            case FCWB_MESH_LABEL -> FCWB_BRAIN_BARYCENTRE;
+            default -> throw new IllegalArgumentException("Invalid argument");
+        };
 	}
 
 	private static String getNormalizedTemplateLabel(final String templateBrain) {
 		final String inputType = (templateBrain == null) ? "" : templateBrain.toLowerCase();
-		switch (inputType) {
-		case "jfrc2018":
-		case "jfrc 2018":
-		case "jfrctemplate2018":
-			return JFRC2018_MESH_LABEL;
-		case "jfrc2":
-		case "jfrc2010":
-		case "jfrctemplate2010":
-		case "vfb":
-			return JFRC2_MESH_LABEL;
-		case "jfrc3":
-		case "jfrc2013":
-		case "jfrctemplate2013":
-			return JFRC3_MESH_LABEL;
-		case "fcwb":
-		case "flycircuit":
-			return FCWB_MESH_LABEL;
-		default:
-			throw new IllegalArgumentException("Invalid argument");
-		}
+        return switch (inputType) {
+            case "jfrc2018", "jfrc 2018", "jfrctemplate2018" -> JFRC2018_MESH_LABEL;
+            case "jfrc2", "jfrc2010", "jfrctemplate2010", "vfb" -> JFRC2_MESH_LABEL;
+            case "jfrc3", "jfrc2013", "jfrctemplate2013" -> JFRC3_MESH_LABEL;
+            case "fcwb", "flycircuit" -> FCWB_MESH_LABEL;
+            default -> throw new IllegalArgumentException("Invalid argument");
+        };
 	}
 
 	/**
@@ -148,18 +130,13 @@ public class VFBUtils {
 	 * @throws IllegalArgumentException if templateBrain is not recognized
 	 */
 	public static OBJMesh getRefBrain(final String templateBrain) throws IllegalArgumentException {
-		switch (getNormalizedTemplateLabel(templateBrain)) {
-		case JFRC2018_MESH_LABEL:
-			return getBundledMesh(JFRC2018_MESH_LABEL, "meshes/JFRCtemplate2018.obj");
-		case JFRC2_MESH_LABEL:
-			return getBundledMesh(JFRC2_MESH_LABEL, "meshes/JFRCtemplate2010.obj");
-		case JFRC3_MESH_LABEL:
-			return getBundledMesh(JFRC3_MESH_LABEL, "meshes/JFRCtemplate2013.obj");
-		case FCWB_MESH_LABEL:
-			return getBundledMesh(FCWB_MESH_LABEL, "meshes/FCWB.obj");
-		default:
-			throw new IllegalArgumentException("Invalid argument");
-		}
+        return switch (getNormalizedTemplateLabel(templateBrain)) {
+            case JFRC2018_MESH_LABEL -> getBundledMesh(JFRC2018_MESH_LABEL, "meshes/JFRCtemplate2018.obj");
+            case JFRC2_MESH_LABEL -> getBundledMesh(JFRC2_MESH_LABEL, "meshes/JFRCtemplate2010.obj");
+            case JFRC3_MESH_LABEL -> getBundledMesh(JFRC3_MESH_LABEL, "meshes/JFRCtemplate2013.obj");
+            case FCWB_MESH_LABEL -> getBundledMesh(FCWB_MESH_LABEL, "meshes/FCWB.obj");
+            default -> throw new IllegalArgumentException("Invalid argument");
+        };
 	}
 
 	private static String[] getResourcePathAndLabel(final String resourceIdentifier, final String filename) {

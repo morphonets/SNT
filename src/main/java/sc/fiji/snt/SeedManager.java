@@ -49,8 +49,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.List;
 
-import static sc.fiji.snt.seed.SeedOverlay.DEFAULT_COLOR_TABLE_NAME;
-
 /**
  * Reusable JPanel that controls a {@link SeedOverlay}: visibility, LUT,
  * confidence range, transparency, counters, CSV import/export/clear, plus
@@ -217,7 +215,7 @@ public class SeedManager extends JPanel {
         p.add(lutRamp);
         p.add(colorModeCombo);
         p.add(Box.createHorizontalGlue());
-        p.add(GuiUtils.Buttons.ColorTableButton(1f, overlay::setColorTable, DEFAULT_COLOR_TABLE_NAME,
+        p.add(GuiUtils.Buttons.ColorTableButton(1f, overlay::setColorTable, SeedOverlay.DEFAULT_COLOR_TABLE_NAME,
                 getTransparencyMenuItem()));
         return p;
     }

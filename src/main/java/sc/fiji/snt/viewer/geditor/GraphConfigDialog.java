@@ -31,6 +31,7 @@ import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Objects;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -977,15 +978,8 @@ class GraphConfigDialog extends JDialog
 	public void configAnalysisGraph(mxGraph graph, mxGraphGenerator generator, Map<String, Object> props)
 	{
 		this.aGraph.setGraph(graph);
-		
-		if (generator == null)
-		{
-			this.aGraph.setGenerator(new mxGraphGenerator(null, null));
-		}
-		else
-		{
-			this.aGraph.setGenerator(generator);
-		}
+
+        this.aGraph.setGenerator(Objects.requireNonNullElseGet(generator, () -> new mxGraphGenerator(null, null)));
 		
 		if(props == null)
 		{

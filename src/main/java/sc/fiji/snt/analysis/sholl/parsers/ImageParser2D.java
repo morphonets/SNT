@@ -59,7 +59,7 @@ public class ImageParser2D extends ImageParser {
 	/** Flag for integration of repeated measures: mode */
 	public static final int MODE = 2;
 	private static final int NONE = -1;
-	public final int MAX_N_SPANS = 10;
+	public static final int MAX_N_SPANS = 10;
 
 	public ImageParser2D(final ImagePlus imp) {
 		this(imp, SNTUtils.getContext());

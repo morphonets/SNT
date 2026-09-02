@@ -38,7 +38,6 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.growth.GrowthAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;

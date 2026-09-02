@@ -100,7 +100,7 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
     @Parameter(label = "Paths", required = false, persist = false)
     private Collection<Path> paths;
 
-    private final boolean ASSIGN_TO_NEAREST_PATH = true;
+    private static final boolean ASSIGN_TO_NEAREST_PATH = true;
 
     @SuppressWarnings("unused")
     private void init() {

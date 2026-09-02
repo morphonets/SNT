@@ -532,8 +532,8 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			currentId++;
 			final List<SWCPoint> parentList = Graphs.predecessorListOf(this, v);
 			if (!parentList.isEmpty()) {
-				v.parent = parentList.get(0).id;
-				v.setPrevious(parentList.get(0));
+				v.parent = parentList.getFirst().id;
+				v.setPrevious(parentList.getFirst());
 			} else {
 				v.parent = -1;
 				v.setPrevious(null);

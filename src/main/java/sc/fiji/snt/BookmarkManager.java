@@ -1511,7 +1511,7 @@ public class BookmarkManager {
      * @param t the time position of the bookmark
      */
     public void add(final int x, final int y, final int z, final int c, final int t) {
-        add((double) x, (double) y, (double) z, c, t, true);
+        add(x, y, z, c, t, true);
     }
 
     /**

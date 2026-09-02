@@ -199,7 +199,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		// define a valid LUT choice
 		Collections.sort(choices);
 		if (lutChoice == null || !choices.contains(lutChoice)) {
-			lutChoice = choices.get(0);
+			lutChoice = choices.getFirst();
 		}
 
 		final MutableModuleItem<String> input = getInfo().getMutableInput(
@@ -231,7 +231,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		ij.ui().showUI();
 		final Map<String, Object> input = new HashMap<>();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		input.put("tree", tree);
 		ij.command().run(TreeMapperCmd.class, true, input);
 	}

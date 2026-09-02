@@ -493,7 +493,7 @@ public class GroupedTreeStatistics {
 			title.append("Normalized ");
 		title.append(metric);
 		if (!normalize)
-			title.append(" (").append( getGroupStats(getGroups().get(0)).getUnit(metric)).append(")");
+			title.append(" (").append( getGroupStats(getGroups().getFirst()).getUnit(metric)).append(")");
 		title.append(" "); // padding margin
 		final StringBuilder tooltip = new StringBuilder("<HTML><div WIDTH=600><b>NB</b>: ");
 		if (!singleCell)
@@ -517,26 +517,19 @@ public class GroupedTreeStatistics {
 	}
 
 	private boolean isSingleCell() {
-		return groups.size() == 1 && getN(getGroups().get(0)) == 1;
+		return groups.size() == 1 && getN(getGroups().getFirst()) == 1;
 	}
 
 	private double getSingleValueFromList(final List<Double> values, final String combineMethod) {
-		switch (combineMethod.toLowerCase()) {
-			case "sum":
-				return values.stream().mapToDouble(Double::doubleValue).sum();
-			case "min":
-				return values.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
-			case "max":
-				return values.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
-			case "mean":
-			case "average":
-			case "avg":
-				return values.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
-			case "median":
-				return org.jfree.data.statistics.Statistics.calculateMedian(values);
-			default:
-				throw new IllegalArgumentException("Unknown method: " + combineMethod);
-		}
+        return switch (combineMethod.toLowerCase()) {
+            case "sum" -> values.stream().mapToDouble(Double::doubleValue).sum();
+            case "min" -> values.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
+            case "max" -> values.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
+            case "mean", "average", "avg" ->
+                    values.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
+            case "median" -> org.jfree.data.statistics.Statistics.calculateMedian(values);
+            default -> throw new IllegalArgumentException("Unknown method: " + combineMethod);
+        };
 	}
 
 	private String getBoxOrFlowPlotFeature(final String guess) {
@@ -588,24 +581,16 @@ public class GroupedTreeStatistics {
 						continue;
 					final TreeStatistics analyzer = new TreeStatistics(tree);
 					final boolean includeChildren = annotation.getOntologyDepth() > 0;
-					double value;
-					switch (normFeature) {
-						case LENGTH:
-							value = (normalize) ? analyzer.getCableLengthNorm(annotation, includeChildren)
-									: analyzer.getCableLength(annotation, includeChildren);
-							break;
-						case N_BRANCH_POINTS:
-							value = (normalize) ? analyzer.getNBranchPointsNorm(annotation, includeChildren)
-									: analyzer.getNBranchPoints(annotation, includeChildren);
-							break;
-						case N_TIPS:
-							value = (normalize) ? analyzer.getNTipsNorm(annotation, includeChildren)
-									: analyzer.getNTips(annotation, includeChildren);
-							break;
-						default:
-							throw new IllegalArgumentException("Unrecognized feature");
-					}
-					if (value > cutoff)
+					double value = switch (normFeature) {
+                        case LENGTH -> (normalize) ? analyzer.getCableLengthNorm(annotation, includeChildren)
+                                : analyzer.getCableLength(annotation, includeChildren);
+                        case N_BRANCH_POINTS -> (normalize) ? analyzer.getNBranchPointsNorm(annotation, includeChildren)
+                                : analyzer.getNBranchPoints(annotation, includeChildren);
+                        case N_TIPS -> (normalize) ? analyzer.getNTipsNorm(annotation, includeChildren)
+                                : analyzer.getNTips(annotation, includeChildren);
+                        default -> throw new IllegalArgumentException("Unrecognized feature");
+                    };
+                    if (value > cutoff)
 						values.add(value);
 				}
 				if (!values.isEmpty())
@@ -733,11 +718,10 @@ public class GroupedTreeStatistics {
 			if (this == obj) {
 				return true;
 			}
-			if (!(obj instanceof FlowNode)) {
+			if (!(obj instanceof FlowNode other)) {
 				return false;
 			}
-			final FlowNode other = (FlowNode) obj;
-			if (!getEnclosingInstance().equals(other.getEnclosingInstance())) {
+            if (!getEnclosingInstance().equals(other.getEnclosingInstance())) {
 				return false;
 			}
 			// NB: flow cannot influence equals()!

@@ -87,7 +87,7 @@ public class DirectedWeightedSubgraph extends AsSubgraph<SWCPoint, SWCWeightedEd
 			for (final SWCPoint root : rootList) {
 				final List<SWCPoint> parent = Graphs.predecessorListOf(graph, root);
 				if (!parent.isEmpty()) {
-					totalWeight += graph.getEdge(parent.get(0), root).getWeight();
+					totalWeight += graph.getEdge(parent.getFirst(), root).getWeight();
 				}
 			}
 		}
@@ -135,24 +135,14 @@ public class DirectedWeightedSubgraph extends AsSubgraph<SWCPoint, SWCWeightedEd
 	}
 
 	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
-		switch(type.toLowerCase()) {
-		case "all":
-			return new NodeStatistics<>(vertexSet());
-		case "tips":
-		case "endings":
-		case "end points":
-		case "terminals":
-			return new NodeStatistics<>(getTips());
-		case "bps":
-		case "forks":
-		case "junctions":
-		case "fork points":
-		case "junction points":
-		case "branch points":
-			return new NodeStatistics<>(getBPs());
-		default:
-			throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
-		}
+        return switch (type.toLowerCase()) {
+            case "all" -> new NodeStatistics<>(vertexSet());
+            case "tips", "endings", "end points", "terminals" -> new NodeStatistics<>(getTips());
+            case "bps", "forks", "junctions", "fork points", "junction points", "branch points" ->
+                    new NodeStatistics<>(getBPs());
+            default ->
+                    throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
+        };
 	}
 
 	/**

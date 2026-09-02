@@ -350,7 +350,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		ij.ui().showUI();
 		final Map<String, Object> input = new HashMap<>();
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		input.put("tree", tree);
 		ij.command().run(PlotterCmd.class, true, input);
 	}

@@ -7308,7 +7308,7 @@ public class SNTUI extends JDialog {
         return pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath, commonFileHeader);
     }
 
-    private class ImportAction {
+    private final class ImportAction {
 
         private static final int TRACES = 0;
         private static final int SWC = 1;

@@ -630,7 +630,7 @@ public class BinaryTracer implements AutoTracer {
         pruneByMST(graph, e -> {
             final SWCPoint s = graph.getEdgeSource(e);
             final SWCPoint t = graph.getEdgeTarget(e);
-            return (double) (graph.degreeOf(s) * graph.degreeOf(t));
+            return (graph.degreeOf(s) * graph.degreeOf(t));
         }, "peripheral (approx)");
     }
 

@@ -107,7 +107,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 			somaAnnot = tree.getRoot().getAnnotation();
 			somaLabel = "root";
 		} else {
-			somaAnnot = sNodes.get(0).getAnnotation();
+			somaAnnot = sNodes.getFirst().getAnnotation();
 		}
 		if (somaAnnot != null && somaAnnot.getOntologyDepth() > ontologyDepth)
 			somaAnnot = somaAnnot.getAncestor(ontologyDepth - somaAnnot.getOntologyDepth());

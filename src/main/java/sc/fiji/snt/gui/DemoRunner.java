@@ -28,9 +28,7 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
-import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
 
 import javax.swing.*;
 import java.util.Arrays;

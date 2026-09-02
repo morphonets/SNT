@@ -52,7 +52,7 @@ public class PathDownsampler {
 		final ArrayList<SimplePoint> points, final double permittedDeviation)
 	{
 		final int n = points.size();
-		final SimplePoint startPoint = points.get(0);
+		final SimplePoint startPoint = points.getFirst();
 		final SimplePoint endPoint = points.get(n - 1);
 		double vx = endPoint.x - startPoint.x;
 		double vy = endPoint.y - startPoint.y;
@@ -90,7 +90,7 @@ public class PathDownsampler {
 				secondPart.add(points.get(i));
 			firstPart = downsample(firstPart, permittedDeviation);
 			secondPart = downsample(secondPart, permittedDeviation);
-			firstPart.remove(firstPart.size() - 1);
+			firstPart.removeLast();
 			firstPart.addAll(secondPart);
 			return firstPart;
 		}

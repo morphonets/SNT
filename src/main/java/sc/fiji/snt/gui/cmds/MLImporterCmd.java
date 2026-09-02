@@ -202,16 +202,12 @@ public class MLImporterCmd extends CommonDynamicCmd {
 	 */
 	protected String getCompartment(final String choice) {
 		if (choice == null) return null;
-		switch (choice) {
-			case CHOICE_AXONS:
-				return MouseLightLoader.AXON;
-			case CHOICE_DENDRITES:
-				return MouseLightLoader.DENDRITE;
-			case CHOICE_SOMA:
-				return MouseLightLoader.SOMA;
-			default:
-				return "all";
-		}
+        return switch (choice) {
+            case CHOICE_AXONS -> MouseLightLoader.AXON;
+            case CHOICE_DENDRITES -> MouseLightLoader.DENDRITE;
+            case CHOICE_SOMA -> MouseLightLoader.SOMA;
+            default -> "all";
+        };
 	}
 
 	protected void init() {

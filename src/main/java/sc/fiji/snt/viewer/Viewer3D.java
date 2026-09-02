@@ -1921,8 +1921,8 @@ public class Viewer3D {
         frame.setVisible(visible);
         if (visible) {
             if (SNTUtils.isDebugMode()) logGLDetails();
-            gUtils.notifyIfNewVersion(0);
-            gUtils.notifyIfOldVersion(5000);
+            GuiUtils.notifyIfNewVersion(0);
+            GuiUtils.notifyIfOldVersion(5000);
         }
         return frame;
     }
@@ -3137,13 +3137,18 @@ public class Viewer3D {
     private void applyAtlasMappingIfNeeded(final OBJMesh objMesh) {
         if (atlasMappingApplied) return;
         final BrainAnnotation src = objMesh.getSourceAnnotation();
-        if (src == null) return;
-        if (src instanceof AllenCompartment) {
-            setAxesLabels(AllenUtils.getXYZLabels());
-            sceneUpVector = new Coord3d(0, -1, 0);
-            if (view != null) view.setUpVector(sceneUpVector);
-        } else if (src instanceof InsectBrainCompartment) {
-            setAxesLabels(VFBUtils.getXYZLabels());
+        switch (src) {
+            case null -> {
+                return;
+            }
+            case AllenCompartment allenCompartment -> {
+                setAxesLabels(AllenUtils.getXYZLabels());
+                sceneUpVector = new Coord3d(0, -1, 0);
+                if (view != null) view.setUpVector(sceneUpVector);
+            }
+            case InsectBrainCompartment insectBrainCompartment -> setAxesLabels(VFBUtils.getXYZLabels());
+            default -> {
+            }
         }
         atlasMappingApplied = true;
     }

@@ -503,16 +503,11 @@ public class NodeStatistics <T extends PointInImage> {
 		final Map<BrainAnnotation, Integer> map = getAnnotatedFrequencies(depth, hemisphere);
 		String label;
 		final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
-		switch (hemiFlag) {
-		case BrainAnnotation.LEFT_HEMISPHERE:
-			label = "Left hemi.";
-			break;
-		case BrainAnnotation.RIGHT_HEMISPHERE:
-			label = "Right hemi.";
-			break;
-		default:
-			label = "";
-		}
+        label = switch (hemiFlag) {
+            case BrainAnnotation.LEFT_HEMISPHERE -> "Left hemi.";
+            case BrainAnnotation.RIGHT_HEMISPHERE -> "Right hemi.";
+            default -> "";
+        };
 		return getAnnotatedFrequencyHistogram(map, depth, label);
 	}
 
@@ -683,7 +678,7 @@ public class NodeStatistics <T extends PointInImage> {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		final Tree tree = new SNTService().demoTrees().get(0);
+		final Tree tree = new SNTService().demoTrees().getFirst();
 		final NodeStatistics<?> treeStats = new NodeStatistics<>(tree.getNodes());
 		final SNTChart hist = treeStats.getHistogram("x-coord");
 		hist.annotate("Free text");

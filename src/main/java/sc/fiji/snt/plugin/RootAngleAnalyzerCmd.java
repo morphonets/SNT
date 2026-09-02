@@ -43,7 +43,6 @@ import sc.fiji.snt.viewer.Viewer3D;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**

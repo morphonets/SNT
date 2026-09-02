@@ -43,9 +43,9 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 	private static final String DARK_GRAY = "#222222";
 	private static final String LIGHT_GRAY = "#eeeeee";
 	// default cell colors
-	private final String defaultVertexStrokeColor = DARK_GRAY;
-	private final String defaultVertexFillColor = LIGHT_GRAY;
-	private final String defaultEdgeStrokeColor = DARK_GRAY;
+	private static final String defaultVertexStrokeColor = DARK_GRAY;
+	private static final String defaultVertexFillColor = LIGHT_GRAY;
+	private static final String defaultEdgeStrokeColor = DARK_GRAY;
 
 	public TreeGraphAdapter(final DirectedWeightedGraph graph) {
 		this(graph, LIGHT_GRAY);

@@ -185,7 +185,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			final boolean recursive = CHOICE_ALL_CHILDREN.equals(childrenChoice);
 			final Tree dupTree = new Tree(getPathsToDuplicate(recursive)).clone();
 			dupTree.list().forEach(dupPath -> dupPath.setCTposition(Math.max(1, channel), Math.max(1, frame)));
-			final Path dupParentPath = dupTree.list().get(0);
+			final Path dupParentPath = dupTree.list().getFirst();
 			connectToAncestorAsNeeded(dupParentPath);
 			snt.getPathAndFillManager().addTree(dupTree, "DUP");
 
@@ -284,7 +284,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final HashMap<String, Object> inputs = new HashMap<>();
-		inputs.put("path", sntService.demoTrees().get(0).get(0));
+		inputs.put("path", sntService.demoTrees().getFirst().get(0));
 		ij.command().run(DuplicateCmd.class, true, inputs);
 	}
 

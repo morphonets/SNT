@@ -31,7 +31,6 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
 
 /**
  * Interactive command for performing Sholl analysis on reconstructed neuronal tracings,

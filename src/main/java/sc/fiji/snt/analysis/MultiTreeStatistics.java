@@ -22,9 +22,6 @@
 
 package sc.fiji.snt.analysis;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.summingDouble;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -205,7 +202,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	@Override
 	protected String getSpatialUnit() {
-		final String u1 = (String) groupOfTrees.get(0).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+		final String u1 = (String) groupOfTrees.getFirst().getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
 		for (int i = 1; i < groupOfTrees.size(); i++) {
 			final String u2 = (String) groupOfTrees.get(i).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
 			if (!u2.equals(u1))
@@ -272,7 +269,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag, norm)));
 		mapList.forEach(e -> e.keySet().remove(null)); // remove all null keys (untagged nodes)
 		return mapList.stream().flatMap(m -> m.entrySet().stream())
-				.collect(groupingBy(Map.Entry::getKey, summingDouble(Map.Entry::getValue)));
+				.collect(Collectors.groupingBy(Map.Entry::getKey, Collectors.summingDouble(Map.Entry::getValue)));
 	}
 
 	@Override

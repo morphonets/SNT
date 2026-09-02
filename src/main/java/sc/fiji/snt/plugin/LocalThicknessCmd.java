@@ -134,7 +134,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 	}
 
 	@Override
-	protected final void error(final String msg) {
+	protected void error(final String msg) {
 		resolveInput("minZ");
 		resolveInput("maxZ");
 		resolveInput("thres");

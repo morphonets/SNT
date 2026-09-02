@@ -502,7 +502,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (plugin != null) {
 			final Viewer3D viewer = getInstanceViewer();
 			if (viewer == null) {
-				class SNTViewer3D extends Viewer3D {
+				final class SNTViewer3D extends Viewer3D {
 					private SNTViewer3D() {
 						super(plugin);
 					}

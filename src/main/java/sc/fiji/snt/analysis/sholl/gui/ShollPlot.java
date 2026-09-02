@@ -63,11 +63,11 @@ public class ShollPlot extends Plot {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/** Default colors for plotting sampled data */
-	private final Color SDATA_COLOR = Color.GRAY;
-	private final Color SDATA_ANNOT_COLOR = Color.LIGHT_GRAY;
+	private static final Color SDATA_COLOR = Color.GRAY;
+	private static final Color SDATA_ANNOT_COLOR = Color.LIGHT_GRAY;
 
 	/** Default colors for plotting fitted data */
-	private final Color FDATA_COLOR1 = Color.BLUE;
+	private static final Color FDATA_COLOR1 = Color.BLUE;
 	private final Color FDATA_ANNOT_COLOR1 = new Color(0, 120, 255);
 	// private final Color FDATA_COLOR2 = Color.RED;
 	// private final Color FDATA_ANNOT_COLOR2 = new Color(260, 160, 0);

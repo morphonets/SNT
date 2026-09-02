@@ -35,10 +35,6 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
 import java.util.stream.IntStream;
@@ -203,54 +199,36 @@ public class SWCExportDialog extends JDialog {
 		props.put("BRAIN_SPACE", "");
 		props.put("ORIGINAL_SOURCE", "SNT v" + SNTUtils.getReadableVersion());
 		props.put("VERSION_DATE",
-				LocalDateTime.of(LocalDate.now(), LocalTime.now().truncatedTo(ChronoUnit.SECONDS)).toString());
+				SNTUtils.nowTruncatedToSeconds().toString());
 		return props;
 	}
 
 	private String getKeyDescription(final String key) {
-		switch (key) {
-		// author details
-		case "CONTRIBUTOR":
-			return "Author(s), dataset, or lab of origin";
-		case "REFERENCE":
-			return "DOI or bibliographic citation for document describing data";
-		// sample details
-		case "CREATURE":
-			return "Animal species and strain or genotype";
-		case "SEX":
-			return "sex of animal";
-		case "AGE":
-			return "Age of animal";
-		case "CONDITION":
-			return "The experimental group (e.g., WT control)";
-		case "MICROSCOPY":
-			return "Imaging modality, objective type, magnification, etc.";
-		case "SLICING":
-			return "Histological processing details. E.g., Slicing direction and thickness";
-		// cell details
-		case "LABEL":
-			return "The labeling or staining";
-		case "REGION":
-			return "The anatomical region of the cell body";
-		case "CLASS":
-			return "Cell type or cell's identifying features";
-		// image details
-		case "ORIGINAL_IMAGE":
-			return "Details on image associated with this reconstruction";
-		case "VOXEL_SIZE":
-			return "Physical dimensions of voxel size (W×H×D) of ORIGINAL_IMAGE";
-		case "COORDINATE":
-			return "Physical units of coordinates and radii";
-		// other
-		case "BRAIN_SPACE":
-			return "Registration details to a reference brain";
-		case "ORIGINAL_SOURCE":
-			return "Details on the tracing software";
-		case "VERSION_DATE":
-			return "Date of export";
-		default:
-			return null;
-		}
+        return switch (key) {
+            // author details
+            case "CONTRIBUTOR" -> "Author(s), dataset, or lab of origin";
+            case "REFERENCE" -> "DOI or bibliographic citation for document describing data";
+            // sample details
+            case "CREATURE" -> "Animal species and strain or genotype";
+            case "SEX" -> "sex of animal";
+            case "AGE" -> "Age of animal";
+            case "CONDITION" -> "The experimental group (e.g., WT control)";
+            case "MICROSCOPY" -> "Imaging modality, objective type, magnification, etc.";
+            case "SLICING" -> "Histological processing details. E.g., Slicing direction and thickness";
+            // cell details
+            case "LABEL" -> "The labeling or staining";
+            case "REGION" -> "The anatomical region of the cell body";
+            case "CLASS" -> "Cell type or cell's identifying features";
+            // image details
+            case "ORIGINAL_IMAGE" -> "Details on image associated with this reconstruction";
+            case "VOXEL_SIZE" -> "Physical dimensions of voxel size (W×H×D) of ORIGINAL_IMAGE";
+            case "COORDINATE" -> "Physical units of coordinates and radii";
+            // other
+            case "BRAIN_SPACE" -> "Registration details to a reference brain";
+            case "ORIGINAL_SOURCE" -> "Details on the tracing software";
+            case "VERSION_DATE" -> "Date of export";
+            default -> null;
+        };
 	}
 
 	private String getVoxelSize() {
@@ -279,15 +257,14 @@ public class SWCExportDialog extends JDialog {
 		final Vector<Vector<String>> dataVector = new Vector<>(props.size());
 		props.forEach((k, v) -> {
 			final Vector<String> data = new Vector<>();
-			data.add((String) k);
-			data.add((String) v);
+			data.add(k);
+			data.add(v);
 			dataVector.add(data);
 		});
 		final Vector<String> headers = new Vector<>(2);
 		headers.add("Descriptor Tag");
 		headers.add("Value/Information");
-		final DefaultTableModel model = new DefaultTableModel(dataVector, headers);
-		return model;
+        return new DefaultTableModel(dataVector, headers);
 	}
 
 	private DefaultTableCellRenderer getCellRenderer() {

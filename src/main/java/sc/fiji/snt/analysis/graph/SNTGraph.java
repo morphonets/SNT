@@ -175,8 +175,9 @@ public abstract class SNTGraph<V, E extends DefaultWeightedEdge>
                 toReplace.put(input, output);
             }
         }
-        for (final V input : toReplace.keySet()) {
-            final V output = toReplace.get(input);
+        for (final Map.Entry<V, V> entry : toReplace.entrySet()) {
+            final V input = entry.getKey();
+            final V output = entry.getValue();
             if (output == null) {
                 removeVertex(input);
                 continue;
@@ -206,8 +207,9 @@ public abstract class SNTGraph<V, E extends DefaultWeightedEdge>
                 toReplace.put(input, output);
             }
         }
-        for (final E input : toReplace.keySet()) {
-            final E output = toReplace.get(input);
+        for (final Map.Entry<E, E> entry : toReplace.entrySet()) {
+            final E input = entry.getKey();
+            final E output = entry.getValue();
             if (output == null) {
                 removeEdge(input);
                 continue;

@@ -84,8 +84,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static sc.fiji.snt.plugin.ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE;
-
 
 /**
  * Implements the backbone for Analyze:Sholl:Sholl Analysis (From Image) commands...
@@ -198,7 +196,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private String polynomialChoice = "'Best fitting' degree";
 
 	@Parameter(label = EMPTY_LABEL, callback = "polynomialDegreeChanged", stepSize="1",
-			min = "0", max = "" + ALLOWED_MAX_DEGREE, style = NumberWidget.SLIDER_STYLE)
+			min = "0", max = "" + ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE, style = NumberWidget.SLIDER_STYLE)
 	private int polynomialDegree;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = "<html><i>Sholl Decay:")

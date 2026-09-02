@@ -280,7 +280,7 @@ public class PersistenceAnalyzer {
         final Set<SWCPoint> openSet = new HashSet<>();
         Map<SWCPoint, SWCPoint> parentMap = new HashMap<>();
         final List<SWCPoint> tips = graph.getTips();
-        SWCPoint maxTip = tips.get(0);
+        SWCPoint maxTip = tips.getFirst();
         for (final SWCPoint t : tips) {
             openSet.add(t);
             t.v = descriptorMap.get(t);
@@ -295,7 +295,7 @@ public class PersistenceAnalyzer {
             final List<SWCPoint> toAdd = new ArrayList<>();
             for (final SWCPoint l : openSet) {
                 if (toRemove.contains(l)) continue;
-                final SWCPoint p = Graphs.predecessorListOf(graph, l).get(0);
+                final SWCPoint p = Graphs.predecessorListOf(graph, l).getFirst();
                 final List<SWCPoint> children = Graphs.successorListOf(graph, p);
                 if (openSet.containsAll(children)) {
                     //noinspection OptionalGetWithoutIsPresent
@@ -436,7 +436,7 @@ public class PersistenceAnalyzer {
     public List<Double> getBarcode(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
         final List<List<Double>> diag = getDiagram(descriptor);
         final ArrayList<Double> barcodes = new ArrayList<>(diag.size());
-        diag.forEach(point -> barcodes.add(Math.abs(point.get(1) - point.get(0))));
+        diag.forEach(point -> barcodes.add(Math.abs(point.get(1) - point.getFirst())));
         return barcodes;
     }
 
@@ -588,7 +588,7 @@ public class PersistenceAnalyzer {
         if (node.parent == -1)
             return 0.0;
         while (node.parent != -1) {
-            final SWCPoint p = Graphs.predecessorListOf(graph, node).get(0);
+            final SWCPoint p = Graphs.predecessorListOf(graph, node).getFirst();
             final SWCWeightedEdge incomingEdge = graph.getEdge(p, node);
             final double weight = incomingEdge.getWeight();
             distance += weight;

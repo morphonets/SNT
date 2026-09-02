@@ -559,7 +559,7 @@ public class SNTCommandFinder {
         revealTimer.addActionListener(new ActionListener() {
             int currentTick = 0;
             boolean isBlinkingOn = false;
-            final int MAX_TICKS = 4; // 2 on/off cycle
+            static final int MAX_TICKS = 4; // 2 on/off cycle
 
             @Override
             public void actionPerformed(final ActionEvent e) {
@@ -1134,7 +1134,7 @@ public class SNTCommandFinder {
             return button;
         }
 
-        final void addProHint(final JToolBar parent) {
+        void addProHint(final JToolBar parent) {
             final FadableHintLabel label = new FadableHintLabel("HINT: ↑↓ to navigate, ↵ to run, $ to filter scripts, Esc to close ");
             ToolbarButtons.styleLabel(label);
             label.setBackground(parent.getBackground());

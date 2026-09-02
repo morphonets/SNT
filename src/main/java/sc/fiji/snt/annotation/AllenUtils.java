@@ -97,14 +97,11 @@ public class AllenUtils {
 	}
 	
 	protected static String hostedMeshesLocation() {
-		switch(VERSION) {
-		case V3:
-			return "https://ml-neuronbrowser.janelia.org/static/ccf-2017/obj/";
-		case V2_5:
-			return "https://ml-neuronbrowser.janelia.org/static/allen/obj/";
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
+        return switch (VERSION) {
+            case V3 -> "https://ml-neuronbrowser.janelia.org/static/ccf-2017/obj/";
+            case V2_5 -> "https://ml-neuronbrowser.janelia.org/static/allen/obj/";
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
 	}
 
 	protected static JSONObject getBrainAreasByStructureId() {
@@ -157,7 +154,7 @@ public class AllenUtils {
 	 */
 	public static AllenCompartment getCompartment(final String nameOrAcronym) {
 		if (nameOrAcronym.equalsIgnoreCase("root"))
-			return getCompartment(AllenUtils.BRAIN_ROOT_ID);
+			return getCompartment(BRAIN_ROOT_ID);
 		areaList = getBrainAreasList();
 		for (int n = 0; n < areaList.length(); n++) {
 			final JSONObject area = (JSONObject) areaList.get(n);
@@ -313,25 +310,19 @@ public class AllenUtils {
 	 * @return true, if is left hemisphere, false otherwise
 	 */
 	public static boolean isLeftHemisphere(final SNTPoint point) {
-		switch(VERSION) {
-		case V3:
-			return point.getZ() <= brainCenter().getZ();
-		case V2_5:
-			return point.getX() <= brainCenter().getX();
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
+        return switch (VERSION) {
+            case V3 -> point.getZ() <= brainCenter().getZ();
+            case V2_5 -> point.getX() <= brainCenter().getX();
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
 	}
 
 	public static boolean isLeftHemisphere(final double x, final double y, final double z) {
-		switch(VERSION) {
-		case V3:
-			return z <= brainCenter().getZ();
-		case V2_5:
-			return x <= brainCenter().getX();
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
+        return switch (VERSION) {
+            case V3 -> z <= brainCenter().getZ();
+            case V2_5 -> x <= brainCenter().getX();
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
 	}
 
 	/**
@@ -353,13 +344,10 @@ public class AllenUtils {
 	 * @return the max number of ontology levels.
 	 */
 	public static int getHighestOntologyDepth() {
-		switch(VERSION) {
-		case V3:
-		case V2_5:
-			return 10; // as per computeHighestOntologyDepth()
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
+        return switch (VERSION) {
+            case V3, V2_5 -> 10; // as per computeHighestOntologyDepth()
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
 	}
 
 	@SuppressWarnings("unused")
@@ -624,7 +612,7 @@ public class AllenUtils {
 
 	/* IDE Debug method */
 	public static void main(final String[] args) {
-		final AllenCompartment compartmentOfInterest = AllenUtils.getCompartment("CA3");
+		final AllenCompartment compartmentOfInterest = getCompartment("CA3");
 		System.out.println(compartmentOfInterest);
 		System.out.println(compartmentOfInterest.getTreePath());
 		final javax.swing.JTree tree = new javax.swing.JTree(getTreeModel(false));

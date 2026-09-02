@@ -307,7 +307,7 @@ public class ImageParser extends ContextCommand implements Parser {
 
 	public void setHemiShells(final String flag) {
 		checkUnsetFields(false);
-		final int maxRadius = (int) Math.round(radii.get(radii.size() - 1) / voxelSize);
+		final int maxRadius = (int) Math.round(radii.getLast() / voxelSize);
 		minX = Math.max(xc - maxRadius, 0);
 		maxX = Math.min(xc + maxRadius, imp.getWidth() - 1);
 		minY = Math.max(yc - maxRadius, 0);

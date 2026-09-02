@@ -24,6 +24,7 @@ package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImgPlus;
 import mpicbg.spim.data.generic.AbstractSpimData;
+import org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator;
 import org.janelia.saalfeldlab.n5.bdv.N5ViewerTreeCellRenderer;
 import org.janelia.saalfeldlab.n5.ij.N5Importer;
 import org.janelia.saalfeldlab.n5.ui.DatasetSelectorDialog;
@@ -62,9 +63,6 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
-
-import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vGroupParsers;
-import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vParsers;
 
 /**
  * Convenience command for starting a standalone Bdv/Bvv instance, including SNT's Stream mode.
@@ -339,7 +337,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     private static DatasetSelectorDialog getDatasetSelectorDialog(final String n5ZarrDir, final ExecutorService exec) {
         final DatasetSelectorDialog datasetDialog = new DatasetSelectorDialog(
                 new N5Importer.N5ViewerReaderFun(), new N5Importer.N5BasePathFun(), n5ZarrDir,
-                n5vGroupParsers, n5vParsers);
+                N5ViewerCreator.n5vGroupParsers, N5ViewerCreator.n5vParsers);
         datasetDialog.setLoaderExecutor(exec);
         datasetDialog.setTreeRenderer(new N5ViewerTreeCellRenderer(false));
         datasetDialog.setContainerPathUpdateCallback(path -> {}); // required; NPEs otherwise

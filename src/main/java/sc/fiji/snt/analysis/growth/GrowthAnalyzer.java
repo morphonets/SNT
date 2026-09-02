@@ -234,8 +234,8 @@ public class GrowthAnalyzer {
                 groupPaths.sort((p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
                 
                 // Calculate overall growth rate using simple linear approach
-                Path firstPath = groupPaths.get(0);
-                Path lastPath = groupPaths.get(groupPaths.size() - 1);
+                Path firstPath = groupPaths.getFirst();
+                Path lastPath = groupPaths.getLast();
                 
                 double totalLengthChange = lastPath.getLength() - firstPath.getLength();
                 double totalTime = (lastPath.getFrame() - firstPath.getFrame()) * frameInterval;

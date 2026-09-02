@@ -65,10 +65,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.*;
@@ -599,7 +595,7 @@ public class PathAndFillManager extends DefaultHandler implements
     protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw, final String commonFileHeader) {
         if (commonFileHeader == null || commonFileHeader.isBlank()) { // legacy header
             pw.println("# Exported from SNT v" + SNTUtils.VERSION + " on "
-                    + LocalDateTime.of(LocalDate.now(), LocalTime.now().truncatedTo(ChronoUnit.SECONDS)));
+                    + SNTUtils.nowTruncatedToSeconds());
             pw.println("# https://imagej.net/SNT");
             pw.println("#");
             if (plugin != null && plugin.accessToValidImageData()) {

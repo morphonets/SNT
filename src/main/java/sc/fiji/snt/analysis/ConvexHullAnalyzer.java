@@ -384,7 +384,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTrees().get(0);
+		final Tree tree = sntService.demoTrees().getFirst();
 		final ConvexHullAnalyzer analyzer = new ConvexHullAnalyzer(tree);
 		analyzer.run();
 	}

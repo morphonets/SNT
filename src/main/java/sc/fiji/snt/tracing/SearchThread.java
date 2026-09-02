@@ -86,7 +86,7 @@ public abstract class SearchThread extends AbstractSearch {
     protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_goal;
 
     protected int exitReason;
-    protected final boolean verbose = SNTUtils.isDebugMode();
+    protected static final boolean verbose = SNTUtils.isDebugMode();
 
     protected long started_at;
     protected long loops;

@@ -24,10 +24,7 @@ package sc.fiji.snt;
 
 import java.awt.Component;
 import java.awt.Container;
-import java.awt.event.ContainerEvent;
-import java.awt.event.ContainerListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
+import java.awt.event.*;
 
 import ij.ImagePlus;
 import sc.fiji.snt.gui.GuiUtils;
@@ -37,7 +34,7 @@ import sc.fiji.snt.gui.GuiUtils;
  * It is used to capture special keys and to prevent the user from starting operations on the wrong window.
  * It has no scripting value.
  */
-class ClarifyingKeyListener implements KeyListener, ContainerListener {
+class ClarifyingKeyListener extends KeyAdapter implements ContainerListener {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -106,13 +103,7 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 
 	}
 
-	@Override
-	public void keyReleased(final KeyEvent e) {}
-
-	@Override
-	public void keyTyped(final KeyEvent e) {}
-
-	private boolean isDoublePress(final KeyEvent ke) {
+    private boolean isDoublePress(final KeyEvent ke) {
 		if (lastKeyPressedCode == ke.getKeyCode() && ((ke.getWhen() -
 			timeKeyDown) < DOUBLE_PRESS_INTERVAL)) return true;
 		timeKeyDown = ke.getWhen();

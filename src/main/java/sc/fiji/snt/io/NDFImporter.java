@@ -295,7 +295,7 @@ public class NDFImporter {
 		final String dirPath = "/home/tferr/code/morphonets/SNT/src/test/resources/";
 		final NDFImporter importer = new NDFImporter(dirPath + "neurites.ndf");
 		final sc.fiji.snt.viewer.Viewer2D v2d = new sc.fiji.snt.viewer.Viewer2D();
-		importer.getTrees().forEach(tree -> v2d.add(tree));
+		importer.getTrees().forEach(v2d::add);
 		v2d.show();
 	}
 
