@@ -520,7 +520,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	/* IDE Debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		PathManagerUI.main(args);
 	}
 }

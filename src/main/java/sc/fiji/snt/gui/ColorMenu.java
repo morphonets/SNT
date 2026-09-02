@@ -57,7 +57,7 @@ public class ColorMenu extends JMenu {
 
 	public ColorMenu(final String name) {
 		super(name);
-		selectedColor = GuiUtils.getSelectionColor();
+		selectedColor = GuiUtils.Colors.selectionColor();
 		focusedColor = UIManager.getColor("Component.focusColor");
 		selectedStroke = new BasicStroke(2f);
 		focusedStroke = new BasicStroke(1.5f);
@@ -341,7 +341,7 @@ public class ColorMenu extends JMenu {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final javax.swing.JFrame f = new javax.swing.JFrame();
 		final javax.swing.JMenuBar menuBar = new javax.swing.JMenuBar();
 		final ColorMenu menu = new ColorMenu("Test");

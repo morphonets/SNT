@@ -90,7 +90,7 @@ public class GraphViewer {
     }
 
     private void initEditor() {
-        GuiUtils.setLookAndFeel();
+        GuiUtils.LAF.setLookAndFeel();
         SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
         SNTGraphComponent component;
         switch (graph) {

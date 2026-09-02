@@ -201,7 +201,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
     private void addItemCheckbox(final Saveable s, final int index) {
         final DefaultMutableModuleItem<Boolean> item = new DefaultMutableModuleItem<>(
                 getInfo(), "saveItem" + index, Boolean.class);
-        item.setLabel(GuiUtils.truncate(s.name, 80));
+        item.setLabel(GuiUtils.Text.truncate(s.name, 80));
         item.setDescription(s.description);
         item.setValue(this, true);
         item.setPersisted(false);

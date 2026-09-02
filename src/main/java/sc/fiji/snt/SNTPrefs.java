@@ -41,6 +41,7 @@ import ij.Prefs;
 import ij.io.FileInfo;
 import ij3d.Content;
 import ij3d.ContentConstants;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Class handling SNT preferences.
@@ -293,7 +294,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private int getDefaultBooleans() {
-		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + SCROLL_DIAMETER;
+		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + SCROLL_DIAMETER + JUST_ACTIVE_CT;
 	}
 
 	private void getBooleans() {
@@ -586,7 +587,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		// If Fiji is using FlatLaf (default of v430 is light) used that as default, otherwise use System L&F
 		final LookAndFeel currentLaf = GraphicsEnvironment.isHeadless() ? null : UIManager.getLookAndFeel();
 		return (currentLaf instanceof FlatLaf && !((FlatLaf) currentLaf).isDark()) ? currentLaf.getName()
-				: sc.fiji.snt.gui.GuiUtils.LAF_DEFAULT;
+				: GuiUtils.LAF.LAF_DEFAULT;
 	}
 
 	private static void clearLegacyPrefs() {

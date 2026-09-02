@@ -210,8 +210,7 @@ public class DelineationsManager {
         directEditingButton.setToolTipText("Enable directly editing of labels");
         toolbar.add(directEditingButton);
         directEditingButton.addItemListener(e -> delineations.forEach(d -> d.field.editButton.setSelected(directEditingButton.isSelected())));
-        final JButton labelsUndoButton = GuiUtils.Buttons.undo();
-        labelsUndoButton.setToolTipText("Reset all labels");
+        final JButton labelsUndoButton = GuiUtils.Buttons.undo("Reset all labels");
         labelsUndoButton.addActionListener(e -> {
             if (!sntui.guiUtils.getConfirmation("Reset all labels?", "Reset?")) return;
             for (final Delineation delineation : delineations) {

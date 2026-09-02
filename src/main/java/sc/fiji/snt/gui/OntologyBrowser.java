@@ -636,8 +636,8 @@ public class OntologyBrowser extends JPanel {
                         final String text = searchableBar.getSearchField().getText();
                         if (text == null || text.isBlank()) {
                             // Restore default expansion
-                            GuiUtils.JTrees.collapseAllNodes(tree);
-                            GuiUtils.JTrees.expandToLevel(tree, 3);
+                            GuiUtils.Trees.collapseAllNodes(tree);
+                            GuiUtils.Trees.expandToLevel(tree, 3);
                         } else {
                             revealMatchingNodes(text);
                         }
@@ -675,7 +675,7 @@ public class OntologyBrowser extends JPanel {
             add(scrollPane, BorderLayout.CENTER);
 
             // Expand a few levels by default
-            GuiUtils.JTrees.expandToLevel(tree, 3);
+            GuiUtils.Trees.expandToLevel(tree, 3);
         }
 
         /**
@@ -759,7 +759,7 @@ public class OntologyBrowser extends JPanel {
          * @param level the depth to expand to
          */
         public void expandToLevel(final int level) {
-            GuiUtils.JTrees.expandToLevel(tree, level);
+            GuiUtils.Trees.expandToLevel(tree, level);
         }
 
         /**
@@ -842,7 +842,7 @@ public class OntologyBrowser extends JPanel {
                     }
                 }
             }
-            GuiUtils.JTrees.collapseAllNodes(tree);
+            GuiUtils.Trees.collapseAllNodes(tree);
             for (final TreePath p : pathsToExpand) {
                 tree.expandPath(p);
             }
@@ -870,19 +870,19 @@ public class OntologyBrowser extends JPanel {
             pMenu.add(jmi);
             pMenu.addSeparator();
             jmi = new JMenuItem("Collapse All");
-            jmi.addActionListener(e -> GuiUtils.JTrees.collapseAllNodes(tree));
+            jmi.addActionListener(e -> GuiUtils.Trees.collapseAllNodes(tree));
             pMenu.add(jmi);
             jmi = new JMenuItem("Collapse Selected Level");
             jmi.addActionListener(e -> {
                 final TreePath selectedPath = tree.getSelectionPath();
                 if (selectedPath != null)
-                    GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
+                    GuiUtils.Trees.collapseNodesOfSameLevel(tree, selectedPath);
             });
             pMenu.add(jmi);
             pMenu.addSeparator();
             jmi = new JMenuItem("Expand All");
             jmi.addActionListener(e -> {
-                GuiUtils.JTrees.expandAllNodes(tree);
+                GuiUtils.Trees.expandAllNodes(tree);
                 if (!searchableBar.getSearchField().getText().isEmpty())
                     searchableBar.getSearchField().setText(
                             searchableBar.getSearchField().getText());
@@ -892,7 +892,7 @@ public class OntologyBrowser extends JPanel {
             jmi.addActionListener(e -> {
                 final TreePath selectedPath = tree.getSelectionPath();
                 if (selectedPath != null)
-                    GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
+                    GuiUtils.Trees.expandNodesOfSameLevel(tree, selectedPath);
             });
             pMenu.add(jmi);
             pMenu.addSeparator();

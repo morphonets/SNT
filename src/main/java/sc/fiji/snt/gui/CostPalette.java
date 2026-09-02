@@ -40,7 +40,6 @@ import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -519,7 +518,7 @@ public class CostPalette extends Thread {
                     return COLORS[i];
                 }
             }
-            return GuiUtils.getDisabledComponentColor();
+            return GuiUtils.Colors.disabledComponentColor();
         }
 
         private void updateStats() {

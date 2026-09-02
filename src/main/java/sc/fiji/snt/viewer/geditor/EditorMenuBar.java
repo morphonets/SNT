@@ -407,7 +407,7 @@ class EditorMenuBar extends JMenuBar
 		submenu.addSeparator();
 		// Creates the Look and Feel menu
 		submenu = (JMenu) submenu.add(new JMenu("Look & Feel"));
-		final String[] lafs = GuiUtils.availableLookAndFeels();
+		final String[] lafs = GuiUtils.LAF.availableLookAndFeels();
 		for (final String laf : lafs) {
 			submenu.add(new AbstractAction(laf) {
 				private static final long serialVersionUID = 7588919504149148501L;
@@ -1008,14 +1008,14 @@ class EditorMenuBar extends JMenuBar
 			int result = JOptionPane.showConfirmDialog(null, myPanel,
 					"Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
 			if (result == JOptionPane.OK_OPTION) {
-				double input = GuiUtils.extractDouble(minWidthField);
+				double input = GuiUtils.Fields.extractDouble(minWidthField);
 				if (Double.isNaN(input) || input <= 0) {
 					GuiUtils.errorPrompt("Min width must be > 0");
 					return;
 				}
 				newMin = input;
 
-				input = GuiUtils.extractDouble(maxWidthField);
+				input = GuiUtils.Fields.extractDouble(maxWidthField);
 				if (Double.isNaN(input) || input <= 0) {
 					GuiUtils.errorPrompt("Max width must be > 0");
 					return;

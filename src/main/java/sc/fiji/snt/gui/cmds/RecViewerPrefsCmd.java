@@ -134,7 +134,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	private String HEADER4;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {
-			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
+			GuiUtils.LAF.LAF_LIGHT, GuiUtils.LAF.LAF_LIGHT_INTJ, GuiUtils.LAF.LAF_DARK, GuiUtils.LAF.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false,
@@ -227,7 +227,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(RecViewerPrefsCmd.class, true);

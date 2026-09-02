@@ -1781,7 +1781,7 @@ public class Bvv extends AbstractBigViewer {
                 IconFactory.GLYPH.COMPUTER_MOUSE, "Restrict display of annotations around cursor");
         final JToggleButton offsetActivate = scaledToggleButton(actions.setCanvasOffsetAction(),
                 IconFactory.GLYPH.MOVE, "Translate annotations from original signal");
-        offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.getDisabledComponentColor(), 1f));
+        offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.Colors.disabledComponentColor(), 1f));
         final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(
                         toggleAroundCursor, offsetActivate),
                 "<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.",
@@ -2971,7 +2971,7 @@ public class Bvv extends AbstractBigViewer {
                 }
                 final SlabAxis slabAxis = new SlabAxis(2); // default view: Z is the depth axis
 
-                final JSpinner thickSpinner = GuiUtils.doubleSpinner(
+                final JSpinner thickSpinner = GuiUtils.Fields.doubleSpinner(
                         slabAxis.defThick, slabAxis.step, slabAxis.phys, slabAxis.step, 1);
                 thickSpinner.setToolTipText("<html>Thickness of the visible slab (" + unit + ").<br>"
                         + "Controls near/far clipping symmetrically around the current position.");
@@ -3168,7 +3168,7 @@ public class Bvv extends AbstractBigViewer {
                 final JLabel thickLabel = new JLabel(String.format("   Thickness (%s)", unit), JLabel.RIGHT);
                 final JLabel posLabel = new JLabel(String.format("   Position (%s)", unit), JLabel.RIGHT);
                 // Force both labels to the same preferred width so spinners/sliders left-align.
-                ensureSameWidth(thickLabel, posLabel);
+                GuiUtils.ensureSameWidth(thickLabel, posLabel);
                 thickPanel.add(thickLabel, java.awt.BorderLayout.WEST);
                 thickPanel.add(thickSpinner, java.awt.BorderLayout.CENTER);
                 c.gridx = 2;
@@ -3197,7 +3197,7 @@ public class Bvv extends AbstractBigViewer {
                 c.fill = GridBagConstraints.NONE;
                 c.weightx = 0;
                 c.anchor = GridBagConstraints.EAST;
-                ensureSameWidth(slabToggle, slabPathsToggle);
+                GuiUtils.ensureSameWidth(slabToggle, slabPathsToggle);
                 main.add(slabPathsToggle, c);
 
                 posPanel.add(posLabel, java.awt.BorderLayout.WEST);
@@ -3321,17 +3321,6 @@ public class Bvv extends AbstractBigViewer {
             return main;
         }
 
-        private void ensureSameWidth(final JComponent c1, final JComponent c2) {
-            final int pW = Math.max(c1.getPreferredSize().width, c2.getPreferredSize().width);
-            final Dimension pDim = new Dimension(pW, c1.getPreferredSize().height);
-            c1.setPreferredSize(pDim);
-            c2.setPreferredSize(pDim);
-            final int mW = Math.max(c1.getMinimumSize().width, c2.getMinimumSize().width);
-            final Dimension mDim = new Dimension(mW, c1.getMinimumSize().height);
-            c1.setMinimumSize(mDim);
-            c2.setMinimumSize(mDim);
-        }
-
         /** Builds the icon toolbar row (reset/fit/align-plane buttons/overlay toggles/options). */
         private JToolBar buildSceneControlToolbar(final BvvActions bvvActions) {
             final JToolBar bar = bvvInstance.buildBaseSceneControlToolbar();
@@ -3407,7 +3396,7 @@ public class Bvv extends AbstractBigViewer {
             // maxAllowedStepInVoxels: takes effect immediately
             addSeparator(menu, IconFactory.GLYPH.STAIRS, "Ray-Marching Step");
             final double curStep = BvvUtils.parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, 1.0);
-            final JSpinner stepSpinner = GuiUtils.doubleSpinner(curStep, 0.1, 8.0, 0.5, 1);
+            final JSpinner stepSpinner = GuiUtils.Fields.doubleSpinner(curStep, 0.1, 8.0, 0.5, 1);
             stepSpinner.setToolTipText("<html>Ray-marching step size in voxels.<br>"
                     + "Smaller = higher quality, slower. Larger = faster, lower quality.<br>Default: 1.0");
             stepSpinner.addChangeListener(e -> {
@@ -3432,8 +3421,8 @@ public class Bvv extends AbstractBigViewer {
             menu.addSeparator();
         final JMenuItem sep = new JMenuItem(header);
         sep.setEnabled(false);
-        sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.getDisabledComponentColor()));
-        sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.getDisabledComponentColor()));
+        sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
+        sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
         menu.add(sep);
     }
 

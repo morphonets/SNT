@@ -24,7 +24,6 @@ package sc.fiji.snt.gui;
 
 import sc.fiji.snt.SNTUtils;
 
-import javax.swing.*;
 import java.awt.datatransfer.DataFlavor;
 import java.io.*;
 
@@ -90,7 +89,7 @@ public class FileDrop {
 	private static Boolean supportsDnD;
 
 	// Default border color
-	private static final java.awt.Color defaultBorderColor = GuiUtils.getSelectionColor();
+	private static final java.awt.Color defaultBorderColor = GuiUtils.Colors.selectionColor();
 
 	/**
 	 * Constructs a {@link FileDrop} with a default light-blue border and, if

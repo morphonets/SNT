@@ -456,7 +456,7 @@ public class Viewer3D {
     }
 
     private void init(final Context context) {
-        GuiUtils.setLookAndFeel();
+        GuiUtils.LAF.setLookAndFeel();
         initManagerList();
         context.inject(this);
         prefs.setPreferences();
@@ -1970,7 +1970,7 @@ public class Viewer3D {
             }
             if (managerList != null)
                 components.add(managerList.getComponentPopupMenu());
-            GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
+            GuiUtils.LAF.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
         };
         if (SwingUtilities.isEventDispatchThread()) r.run();
         else SwingUtilities.invokeLater(r);
@@ -1978,7 +1978,7 @@ public class Viewer3D {
 
     private void syncLookAndFeel(final boolean dark) {
         if (SNTUtils.isStandaloneContext()) {
-            setLookAndFeel(dark ? GuiUtils.LAF_DARK : GuiUtils.LAF_LIGHT);
+            setLookAndFeel(dark ? GuiUtils.LAF.LAF_DARK : GuiUtils.LAF.LAF_LIGHT);
         }
     }
 
@@ -3606,7 +3606,7 @@ public class Viewer3D {
                            final GraphicsConfiguration gConfiguration) {
             super();
             setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-            GuiUtils.setLookAndFeel();
+            GuiUtils.LAF.setLookAndFeel();
             GuiUtils.removeIcon(this);
             final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
             STATUS_DEF_UNLOCKED = (includeManager)
@@ -3779,7 +3779,7 @@ public class Viewer3D {
                 super.dispose();
                 chart.viewer.dispose();
                 chart = null;
-                GuiUtils.restoreLookAndFeel();
+                GuiUtils.LAF.restoreLookAndFeel();
             }
         }
 
@@ -7148,7 +7148,7 @@ public class Viewer3D {
                 dialog.setPreferredSize(new Dimension(dialog.getMinimumSize().width, frame.getHeight()));
                 dialog.setLocationRelativeTo(frame.managerPanel);
             }
-            GuiUtils.JTrees.scrollToLastRow(tab.getTree());
+            GuiUtils.Trees.scrollToLastRow(tab.getTree());
             cmdFinder.attach(dialog);
             dialog.setVisible(true);
             return dialog;
@@ -7382,8 +7382,8 @@ public class Viewer3D {
         private void createEditPopup() {
             // Use a text field as the editor
             editTextField = new JTextField();
-            GuiUtils.addClearButton(editTextField);
-            GuiUtils.addPlaceholder(editTextField, "Tags:");
+            GuiUtils.Fields.addClearButton(editTextField);
+            GuiUtils.Fields.addPlaceholder(editTextField, "Tags:");
             final Border border = javax.swing.UIManager.getBorder("List.focusCellHighlightBorder");
             editTextField.setBorder(border);
             // Add an Action to the text field to save the new value to the model

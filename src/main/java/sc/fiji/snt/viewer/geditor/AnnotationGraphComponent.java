@@ -99,31 +99,31 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
         int result = JOptionPane.showConfirmDialog(null, myPanel,
                 "Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
-            double input = GuiUtils.extractDouble(forceConstantField);
+            double input = GuiUtils.Fields.extractDouble(forceConstantField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Force constant must be positive number.");
                 return;
             }
             forceConstant = input;
-            input = GuiUtils.extractDouble(minDistanceField);
+            input = GuiUtils.Fields.extractDouble(minDistanceField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Minimum distance limit must be positive.");
                 return;
             }
             minDistance = input;
-            input = GuiUtils.extractDouble(maxDistanceField);
+            input = GuiUtils.Fields.extractDouble(maxDistanceField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Maximum distance limit must be positive.");
                 return;
             }
             maxDistance = input;
-            input = GuiUtils.extractDouble(initialTempField);
+            input = GuiUtils.Fields.extractDouble(initialTempField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Initial temp must be positive.");
                 return;
             }
             initialTemp = input;
-            input = GuiUtils.extractDouble(maxIterationsField);
+            input = GuiUtils.Fields.extractDouble(maxIterationsField);
             if (Double.isNaN(input) || input < 0) {
                 GuiUtils.errorPrompt("Maximum iterations must be non-negative.");
                 return;

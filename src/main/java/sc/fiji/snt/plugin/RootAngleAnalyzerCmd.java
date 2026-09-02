@@ -137,7 +137,7 @@ public class RootAngleAnalyzerCmd extends CommonDynamicCmd {
 	private void lutChoiceChanged() {
 		try {
 			if (lutChoice == null || "none".equalsIgnoreCase(lutChoice))
-				colorTable = ShollUtils.constantLUT(GuiUtils.getDisabledComponentColor());
+				colorTable = ShollUtils.constantLUT(GuiUtils.Colors.disabledComponentColor());
 			else
 				colorTable = lutService.loadLUT(luts.get(lutChoice));
 		}

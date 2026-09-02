@@ -202,7 +202,7 @@ public class MeasureUI extends JFrame {
 					return column != 0;
 				}
 			};
-			final JTable statsTable = GuiUtils.JTables.tableWithPlaceholder(statsTableModelImpl,
+			final JTable statsTable = GuiUtils.Tables.tableWithPlaceholder(statsTableModelImpl,
 					() -> "No metrics selected on the left pane.", null);
 
 			// initialize table mode.
@@ -222,7 +222,7 @@ public class MeasureUI extends JFrame {
 				statHeaders[i] = statHeader;
 			}
 			// Set the two panes of the dialog visually apart, now that all columns are in place
-			GuiUtils.JTables.installAlternatingRows(statsTable);
+			GuiUtils.Tables.installAlternatingRows(statsTable);
 			// Keep each column header's tri-state checkbox in sync with individual cell edits:
 			// any change to the stats table (row add/remove, or a single cell toggle) recomputes
 			// every header so a mixed column is shown as indeterminate
@@ -245,7 +245,7 @@ public class MeasureUI extends JFrame {
 			statsTable.addComponentListener(new ComponentAdapter() {
 				@Override
 				public void componentResized(final ComponentEvent e) {
-					GuiUtils.JTables.scrollToBottom(statsTable);
+					GuiUtils.Tables.scrollToBottom(statsTable);
 				}
 			});
 
@@ -1192,7 +1192,7 @@ public class MeasureUI extends JFrame {
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final SNTService sntService = ij.get(SNTService.class);
 //		final MeasureUI frame = new MeasureUI(Collections.singleton(sntService.demoTree()));
 		final MeasureUI frame = new MeasureUI(sntService.demoTrees());

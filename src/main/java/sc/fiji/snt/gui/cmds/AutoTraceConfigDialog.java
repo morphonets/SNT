@@ -104,14 +104,14 @@ public class AutoTraceConfigDialog extends JDialog {
         table.getTableHeader().setReorderingAllowed(false);
 
         // Checkbox column
-        GuiUtils.JTables.configureCheckboxColumn(table, 0, "Include when applying");
+        GuiUtils.Tables.configureCheckboxColumn(table, 0, "Include when applying");
 
         // Right-align the value column
         final DefaultTableCellRenderer rightRenderer = new DefaultTableCellRenderer();
         rightRenderer.setHorizontalAlignment(SwingConstants.RIGHT);
         table.getColumnModel().getColumn(2).setCellRenderer(rightRenderer);
 
-        final JScrollPane scrollPane = GuiUtils.JTables.scrollPane(table);
+        final JScrollPane scrollPane = GuiUtils.Tables.scrollPane(table);
         scrollPane.setPreferredSize(new Dimension(400, 180));
         content.add(scrollPane, BorderLayout.CENTER);
 

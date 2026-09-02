@@ -1752,7 +1752,7 @@ public class SNT extends MultiDThreePanes implements
 
 	private void startUIOnEDT(final boolean bigDataMode) {
 		setBigDataMode(bigDataMode);
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final SNT thisPlugin = this;
 		ui = new SNTUI(thisPlugin, bigDataMode);
 		guiUtils = new GuiUtils(ui);
@@ -5521,7 +5521,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param durationMs how long the label stays visible (milliseconds)
 	 */
 	protected void showCanvasWarning(final String msg, final int durationMs) {
-		showCanvasMessage(msg, GuiUtils.warningColor(), durationMs);
+		showCanvasMessage(msg, GuiUtils.Colors.warningColor(), durationMs);
 	}
 
 	/** @see #showCanvasWarning(String, int) */
@@ -5537,7 +5537,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param durationMs how long the label stays visible (milliseconds)
 	 */
 	protected void showCanvasInfo(final String msg, final int durationMs) {
-		final Color base = GuiUtils.linkColor();
+		final Color base = GuiUtils.Colors.linkColor();
 		showCanvasMessage(msg, new Color(base.getRed(), base.getGreen(), base.getBlue(), 100), durationMs);
 	}
 

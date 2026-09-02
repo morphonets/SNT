@@ -215,10 +215,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         add(distancePanel, c);
         ++c.gridy;
 
-        final ButtonGroup group = new ButtonGroup();
-        group.add(cursorThresholdChoice);
-        group.add(exploredThresholdChoice);
-        group.add(manualThresholdChoice);
+        GuiUtils.Buttons.addToGroup(List.of(cursorThresholdChoice, exploredThresholdChoice, manualThresholdChoice));
+
         final RadioGroupListener listener = new RadioGroupListener();
         cursorThresholdChoice.addActionListener(listener);
         manualThresholdChoice.addActionListener(listener);

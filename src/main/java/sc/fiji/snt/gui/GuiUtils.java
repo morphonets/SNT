@@ -107,14 +107,7 @@ import java.util.stream.IntStream;
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
 
-	public static final String LAF_LIGHT = FlatLightLaf.NAME;
-	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
-	public static final String LAF_DARK = FlatDarkLaf.NAME;
-	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
-	public static final String LAF_DEFAULT  = LAF_LIGHT;
-
 	private static SplashScreen splashScreen;
-	private static LookAndFeel existingLaf;
 	private Component parent;
 	private boolean popupExceptionTriggered;
 	private static JColorChooser colorChooser;
@@ -124,7 +117,7 @@ public class GuiUtils {
 	// SNTUI's own guiUtils field, so a per-instance queue would silently strand notices queued from any of those.
 	// SNT itself already behaves as an app-wide singleton whenever an SNTUI exists (see the SNTUtils.getInstance()
 	// guard in BigDataLoaderCmd), so a single static queue matches the app's actual architecture
-	private static final List<PendingNotice> pendingNotices = new CopyOnWriteArrayList<>();
+	private static final List<Notices.PendingNotice> pendingNotices = new CopyOnWriteArrayList<>();
 	private static volatile Runnable notificationsListener;
 
 	/**
@@ -187,107 +180,6 @@ public class GuiUtils {
 		}
 	}
 
-	/**
-	 * A notification message queued for a persistent notification-center UI element. Unlike a transient popup
-	 * (see {@link #showNotification}, an entry here is only removed by an explicit
-	 * {@link #dismissPendingNotice(PendingNotice)} (or {@link #clearPendingNotices()}), so it survives indefinitely
-	 * until the user actually acts on it
-	 *
-	 * @param html     the notification's HTML-formatted message
-	 * @param url      an optional URL to be opened if the message is clicked, or null
-	 * @param action   an optional in-app action to be run if the message is clicked, or null. Unlike {@code url}
-	 *                 (a link to somewhere outside the application)
-	 * @param logLevel the notice's severity as defined by {@link org.scijava.log.LogLevel}, used to pick an accent icon for it.
-	 */
-	public record PendingNotice(String html, String url, Runnable action, int logLevel) {
-
-		public final static int INFO = LogLevel.INFO;
-		public final static int WARN = LogLevel.WARN;
-		public final static int ERROR = LogLevel.ERROR;
-
-		public PendingNotice(final String html, final String url, final Runnable action) {
-			this(html, url, action, org.scijava.log.LogLevel.INFO);
-		}
-	}
-
-	/**
-	 * @return an unmodifiable snapshot of the notifications currently queued
-	 */
-	public static List<PendingNotice> getPendingNotices() {
-		return List.copyOf(pendingNotices);
-	}
-
-	/**
-	 * @return true if one or more notifications are queued
-	 */
-	public static boolean hasPendingNotices() {
-		return !pendingNotices.isEmpty();
-	}
-
-	/**
-	 * Queues a notification for the (single, process-wide) notification-center UI element (see
-	 * {@link #setNotificationsListener}). Does not display anything itself (see {@link #notify(String, int)} for that)
-	 *
-	 * @param html   the notification's HTML-formatted message
-	 * @param url    an optional URL to be opened if the message is clicked, or null
-	 * @param action an optional in-app action to be run if the message is clicked, or null
-	 */
-	public static void queueNotice(final String html, final String url, final Runnable action) {
-		queueNotice(html, url, action, org.scijava.log.LogLevel.INFO);
-	}
-
-	/**
-	 * As {@link #queueNotice(String, String, Runnable)}, but also specifying the notice's severity
-	 *
-	 * @param logLevel the notice's severity as defined by {@link org.scijava.log.LogLevel}, used to pick an accent icon for it
-	 */
-	public static void queueNotice(final String html, final String url, final Runnable action,
-								   final int logLevel) {
-		while (pendingNotices.size() >= MAX_PENDING_NOTICES) {
-			try {
-				pendingNotices.removeFirst();
-			} catch (final IndexOutOfBoundsException ignored) {
-				break; // another thread already drained it
-			}
-		}
-		pendingNotices.add(new PendingNotice(html, url, action, logLevel));
-		fireNotificationsChanged();
-	}
-
-	/**
-	 * Removes a single notice from the queue, e.g., once the user has seen/acted on it. Other queued notices
-	 * are left untouched.
-	 *
-	 * @param notice the notice to remove, typically one previously returned by {@link #getPendingNotices()}
-	 */
-	public static void dismissPendingNotice(final PendingNotice notice) {
-		if (pendingNotices.remove(notice)) fireNotificationsChanged();
-	}
-
-	/**
-	 * Empties the notification queue, e.g., once the user has seen/acknowledged all of its contents.
-	 */
-	public static void clearPendingNotices() {
-		pendingNotices.clear();
-		fireNotificationsChanged();
-	}
-
-	/**
-	 * Registers the listener invoked (on the EDT) whenever the pending-notifications queue changes (an entry is
-	 * added or removed). Intended for driving a UI element, such as a status bar button, that needs to reflect
-	 * {@link #hasPendingNotices()} accurately. There is only one queue process-wide, so registering a new
-	 * listener replaces whichever one was previously set
-	 *
-	 * @param listener the listener to be run on change, or null to unregister
-	 */
-	public static void setNotificationsListener(final Runnable listener) {
-		notificationsListener = listener;
-	}
-
-	private static void fireNotificationsChanged() {
-		if (notificationsListener != null) SwingUtilities.invokeLater(notificationsListener);
-	}
-
 	public static void notifyIfNewVersion(final int msDelayBeforeShow) {
 		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
@@ -296,7 +188,7 @@ public class GuiUtils {
 						&nbsp;<b>SNT was updated: Click here to find out what is new!</b>
 						<br>&nbsp;Tip: You may want to run <i>File › Reset and Restart...</i> to clear outdated settings.
 						""";
-				queueNotice(s, MenuItems.releaseNotesURL(), null);
+				Notices.queueNotice(s, MenuItems.releaseNotesURL(), null);
 			}
 		});
 		timer.setRepeats(false);
@@ -346,7 +238,7 @@ public class GuiUtils {
 									&nbsp;<b>A newer version of SNT seems to be available!</b>
 									<br>&nbsp;Run the Fiji updater (<i>Help › Update...</i>) to get it.
 									""";
-							queueNotice(s, MenuItems.releaseNotesURL(), null);
+							Notices.queueNotice(s, MenuItems.releaseNotesURL(), null);
 						});
 					}
 				} catch (final Exception ignored) {
@@ -461,8 +353,8 @@ public class GuiUtils {
 	}
 
 	/**
-	 * Holder for the Markdown-emphasis patterns used by {@link #markdownToHtml(String)}. The four {@link Pattern}
-	 * compile calls only happen when {@link #markdownToHtml(String)} is actually invoked.
+	 * Holder for the Markdown-emphasis patterns used by {@link Text#markdownToHtml(String)}. The four {@link Pattern}
+	 * compile calls only happen when {@link Text#markdownToHtml(String)} is actually invoked.
 	 */
 	private static final class MarkdownPatterns {
 		/** **bold** (double-asterisk emphasis) */
@@ -480,30 +372,11 @@ public class GuiUtils {
 	}
 
 	/**
-	 * Converts a minimal, deliberately limited subset of Markdown (bold: {@code **text**} or
-	 * {@code __text__}; italic: {@code *text*} or {@code _text_}) into HTML. The input is
-	 * first run through {@link #escapeHtml(String)}, so a literal '&lt;', '&gt;', or '&amp;' in {@code text}
-	 * is preserved as-is rather than read as markup, and only the recognized emphasis markers are turned
-	 * into {@code <b>}/{@code <i>} tags; everything else is left as plain (now HTML-safe) text.
-	 *
-	 * @param text the plain text, optionally containing basic Markdown emphasis markers
-	 * @return HTML-escaped text with recognized Markdown emphasis converted to {@code <b>}/{@code <i>} tags
-	 */
-	public static String markdownToHtml(final String text) {
-		String html = escapeHtml(text);
-		html = MarkdownPatterns.BOLD_STAR.matcher(html).replaceAll("<b>$1</b>");
-		html = MarkdownPatterns.BOLD_UNDERSCORE.matcher(html).replaceAll("<b>$1</b>");
-		html = MarkdownPatterns.ITALIC_STAR.matcher(html).replaceAll("<i>$1</i>");
-		html = MarkdownPatterns.ITALIC_UNDERSCORE.matcher(html).replaceAll("<i>$1</i>");
-		return html;
-	}
-
-	/**
 	 * Displays a floating notification in the upper corner of the active screen.
 	 *
 	 * @param msg the message to be displayed. May include a minimal subset of Markdown for emphasis:
 	 *            {@code **bold**}/{@code __bold__} and {@code *italic*}/{@code _italic_} see
-	 *            {@link #markdownToHtml(String)}. Anything else, including literal '&lt;'/'&gt;'/'&amp;', is
+	 *            {@link Text#markdownToHtml(String)}. Anything else, including literal '&lt;'/'&gt;'/'&amp;', is
 	 *            treated as plain text.
 	 * @see #notify(String, int)
 	 */
@@ -516,7 +389,7 @@ public class GuiUtils {
 	 *
 	 * @param msg               the message to be displayed. May include a minimal subset of Markdown for emphasis:
 	 *                          {@code **bold**}/{@code __bold__} and {@code *italic*}/{@code _italic_} see
-	 *                          {@link #markdownToHtml(String)}. Anything else, including literal '&lt;'/'&gt;'/'&amp;', is
+	 *                          {@link Text#markdownToHtml(String)}. Anything else, including literal '&lt;'/'&gt;'/'&amp;', is
 	 *                          treated as plain text.
 	 * @param msDelayBeforeShow the amount (in ms) of time before notification should be displayed
 	 */
@@ -524,11 +397,11 @@ public class GuiUtils {
 		final GuiUtils guiUtils = new GuiUtils(null);
 		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			Toolkit.getDefaultToolkit().beep(); // System beep
-			final String finalMsg = GuiUtils.markdownToHtml(msg);
-			final JidePopup toast = guiUtils.showNotification(new JLabel(Buttons.wrapHtml(finalMsg)), true, -1);
+			final String finalMsg = Text.markdownToHtml(msg);
+			final JidePopup toast = guiUtils.showNotification(new JLabel(Text.wrapHtml(finalMsg)), true, -1);
 			if (SNTUtils.getInstance() != null) {
 				final String datedMsg = String.format("%s (%s)", finalMsg, getTimeStamp());
-				queueNotice(Buttons.wrapHtml(datedMsg), null, toast::hidePopupImmediately);
+				Notices.queueNotice(Text.wrapHtml(datedMsg), null, toast::hidePopupImmediately);
 			}
 		});
 		timer.setRepeats(false);
@@ -666,7 +539,7 @@ public class GuiUtils {
 		final JComboBox<String> combo = new JComboBox<>(choices);
 		combo.setSelectedItem(defaultChoice);
 		final JTextField input = new JTextField(defaultInput);
-		addClearButton(input);
+		Fields.addClearButton(input);
 		final JComponent[] inputs = new JComponent[] { new JLabel(message), combo, input };
 		final int result = JOptionPane.showConfirmDialog(null, inputs, title, JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.QUESTION_MESSAGE);
@@ -971,7 +844,7 @@ public class GuiUtils {
 			c.fill = 1;
 			c.anchor = GridBagConstraints.WEST;
 			fields[i] = new JTextField(20);
-			addClearButton(fields[i]);
+			Fields.addClearButton(fields[i]);
 			fields[i].setText(defaultValues[i]);
 			panel.add(fields[i], c);
 		}
@@ -1065,7 +938,7 @@ public class GuiUtils {
 	 */
 	public Color getColor(final String title, final Color defaultValue, final String... panes) {
 		assert SwingUtilities.isEventDispatchThread();
-		colorChooser(defaultValue);
+		Colors.colorChooser(defaultValue);
 
 		// remove spurious panes
 		List<String> allowedPanels;
@@ -1231,8 +1104,8 @@ public class GuiUtils {
 		for (int i = 0; i < spinners.length; i++) {
 			panel.add(new JLabel(labels[i]));
 			spinners[i] = (decimalPlaces == 0) ?
-					GuiUtils.integerSpinner((int) values[i], -10000, 10000, 10, true) :
-					GuiUtils.doubleSpinner(values[i], -10000, 10000, 10, decimalPlaces);
+					Fields.integerSpinner((int) values[i], -10000, 10000, 10, true) :
+					Fields.doubleSpinner(values[i], -10000, 10000, 10, decimalPlaces);
 			panel.add(spinners[i]);
 		}
 
@@ -1366,8 +1239,8 @@ public class GuiUtils {
 				final int result = JOptionPane.showConfirmDialog(parent, panel(), "New Dimensions",
 						JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 				if (result == JOptionPane.OK_OPTION) {
-					final double w = GuiUtils.extractDouble(wField);
-					final double h = GuiUtils.extractDouble(hField);
+					final double w = Fields.extractDouble(wField);
+					final double h = Fields.extractDouble(hField);
 					if (Double.isNaN(w) || w <= 0 || Double.isNaN(h) || h <= 0) {
 						GuiUtils.errorPrompt("Width and Height must > 0.");
 						return;
@@ -1906,7 +1779,7 @@ public class GuiUtils {
 							  final String msg)
 	{
 		final Color prevColor = blinkingComponent.getForeground();
-		final Color flashColor = errorColor();
+		final Color flashColor = Colors.errorColor();
 		final Timer blinkTimer = new Timer(400, new ActionListener() {
 
 			private int count = 0;
@@ -1934,22 +1807,6 @@ public class GuiUtils {
 			blinkTimer.stop();
 		}
 		blinkingComponent.setForeground(prevColor);
-	}
-
-	private static final Color LINK_COLOR = new Color(0, 128, 255);
-	private static final Color ERROR_COLOR = new Color(229, 62, 77); // #E53E4D
-	private static final Color WARNING_COLOR = new Color(254, 210, 132); //#FED284
-
-	public static Color errorColor() {
-		return ERROR_COLOR;
-	}
-
-	public static Color warningColor() {
-		return WARNING_COLOR;
-	}
-
-	public static Color linkColor() {
-		return LINK_COLOR;
 	}
 
 	public static JLabel shortSmallMsg(final String msg, final boolean enabled) {
@@ -1985,6 +1842,7 @@ public class GuiUtils {
 		return longSmallMsg(msg, null, false, parent);
 	}
 
+	/** A {@link JTextArea} that paints a leading SVG icon into its background, used by {@link #longSmallMsg}. */
 	private static class SvgBackgroundJTextArea extends JTextArea {
 		private final FlatSVGIcon svgIcon;
 		private final boolean enabled;
@@ -2195,7 +2053,7 @@ public class GuiUtils {
 	private static void reportTempMsgOnButtonLabel(final AbstractButton button, final String msg, final boolean error) {
 		final Color color = button.getForeground();
 		final String text = button.getText();
-		button.setForeground((error) ? errorColor() :linkColor());
+		button.setForeground((error) ? Colors.errorColor() : Colors.linkColor());
 		button.setText(msg);
 		new Timer(1500, e2 -> {
 			button.setForeground(color);
@@ -2391,27 +2249,6 @@ public class GuiUtils {
 		menu.add(label);
 	}
 
-	// Shared, Component-free metrics context reused by renderedWidth() and MenuItems#defaultHeight():
-	private static final FontRenderContext RENDER_CONTEXT = new FontRenderContext(null, true, true);
-
-	public static int renderedWidth(final String text) {
-		Font font = UIManager.getFont("Label.font");
-		if (font == null) font = new JLabel().getFont();
-		return (int) Math.ceil(font.getStringBounds(text, RENDER_CONTEXT).getWidth());
-	}
-
-	/**
-	 * Escapes the handful of characters that are meaningful to an HTML parser. Use before placing plain text
-	 * inside HTML markup, so that a stray '&lt;'/'&amp;' in it is displayed literally instead of being misread as
-	 * markup (an unescaped '&lt;'  in particular would otherwise be parsed as the start of a tag and swallow the rest
-	 * of the text)
-	 *
-	 * @param text the plain text to escape
-	 */
-	public static String escapeHtml(final String text) {
-		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-	}
-
 	public static JLabel leftAlignedLabel(final String text, final boolean enabled) {
 		return leftAlignedLabel(text, null, enabled);
 	}
@@ -2442,7 +2279,7 @@ public class GuiUtils {
 			label.addMouseListener(new MouseAdapter() {
 				@Override
 				public void mouseEntered(final MouseEvent e) {
-					label.setForeground(LINK_COLOR);
+					label.setForeground(Colors.LINK_COLOR);
 					label.setCursor(new Cursor(Cursor.HAND_CURSOR));
 				}
 
@@ -2517,7 +2354,7 @@ public class GuiUtils {
 					if (!found) continue;
 				}
 				final String keyStr = keystrokeToString(ks);
-				String actionStr = toTitleCase(actionKey.toString());
+				String actionStr = Text.toTitleCase(actionKey.toString());
 				// Strip press/release suffixes so a single key bound to both
 				// KEY_PRESSED and KEY_RELEASED shows only one clean entry
 				actionStr = actionStr.replaceAll("\\s+(Press(ed)?|Release(d)?)$", "");
@@ -2565,27 +2402,6 @@ public class GuiUtils {
 		return sb.toString();
 	}
 
-	/**
-	 * Converts an action-name string to Title Case.
-	 */
-	public static String toTitleCase(final String s) {
-		if (s == null || s.isEmpty()) return s;
-		final String[] words = s.replaceAll("[-_]", " ").split("\\s+");
-		final StringBuilder sb = new StringBuilder();
-		for (final String w : words) {
-			if (!w.isEmpty()) {
-				if (!sb.isEmpty()) sb.append(' ');
-				if ("snt".equalsIgnoreCase(w))
-					sb.append("SNT");
-				else {
-					sb.append(Character.toUpperCase(w.charAt(0)));
-					if (w.length() > 1) sb.append(w.substring(1));
-				}
-			}
-		}
-		return sb.toString();
-	}
-
 	public static String ctrlKey() {
 		return (PlatformUtils.isMac()) ? "Cmd" : "Ctrl";
 	}
@@ -2609,14 +2425,6 @@ public class GuiUtils {
 		}
 	}
 
-	public static JColorChooser colorChooser(final Color defaultValue) {
-		if (colorChooser == null) {
-			colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
-			colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
-		}
-		return colorChooser;
-	}
-
 	public static void setRenderingHints(final Graphics2D g2 ) {
 		g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON );
 		g2.setRenderingHint( RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE );
@@ -2635,30 +2443,11 @@ public class GuiUtils {
 		return cp;
 	}
 
-	public static void addClearButton(final JTextField textField) {
-		textField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
-	}
-
-	public static void addPlaceholder(final JTextField textField, final String placeholder) {
-		textField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
-	}
-
 	public static void removeIcon(final Object rootPaneContainerOrWindow) {
 		if (rootPaneContainerOrWindow instanceof RootPaneContainer)
 			((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
 		else if (rootPaneContainerOrWindow instanceof Window)
 			((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
-	}
-
-	private static final Color FALLBACK_SELECTION_COLOR = new Color(75, 110, 175);
-
-	public static Color getSelectionColor() {
-		final Color c = UIManager.getColor("Tree.selectionBackground");
-		return (c != null) ? c : FALLBACK_SELECTION_COLOR;
-	}
-
-	public static Color getDisabledComponentColor() { // kept here for backwards compatibility
-		return IconFactory.disabledColor();
 	}
 
 	public static String getClipboardText() {
@@ -2671,58 +2460,6 @@ public class GuiUtils {
 			return null;
 		}
 		return null;
-	}
-
-	public static JSpinner integerSpinner(final int value, final int min,
-										  final int max, final int step, final boolean allowEditing)
-	{
-		final int maxDigits = Integer.toString(max).length();
-		final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
-		final JSpinner spinner = new JSpinner(model);
-		final JFormattedTextField textField = ((JSpinner.NumberEditor) spinner.getEditor()).getTextField();
-		textField.setColumns(maxDigits);
-		textField.setEditable(allowEditing);
-		if (allowEditing) {
-			// ((NumberFormatter) textField.getFormatter()).setAllowsInvalid(false); // This disables editing completely on Ubuntu!?
-			final Color c = textField.getForeground();
-			textField.addPropertyChangeListener(evt -> {
-				if ("editValid".equals(evt.getPropertyName())) {
-					textField.setForeground((Boolean.FALSE.equals(evt.getNewValue())) ? errorColor() : c);
-				}
-			});
-		}
-		return spinner;
-	}
-
-	public static JSpinner doubleSpinner(final double value, final double min,
-										 final double max, final double step, final int nDecimals)
-	{
-		final int maxDigits = SNTUtils.formatDouble(max, nDecimals).length();
-		final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
-		final JSpinner spinner = new JSpinner(model);
-		final JFormattedTextField textfield = ((DefaultEditor) spinner.getEditor())
-				.getTextField();
-		textfield.setColumns(maxDigits);
-		final NumberFormatter formatter = (NumberFormatter) textfield
-				.getFormatter();
-		final StringBuilder decString = new StringBuilder();
-		while (decString.length() < nDecimals)
-			decString.append("0");
-		final DecimalFormat decimalFormat = new DecimalFormat("0." + decString);
-		formatter.setFormat(decimalFormat);
-		formatter.setAllowsInvalid(false);
-		return spinner;
-	}
-
-	public static double extractDouble(final JTextField textfield) {
-		try {
-			final NumberFormat nf = NumberFormat.getInstance(Locale.US);
-			final Number number = nf.parse(textfield.getText().trim());
-			return number.doubleValue();
-		}
-		catch (final NullPointerException | ParseException ignored) {
-			return Double.NaN; // invalid user input
-		}
 	}
 
 	public static void enableComponents(final java.awt.Container container,
@@ -2738,6 +2475,28 @@ public class GuiUtils {
 			if (component instanceof java.awt.Container) {
 				enableComponents((java.awt.Container) component, enable);
 			}
+		}
+	}
+
+	/**
+	 * Resizes components so that they all share the same preferred/minimum width (the
+	 * largest among them), while each component keeps its own height. Useful to align
+	 * icon-driven controls (e.g., dropdown/options buttons) that live in unrelated panels
+	 * but whose glyph-dependent widths would otherwise differ slightly
+	 *
+	 * @param components the components to resize; needs at least two to have an effect
+	 */
+	public static void ensureSameWidth(final JComponent... components) {
+		if (components == null || components.length < 2) return;
+		int prefW = 0;
+		int minW = 0;
+		for (final JComponent c : components) {
+			prefW = Math.max(prefW, c.getPreferredSize().width);
+			minW = Math.max(minW, c.getMinimumSize().width);
+		}
+		for (final JComponent c : components) {
+			c.setPreferredSize(new Dimension(prefW, c.getPreferredSize().height));
+			c.setMinimumSize(new Dimension(minW, c.getMinimumSize().height));
 		}
 	}
 
@@ -2819,21 +2578,6 @@ public class GuiUtils {
         return t.getMessage();
 	}
 
-	public static String[] availableLookAndFeels() {
-		return new String[] { LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
-	}
-
-	public static void setLookAndFeel() {
-		storeExistingLookAndFeel();
-		// If SNT is not using FlatLaf but Fiji is, prefer Fiji choice
-		if (existingLaf instanceof FlatLaf)
-			return;
-		// Otherwise apply SNT's L&F preference as long as it is valid
-		final String lafName = SNTPrefs.getLookAndFeel(); // never null
-		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
-			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
-	}
-
 	public static JFileChooser getDnDFileChooser() {
 		final FileChooser fileChooser = new FileChooser();
 		fileChooser.setAcceptAllFileFilterUsed(true);
@@ -2860,81 +2604,6 @@ public class GuiUtils {
 			fileChooser.rescanCurrentDirectory();
 		});
 		return fileChooser;
-	}
-
-	private static void storeExistingLookAndFeel() {
-		existingLaf = UIManager.getLookAndFeel();
-	}
-
-	public static void restoreLookAndFeel() {
-		try {
-			if (existingLaf != null) UIManager.setLookAndFeel(existingLaf);
-		} catch (final Error | Exception ignored) {
-			// do nothing
-		}
-	}
-
-	private static boolean setSystemLookAndFeel() {
-		try {
-			// With Ubuntu and java 8 we need to ensure we're using
-			// GTK+ L&F otherwise no scaling occurs with hiDPI screens
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-			LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
-			LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
-			return true;
-			// checkGTKLookAndFeel();
-		} catch (final Error | Exception ignored) {
-			return false;
-		}
-	}
-
-	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice) {
-		return setLookAndFeel(lookAndFeelName, persistentChoice, (Component[])null);
-	}
-
-	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
-		boolean success;
-		storeExistingLookAndFeel();
-		switch (lookAndFeelName) {
-			case (LAF_LIGHT):
-				success = FlatLightLaf.setup();
-				break;
-			case (LAF_LIGHT_INTJ):
-				success = FlatIntelliJLaf.setup();
-				break;
-			case (LAF_DARK):
-				success = FlatDarkLaf.setup();
-				break;
-			case (LAF_DARCULA):
-				success = FlatDarculaLaf.setup();
-				break;
-			default:
-				success = setSystemLookAndFeel();
-				if (!success) existingLaf = null;
-				break;
-		}
-		if (!success) return false;
-		if (componentsToUpdate == null) {
-			FlatLaf.updateUI();
-		} else {
-			SwingUtilities.invokeLater(() -> {
-				for (final Component component : componentsToUpdate) {
-					if (component == null)
-						continue;
-					final Window window = (component instanceof Window) ? (Window) component
-							: SwingUtilities.windowForComponent(component);
-					try {
-						SwingUtilities.updateComponentTreeUI(Objects.requireNonNullElse(window, component));
-					} catch (final Exception ex) {
-						SNTUtils.error("", ex);
-					}
-				}
-			});
-		}
-		if (persistentChoice) {
-			SNTPrefs.setLookAndFeel(lookAndFeelName);
-		}
-		return true;
 	}
 
 	public static void setAutoDismiss(final JDialog dialog) {
@@ -2964,13 +2633,6 @@ public class GuiUtils {
 
 		});
 		timer.start();
-	}
-
-	public static String truncate(final String label, final int maxLength) {
-		if (label != null && label.length() > maxLength) {
-			return label.substring(0, maxLength-2) + "...";
-		}
-		return label;
 	}
 
 	public static void tile(final List<? extends Window> windowList, final boolean resize) {
@@ -3065,8 +2727,8 @@ public class GuiUtils {
 				titles = getJList(charts.keySet().toArray(new String[0]), null);
 				checkbox = new JCheckBox("Label panels", false);
 				titleField = new JTextField();
-				GuiUtils.addClearButton(titleField);
-				GuiUtils.addPlaceholder(titleField, "Combined Charts");
+				Fields.addClearButton(titleField);
+				Fields.addPlaceholder(titleField, "Combined Charts");
 			}
 
 			JTextField intField() {
@@ -3141,8 +2803,8 @@ public class GuiUtils {
 				final int result = JOptionPane.showConfirmDialog(parent, panel(), "Make Chart Montage",
 						JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 				if (result == JOptionPane.OK_OPTION) {
-					final double rows = GuiUtils.extractDouble(rowField);
-					final double cols = GuiUtils.extractDouble(rowField);
+					final double rows = Fields.extractDouble(rowField);
+					final double cols = Fields.extractDouble(rowField);
 					if (Double.isNaN(rows) || rows <= 0 || Double.isNaN(cols) || cols <= 0) {
 						error("No. of columns and no. of rows must > 0.");
 						return;
@@ -3303,54 +2965,6 @@ public class GuiUtils {
 		});
 	}
 
-	/**
-	 * Enhances a SciJava-managed table display with conveniences (close shortcut, save menu).
-	 * Fails silently if the display cannot be found or enhanced.
-	 *
-	 * @param table the SNTTable being displayed
-	 * @param windowTitle the title of the display window to find
-	 */
-	public static void enhanceTableDisplay(final SNTTable table, final String windowTitle) {
-		enhanceTableDisplay(table, windowTitle, 0);
-	}
-
-	private static void enhanceTableDisplay(final SNTTable table, final String windowTitle, final int attempt) {
-		SwingUtilities.invokeLater(() -> {
-			try {
-				final JFrame frame = findWindowWithTitle(windowTitle);
-				if (frame == null) {
-					// Display may not be realized yet; retry up to 3 times
-					if (attempt < 3) {
-						enhanceTableDisplay(table, windowTitle, attempt + 1);
-					}
-					return;
-				}
-				addCloseShortcut(frame);
-				final JTable jTable = findComponent(frame, JTable.class);
-				if (jTable != null) {
-					final JPopupMenu menu = enhanceTablePopupMenu(table, jTable);
-					JTables.assignSearchable(jTable, null, menu);
-					frame.setName(SNTTable.class.getName());
-				}
-			} catch (final Throwable ignored) {
-				// Fail silently
-			}
-		});
-	}
-
-	public static void closeAllTables() {
-		try {
-			final Window[] windows = Window.getWindows();
-			for (final Window window : windows) {
-				if (window instanceof JFrame frame && SNTTable.class.getName().equals(frame.getName())) {
-					frame.dispose();
-				}
-			}
-		} catch (final Throwable ignored) {
-			// Fail silently
-		}
-	}
-
 	public static void closeAllPlots() {
 		try {
 			SNTChart.closeAll();
@@ -3367,18 +2981,6 @@ public class GuiUtils {
 		}
 	}
 
-	private static JFrame findWindowWithTitle(final String title) {
-		final Window[] windows = Window.getWindows(); //  returns windows in the order they were created
-		for (int i = windows.length - 1; i >= 0; i--) {
-			// iterate in reverse order so that in case of non-unique titles the latest is retrieved
-			final Window window = windows[i];
-			if (window instanceof JFrame && window.isVisible()  && title.equals(((JFrame) window).getTitle())) {
-				return (JFrame) window;
-			}
-		}
-		return null;
-	}
-
 	@SuppressWarnings("unchecked")
 	private static <T> T findComponent(final Container container, final Class<T> type) {
 		for (final Component comp : container.getComponents()) {
@@ -3391,39 +2993,6 @@ public class GuiUtils {
 			}
 		}
 		return null;
-	}
-
-	private static JPopupMenu enhanceTablePopupMenu(final SNTTable sntTable, final JTable jTable) {
-		if (sntTable == null || jTable == null) return null;
-		JPopupMenu menu = jTable.getComponentPopupMenu();
-		if (menu == null) {
-			menu = new JPopupMenu();
-			jTable.setComponentPopupMenu(menu);
-		}
-		if (menu.getComponentCount() > 0) menu.addSeparator();
-		menu.add(MenuItems.copy(jTable, true));
-		menu.add(MenuItems.copy(jTable, false));
-
-		final boolean addSummarize = !hasMenuItem(menu, "Summarize");
-		final boolean addHistogram = !hasMenuItem(menu, "Frequency Distribution(s)...");
-		if (addSummarize || addHistogram) menu.addSeparator();
-		if (addSummarize) menu.add(MenuItems.summarize(() -> sntTable, jTable));
-		if (addSummarize) menu.add(MenuItems.distribution(() -> sntTable));
-
-		if (!hasMenuItem(menu, "Save As...")) {
-			if (menu.getComponentCount() > 0) menu.addSeparator();
-			menu.add(MenuItems.save(() -> sntTable, jTable));
-		}
-		return menu;
-	}
-
-	private static boolean hasMenuItem(final JPopupMenu menu, final String text) {
-		for (final Component comp : menu.getComponents()) {
-			if (comp instanceof JMenuItem jmi && text.equals(jmi.getText())) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/**
@@ -3476,7 +3045,7 @@ public class GuiUtils {
 		 * directly.
 		 */
 		public JSpinner buildSpinner() {
-			final JSpinner s = GuiUtils.integerSpinner(
+			final JSpinner s = Fields.integerSpinner(
 					percentage, MIN_PERCENT, MAX_PERCENT, STEP, true);
 			s.setToolTipText("Zoom level (" + MIN_PERCENT + "–" + MAX_PERCENT
 					+ "%) used when navigating to a row");
@@ -3590,6 +3159,7 @@ public class GuiUtils {
 	}
 
 
+	/** An undecorated, always-on-top dialog that floats a short message near its parent; used by {@link #floatingMsg}. */
 	private class FloatingDialog extends JDialog implements ComponentListener, WindowListener {
 
 		private static final long serialVersionUID = 1L;
@@ -3690,6 +3260,7 @@ public class GuiUtils {
 
 	}
 
+	/** Utility methods for building and configuring {@link JMenuItem}/{@link JMenu} entries. */
 	public static class MenuItems {
 
 		private MenuItems() {}
@@ -3776,7 +3347,7 @@ public class GuiUtils {
 					if (optionalUnderlyingJTable == null)
 						sntTable.updateDisplay();
 					else
-						JTables.scrollToBottom(optionalUnderlyingJTable);
+						Tables.scrollToBottom(optionalUnderlyingJTable);
 				} else {
 					sntTable.removeSummary();
 					sntTable.updateDisplay();
@@ -3809,7 +3380,7 @@ public class GuiUtils {
 		private static JMenuItem copy(final JTable table, final boolean includeHeaders) {
 			final JMenuItem menuItem = new JMenuItem((includeHeaders) ? "Copy With Headers" : "Copy Without Headers");
 			menuItem.setIcon(IconFactory.menuIcon('\uf0c5', includeHeaders));
-			menuItem.addActionListener(e -> JTables.copyToClipboard(table, includeHeaders));
+			menuItem.addActionListener(e -> Tables.copyToClipboard(table, includeHeaders));
 			return menuItem;
 		}
 
@@ -3927,7 +3498,7 @@ public class GuiUtils {
 		public static int defaultHeight() {
 			Font font = UIManager.getDefaults().getFont("CheckBoxMenuItem.font");
 			if (font == null) font = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
-			return (int) Math.ceil(font.getLineMetrics("M", RENDER_CONTEXT).getHeight());
+			return (int) Math.ceil(font.getLineMetrics("M", Text.RENDER_CONTEXT).getHeight());
 		}
 
 		public static void contrastOptions(final JComponent menuOrPopupMenu, final JComponent component, final boolean includeSeparator) {
@@ -4259,7 +3830,7 @@ public class GuiUtils {
 			final JMenuItem customItem = new JMenuItem("Other...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
 			customItem.addActionListener(e -> {
 				final Color[] result = {null};
-				final JColorChooser chooser = GuiUtils.colorChooser(Color.GRAY);
+				final JColorChooser chooser = Colors.colorChooser(Color.GRAY);
 				final JDialog d = JColorChooser.createDialog(
 						(parent == null) ? null : SwingUtilities.getWindowAncestor(parent), "Choose Tag Color",
 						true, chooser,
@@ -4289,9 +3860,9 @@ public class GuiUtils {
 	/**
 	 * Utility methods for {@link JTable} configuration and creation.
 	 */
-	public static class JTables {
+	public static class Tables {
 
-		private JTables() {}
+		private Tables() {}
 
 		/**
 		 * Wraps a JTable in a JScrollPane with sensible defaults: auto-resize
@@ -4555,7 +4126,7 @@ public class GuiUtils {
 					setRepeats(true); // Wrap around so all rows are searchable
 					setCountMatch(false);
 					setMainIndex(-1); // search all columns, not just one
-					setMismatchForeground(errorColor());
+					setMismatchForeground(Colors.errorColor());
 					if (table.getRowCount() > 100) setSearchingDelay(200); //ms
 				}
 
@@ -4770,6 +4341,99 @@ public class GuiUtils {
 		}
 
 		/**
+		 * Enhances a SciJava-managed table display with conveniences (close shortcut, save menu).
+		 * Fails silently if the display cannot be found or enhanced.
+		 *
+		 * @param table the SNTTable being displayed
+		 * @param windowTitle the title of the display window to find
+		 */
+		public static void enhanceTableDisplay(final SNTTable table, final String windowTitle) {
+			enhanceTableDisplay(table, windowTitle, 0);
+		}
+
+		private static void enhanceTableDisplay(final SNTTable table, final String windowTitle, final int attempt) {
+			SwingUtilities.invokeLater(() -> {
+				try {
+					final JFrame frame = findWindowWithTitle(windowTitle);
+					if (frame == null) {
+						// Display may not be realized yet; retry up to 3 times
+						if (attempt < 3) {
+							enhanceTableDisplay(table, windowTitle, attempt + 1);
+						}
+						return;
+					}
+					addCloseShortcut(frame);
+					final JTable jTable = findComponent(frame, JTable.class);
+					if (jTable != null) {
+						final JPopupMenu menu = enhanceTablePopupMenu(table, jTable);
+						assignSearchable(jTable, null, menu);
+						frame.setName(SNTTable.class.getName());
+					}
+				} catch (final Throwable ignored) {
+					// Fail silently
+				}
+			});
+		}
+
+		private static JPopupMenu enhanceTablePopupMenu(final SNTTable sntTable, final JTable jTable) {
+			if (sntTable == null || jTable == null) return null;
+			JPopupMenu menu = jTable.getComponentPopupMenu();
+			if (menu == null) {
+				menu = new JPopupMenu();
+				jTable.setComponentPopupMenu(menu);
+			}
+			if (menu.getComponentCount() > 0) menu.addSeparator();
+			menu.add(MenuItems.copy(jTable, true));
+			menu.add(MenuItems.copy(jTable, false));
+
+			final boolean addSummarize = !hasMenuItem(menu, "Summarize");
+			final boolean addHistogram = !hasMenuItem(menu, "Frequency Distribution(s)...");
+			if (addSummarize || addHistogram) menu.addSeparator();
+			if (addSummarize) menu.add(MenuItems.summarize(() -> sntTable, jTable));
+			if (addSummarize) menu.add(MenuItems.distribution(() -> sntTable));
+
+			if (!hasMenuItem(menu, "Save As...")) {
+				if (menu.getComponentCount() > 0) menu.addSeparator();
+				menu.add(MenuItems.save(() -> sntTable, jTable));
+			}
+			return menu;
+		}
+
+		private static boolean hasMenuItem(final JPopupMenu menu, final String text) {
+			for (final Component comp : menu.getComponents()) {
+				if (comp instanceof JMenuItem jmi && text.equals(jmi.getText())) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private static JFrame findWindowWithTitle(final String title) {
+			final Window[] windows = Window.getWindows(); //  returns windows in the order they were created
+			for (int i = windows.length - 1; i >= 0; i--) {
+				// iterate in reverse order so that in case of non-unique titles the latest is retrieved
+				final Window window = windows[i];
+				if (window instanceof JFrame && window.isVisible()  && title.equals(((JFrame) window).getTitle())) {
+					return (JFrame) window;
+				}
+			}
+			return null;
+		}
+
+		public static void closeAllTables() {
+			try {
+				final Window[] windows = Window.getWindows();
+				for (final Window window : windows) {
+					if (window instanceof JFrame frame && SNTTable.class.getName().equals(frame.getName())) {
+						frame.dispose();
+					}
+				}
+			} catch (final Throwable ignored) {
+				// Fail silently
+			}
+		}
+
+		/**
 		 * Stateful helper that extracts a {@link JScrollPane} from its current
 		 * parent into a free-floating, modeless {@link JDialog}, and re-attaches
 		 * it on demand. Designed for "Detach Table / Dock Table" UI patterns.
@@ -4977,9 +4641,10 @@ public class GuiUtils {
 
 	}
 
-	public static class JTrees {
+	/** Utility methods for expanding, collapsing, and scrolling {@link JTree}s. */
+	public static class Trees {
 
-		private JTrees() {}
+		private Trees() {}
 
 		public static void collapseAllNodes(final javax.swing.JTree tree) {
 			final int row1 = (tree.isRootVisible()) ? 1 : 0;
@@ -5075,6 +4740,7 @@ public class GuiUtils {
 
 	}
 
+	/** Utility methods for creating and styling {@link JButton}s, including SNT's notification and options buttons. */
 	public static class Buttons {
 
 		private Buttons() {}
@@ -5160,6 +4826,7 @@ public class GuiUtils {
 			return new OptionsButton(glyph, (color == null) ? IconFactory.defaultColor() : color, scalingFactor, menu, dropdownIndicator);
 		}
 
+		 /** A {@link JButton} that shows an attached {@link JPopupMenu} of options when clicked. */
 		 public static class OptionsButton extends JButton {
 			public final JPopupMenu popupMenu;
 
@@ -5186,7 +4853,7 @@ public class GuiUtils {
 
 		/**
 		 * Creates a "notification center" bell button reflecting the (single, process-wide) pending-notices
-		 * queue (see {@link GuiUtils#queueNotice}): badged with a small corner dot whenever a notice is
+		 * queue (see {@link Notices#queueNotice}): badged with a small corner dot whenever a notice is
 		 * queued, and, on click, listing (and letting the user dismiss/act on) whatever is currently pending.
 		 * Add the returned button to a toolbar/panel; icon state, badge, and popup are all wired automatically
 		 *
@@ -5195,13 +4862,13 @@ public class GuiUtils {
 		public static JButton notificationCenterButton(final Color color, final float scalingFactor) {
 			final Icon bellIcon = IconFactory.buttonIcon(GLYPH.BELL, color, scalingFactor);
 			final JButton button = new JButton(bellIcon);
-			final Icon bellBadgedIcon = IconFactory.notificationIcon(bellIcon, GuiUtils.errorColor(),
+			final Icon bellBadgedIcon = IconFactory.notificationIcon(bellIcon, Colors.errorColor(),
 					button.getBackground());
 			final Runnable refresh = () -> {
-				button.setIcon((GuiUtils.hasPendingNotices()) ? bellBadgedIcon : bellIcon);
+				button.setIcon((Notices.hasPendingNotices()) ? bellBadgedIcon : bellIcon);
 				button.setToolTipText("Notifications");
 			};
-			GuiUtils.setNotificationsListener(refresh);
+			Notices.setNotificationsListener(refresh);
 			refresh.run();
 			button.addActionListener(e -> showNotificationCenterPopup(button));
 			return button;
@@ -5214,20 +4881,20 @@ public class GuiUtils {
 		 * so the whole queue can be dismissed in one go.
 		 */
 		private static void showNotificationCenterPopup(final JButton invoker) {
-			final List<PendingNotice> notices = GuiUtils.getPendingNotices();
+			final List<Notices.PendingNotice> notices = Notices.getPendingNotices();
 			final JPopupMenu popup = new JPopupMenu();
 			if (notices.isEmpty()) {
-				popup.add(noticeToLabel(new PendingNotice("<HTML>You are all caught up.<br>" +
+				popup.add(noticeToLabel(new Notices.PendingNotice("<HTML>You are all caught up.<br>" +
 						"Suggestions, events, and warnings will appear here",
 						null, null), null));
 			} else {
 				// notices is oldest-first (arrival order); walk it backwards so the newest is listed first
 				for (int i = notices.size() - 1; i >= 0; i--) {
 					if (i < notices.size() - 1) popup.addSeparator();
-					final PendingNotice notice = notices.get(i);
+					final Notices.PendingNotice notice = notices.get(i);
 					// A plain JLabel doesn't auto-close the popup on click
 					final Runnable onClick = () -> {
-						GuiUtils.dismissPendingNotice(notice);
+						Notices.dismissPendingNotice(notice);
 						popup.setVisible(false);
 						if (notice.action() != null) notice.action().run();
 					};
@@ -5235,7 +4902,7 @@ public class GuiUtils {
 				}
 				popup.addSeparator();
 				final JMenuItem clearAllItem = new JMenuItem("Clear All", IconFactory.menuIcon(GLYPH.TRASH));
-				clearAllItem.addActionListener(e -> GuiUtils.clearPendingNotices());
+				clearAllItem.addActionListener(e -> Notices.clearPendingNotices());
 				popup.add(clearAllItem);
 			}
 			popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2);
@@ -5255,7 +4922,7 @@ public class GuiUtils {
 		 */
 		private static final int NOTICE_MAX_LINES = 3;
 
-		private static JLabel noticeToLabel(final PendingNotice notice, final Runnable onClick) {
+		private static JLabel noticeToLabel(final Notices.PendingNotice notice, final Runnable onClick) {
 			final boolean enabled = notice.url() != null || notice.action() != null || onClick != null;
 			final boolean isHtml = notice.html().startsWith("<HTML>") || notice.html().startsWith("<html>");
 			// Hand-authored notices (version updates, tour prompt, CurationManager, etc.) are already curated,
@@ -5270,41 +4937,19 @@ public class GuiUtils {
 				display = notice.html();
 			} else {
 				final String raw = notice.html();
-				final String truncated = truncateToWidth(raw, NOTICE_MAX_WIDTH * NOTICE_MAX_LINES);
-				display = wrapHtml(GuiUtils.escapeHtml(truncated));
-				if (!truncated.equals(raw)) tooltip = wrapHtml(GuiUtils.escapeHtml(raw)); // full text, still wrapped
+				final String truncated = Text.truncateToWidth(raw, NOTICE_MAX_WIDTH * NOTICE_MAX_LINES);
+				display = Text.wrapHtml(Text.escapeHtml(truncated));
+				if (!truncated.equals(raw)) tooltip = Text.wrapHtml(Text.escapeHtml(raw)); // full text, still wrapped
 			}
 			final JLabel label = GuiUtils.leftAlignedLabel(display, notice.url(), onClick, enabled);
 			if (tooltip != null) label.setToolTipText(tooltip);
 			label.setBorder(new EmptyBorder(4, 8, 4, 8));
 			switch (notice.logLevel()) {
-				case LogLevel.ERROR -> label.setIcon(IconFactory.accentIcon(GuiUtils.errorColor(), true));
-				case LogLevel.WARN -> label.setIcon(IconFactory.accentIcon(GuiUtils.warningColor(), true));
-				default -> label.setIcon(IconFactory.accentIcon(GuiUtils.linkColor(), true));
+				case LogLevel.ERROR -> label.setIcon(IconFactory.accentIcon(Colors.errorColor(), true));
+				case LogLevel.WARN -> label.setIcon(IconFactory.accentIcon(Colors.warningColor(), true));
+				default -> label.setIcon(IconFactory.accentIcon(Colors.linkColor(), true));
 			}
 			return label;
-		}
-
-		private static String wrapHtml(final String escapedText) {
-			return "<HTML><div width=" + NOTICE_MAX_WIDTH + ">" + escapedText + "</div>";
-		}
-
-		/**
-		 * Truncates plain text to fit within {@code maxWidth} pixels (appending an ellipsis), measuring width via
-		 * {@link GuiUtils#renderedWidth}. Backs off to the previous word boundary, if any, so the ellipsis doesn't
-		 * follow half a word. Returns {@code text} unchanged if it already fits.
-		 */
-		private static String truncateToWidth(final String text, final int maxWidth) {
-			if (GuiUtils.renderedWidth(text) <= maxWidth) return text;
-			final String ellipsis = "...";
-			int lo = 0, hi = text.length();
-			while (lo < hi) {
-				final int mid = (lo + hi + 1) / 2;
-				if (GuiUtils.renderedWidth(text.substring(0, mid) + ellipsis) <= maxWidth) lo = mid; else hi = mid - 1;
-			}
-			final int lastSpace = text.lastIndexOf(' ', lo - 1);
-			if (lastSpace > 0) lo = lastSpace;
-			return text.substring(0, lo).stripTrailing() + ellipsis;
 		}
 
 		public static JButton keyboardCheatSheetButton(final Color color, final float scalingFactor) {
@@ -5338,12 +4983,25 @@ public class GuiUtils {
 		}
 
 		public static JButton undo() {
-			return undo(null);
+			return undo((Action) null);
 		}
 
 		public static JButton undo(final Action action) {
 			final JButton button = (action == null) ? new JButton() : new JButton(action);
 			makeSmallBorderless(button, GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
+			return button;
+		}
+
+		/**
+		 * Convenience variant of {@link #undo()} for the common "reset to default" button: builds the
+		 * borderless undo-styled button and assigns it the given tooltip in one call, instead of the
+		 * two-line {@code undo()}/{@code setToolTipText(...)} pair repeated across several dialogs.
+		 *
+		 * @param tooltip the tooltip text (may be HTML), or null for none
+		 */
+		public static JButton undo(final String tooltip) {
+			final JButton button = undo();
+			if (tooltip != null) button.setToolTipText(tooltip);
 			return button;
 		}
 
@@ -5589,6 +5247,7 @@ public class GuiUtils {
 			animator.start();
 		}
 
+		/** A two-row panel of small glyph buttons stacked one above the other. */
 		public static class StackedButton extends JPanel {
 
 			public final JButton topButton;
@@ -5634,6 +5293,7 @@ public class GuiUtils {
 	}
 
 
+	/** Utility methods for creating and styling {@link JScrollPane}s. */
 	public static class ScrollPanes {
 
 		private static JScrollPane create(final Component c) {
@@ -5666,6 +5326,7 @@ public class GuiUtils {
 	}
 
 
+	/** Utility methods for creating and styling {@link JSplitPane}s. */
 	public static class SplitPanes {
 
 		public static JSplitPane nonDraggableRightSplitPane() {
@@ -5675,7 +5336,7 @@ public class GuiUtils {
 			splitPane.putClientProperty(FlatClientProperties.STYLE,
 					"style: plain;" +
 					"arrowType: triangle;" + //oneTouchArrowColor; oneTouchHoverArrowColor
-					"oneTouchHoverArrowColor: " + SNTColor.colorToString(getSelectionColor()) + ";" +
+					"oneTouchHoverArrowColor: " + SNTColor.colorToString(Colors.selectionColor()) + ";" +
 					"oneTouchArrowColor: " + SNTColor.colorToString(IconFactory.defaultColor()) + ";");
 			splitPane.setResizeWeight(1.0); // give all extra space to the left side
 			splitPane.setBorder(null);
@@ -5761,6 +5422,408 @@ public class GuiUtils {
 					}
 				}
 			});
+		}
+	}
+
+	/** Semantic UI colors (error/warning/link/selection/disabled) and a shared color chooser. */
+	public static class Colors {
+
+		private static final Color LINK_COLOR = new Color(0, 128, 255);
+		private static final Color ERROR_COLOR = new Color(229, 62, 77); // #E53E4D
+		private static final Color WARNING_COLOR = new Color(254, 210, 132); //#FED284
+		private static final Color FALLBACK_SELECTION_COLOR = new Color(75, 110, 175);
+
+		public static Color errorColor() {
+			return ERROR_COLOR;
+		}
+
+		public static Color warningColor() {
+			return WARNING_COLOR;
+		}
+
+		public static Color linkColor() {
+			return LINK_COLOR;
+		}
+
+		public static Color disabledComponentColor() { // kept here for backwards compatibility
+			return IconFactory.disabledColor();
+		}
+
+		public static Color selectionColor() {
+			final Color c = UIManager.getColor("Tree.selectionBackground");
+			return (c != null) ? c : FALLBACK_SELECTION_COLOR;
+		}
+
+		public static JColorChooser colorChooser(final Color defaultValue) {
+			if (colorChooser == null) {
+				colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
+				colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
+			}
+			return colorChooser;
+		}
+	}
+
+	/** Look-and-feel constants and methods for setting/restoring SNT's active {@link javax.swing.LookAndFeel}. */
+	public static class LAF {
+
+		public static final String LAF_LIGHT = FlatLightLaf.NAME;
+		public static final String LAF_DEFAULT  = LAF_LIGHT;
+		public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
+		public static final String LAF_DARK = FlatDarkLaf.NAME;
+		public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
+		private static LookAndFeel existingLaf;
+
+		public static String[] availableLookAndFeels() {
+			return new String[] {LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA};
+		}
+
+		public static void setLookAndFeel() {
+			storeExistingLookAndFeel();
+			// If SNT is not using FlatLaf but Fiji is, prefer Fiji choice
+			if (existingLaf instanceof FlatLaf)
+				return;
+			// Otherwise apply SNT's L&F preference as long as it is valid
+			final String lafName = SNTPrefs.getLookAndFeel(); // never null
+			if (existingLaf == null || !lafName.equals(existingLaf.getName()))
+				setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
+		}
+
+		private static void storeExistingLookAndFeel() {
+			existingLaf = UIManager.getLookAndFeel();
+		}
+
+		public static void restoreLookAndFeel() {
+			try {
+				if (existingLaf != null) UIManager.setLookAndFeel(existingLaf);
+			} catch (final Error | Exception ignored) {
+				// do nothing
+			}
+		}
+
+		private static boolean setSystemLookAndFeel() {
+			try {
+				// With Ubuntu and java 8 we need to ensure we're using
+				// GTK+ L&F otherwise no scaling occurs with hiDPI screens
+				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+				LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
+				LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
+				return true;
+				// checkGTKLookAndFeel();
+			} catch (final Error | Exception ignored) {
+				return false;
+			}
+		}
+
+		public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice) {
+			return setLookAndFeel(lookAndFeelName, persistentChoice, (Component[])null);
+		}
+
+		public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
+			boolean success;
+			storeExistingLookAndFeel();
+			switch (lookAndFeelName) {
+				case (LAF_LIGHT):
+					success = FlatLightLaf.setup();
+					break;
+				case (LAF_LIGHT_INTJ):
+					success = FlatIntelliJLaf.setup();
+					break;
+				case (LAF_DARK):
+					success = FlatDarkLaf.setup();
+					break;
+				case (LAF_DARCULA):
+					success = FlatDarculaLaf.setup();
+					break;
+				default:
+					success = setSystemLookAndFeel();
+					if (!success) existingLaf = null;
+					break;
+			}
+			if (!success) return false;
+			if (componentsToUpdate == null) {
+				FlatLaf.updateUI();
+			} else {
+				SwingUtilities.invokeLater(() -> {
+					for (final Component component : componentsToUpdate) {
+						if (component == null)
+							continue;
+						final Window window = (component instanceof Window) ? (Window) component
+								: SwingUtilities.windowForComponent(component);
+						try {
+							SwingUtilities.updateComponentTreeUI(Objects.requireNonNullElse(window, component));
+						} catch (final Exception ex) {
+							SNTUtils.error("", ex);
+						}
+					}
+				});
+			}
+			if (persistentChoice) {
+				SNTPrefs.setLookAndFeel(lookAndFeelName);
+			}
+			return true;
+		}
+	}
+
+	/** Utility methods for creating and reading {@link JSpinner}s and {@link JTextField}s. */
+	public static class Fields {
+
+		public static JSpinner integerSpinner(final int value, final int min,
+											  final int max, final int step, final boolean allowEditing)
+		{
+			final int maxDigits = Integer.toString(max).length();
+			final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
+			final JSpinner spinner = new JSpinner(model);
+			final JFormattedTextField textField = ((JSpinner.NumberEditor) spinner.getEditor()).getTextField();
+			textField.setColumns(maxDigits);
+			textField.setEditable(allowEditing);
+			if (allowEditing) {
+				// ((NumberFormatter) textField.getFormatter()).setAllowsInvalid(false); // This disables editing completely on Ubuntu!?
+				final Color c = textField.getForeground();
+				textField.addPropertyChangeListener(evt -> {
+					if ("editValid".equals(evt.getPropertyName())) {
+						textField.setForeground((Boolean.FALSE.equals(evt.getNewValue())) ? Colors.errorColor() : c);
+					}
+				});
+			}
+			return spinner;
+		}
+
+		public static JSpinner doubleSpinner(final double value, final double min,
+												 final double max, final double step, final int nDecimals)
+		{
+			final int maxDigits = SNTUtils.formatDouble(max, nDecimals).length();
+			final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
+			final JSpinner spinner = new JSpinner(model);
+			final JFormattedTextField textfield = ((DefaultEditor) spinner.getEditor())
+					.getTextField();
+			textfield.setColumns(maxDigits);
+			final NumberFormatter formatter = (NumberFormatter) textfield
+					.getFormatter();
+			final StringBuilder decString = new StringBuilder();
+			while (decString.length() < nDecimals)
+				decString.append("0");
+			final DecimalFormat decimalFormat = new DecimalFormat("0." + decString);
+			formatter.setFormat(decimalFormat);
+			formatter.setAllowsInvalid(false);
+			return spinner;
+		}
+
+		public static double extractDouble(final JTextField textfield) {
+			try {
+				final NumberFormat nf = NumberFormat.getInstance(Locale.US);
+				final Number number = nf.parse(textfield.getText().trim());
+				return number.doubleValue();
+			}
+			catch (final NullPointerException | ParseException ignored) {
+				return Double.NaN; // invalid user input
+			}
+		}
+
+		public static void addClearButton(final JTextField textField) {
+			textField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+		}
+
+		public static void addPlaceholder(final JTextField textField, final String placeholder) {
+			textField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
+		}
+	}
+
+	/** Utility methods for wrapping, truncating, escaping, and lightly formatting plain/HTML text. */
+	public static class Text {
+
+		// Shared, Component-free metrics context reused by renderedWidth() and MenuItems#defaultHeight():
+		private static final FontRenderContext RENDER_CONTEXT = new FontRenderContext(null, true, true);
+
+		private static String wrapHtml(final String escapedText) {
+			return "<HTML><div width=" + Buttons.NOTICE_MAX_WIDTH + ">" + escapedText + "</div>";
+		}
+
+		/**
+		 * Truncates plain text to fit within {@code maxWidth} pixels (appending an ellipsis), measuring width via
+		 * {@link Text#renderedWidth}. Backs off to the previous word boundary, if any, so the ellipsis doesn't
+		 * follow half a word. Returns {@code text} unchanged if it already fits.
+		 */
+		private static String truncateToWidth(final String text, final int maxWidth) {
+			if (renderedWidth(text) <= maxWidth) return text;
+			final String ellipsis = "...";
+			int lo = 0, hi = text.length();
+			while (lo < hi) {
+				final int mid = (lo + hi + 1) / 2;
+				if (renderedWidth(text.substring(0, mid) + ellipsis) <= maxWidth) lo = mid; else hi = mid - 1;
+			}
+			final int lastSpace = text.lastIndexOf(' ', lo - 1);
+			if (lastSpace > 0) lo = lastSpace;
+			return text.substring(0, lo).stripTrailing() + ellipsis;
+		}
+
+		/**
+		 * Converts an action-name string to Title Case.
+		 */
+		public static String toTitleCase(final String s) {
+			if (s == null || s.isEmpty()) return s;
+			final String[] words = s.replaceAll("[-_]", " ").split("\\s+");
+			final StringBuilder sb = new StringBuilder();
+			for (final String w : words) {
+				if (!w.isEmpty()) {
+					if (!sb.isEmpty()) sb.append(' ');
+					if ("snt".equalsIgnoreCase(w))
+						sb.append("SNT");
+					else {
+						sb.append(Character.toUpperCase(w.charAt(0)));
+						if (w.length() > 1) sb.append(w.substring(1));
+					}
+				}
+			}
+			return sb.toString();
+		}
+
+		public static int renderedWidth(final String text) {
+			Font font = UIManager.getFont("Label.font");
+			if (font == null) font = new JLabel().getFont();
+			return (int) Math.ceil(font.getStringBounds(text, RENDER_CONTEXT).getWidth());
+		}
+
+		/**
+		 * Escapes the handful of characters that are meaningful to an HTML parser. Use before placing plain text
+		 * inside HTML markup, so that a stray '&lt;'/'&amp;' in it is displayed literally instead of being misread as
+		 * markup (an unescaped '&lt;'  in particular would otherwise be parsed as the start of a tag and swallow the rest
+		 * of the text)
+		 *
+		 * @param text the plain text to escape
+		 */
+		public static String escapeHtml(final String text) {
+			return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+		}
+
+		/**
+		 * Converts a minimal, deliberately limited subset of Markdown (bold: {@code **text**} or
+		 * {@code __text__}; italic: {@code *text*} or {@code _text_}) into HTML. The input is
+		 * first run through {@link Text#escapeHtml(String)}, so a literal '&lt;', '&gt;', or '&amp;' in {@code text}
+		 * is preserved as-is rather than read as markup, and only the recognized emphasis markers are turned
+		 * into {@code <b>}/{@code <i>} tags; everything else is left as plain (now HTML-safe) text.
+		 *
+		 * @param text the plain text, optionally containing basic Markdown emphasis markers
+		 * @return HTML-escaped text with recognized Markdown emphasis converted to {@code <b>}/{@code <i>} tags
+		 */
+		public static String markdownToHtml(final String text) {
+			String html = escapeHtml(text);
+			html = MarkdownPatterns.BOLD_STAR.matcher(html).replaceAll("<b>$1</b>");
+			html = MarkdownPatterns.BOLD_UNDERSCORE.matcher(html).replaceAll("<b>$1</b>");
+			html = MarkdownPatterns.ITALIC_STAR.matcher(html).replaceAll("<i>$1</i>");
+			html = MarkdownPatterns.ITALIC_UNDERSCORE.matcher(html).replaceAll("<i>$1</i>");
+			return html;
+		}
+
+		public static String truncate(final String label, final int maxLength) {
+			if (label != null && label.length() > maxLength) {
+				return label.substring(0, maxLength-2) + "...";
+			}
+			return label;
+		}
+	}
+
+	/** A process-wide, persistent queue of pending notices for a notification-center UI element. */
+	public static class Notices {
+
+		/**
+		 * Queues a notification for the (single, process-wide) notification-center UI element (see
+		 * {@link #setNotificationsListener}). Does not display anything itself (see {@link #notify(String, int)} for that)
+		 *
+		 * @param html   the notification's HTML-formatted message
+		 * @param url    an optional URL to be opened if the message is clicked, or null
+		 * @param action an optional in-app action to be run if the message is clicked, or null
+		 */
+		public static void queueNotice(final String html, final String url, final Runnable action) {
+			queueNotice(html, url, action, LogLevel.INFO);
+		}
+
+		/**
+		 * As {@link #queueNotice(String, String, Runnable)}, but also specifying the notice's severity
+		 *
+		 * @param logLevel the notice's severity as defined by {@link LogLevel}, used to pick an accent icon for it
+		 */
+		public static void queueNotice(final String html, final String url, final Runnable action,
+									   final int logLevel) {
+			while (pendingNotices.size() >= MAX_PENDING_NOTICES) {
+				try {
+					pendingNotices.removeFirst();
+				} catch (final IndexOutOfBoundsException ignored) {
+					break; // another thread already drained it
+				}
+			}
+			pendingNotices.add(new PendingNotice(html, url, action, logLevel));
+			fireNotificationsChanged();
+		}
+
+		/**
+		 * Removes a single notice from the queue, e.g., once the user has seen/acted on it. Other queued notices
+		 * are left untouched.
+		 *
+		 * @param notice the notice to remove, typically one previously returned by {@link #getPendingNotices()}
+		 */
+		public static void dismissPendingNotice(final PendingNotice notice) {
+			if (pendingNotices.remove(notice)) fireNotificationsChanged();
+		}
+
+		/**
+		 * Empties the notification queue, e.g., once the user has seen/acknowledged all of its contents.
+		 */
+		public static void clearPendingNotices() {
+			pendingNotices.clear();
+			fireNotificationsChanged();
+		}
+
+		/**
+		 * Registers the listener invoked (on the EDT) whenever the pending-notifications queue changes (an entry is
+		 * added or removed). Intended for driving a UI element, such as a status bar button, that needs to reflect
+		 * {@link #hasPendingNotices()} accurately. There is only one queue process-wide, so registering a new
+		 * listener replaces whichever one was previously set
+		 *
+		 * @param listener the listener to be run on change, or null to unregister
+		 */
+		public static void setNotificationsListener(final Runnable listener) {
+			notificationsListener = listener;
+		}
+
+		private static void fireNotificationsChanged() {
+			if (notificationsListener != null) SwingUtilities.invokeLater(notificationsListener);
+		}
+
+		/**
+		 * @return an unmodifiable snapshot of the notifications currently queued
+		 */
+		public static List<PendingNotice> getPendingNotices() {
+			return List.copyOf(pendingNotices);
+		}
+
+		/**
+		 * @return true if one or more notifications are queued
+		 */
+		public static boolean hasPendingNotices() {
+			return !pendingNotices.isEmpty();
+		}
+
+		/**
+		 * A notification message queued for a persistent notification-center UI element. Unlike a transient popup
+		 * (see {@link #showNotification}, an entry here is only removed by an explicit
+		 * {@link Notices#dismissPendingNotice(PendingNotice)} (or {@link Notices#clearPendingNotices()}), so it survives indefinitely
+		 * until the user actually acts on it
+		 *
+		 * @param html     the notification's HTML-formatted message
+		 * @param url      an optional URL to be opened if the message is clicked, or null
+		 * @param action   an optional in-app action to be run if the message is clicked, or null. Unlike {@code url}
+		 *                 (a link to somewhere outside the application)
+		 * @param logLevel the notice's severity as defined by {@link LogLevel}, used to pick an accent icon for it.
+		 */
+		public record PendingNotice(String html, String url, Runnable action, int logLevel) {
+
+			public final static int INFO = LogLevel.INFO;
+			public final static int WARN = LogLevel.WARN;
+			public final static int ERROR = LogLevel.ERROR;
+
+			public PendingNotice(final String html, final String url, final Runnable action) {
+				this(html, url, action, LogLevel.INFO);
+			}
 		}
 	}
 }

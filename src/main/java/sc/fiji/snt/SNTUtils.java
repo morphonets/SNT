@@ -47,7 +47,6 @@ import org.scijava.service.ServiceHelper;
 import org.scijava.table.io.TableIOService;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.UIService;
-import org.scijava.ui.console.ConsolePane;
 import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
@@ -219,7 +218,7 @@ public class SNTUtils {
 			logService.error("[SNT] " + string);
 		else
 			logService.error("[SNT] " + string, t);
-		if (queueNotice) queueUINotice(string, GuiUtils.PendingNotice.ERROR);
+		if (queueNotice) queueUINotice(string, GuiUtils.Notices.PendingNotice.ERROR);
 	}
 
 	public static synchronized void log(final String string) {
@@ -231,11 +230,11 @@ public class SNTUtils {
 	public static synchronized void warn(final String string) {
 		if (!initialized) initialize();
 		logService.warn("[SNT] " + string);
-		queueUINotice(string, GuiUtils.PendingNotice.WARN);
+		queueUINotice(string, GuiUtils.Notices.PendingNotice.WARN);
 	}
 
 	/**
-	 * Mirrors a warn/error message into the notification-center queue (see {@link GuiUtils#queueNotice}), but
+	 * Mirrors a warn/error message into the notification-center queue (see {@link GuiUtils.Notices#queueNotice}), but
 	 * only when an SNTUI actually exists: {@code error()}/{@code warn()} are called heavily from headless/PySNT
 	 * scripts (no UI, nothing to notify) and from search/filler/scripting threads, so this should remain responsive
 	 * in those cases.
@@ -248,7 +247,7 @@ public class SNTUtils {
 		final long now = System.currentTimeMillis();
 		if (now - lastUINoticeMs < UI_NOTICE_THROTTLE_MS) return; // dropped: logService above already recorded it
 		lastUINoticeMs = now;
-		GuiUtils.queueNotice(string, null, GuiUtils::showConsole, level);
+		GuiUtils.Notices.queueNotice(string, null, GuiUtils::showConsole, level);
 	}
 
 	public static void csvQuoteAndPrint(final PrintWriter pw, final Object o) {
@@ -870,7 +869,7 @@ public class SNTUtils {
 	 * @return a reference to the {@link SNT} instance just started.s
 	 */
 	public static SNT startApp(final boolean streamMode) {
-		GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
+		GuiUtils.LAF.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
 		if (context == null && ij.IJ.getInstance() == null) {
 			new ImageJ().ui().showUI(); // ImageJ ui needs to be displayed for proper display of scijava prompts
 		}

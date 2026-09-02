@@ -68,7 +68,7 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 
 	private static final String EMPTY_LABEL = "<html>&nbsp;";
 	private static final String HEADER = "<HTML><body><div style='width:"
-			+ GuiUtils.renderedWidth("Relative importance of matching criteria: Controls how much each criterion influences node ")
+			+ GuiUtils.Text.renderedWidth("Relative importance of matching criteria: Controls how much each criterion influences node ")
 			+ ";'>";
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)

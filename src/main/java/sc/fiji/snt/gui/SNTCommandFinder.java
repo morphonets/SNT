@@ -302,7 +302,7 @@ public class SNTCommandFinder {
         suppressDocListener = true;
         searchField.setText(null);
         suppressDocListener = false;
-        if (warning) searchField.setBackground(GuiUtils.warningColor());
+        if (warning) searchField.setBackground(GuiUtils.Colors.warningColor());
         msgTimer = new Timer((warning) ? 3000 : 6000, null) {
             @Override
             public void stop() {
@@ -383,7 +383,7 @@ public class SNTCommandFinder {
 
     private void setWarningModeEnabled(final boolean enable) {
         //searchField.setWarningOutlineEnabled(noHits); // this won't work because we are overriding the margin
-        searchField.setBackground( (enable) ? GuiUtils.warningColor() : searchFieldBackground);
+        searchField.setBackground( (enable) ? GuiUtils.Colors.warningColor() : searchFieldBackground);
         searchField.setForeground(SNTColor.contrastColor(searchField.getBackground()));
     }
 
@@ -571,11 +571,11 @@ public class SNTCommandFinder {
                 if (currentTick == 1) {
                     cmd.button.setEnabled(true);
                     revealParent(cmd.button);
-                    if (parent != null) parent.setBackground(GuiUtils.warningColor());
+                    if (parent != null) parent.setBackground(GuiUtils.Colors.warningColor());
                 }
                 isBlinkingOn = !isBlinkingOn;
                 if (isBlinkingOn) {
-                    cmd.button.setBackground(GuiUtils.getSelectionColor());
+                    cmd.button.setBackground(GuiUtils.Colors.selectionColor());
                     cmd.button.setOpaque(true);
                     cmd.button.setContentAreaFilled(true);
                 } else {
@@ -926,7 +926,7 @@ public class SNTCommandFinder {
                 SearchField.resetIconColor();
                 ToolbarButtons.COLOR = SearchField.iconColor();
                 CmdTableRenderer.mainColor = IconFactory.secondaryColor();
-                CmdTableRenderer.selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
+                CmdTableRenderer.selectionColor = SNTColor.alphaColor(GuiUtils.Colors.selectionColor(), 50);
             }
         });
     }
@@ -1325,7 +1325,7 @@ public class SNTCommandFinder {
         private static final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1.1f);
         private static final Font col2Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
         private static Color mainColor = IconFactory.secondaryColor();
-        private static Color selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
+        private static Color selectionColor = SNTColor.alphaColor(GuiUtils.Colors.selectionColor(), 50);
 
         @Override
         public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,

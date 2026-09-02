@@ -281,7 +281,7 @@ public class MaterializeRegionDialog extends JDialog {
 			final StringBuilder error = new StringBuilder();
 			final BoundingBox box = resolveBoundingBox(error);
 			if (box == null) {
-				setStatus(error.toString(), GuiUtils.errorColor());
+				setStatus(error.toString(), GuiUtils.Colors.errorColor());
 				okButton.setEnabled(false);
 				return;
 			}
@@ -297,7 +297,7 @@ public class MaterializeRegionDialog extends JDialog {
 			try {
 				voxelBounds = plugin.resolveVoxelBounds(box, cal, isSecondaryLayerScope());
 			} catch (final IllegalStateException | IllegalArgumentException ex) {
-				setStatus(ex.getMessage(), GuiUtils.errorColor());
+				setStatus(ex.getMessage(), GuiUtils.Colors.errorColor());
 				okButton.setEnabled(false);
 				return;
 			}
@@ -340,13 +340,13 @@ public class MaterializeRegionDialog extends JDialog {
 			}
 			final String dimsMsg = String.format("Estimated crop: %dx%dx%d px%s", width, height, depth,
 					notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
-			final Color normalColor = notes.isEmpty() ? getForeground() : GuiUtils.linkColor();
+			final Color normalColor = notes.isEmpty() ? getForeground() : GuiUtils.Colors.linkColor();
 			if (bytesNeeded < 0) {
 				setStatus(dimsMsg + " (RAM estimate unavailable)", normalColor);
 				okButton.setEnabled(true);
 			} else if (bytesNeeded > bytesAvailable) {
 				setStatus(String.format("%s, ~%.2f GB: exceeds the %.2f GB available. Reduce size/padding.",
-						dimsMsg, bytesNeeded / 1e9, bytesAvailable / 1e9), GuiUtils.errorColor());
+						dimsMsg, bytesNeeded / 1e9, bytesAvailable / 1e9), GuiUtils.Colors.errorColor());
 				okButton.setEnabled(false);
 			} else {
 				setStatus(String.format("%s, ~%.2f GB. Pixel data will be copied into memory.", dimsMsg,

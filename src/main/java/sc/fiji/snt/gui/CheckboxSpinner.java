@@ -101,7 +101,7 @@ public class CheckboxSpinner extends JPanel {
 		getCheckBox().setEnabled(b);
 		getSpinner().setEnabled(b);
 		if (label != null) {
-			final Color fg = (b) ? getCheckBox().getForeground() : GuiUtils.getDisabledComponentColor();
+			final Color fg = (b) ? getCheckBox().getForeground() : GuiUtils.Colors.disabledComponentColor();
 			label.setForeground(fg);
 			label.setEnabled(b);
 		}

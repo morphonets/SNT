@@ -388,7 +388,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	/* IDE debug method **/
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		ij.ui().showUI();
 		ij.command().run(GroupAnalyzerCmd.class, true);
 	}

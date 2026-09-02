@@ -2541,6 +2541,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     public void setLookAndFeel(final String lookAndFeelName) {
-        GuiUtils.setLookAndFeel(lookAndFeelName, false, pMenu);
+        GuiUtils.LAF.setLookAndFeel(lookAndFeelName, false, pMenu);
     }
 }

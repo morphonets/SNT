@@ -183,7 +183,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 			@Override
 			public void windowClosing(final WindowEvent e) {
-				GuiUtils.restoreLookAndFeel();
+				GuiUtils.LAF.restoreLookAndFeel();
 				super.windowClosing(e);
 			}
 		});

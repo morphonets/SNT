@@ -389,7 +389,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	public Color getAnnotationsColor() {
-		return (annotationsColor == null) ? GuiUtils.warningColor(): annotationsColor;
+		return (annotationsColor == null) ? GuiUtils.Colors.warningColor(): annotationsColor;
 	}
 
 	public BoundingBox getViewPort() {

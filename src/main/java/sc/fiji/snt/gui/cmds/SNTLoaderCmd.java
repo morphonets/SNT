@@ -335,19 +335,19 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private void initPlugin(final SNT snt)
 	{
 		try {
-			GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu
+			GuiUtils.LAF.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu
 			final boolean singlePane = IMAGE_NONE.equals(imageChoice) || uiChoice.equals(UI_SIMPLE);
 			final int frame = (sourceImp == null) ? 1 : sourceImp.getFrame();
 			snt.initialize(singlePane, channel, frame);
 			snt.startUI();
 			if (calibrationInvalid) {
-				GuiUtils.queueNotice(
+				GuiUtils.Notices.queueNotice(
 						"<HTML><b>Spatial calibration of startup image appears to be invalid.</b><br>"
 								+ "Click here to set it, or run <i>Image&gt;Properties...</i>.",
 						null, () -> {
 							snt.getUI().toFront();
 							ij.IJ.doCommand(snt.getImagePlus(), "Properties...");
-						}, GuiUtils.PendingNotice.WARN);
+						}, GuiUtils.Notices.PendingNotice.WARN);
 			}
 		}
 		catch (final OutOfMemoryError error) {
@@ -363,7 +363,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			}
 			sb.append("\n \nAlternatively, consider using one of the Big Data... options.");
 			exit(sb.toString());
-			GuiUtils.restoreLookAndFeel();
+			GuiUtils.LAF.restoreLookAndFeel();
 		} finally {
 			exit("");
 		}

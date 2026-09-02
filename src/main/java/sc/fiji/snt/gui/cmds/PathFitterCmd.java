@@ -68,7 +68,7 @@ public class PathFitterCmd extends ContextCommand {
 	private static final String CHOICE_FALLBACK_NAN = "NaN (Not a number)";
 
 	private static final String HEADER = "<HTML><body><div style='width:"
-			+ GuiUtils.renderedWidth("Type of refinement: SNT can use the fluorescent signal around traced paths to opt")
+			+ GuiUtils.Text.renderedWidth("Type of refinement: SNT can use the fluorescent signal around traced paths to opt")
 			+ ";'>";
 
 	private String unit;

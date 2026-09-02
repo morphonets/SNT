@@ -239,13 +239,13 @@ public class BigDataLoaderCmd extends ContextCommand {
             if (viewer != null && viewer.getViewerFrame() != null && BoundingBox.UNSET_SPACING_UNIT.equals(viewer.getPhysicalUnit())) {
                 // viewer is reassigned above, so it is not effectively final: capture it for the lambda below
                 final AbstractBigViewer finalViewer = viewer;
-                GuiUtils.queueNotice(
+                GuiUtils.Notices.queueNotice(
                         "<HTML><b>Spatial calibration values appear to be invalid.</b><br>"
                                 + "Click here to set it, or right-click the scale bar button in <i>Scene Controls</i>.",
                         null, () -> {
                             finalViewer.getViewerFrame().toFront();
                             finalViewer.showCalibrationDialog(finalViewer.getViewerFrame());
-                        }, GuiUtils.PendingNotice.WARN);
+                        }, GuiUtils.Notices.PendingNotice.WARN);
             }
         }
     }
@@ -501,7 +501,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * implementation, etc.), tracing falls back to manual-only.
      */
     private TracingSetup startTracingSNT(final File primaryVolume) {
-        GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
+        GuiUtils.LAF.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
         if (getContext() == null && ij.IJ.getInstance() == null) {
             new net.imagej.ImageJ().ui().showUI();
         }

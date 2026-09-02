@@ -166,7 +166,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	/* IDE debug method **/
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		ij.ui().showUI();
 		final Map<String, Object> input = new HashMap<>();
 		input.put("trees", new SNTService().demoTrees());

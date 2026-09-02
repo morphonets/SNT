@@ -1392,7 +1392,7 @@ public class CalloutManager {
             // measured on the raw (unescaped) text: that reflects what is actually rendered, since none of the
             // entities introduced by escaping (e.g., "&amp;") are themselves laid out as separate characters
             final int naturalWidth = (fm != null) ? fm.stringWidth(text) : maxWidth + 1;
-            final String escaped = GuiUtils.escapeHtml(text);
+            final String escaped = GuiUtils.Text.escapeHtml(text);
             return (naturalWidth <= maxWidth)
                     ? "<html>" + escaped + "</html>"
                     : "<html><div style='width:" + maxWidth + "px'>" + escaped + "</div></html>";

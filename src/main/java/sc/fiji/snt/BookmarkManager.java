@@ -286,7 +286,7 @@ public class BookmarkManager {
 
     /**
      * Re-attaches the table scroll pane to its original grid cell after a
-     * dock. Invoked by the {@link GuiUtils.JTables.DetachableTable} helper.
+     * dock. Invoked by the {@link GuiUtils.Tables.DetachableTable} helper.
      * GridBag constraints aren't preserved across remove/add, so we replay
      * the cloned constraints captured by {@link #getPanel()}.
      */
@@ -327,10 +327,10 @@ public class BookmarkManager {
         // Detach/Dock toggle, placed right after Resize/Reset Columns so the
         // table-management actions stay grouped. The Searchable items are
         // appended last so they remain at the bottom of the popup.
-        final GuiUtils.JTables.DetachableTable tableDetacher = new GuiUtils.JTables.DetachableTable(
+        final GuiUtils.Tables.DetachableTable tableDetacher = new GuiUtils.Tables.DetachableTable(
                 tableScroll, "Bookmarks", this::redockTableScroll);
         tableDetacher.installMenuItem(pMenu);
-        GuiUtils.JTables.assignSearchable(table, element -> {
+        GuiUtils.Tables.assignSearchable(table, element -> {
             if (element == null) return "";
             if (element instanceof Color color) {
                 return BookmarkTable.ColorCellEditor.getColorName(color);
@@ -380,7 +380,7 @@ public class BookmarkManager {
         if (sntui != null) {
             SNTUI.InternalUtils.addHoldToToggleKeyListener(table, sntui.plugin);
         }
-        GuiUtils.JTables.installAlternatingRows(table);
+        GuiUtils.Tables.installAlternatingRows(table);
         return table;
     }
 
@@ -413,8 +413,8 @@ public class BookmarkManager {
 
     private void resetOrResizeColumns(final boolean reset, final boolean resize) {
         if (table == null || model == null) return;
-        if (reset) GuiUtils.JTables.resetColumnOrder(table);
-        if (resize) GuiUtils.JTables.resizeColumns(table, columnWidthFractions());
+        if (reset) GuiUtils.Tables.resetColumnOrder(table);
+        if (resize) GuiUtils.Tables.resizeColumns(table, columnWidthFractions());
     }
 
     /**
@@ -430,7 +430,7 @@ public class BookmarkManager {
 
     private JPopupMenu assembleTablePopupMenu(final BookmarkTable table) {
         final JPopupMenu pMenu = new JPopupMenu();
-        pMenu.add(GuiUtils.JTables.deselectSelectAllMenuItem(table,
+        pMenu.add(GuiUtils.Tables.deselectSelectAllMenuItem(table,
                 () -> recordCmd("clearSelection()"))); // recordCmd only records clear, not select all
         pMenu.addSeparator();
 
@@ -535,7 +535,7 @@ public class BookmarkManager {
 
         pMenu.addSeparator();
         pMenu.add(sortByDistanceMenu());
-        pMenu.add(GuiUtils.JTables.resetAndResizeColumnsMenuItem(
+        pMenu.add(GuiUtils.Tables.resetAndResizeColumnsMenuItem(
                 table, () -> recordComment("Bookmark Manager: resizeColumns()"),
                 columnWidthFractions()));
         // Detach/Dock and Searchable items are appended in assembleTable() so
@@ -1185,8 +1185,8 @@ public class BookmarkManager {
             tb.add(Box.createHorizontalGlue());
             final JSpinner spinner = visitingZoom.buildSpinner();
             spinner.setToolTipText("The preferred zoom level (between 25 and 3200%) for visiting a bookmarked location");
-            final JButton autoButton = GuiUtils.Buttons.undo();
-            autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
+            final JButton autoButton = GuiUtils.Buttons.undo(
+                    "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
             autoButton.addActionListener(e -> {
                 if (null == sntui.plugin.getImagePlus()) {
                     sntui.showStatus("Current zoom unknown: No image is loaded...", true);
@@ -1966,7 +1966,7 @@ class CellEditor extends DefaultCellEditor {
 
     CellEditor() {
         super(new JTextField());
-        GuiUtils.addClearButton((JTextField) editorComponent);
+        GuiUtils.Fields.addClearButton((JTextField) editorComponent);
         setClickCountToStart(3); // triple click necessary to start editing a cell
     }
 }
@@ -1991,7 +1991,7 @@ class BookmarkTable extends JTable {
         setDefaultEditor(Color.class, new ColorCellEditor());
         // Set icon header for Tag column
         getColumnModel().getColumn(0).setHeaderRenderer(
-                GuiUtils.JTables.iconHeaderRenderer(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, IconFactory.secondaryColor(),.9f),
+                GuiUtils.Tables.iconHeaderRenderer(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, IconFactory.secondaryColor(),.9f),
                         "Tag (click to sort by category)"));
     }
 
@@ -2007,7 +2007,7 @@ class BookmarkTable extends JTable {
         if (getModel().getRowCount() == 0) {
             final java.awt.Graphics2D g2 = (java.awt.Graphics2D) g;
             GuiUtils.setRenderingHints(g2);
-            g2.setColor(GuiUtils.getDisabledComponentColor());
+            g2.setColor(GuiUtils.Colors.disabledComponentColor());
             final java.awt.FontMetrics fm = g2.getFontMetrics();
             final java.awt.Rectangle visible = getVisibleRect();
             g2.drawString(placeholderMsg, visible.x + (visible.width - fm.stringWidth(placeholderMsg)) / 2,

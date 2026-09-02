@@ -133,14 +133,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JPopupMenu calibrationMenu;
     // Detachable table (state is owned by the helper)
     private JScrollPane tableScroll;
-    private GuiUtils.JTables.DetachableTable tableDetacher;
+    private GuiUtils.Tables.DetachableTable tableDetacher;
 
 
     public CurationManager(final SNTUI sntui, final PlausibilityMonitor monitor) {
         this.sntui = sntui;
         this.monitor = monitor;
         this.tableModel = new WarningTableModel();
-        this.warningsTable = GuiUtils.JTables.tableWithPlaceholder(tableModel,
+        this.warningsTable = GuiUtils.Tables.tableWithPlaceholder(tableModel,
                 tableModel::placeholderLine1, tableModel::placeholderLine2);
         monitor.addWarningListener(this);
         configureTable();
@@ -189,7 +189,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         sevCol.setPreferredWidth((int) GuiUtils.uiFontSize());
         sevCol.setMaxWidth((int) GuiUtils.uiFontSize());
         sevCol.setCellRenderer(new SeverityRenderer());
-        sevCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
+        sevCol.setHeaderRenderer(GuiUtils.Tables.iconHeaderRenderer(
                 IconFactory.buttonIcon(IconFactory.GLYPH.DANGER, IconFactory.secondaryColor(), .9f), "Severity (click to sort)"));
         // Message column: fill, with tooltip for truncated text
         final javax.swing.table.TableColumn msgCol = warningsTable.getColumnModel().getColumn(1);
@@ -221,7 +221,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         impactCol.setPreferredWidth(impactColWidth);
         impactCol.setMaxWidth(impactColWidth * 2);
         impactCol.setCellRenderer(new ImpactRenderer());
-        impactCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
+        impactCol.setHeaderRenderer(GuiUtils.Tables.iconHeaderRenderer(
                 IconFactory.buttonIcon(IconFactory.GLYPH.SCALE_BALANCED, IconFactory.secondaryColor(), .9f),
                 "<html>Impact: fraction of the reconstruction affected if this " +
                         "is a true error.<br>Higher = more downstream content at " +
@@ -299,7 +299,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     /**
      * Re-attaches the table scroll pane after a dock. Called by the
-     * {@link GuiUtils.JTables.DetachableTable} helper since GridBag constraints
+     * {@link GuiUtils.Tables.DetachableTable} helper since GridBag constraints
      * aren't preserved by remove/add.
      */
     private void redockTableScroll() {
@@ -424,7 +424,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // buildTablePopupMenu() because that runs from the constructor,  long before tableScroll is created here.
         // Append the toggle item to the existing popup now that everything it needs is in place
         if (tableDetacher == null) {
-            tableDetacher = new GuiUtils.JTables.DetachableTable(
+            tableDetacher = new GuiUtils.Tables.DetachableTable(
                     tableScroll, "Issues (Curation Assistant)", this::redockTableScroll,
                     new Dimension(500, 200));
             final javax.swing.JPopupMenu existing = warningsTable.getComponentPopupMenu();
@@ -800,8 +800,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (signalCheck != null) signalCheck.setMinContrast((Double) signalQualitySpinner.getValue());
         });
         // Undo button: always visible, resets spinner to AUTO_THRESHOLD
-        final JButton sqUndoBtn = GuiUtils.Buttons.undo();
-        sqUndoBtn.setToolTipText("Reset to auto-threshold (-1)");
+        final JButton sqUndoBtn = GuiUtils.Buttons.undo("Reset to auto-threshold (-1)");
         sqUndoBtn.addActionListener(e -> {
             signalQualitySpinner.setValue(PlausibilityCheck.SignalQuality.AUTO_THRESHOLD);
             if (signalCheck != null) signalCheck.setMinContrast(PlausibilityCheck.SignalQuality.AUTO_THRESHOLD);
@@ -847,8 +846,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         uncertainTerminalSpinner.addChangeListener(e -> {
             if (utCheck != null) utCheck.setMinTipContrast((Double) uncertainTerminalSpinner.getValue());
         });
-        final JButton utUndoBtn = GuiUtils.Buttons.undo();
-        utUndoBtn.setToolTipText("Reset to auto-threshold (-1)");
+        final JButton utUndoBtn = GuiUtils.Buttons.undo("Reset to auto-threshold (-1)");
         utUndoBtn.addActionListener(e -> {
             uncertainTerminalSpinner.setValue(PlausibilityCheck.UncertainTerminal.AUTO_THRESHOLD);
             if (utCheck != null) utCheck.setMinTipContrast(PlausibilityCheck.UncertainTerminal.AUTO_THRESHOLD);
@@ -1279,14 +1277,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                                 + outOfCropNote, true);
                         // A full scan can run for a while (network/disk-bound image checks) and, when
                         // triggered via calibrateFromTrees() after autotracing, without any direct click
-                        GuiUtils.queueNotice(String.format("<HTML><b>Full scan completed: %d issue(s) found.</b><br>" +
+                        GuiUtils.Notices.queueNotice(String.format("<HTML><b>Full scan completed: %d issue(s) found.</b><br>" +
                                         "Click here to review them.", warnings.size()),
                                 null, () -> sntui.selectTab("Assistant"));
                     }
                 } catch (final Exception ex) {
                     SNTUtils.log("Full scan failed: " + ex.getMessage());
                     sntui.showStatus("Full scan failed. See log.", true);
-                    GuiUtils.queueNotice("<HTML><b>Full scan failed.</b><br>Click here for the Assistant tab.",
+                    GuiUtils.Notices.queueNotice("<HTML><b>Full scan failed.</b><br>Click here for the Assistant tab.",
                             null, () -> sntui.selectTab("Assistant"));
                 }
             }
@@ -1376,7 +1374,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     if (result == null) {
                         sntui.showStatus("Auto-calibration failed.", true);
                         // This chain runs programmatically after autotracing, with no direct click behind it
-                        GuiUtils.queueNotice("<HTML><b>Auto-calibration (after autotracing) failed.</b><br>" +
+                        GuiUtils.Notices.queueNotice("<HTML><b>Auto-calibration (after autotracing) failed.</b><br>" +
                                         "None of the freshly traced data yielded a valid calibration.",
                                 null, () -> sntui.selectTab("Assistant"));
                         return;
@@ -1395,7 +1393,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 } catch (final Exception ex) {
                     SNTUtils.log("Auto-calibration failed: " + ex.getMessage());
                     sntui.showStatus("Auto-calibration failed. See log.", true);
-                    GuiUtils.queueNotice("<HTML><b>Auto-calibration (after autotracing) failed.</b><br>See log.",
+                    GuiUtils.Notices.queueNotice("<HTML><b>Auto-calibration (after autotracing) failed.</b><br>See log.",
                             null, () -> sntui.selectTab("Assistant"));
                 }
             }

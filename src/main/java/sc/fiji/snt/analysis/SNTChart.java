@@ -162,7 +162,7 @@ public class SNTChart extends ChartPanel {
 
 	public JFrame getFrame() {
 		if (frame == null) {
-			GuiUtils.setLookAndFeel();
+			GuiUtils.LAF.setLookAndFeel();
 			frame = new JFrame(getTitle());
 			frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 			frame.setLocationByPlatform(true);
@@ -2707,7 +2707,7 @@ public class SNTChart extends ChartPanel {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final Tree tree = new SNTService().demoTrees().getFirst();
 		final TreeStatistics treeStats = new TreeStatistics(tree);
 		final SNTChart chart = treeStats.getHistogram("contraction");

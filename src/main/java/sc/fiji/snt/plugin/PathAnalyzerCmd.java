@@ -225,7 +225,7 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	/* IDE debug method **/
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTrees().get(0);

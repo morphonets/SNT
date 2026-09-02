@@ -937,7 +937,7 @@ public class Bdv extends AbstractBigViewer {
         final JToggleButton offsetActivate = GuiUtils.Buttons.toolbarToggleButton(actions.setCanvasOffsetAction(),
                 "Change annotations offset",
                 IconFactory.GLYPH.MOVE, IconFactory.GLYPH.MOVE);
-        offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.getDisabledComponentColor(), 1f));
+        offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.Colors.disabledComponentColor(), 1f));
         final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(toggleAroundCursor, offsetActivate),
                 "Show/hide annotations",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);

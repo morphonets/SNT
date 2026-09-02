@@ -86,7 +86,7 @@ public class SeedManager extends JPanel {
     private TableRowSorter<SeedTableModel> tableSorter;
     private JScrollPane tableScroll;
     private GridBagConstraints tableScrollGbc;
-    private GuiUtils.JTables.DetachableTable tableDetacher;
+    private GuiUtils.Tables.DetachableTable tableDetacher;
     /**
      * Zoom level applied when navigating to a seed by double-clicking a table
      * row. Initialised to roughly two zoom steps above the current canvas
@@ -318,7 +318,7 @@ public class SeedManager extends JPanel {
         final int initialPct = (int) Math.round(initialValue * 100);
         final JSlider slider = new JSlider(0, 100, initialPct);
         slider.setToolTipText(label.getToolTipText());
-        final JSpinner spinner = GuiUtils.doubleSpinner(initialValue, 0.0, 1.0, 0.01, 2);
+        final JSpinner spinner = GuiUtils.Fields.doubleSpinner(initialValue, 0.0, 1.0, 0.01, 2);
         spinner.setToolTipText(label.getToolTipText());
 
         // Slider -> overlay (canonical writer for confidence range). Also pushes
@@ -409,7 +409,7 @@ public class SeedManager extends JPanel {
             pushTableSelectionToOverlay();
         });
 
-        GuiUtils.JTables.installAlternatingRows(seedTable);
+        GuiUtils.Tables.installAlternatingRows(seedTable);
 
         // Double-click a row -> navigate the canvas to that seed (mirrors the
         // Bookmark Manager pattern). Editing is available via the toolbar
@@ -428,7 +428,7 @@ public class SeedManager extends JPanel {
         // Context menu (right-click on a row): selection toggle, Edit, Delete,
         // column resize/reset (parity with the Bookmark Manager table menu).
         final JPopupMenu menu = new JPopupMenu();
-        menu.add(GuiUtils.JTables.deselectSelectAllMenuItem(seedTable, null));
+        menu.add(GuiUtils.Tables.deselectSelectAllMenuItem(seedTable, null));
         menu.addSeparator();
 
         JMenuItem jmi = new JMenuItem("Edit...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
@@ -443,7 +443,7 @@ public class SeedManager extends JPanel {
         menu.add(buildSendToCurationSubmenu());
         menu.addSeparator();
 
-        menu.add(GuiUtils.JTables.resetAndResizeColumnsMenuItem(
+        menu.add(GuiUtils.Tables.resetAndResizeColumnsMenuItem(
                 seedTable, () -> recordComment("Seed Manager: resizeColumns()"),
                 seedColumnWidthFractions()));
         menu.addSeparator();
@@ -463,7 +463,7 @@ public class SeedManager extends JPanel {
                 files -> SwingUtilities.invokeLater(() -> handleDroppedFiles(files))));
 
         // Detach / dock table  helper
-        tableDetacher = new GuiUtils.JTables.DetachableTable(
+        tableDetacher = new GuiUtils.Tables.DetachableTable(
                 scroll, "Seeds", this::redockTableScroll,
                 new Dimension(600, 320));
         tableDetacher.installMenuItem(menu);
@@ -652,7 +652,7 @@ public class SeedManager extends JPanel {
 
     private static void paintEmptyStatePlaceholder(final Graphics2D g2, final JTable table) {
         GuiUtils.setRenderingHints(g2);
-        g2.setColor(GuiUtils.getDisabledComponentColor());
+        g2.setColor(GuiUtils.Colors.disabledComponentColor());
         final FontMetrics fm = g2.getFontMetrics();
         final Rectangle vis = table.getVisibleRect();
         final String[] lines = {
@@ -742,7 +742,7 @@ public class SeedManager extends JPanel {
 
     /**
      * Re-attaches the table scroll pane to its original grid cell after a
-     * dock. Invoked by the {@link GuiUtils.JTables.DetachableTable} helper:
+     * dock. Invoked by the {@link GuiUtils.Tables.DetachableTable} helper:
      * GridBag constraints aren't preserved across remove/add so we replay the
      * cloned {@link GridBagConstraints} captured at build time.
      */
@@ -755,8 +755,8 @@ public class SeedManager extends JPanel {
 
     private void resizeColumns() {
         if (seedTable == null || tableModel == null) return;
-        GuiUtils.JTables.resetColumnOrder(seedTable);
-        GuiUtils.JTables.resizeColumns(seedTable, seedColumnWidthFractions());
+        GuiUtils.Tables.resetColumnOrder(seedTable);
+        GuiUtils.Tables.resizeColumns(seedTable, seedColumnWidthFractions());
     }
 
     /** Preferred column width fractions for the seed table */
@@ -955,8 +955,8 @@ public class SeedManager extends JPanel {
         final JLabel zoomLabel = new JLabel("Visiting zoom level (%):");
         zoomLabel.setToolTipText(zoomSpinner.getToolTipText());
 
-        final JButton resetZoomButton = GuiUtils.Buttons.undo();
-        resetZoomButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
+        final JButton resetZoomButton = GuiUtils.Buttons.undo(
+                "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         resetZoomButton.addActionListener(e -> {
             if (null == snt.getImagePlus()) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);

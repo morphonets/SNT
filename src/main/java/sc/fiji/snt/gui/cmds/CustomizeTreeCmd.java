@@ -140,7 +140,7 @@ public class CustomizeTreeCmd extends ContextCommand {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(CustomizeTreeCmd.class, true);

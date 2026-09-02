@@ -554,7 +554,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             return true;
         }
         // UI present: present the warnings as a confirmation dialog.
-        final int width = GuiUtils.renderedWidth(
+        final int width = GuiUtils.Text.renderedWidth(
                 "      Warning: Images do not share the same spatial calibration<");
         final StringBuilder sb = new StringBuilder("<HTML><div WIDTH=").append(Math.max(550, width))
                 .append("><p>The following issue(s) were detected:</p><ul>");

@@ -96,7 +96,7 @@ public class SNTSearchableBar extends SearchableBar {
 		getSearchable().setRepeats(true);
 		getSearchable().setSearchingDelay(DELAY_MS);
 		setShowMatchCount(true); // false improves performance
-		setMismatchForeground(GuiUtils.warningColor());
+		setMismatchForeground(GuiUtils.Colors.warningColor());
 		setMaxHistoryLength(0); // disable default history. We'll use builtinSearchHistory
 		setHighlightAll(true);
 		init(placeholder); // should be the last call in the constructor
@@ -129,7 +129,7 @@ public class SNTSearchableBar extends SearchableBar {
 				} finally {
 					suppressScroll = false;
 				}
-				if (firstMatch != null) GuiUtils.JTrees.scrollDirectlyTo(tree, firstMatch);
+				if (firstMatch != null) GuiUtils.Trees.scrollDirectlyTo(tree, firstMatch);
 			}
 
 			@Override
@@ -391,7 +391,7 @@ public class SNTSearchableBar extends SearchableBar {
 			searchOnDemandAsNeeded();
 			addSearchingTextToHistory(sf.getText());
 			if (!blinkingTimer.isRunning()) {
-				sf.optionsButton().setBackground(GuiUtils.getSelectionColor());
+				sf.optionsButton().setBackground(GuiUtils.Colors.selectionColor());
 				blinkingTimer.start();
 			}
 		});

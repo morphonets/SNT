@@ -201,7 +201,7 @@ public class SeedPointEditDialog {
         g.weightx = 1;
         g.fill = GridBagConstraints.HORIZONTAL;
         final JTextField field = new JTextField(initial, 10);
-        GuiUtils.addClearButton(field);
+        GuiUtils.Fields.addClearButton(field);
         root.add(field, g);
         g.gridy++;
         return field;
@@ -272,11 +272,11 @@ public class SeedPointEditDialog {
         final double conf, radius;
         final int channel, frame;
         try {
-            x = GuiUtils.extractDouble(xField);
-            y = GuiUtils.extractDouble(yField);
-            z = GuiUtils.extractDouble(zField);
-            conf = clamp01(GuiUtils.extractDouble(confField));
-            radius = Math.max(0.0, GuiUtils.extractDouble(radiusField));
+            x = GuiUtils.Fields.extractDouble(xField);
+            y = GuiUtils.Fields.extractDouble(yField);
+            z = GuiUtils.Fields.extractDouble(zField);
+            conf = clamp01(GuiUtils.Fields.extractDouble(confField));
+            radius = Math.max(0.0, GuiUtils.Fields.extractDouble(radiusField));
             channel = parseInt(channelField);
             frame = parseInt(frameField);
         } catch (final Exception ex) {
@@ -323,8 +323,8 @@ public class SeedPointEditDialog {
         final Double newConf, newRadius;
         final Integer newChannel, newFrame;
         try {
-            newConf = cfChanged ? clamp01(GuiUtils.extractDouble(confField)) : null;
-            newRadius = rdChanged ? Math.max(0.0, GuiUtils.extractDouble(radiusField)) : null;
+            newConf = cfChanged ? clamp01(GuiUtils.Fields.extractDouble(confField)) : null;
+            newRadius = rdChanged ? Math.max(0.0, GuiUtils.Fields.extractDouble(radiusField)) : null;
             newChannel = chChanged ? parseInt(channelField) : null;
             newFrame = frChanged ? parseInt(frameField) : null;
         } catch (final Exception ex) {
@@ -371,7 +371,7 @@ public class SeedPointEditDialog {
     }
 
     private static int parseInt(final JTextField field) {
-       final double parsed = GuiUtils.extractDouble(field);
+       final double parsed = GuiUtils.Fields.extractDouble(field);
        return (Double.isNaN(parsed)) ? -1 : (int)parsed;
     }
 

@@ -177,7 +177,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 	/* IDE debug method **/
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		ij.ui().showUI();
 		final Tree tree = new Tree(SNTUtils.randomPaths());
 		tree.setLabel("Bogus test");

@@ -85,7 +85,7 @@ class ChannelUnmixingCard {
      * across multiple unmixing cards.
      */
     String uniqueTitle(final String imageName) {
-        final String base = "Channel Unmixing: " + GuiUtils.truncate(imageName, 25);
+        final String base = "Channel Unmixing: " + GuiUtils.Text.truncate(imageName, 25);
         String title = base;
         int suffix = 2;
         while (!cardTitles.add(title)) {
@@ -171,8 +171,7 @@ class ChannelUnmixingCard {
         final JLabel statusLabel = new JLabel(" ");
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.ITALIC, statusLabel.getFont().getSize2D() - 1));
 
-        final JButton resetButton = GuiUtils.Buttons.undo(null);
-        resetButton.setToolTipText("Reset: remove mixed source and restore original channels");
+        final JButton resetButton = GuiUtils.Buttons.undo("Reset: remove mixed source and restore original channels");
 
         // Slab constraints
         final double[] cal = owner.getCal();

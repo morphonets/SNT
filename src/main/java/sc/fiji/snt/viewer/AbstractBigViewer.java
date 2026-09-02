@@ -579,14 +579,14 @@ public abstract class AbstractBigViewer {
 
     /**
      * Turns a raw action-map key (e.g., "align XY plane", "snt-capture-keyframe") into a palette-friendly
-     * label ("Align XY Plane", "Capture Keyframe"). Reuses {@link GuiUtils#toTitleCase(String)}, but --
+     * label ("Align XY Plane", "Capture Keyframe"). Reuses {@link GuiUtils.Text#toTitleCase(String)}, but --
      * unlike that method, which upper-cases a leading "snt" word to flag SNT's own bindings among BDV/BVV's
      * defaults in the plain keyboard-shortcuts dialog -- drops the "snt" prefix entirely here: in the
      * palette, SNT's own commands are already distinguished by their {@code path} category and icon, so
      * repeating "SNT" in every label would just be noise.
      */
     private static String humanizeActionMapKey(final String rawKey) {
-        return GuiUtils.toTitleCase(rawKey.replaceFirst("(?i)^snt[- _]+", ""));
+        return GuiUtils.Text.toTitleCase(rawKey.replaceFirst("(?i)^snt[- _]+", ""));
     }
 
     /**
@@ -1263,7 +1263,7 @@ public abstract class AbstractBigViewer {
         final JSpinner[] spinners = new JSpinner[3];
         for (int i = 0; i < 3; i++) {
             panel.add(new JLabel(labels[i]));
-            spinners[i] = GuiUtils.doubleSpinner(defaultSpacing[i], 0.0001, 100000, 0.001, 4);
+            spinners[i] = GuiUtils.Fields.doubleSpinner(defaultSpacing[i], 0.0001, 100000, 0.001, 4);
             panel.add(spinners[i]);
         }
         panel.add(new JLabel("Unit"));

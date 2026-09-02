@@ -540,7 +540,7 @@ public class SNTTable extends DefaultGenericTable {
 	private void createDisplay(final String windowTitle) {
 		initDisplayService();
 		displayService.createDisplay(windowTitle, this);
-		GuiUtils.enhanceTableDisplay(this, windowTitle);
+		GuiUtils.Tables.enhanceTableDisplay(this, windowTitle);
 	}
 
 	/**

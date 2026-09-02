@@ -198,9 +198,9 @@ public class FilePicker extends JPanel {
         JTextFieldFile(final String... allowedExtensions) {
             super(30);
             this.allowedExtensions = allowedExtensions;
-            GuiUtils.addClearButton(this);
+            GuiUtils.Fields.addClearButton(this);
             if (allowedExtensions != null && allowedExtensions.length > 0)
-                GuiUtils.addPlaceholder(this, "Supported extensions: " + String.join(", ", allowedExtensions));
+                GuiUtils.Fields.addPlaceholder(this, "Supported extensions: " + String.join(", ", allowedExtensions));
             getDocument().addDocumentListener(new DocumentListener() {
 
                 @Override

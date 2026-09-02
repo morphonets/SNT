@@ -348,7 +348,7 @@ public class SWCExportDialog extends JDialog {
 		});
 
 		// freeze first column
-		GuiUtils.JTables.freezeColumnWidth(table, 0, 6);
+		GuiUtils.Tables.freezeColumnWidth(table, 0, 6);
 
 		// add tooltips
 		table.setDefaultRenderer(Object.class, getCellRenderer());

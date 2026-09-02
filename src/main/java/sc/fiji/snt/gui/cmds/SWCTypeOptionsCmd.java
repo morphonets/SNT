@@ -54,7 +54,7 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 	private static final String MAP_KEY = "colors";
 	private static final String ASSIGN_KEY = "assign";
 	private static String HEADER = "<HTML><body><div style='width:"
-			+ GuiUtils.renderedWidth("When color pairing is enable, assigning a") + ";'>";
+			+ GuiUtils.Text.renderedWidth("When color pairing is enable, assigning a") + ";'>";
 
 	@Parameter
 	private PrefService prefService;
@@ -212,7 +212,7 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		GuiUtils.LAF.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(SWCTypeOptionsCmd.class, true);

@@ -112,6 +112,7 @@ public class IconFactory {
         DELETE('\uf55a', true), //
         DIAGRAM('\uf542', true), //
         DICE_20('\uf6cf', true), //
+        DISPLAY('\ue163', true), //
         DOWNLOAD('\uf019', true), //
         DOTCIRCLE('\uf192', true), //
         DRAFT('\uf568', true), //

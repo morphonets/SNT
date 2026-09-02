@@ -1142,7 +1142,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             // Set back the expanded state:
             if (expandAll)
-                GuiUtils.JTrees.expandAllNodes(tree);
+                GuiUtils.Trees.expandAllNodes(tree);
             else {
                 expandedPathsBefore.add(justAdded);
                 tree.setExpandedPaths(expandedPathsBefore);
@@ -2686,8 +2686,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         public void actionPerformed(final ActionEvent e) {
             switch (e.getActionCommand()) {
                 case SELECT_NONE_CMD -> tree.clearSelection();
-                case EXPAND_ALL_CMD -> GuiUtils.JTrees.expandAllNodes(tree);
-                case COLLAPSE_ALL_CMD -> GuiUtils.JTrees.collapseAllNodes(tree);
+                case EXPAND_ALL_CMD -> GuiUtils.Trees.expandAllNodes(tree);
+                case COLLAPSE_ALL_CMD -> GuiUtils.Trees.collapseAllNodes(tree);
                 case COLLAPSE_SELECTED_LEVEL, EXPAND_SELECTED_LEVEL -> {
                     final TreePath selectedPath = tree.getSelectionPath();
                     if (selectedPath == null) {
@@ -2695,9 +2695,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         return;
                     }
                     if (EXPAND_SELECTED_LEVEL.equals(e.getActionCommand()))
-                        GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
+                        GuiUtils.Trees.expandNodesOfSameLevel(tree, selectedPath);
                     else
-                        GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
+                        GuiUtils.Trees.collapseNodesOfSameLevel(tree, selectedPath);
                 }
                 default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
             }
@@ -5882,7 +5882,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     expandAndRevealTree(arborChoice);
             });
 
-
             // add sorter, choice combo, and prev/next button
             add(sortArborsButton);
             addSeparator();
@@ -5890,9 +5889,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             //add(nextArborButton);
 
             // add show all/selected as a group
-            final ButtonGroup group = new ButtonGroup();
-            group.add(showAllArborsButton);
-            group.add(hideOthersButton);
+            GuiUtils.Buttons.addToGroup(List.of(showAllArborsButton, hideOthersButton));
             add(hideOthersButton);
             add(showAllArborsButton);
             addSeparator();
@@ -6360,7 +6357,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // applyHideOthers(true) disables it while a single arbor is isolated, and
             // this path (e.g. the "show all structures" button) must undo that.
             sortArborsButton.setEnabled(getAllTreeLabels().size() > 1);
-            GuiUtils.JTrees.expandAllNodes(tree);
+            GuiUtils.Trees.expandAllNodes(tree);
         }
 
         /** After the model is rebuilt, ensure the filter state matches what's available. */
@@ -6438,7 +6435,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         /** Expand the tree and scroll to the first occurrence of the given arbor label. */
         private void expandAndRevealTree(final String label) {
             if (label == null) return;
-            //GuiUtils.JTrees.expandAllNodes(tree);
+            //GuiUtils.Trees.expandAllNodes(tree);
             for (int row = 0; row < tree.getRowCount(); row++) {
                 final TreePath tp = tree.getPathForRow(row);
                 if (tp == null) continue;
@@ -6477,7 +6474,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 sortArborsButton.setEnabled(true);
                 plugin.clearIsolatedTreeID();
             }
-            GuiUtils.JTrees.expandAllNodes(tree);
+            GuiUtils.Trees.expandAllNodes(tree);
             // 3) Restore selection if that exists in the new model
             if (prevSelection != null && !prevSelection.isEmpty()) {
                 final List<Path> toRestore = hide
@@ -6799,7 +6796,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     /* IDE debug method */
     public static void main(final String[] args) {
-        GuiUtils.setLookAndFeel();
+        GuiUtils.LAF.setLookAndFeel();
         final ImageJ ij = new ImageJ();
         final ImagePlus imp = new ImagePlus();
         final SNT snt = new SNT(ij.context(), imp);

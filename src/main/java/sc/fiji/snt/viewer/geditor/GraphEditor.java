@@ -593,13 +593,13 @@ public class GraphEditor extends JPanel {
 		if (frame != null && new GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
 			frame.dispose();
 		}
-		GuiUtils.restoreLookAndFeel();
+		GuiUtils.LAF.restoreLookAndFeel();
 	}
 
 	protected void setLookAndFeel(final String lookAndFeelName) {
 		{
 			try {
-				if (GuiUtils.setLookAndFeel(lookAndFeelName, false, GraphEditor.this))
+				if (GuiUtils.LAF.setLookAndFeel(lookAndFeelName, false, GraphEditor.this))
 					try {
 						// Needs to assign the key bindings again
 						keyboardHandler = new EditorKeyboardHandler(graphComponent);

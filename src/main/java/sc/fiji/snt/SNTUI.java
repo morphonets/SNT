@@ -93,6 +93,7 @@ public class SNTUI extends JDialog {
     /* UI */
     private JCheckBox showPathsSelected;
     private JPanel showPathsSelectedRow; // required by updateMaterializationDependentControls()
+    private static final int DEFAULT_NEARBY_ZSLICES = 3; // partsNearbyCSpinner's out-of-the-box value
     protected CheckboxSpinner partsNearbyCSpinner;
     protected JCheckBox useSnapWindow;
     private JPanel tracingOptionsPanel; // required by updateMaterializationDependentControls()
@@ -136,9 +137,15 @@ public class SNTUI extends JDialog {
     private JButton secLayerActionButton;
     private CheckboxSpinner secLayerImgOverlayCSpinner;
 
+    // Options buttons kept the same width across "Main" tab rows for visual alignment; see buildDialog()
+    private JButton aStarOptionsButton;
+    private JButton renderingFilterOptionsButton;
+    private JButton pathColorsOptionsButton;
+
     // UI controls promoted from Options tab
     private JCheckBox diametersCheckBox; // used for for quick-toggle access
     private final JPanel optionsPanel; // Options tab group holding diametersCheckBox and its sub-panels. //
+    private JSpinner transparencyOutOfBoundsSpinner; // focused by renderingOptionsButton()'s "Adjust Out-of-Plane Opacity..." 
 
     private final SNTCommandFinder commandFinder;
     private ActiveWorker activeWorker;
@@ -377,6 +384,9 @@ public class SNTUI extends JDialog {
         ++c1.gridy;
         tab1.add(colorOptionsPanel(), c1);
         ++c1.gridy;
+        // Align all "Main" tab options buttons to the same width, so they look consistent
+        GuiUtils.ensureSameWidth(aStarOptionsButton, secLayerActionButton, renderingFilterOptionsButton,
+                pathColorsOptionsButton);
         GuiUtils.addSeparator(tab1, "", true, c1); // empty separator
         ++c1.gridy;
         c1.fill = GridBagConstraints.HORIZONTAL;
@@ -1069,11 +1079,11 @@ public class SNTUI extends JDialog {
         bdvSNT = null;
         sciViewSNT = null;
         GuiUtils.closeAllPlots();
-        GuiUtils.closeAllTables();
+        GuiUtils.Tables.closeAllTables();
         // Pending notices can carry actions that reference this (now-disposed) session's viewers/UI,
         // so we'll wipe any pending notices
-        GuiUtils.clearPendingNotices();
-        GuiUtils.restoreLookAndFeel();
+        GuiUtils.Notices.clearPendingNotices();
+        GuiUtils.LAF.restoreLookAndFeel();
         return true;
     }
 
@@ -1829,9 +1839,9 @@ public class SNTUI extends JDialog {
         final boolean hasChannels = imp != null && imp.getNChannels() > 1;
         final boolean hasFrames = imp != null && imp.getNFrames() > 1;
 
-        final JSpinner channelSpinner = GuiUtils.integerSpinner(plugin.channel, 1,
+        final JSpinner channelSpinner = GuiUtils.Fields.integerSpinner(plugin.channel, 1,
                 (hasChannels) ? imp.getNChannels() : 1, 1, true);
-        final JSpinner frameSpinner = GuiUtils.integerSpinner(plugin.frame, 1,
+        final JSpinner frameSpinner = GuiUtils.Fields.integerSpinner(plugin.frame, 1,
                 (hasFrames) ? imp.getNFrames() : 1, 1, true);
 
         final JButton applyPositionButton = new JButton("Reload");
@@ -1983,7 +1993,7 @@ public class SNTUI extends JDialog {
         ++gdb.gridy;
 
         final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at "),
-                GuiUtils.integerSpinner(20, 10, 80, 1, true));
+                GuiUtils.Fields.integerSpinner(20, 10, 80, 1, true));
         registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
         mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
         mipCS.appendLabel(" % opacity");
@@ -2174,7 +2184,7 @@ public class SNTUI extends JDialog {
             sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options tab</li>");
         }
         sb.append("<li>Replace current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
-        GuiUtils.queueNotice(sb.toString(), null, null);
+        GuiUtils.Notices.queueNotice(sb.toString(), null, null);
     }
 
     private void updateSinglePaneFlag() {
@@ -2295,7 +2305,7 @@ public class SNTUI extends JDialog {
         // before this panel is ever built
         final boolean enabled = plugin.manualRadius != SNT.SCROLL_DIAMETER_DISABLED;
         final double initVal = plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0;
-        assignDiameterSpinner = GuiUtils.doubleSpinner(initVal, 0, 999, step, 3);
+        assignDiameterSpinner = GuiUtils.Fields.doubleSpinner(initVal, 0, 999, step, 3);
         assignDiameterSpinner.setEnabled(enabled);
         assignDiameterSpinner.addChangeListener(e -> {
             if (plugin.manualRadius == SNT.SCROLL_DIAMETER_DISABLED) return; // ignore while checkbox is off
@@ -2305,7 +2315,7 @@ public class SNTUI extends JDialog {
             plugin.manualRadius = (d <= 0) ? 0 : d / 2;
             plugin.updateAllViewers();
         });
-        assignDiameterResetButton = resetButton("Reset Interactive Diameter");
+        assignDiameterResetButton = resetButton("interactive diameter");
         assignDiameterResetButton.setEnabled(enabled);
         assignDiameterResetButton.addActionListener(e -> {
             plugin.manualRadius = 0;
@@ -2358,7 +2368,7 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel nodePanel() {
-        final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0.5, 100, .5, 1);
+        final JSpinner nodeSpinner = GuiUtils.Fields.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0.5, 100, .5, 1);
         ((JSpinner.DefaultEditor)nodeSpinner.getEditor()).getTextField().addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(final FocusEvent e) {
@@ -2401,7 +2411,7 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel transparencyDefPanel() {
-        final JSpinner defTransparencySpinner = GuiUtils.integerSpinner(
+        final JSpinner defTransparencySpinner = GuiUtils.Fields.integerSpinner(
                 (plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getDefaultTransparency(), 0, 100, 1, true);
         defTransparencySpinner.addChangeListener(e -> setDefaultTransparency((int)(defTransparencySpinner.getValue())));
         final JButton defTransparencyButton = resetButton("default transparency");
@@ -2430,7 +2440,7 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel transparencyOutOfBoundsPanel() {
-        final JSpinner transparencyOutOfBoundsSpinner = GuiUtils.integerSpinner(
+        transparencyOutOfBoundsSpinner = GuiUtils.Fields.integerSpinner(
                 (plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getOutOfBoundsTransparency(), 0, 100, 1,
                 true);
         transparencyOutOfBoundsSpinner.addChangeListener(e -> setOutOfBoundsTransparency((int)(transparencyOutOfBoundsSpinner.getValue())));
@@ -3336,7 +3346,8 @@ public class SNTUI extends JDialog {
         registerInCommandFinder(secLayerActivateCheckbox, "Toggle Secondary Layer", "Main Tab");
         // Options for externalImagePanel
         final JPopupMenu secLayerMenu = new JPopupMenu();
-        secLayerActionButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LAYERS, 1f, secLayerMenu);
+        secLayerActionButton = GuiUtils.Buttons.OptionsButton(GLYPH.LAYERS, 1f, secLayerMenu);
+
         GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
         final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
                 IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
@@ -3404,7 +3415,7 @@ public class SNTUI extends JDialog {
         // row 2
         c.insets.left *= 2;
         secLayerImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Overlay at "),
-                GuiUtils.integerSpinner(20, 10, 80, 1, true));
+                GuiUtils.Fields.integerSpinner(20, 10, 80, 1, true));
         registerInCommandFinder(secLayerImgOverlayCSpinner.getCheckBox(), "Toggle Secondary Layer Overlay",
                 "Main Tab");
         secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> secLayerImgOverlayCSpinner.setSelected(false));
@@ -4426,12 +4437,16 @@ public class SNTUI extends JDialog {
                 "Underlined, bold characters like this <u><b>1</b></u> highlight<br>the single-key shortcut of an action.",
                 calloutGroup(), 7);
 
-        showPathsSelectedRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        showPathsSelectedRow.add(showPathsSelected);
-        if (plugin.isStreamMode()) showPathsSelectedRow.add(materializedCropBadge(.9f));
+        showPathsSelectedRow = new JPanel(new BorderLayout(0, 0));
+        final JPanel showPathsSelectedLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        showPathsSelectedLeft.add(showPathsSelected);
+        if (plugin.isStreamMode()) showPathsSelectedLeft.add(materializedCropBadge(.9f));
+        showPathsSelectedRow.add(showPathsSelectedLeft, BorderLayout.CENTER);
+        showPathsSelectedRow.add(renderingOptionsButton(), BorderLayout.EAST);
+
 
         partsNearbyCSpinner = new CheckboxSpinner(new JCheckBox(InternalUtils.hotKeyLabel("2. Only nodes within ", "2")),
-                GuiUtils.integerSpinner(1, 1, 80, 1, true));
+                GuiUtils.Fields.integerSpinner(DEFAULT_NEARBY_ZSLICES, 1, 80, 1, true));
         partsNearbyCSpinner.appendLabel("Z-slices");
         partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
         if (plugin.isStreamMode()) {
@@ -4465,6 +4480,58 @@ public class SNTUI extends JDialog {
         panel.add(partsNearbyCSpinner);
         panel.add(row3);
         return panel;
+    }
+
+    private JButton renderingOptionsButton() {
+        final JPopupMenu optionsMenu = new JPopupMenu();
+        renderingFilterOptionsButton = GuiUtils.Buttons.OptionsButton(GLYPH.DISPLAY, 1f, optionsMenu);
+        GuiUtils.addTooltip(renderingFilterOptionsButton, "More options for display filters");
+
+        JMenuItem jmi = new JMenuItem("Deselect All", IconFactory.menuIcon(GLYPH.SQUARE));
+        jmi.addActionListener(e -> {
+            // setSelected() fires each control's own ItemListener, which updates plugin/prefs
+            showPathsSelected.setSelected(false);
+            onlyActiveCTposition.setSelected(false);
+            partsNearbyCSpinner.setSelected(false);
+            showStatus("Display filters unselected", true);
+        });
+        optionsMenu.add(jmi);  // skip registerInCommandFinder. Not worth it!?
+        jmi = new JMenuItem("Select All", IconFactory.menuIcon('\uf14a', false));
+        jmi.addActionListener(e -> {
+            // setSelected() fires each control's own ItemListener, which updates plugin/prefs
+            showPathsSelected.setSelected(true);
+            onlyActiveCTposition.setSelected(true);
+            partsNearbyCSpinner.setSelected(true);
+            showStatus("All display filters selected", true);
+        });
+        optionsMenu.add(jmi); // skip registerInCommandFinder. Not worth it!?
+        optionsMenu.addSeparator();
+        jmi = new JMenuItem("Adjust Out-of-Plane Opacity...", IconFactory.menuIcon(GLYPH.TOOL));
+        jmi.setToolTipText(InternalUtils.hotKeyLabel(
+                "Adjust display settings for out-of-plane<br>nodes (filter 2) in the Options tab", "2"));
+        jmi.addActionListener(e -> {
+            selectTab("Options");
+            // Queued after selectTab()'s own invokeLater, so the tab is already showing by the time focus is requested
+            SwingUtilities.invokeLater(() -> {
+                if (transparencyOutOfBoundsSpinner.getEditor() instanceof JSpinner.DefaultEditor de) {
+                    de.getTextField().requestFocusInWindow();
+                    de.getTextField().selectAll();
+                }
+            });
+        });
+        registerInCommandFinder(jmi, null, "Options Tab",  "Path Rendering"); // register actual location of transparencyOutOfBoundsSpinner
+        optionsMenu.add(jmi);
+        optionsMenu.addSeparator();
+        jmi = new JMenuItem("Reset Defaults", IconFactory.menuIcon(GLYPH.UNDO));
+        jmi.addActionListener(e -> {
+            showPathsSelected.setSelected(false);
+            onlyActiveCTposition.setSelected(true);
+            partsNearbyCSpinner.setSelected(false);
+            partsNearbyCSpinner.getSpinner().setValue(DEFAULT_NEARBY_ZSLICES);
+            showStatus("Display filters reset", true);
+        });
+        optionsMenu.add(jmi); // skip registerInCommandFinder. Not worth it!?
+        return renderingFilterOptionsButton;
     }
 
     private JPanel colorOptionsPanel() {
@@ -4553,8 +4620,8 @@ public class SNTUI extends JDialog {
     private JButton resetPathColorsOptionsButton(final ColorChooserButton selected, final ColorChooserButton deselected,
             final JCheckBox enforceDefaultColorsCheckbox) {
         final JPopupMenu optionsMenu = new JPopupMenu();
-        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(GLYPH.DROPLET, 1f, optionsMenu);
-        GuiUtils.addTooltip(optionsButton, "More options for default path colors");
+        pathColorsOptionsButton = GuiUtils.Buttons.OptionsButton(GLYPH.DROPLET, 1f, optionsMenu);
+        GuiUtils.addTooltip(pathColorsOptionsButton, "More options for default path colors");
         JMenuItem jmi = new JMenuItem("Swap Selected/Deselected Colors", IconFactory.menuIcon(GLYPH.ARROWS_LR));
         jmi.addActionListener(e -> {
             final Color currentSelected = selected.getSelectedColor();
@@ -4604,7 +4671,7 @@ public class SNTUI extends JDialog {
         });
         registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
         optionsMenu.add(jmi);
-        return optionsButton;
+        return pathColorsOptionsButton;
     }
 
     private JPanel snappingPanel() {
@@ -4615,7 +4682,7 @@ public class SNTUI extends JDialog {
         useSnapWindow.addItemListener(listener);
         tracingOptionsPanel.add(useSnapWindow);
 
-        snapWindowXYsizeSpinner = GuiUtils.integerSpinner(plugin.cursorSnapWindowXY * 2,
+        snapWindowXYsizeSpinner = GuiUtils.Fields.integerSpinner(plugin.cursorSnapWindowXY * 2,
                 SNT.MIN_SNAP_CURSOR_WINDOW_XY, SNT.MAX_SNAP_CURSOR_WINDOW_XY * 2, 2, false);
         snapWindowXYsizeSpinner
                 .addChangeListener(e -> plugin.cursorSnapWindowXY = (int) snapWindowXYsizeSpinner.getValue() / 2);
@@ -4624,7 +4691,7 @@ public class SNTUI extends JDialog {
         final JLabel z_spinner_label = GuiUtils.leftAlignedLabel("  Z ", true);
         z_spinner_label.setBorder(new EmptyBorder(0, 2, 0, 0));
         tracingOptionsPanel.add(z_spinner_label);
-        snapWindowZsizeSpinner = GuiUtils.integerSpinner(plugin.cursorSnapWindowZ * 2,
+        snapWindowZsizeSpinner = GuiUtils.Fields.integerSpinner(plugin.cursorSnapWindowZ * 2,
                 SNT.MIN_SNAP_CURSOR_WINDOW_Z, SNT.MAX_SNAP_CURSOR_WINDOW_Z * 2, 2, false);
         snapWindowZsizeSpinner.setEnabled(isStackAvailable());
         snapWindowZsizeSpinner
@@ -4700,8 +4767,8 @@ public class SNTUI extends JDialog {
         checkboxPanel.add(algorithmChoiceLabel);
 
         final JPopupMenu optionsMenu = new JPopupMenu();
-        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MATH, 1f, optionsMenu);
-        GuiUtils.addTooltip(optionsButton, "Algorithm settings");
+        aStarOptionsButton = GuiUtils.Buttons.OptionsButton(GLYPH.MATH, 1f, optionsMenu);
+        GuiUtils.addTooltip(aStarOptionsButton, "Algorithm settings");
         optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
         final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
@@ -4880,7 +4947,7 @@ public class SNTUI extends JDialog {
                 "https://imagej.net/plugins/snt/manual#algorithm-settings"));
         aStarPanel = new JPanel(new BorderLayout());
         aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
-        aStarPanel.add(optionsButton, BorderLayout.EAST);
+        aStarPanel.add(aStarOptionsButton, BorderLayout.EAST);
         return aStarPanel;
     }
 
@@ -5224,8 +5291,8 @@ public class SNTUI extends JDialog {
             workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, IconFactory.secondaryColor(), 1f));
             workspaceIndicator.setToolTipText("Current workspace:\n" + plugin.getPrefs().getWorkspaceDir().getAbsolutePath() + "\nClick to change");
         } else {
-            GuiUtils.queueNotice("<HTML><b>Workspace directory invalid or unset.</b><br>" +
-                    "Click here to configure a new path.", null, this::getOrPromptForWorkspace, GuiUtils.PendingNotice.WARN);
+            GuiUtils.Notices.queueNotice("<HTML><b>Workspace directory invalid or unset.</b><br>" +
+                    "Click here to configure a new path.", null, this::getOrPromptForWorkspace, GuiUtils.Notices.PendingNotice.WARN);
             workspaceIndicator.setIcon(IconFactory.buttonIcon(GLYPH.HOUSE_LAPTOP, IconFactory.disabledColor(), 1f));
             workspaceIndicator.setToolTipText("Workspace unavailable.\nClick to configure");
         }
@@ -5325,7 +5392,7 @@ public class SNTUI extends JDialog {
         final Viewer3D recViewer = getReconstructionViewer(false);
         if (recViewer != null)
             recViewer.setLookAndFeel(lookAndFeelName);
-        GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
+        GuiUtils.LAF.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
     }
 
     /**
@@ -5358,8 +5425,8 @@ public class SNTUI extends JDialog {
                 "Do not remind me again", true); // Default checkbox to true
 
         if (result == null) {
-            GuiUtils.queueNotice("<HTML><b>Workspace directory invalid or unset.</b><br>" +
-                    "Click here to configure a new path.", null, this::getOrPromptForWorkspace, GuiUtils.PendingNotice.WARN);
+            GuiUtils.Notices.queueNotice("<HTML><b>Workspace directory invalid or unset.</b><br>" +
+                    "Click here to configure a new path.", null, this::getOrPromptForWorkspace, GuiUtils.Notices.PendingNotice.WARN);
             return null; // Dialog closed/canceled
         }
         final String choice = (String) result[0];
@@ -5409,7 +5476,7 @@ public class SNTUI extends JDialog {
             GuiUtils.notifyIfNewVersion(0);
             GuiUtils.notifyIfOldVersion(5000); // check after 5s to avoid slowing startup
             if (SNTPrefs.firstRun()) {
-                GuiUtils.queueNotice("<HTML><b>You seem to be running SNT for the first time.</b><br>" +
+                GuiUtils.Notices.queueNotice("<HTML><b>You seem to be running SNT for the first time.</b><br>" +
                         "Would you like to run the Onboarding tour now?", null, () -> showCallouts(true));
             }
             getPrefs().set("def-gui-width", ""+getWidth());
@@ -5426,9 +5493,9 @@ public class SNTUI extends JDialog {
         if (plugin.getPrefs().getTemp("autotracing-prompt-armed", true)) {
             if (accessToValidImagePlus() && plugin.getImagePlus().isVisible() && ImpUtils.isBinary(plugin.getImagePlus())) {
                 final String impTitle = plugin.getImagePlus().getTitle();
-                GuiUtils.queueNotice(
+                GuiUtils.Notices.queueNotice(
                         String.format("<HTML><b>%s is eligible for fully automated reconstruction.</b><br>"
-                                + "Click here to attempt it now.", GuiUtils.escapeHtml(impTitle)),
+                                + "Click here to attempt it now.", GuiUtils.Text.escapeHtml(impTitle)),
                         null, () -> {
                             if (!accessToValidImagePlus() || !ImpUtils.isBinary(plugin.getImagePlus()))
                                 guiError(String.format("%s no longer available.", impTitle));
@@ -5455,9 +5522,7 @@ public class SNTUI extends JDialog {
     }
 
     private JButton resetButton(final String description) {
-        final JButton b = GuiUtils.Buttons.undo();
-        b.setToolTipText("Reset " + description);
-        return b;
+        return GuiUtils.Buttons.undo("Reset " + description);
     }
 
     /* returns true if min/max successfully set by user */
@@ -6251,7 +6316,7 @@ public class SNTUI extends JDialog {
     private void updateSecLayerActionButtonIcon(final boolean active) {
         if (secLayerActionButton == null) return;
         secLayerActionButton.setIcon(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.LAYERS, 1f,
-                (active) ? GuiUtils.getSelectionColor() : IconFactory.defaultColor()));
+                (active) ? GuiUtils.Colors.selectionColor() : IconFactory.defaultColor()));
     }
 
     boolean noSecondaryDataAvailableError() {
@@ -6872,7 +6937,7 @@ public class SNTUI extends JDialog {
                         return;
                     }
                     tabbedPane.setBackgroundAt(tabIndex,
-                            (currentTick % 2 == 1) ? GuiUtils.warningColor() : originalColor);
+                            (currentTick % 2 == 1) ? GuiUtils.Colors.warningColor() : originalColor);
                 }
             });
             blinkTimer.start();

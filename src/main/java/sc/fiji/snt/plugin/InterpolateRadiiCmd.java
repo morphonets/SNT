@@ -57,7 +57,7 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 
 	static {
 		HEADER = "<HTML><body><div style='width:"
-				+ GuiUtils.renderedWidth("Some nodes in a path may not have valid radius (e.g., if refining ")
+				+ GuiUtils.Text.renderedWidth("Some nodes in a path may not have valid radius (e.g., if refining ")
 				+ ";'>";
 	}
 
