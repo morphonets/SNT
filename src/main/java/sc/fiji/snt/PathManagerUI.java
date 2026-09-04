@@ -5961,11 +5961,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private PointInImage getRefLocation() {
-            final String clipText = GuiUtils.getClipboardText();
+            final String clipText = GuiUtils.Text.getClipboard();
             final String pos = guiUtils.getString(
                     "Nearest location XYZ coordinates (comma/space separated): ",
                     "Nearest Node To Location...",
-                    (clipText != null && clipText.chars().anyMatch(Character::isDigit)) ? clipText.trim() : null);
+                    (GuiUtils.Text.containsNumber(clipText) && GuiUtils.Text.containsSeparator(clipText)) ? clipText.trim() : null);
             if (pos == null)  return null;
             PointInImage result;
             try {

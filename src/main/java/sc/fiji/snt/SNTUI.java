@@ -199,13 +199,21 @@ public class SNTUI extends JDialog {
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
         final int idx = InternalUtils.getTabIndex(tp, "Bookmarks");
         if (idx == -1) return;
-        final AbstractBigViewer activeViewer = getActiveBigViewer();
-        final JPanel content = (plugin.isStreamMode() && activeViewer != null)
-                ? activeViewer.getMarkerManager().getPanel()
-                : bookmarkManager.getPanel();
+        final JPanel content = resolveActiveBookmarkManager().getPanel();
         if (tp.getComponentAt(idx) != content) {
             tp.setComponentAt(idx, content);
         }
+    }
+
+    /**
+     * Resolves whichever {@link BookmarkManager} is currently relevant: the active viewer's marker manager (Stream mode,
+     * once its frame exists) or this UI's own {@link #bookmarkManager} otherwise. The viewer's manager is created
+     * lazily on first access (see {@link AbstractBigViewer#getMarkerManager()})
+     */
+    private BookmarkManager resolveActiveBookmarkManager() {
+        final AbstractBigViewer activeViewer = getActiveBigViewer();
+        return (plugin.isStreamMode() && activeViewer != null && activeViewer.getViewerFrame() != null)
+                ? activeViewer.getMarkerManager() : bookmarkManager;
     }
 
     private final GuiListener listener;
@@ -813,8 +821,7 @@ public class SNTUI extends JDialog {
      * @return the {@link BookmarkManager} associated with this UI
      */
     public BookmarkManager getBookmarkManager() {
-        final AbstractBigViewer activeViewer = getActiveBigViewer();
-        return (plugin.isStreamMode() && activeViewer != null) ? activeViewer.getMarkerManager() : bookmarkManager;
+        return resolveActiveBookmarkManager();
     }
 
     /**
@@ -7069,16 +7076,16 @@ public class SNTUI extends JDialog {
     private void addFileDrop(final Component component, final GuiUtils guiUtils) {
         new FileDrop(component, files -> {
             if (files.length == 0) { // Is this even possible?
-                guiError("Dropped file(s) not recognized.");
+                guiUtils.error("Dropped file(s) not recognized.");
                 return;
             }
             if (files.length > 1) {
-                guiError("Ony a single file (or directory) can be imported using drag-and-drop.");
+                guiUtils.error("Ony a single file (or directory) can be imported using drag-and-drop.");
                 return;
             }
             final int type = InternalUtils.getImportActionType(files[0]);
             if (type == -1) {
-                guiError(files[0].getName() + " cannot be imported using drag-and-drop.");
+                guiUtils.error(files[0].getName() + " cannot be imported using drag-and-drop.");
                 return;
             }
             new ImportAction(type, files[0]).run();

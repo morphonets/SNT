@@ -1036,19 +1036,9 @@ public abstract class AbstractBigViewer {
             return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    // Whenever an SNTUI is present, redirect to its "Bookmarks" tab instead of
-                    // opening this viewer's own floating dialog. In Stream mode, SNTUI swaps that
-                    // tab's content to show this viewer's own marker panel (see
-                    // SNTUI#syncBookmarksTabContent). In classic mode (e.g. a Bvv/Bdv opened via the
-                    // "Open BVV/BDV" buttons), this viewer has no marker entry point at all (the M
-                    // key is disabled -- see #blockMarkerPlacement(), called from Bvv/Bdv's own
-                    // "snt-add-marker" bindings), so the tab shown is just SNTUI's regular,
-                    // already-populated Bookmarks tab.
-                    if (snt != null && snt.getUI() != null) {
-                        snt.getUI().selectTab("Bookmarks");
-                    } else {
-                        getMarkerManager().toggleViewerPanel();
-                    }
+                    // The SNTUI-tab-vs-floating-dialog redirect lives in BookmarkManager#toggleViewerPanel()
+                    // itself, so it also applies to direct/scripted calls, not just this menu action
+                    getMarkerManager().toggleViewerPanel();
                 }
             };
         }

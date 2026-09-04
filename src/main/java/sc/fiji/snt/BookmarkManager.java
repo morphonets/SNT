@@ -123,6 +123,20 @@ public class BookmarkManager {
     }
 
     /**
+     * Returns the {@link GuiUtils} to use for a dialog triggered right now by this panel, re-resolved on every call
+     * instead of relying on the window captured at construction. This avoids GuiUtils' parent going stale the moment
+     * the panel is reparented e.g. when the viewer's marker manager panel gets embedded into an SNTUI tab in stream
+     * mode.
+     */
+    private GuiUtils getGuiUtils() {
+        final Component c = (panel != null) ? panel : table;
+        final Window current = (c != null) ? SwingUtilities.getWindowAncestor(c) : null;
+        if (current != null && guiUtils.getParent() == current) return guiUtils;
+        final SNT snt = snt();
+        return (snt != null) ? new GuiUtils(snt.getActiveWindow()) : guiUtils;
+    }
+
+    /**
      * Whether this panel is destined to live inside {@link SNTUI} "Bookmarks" tab, as opposed
      * to a standalone floating dialog: true whenever an SNTUI is present.
      */
@@ -206,8 +220,15 @@ public class BookmarkManager {
         viewerToolbarButtons.add(component);
     }
 
-    /** Shows or hides the floating viewer marker panel. */
+    /**
+     * Shows or hides this marker manager's UI: redirects to SNTUI's "Bookmarks" tab whenever when SNTUI is present
+     * (e.g., in stream mode, see {@link #insideSNTUI()}), otherwise toggles the floating viewer dialog.
+     */
     public void toggleViewerPanel() {
+        if (insideSNTUI()) {
+            snt().getUI().selectTab("Bookmarks");
+            return;
+        }
         final JDialog f = getViewerDialogPanel();
         guiUtils.setParent(f);
         f.setVisible(!f.isVisible());
@@ -370,7 +391,7 @@ public class BookmarkManager {
                     if (noBookmarksError()) return;
                     final int row = table.getSelectedRow();
                     if (row == -1) {
-                        guiUtils.error("No bookmark selected.");
+                        getGuiUtils().error("No bookmark selected.");
                     } else {
                         goToRow(row);
                     }
@@ -439,14 +460,14 @@ public class BookmarkManager {
             if (noBookmarksError()) return;
             final int[] rows = table.getSelectedRows();
             if (rows.length == 0) {
-                guiUtils.error("No bookmark selected.");
+                getGuiUtils().error("No bookmark selected.");
             } else if (rows.length == 1) {
                 final int modelCol = table.convertColumnIndexToView(1);
                 if (table.getRowCount() > 10)
                     table.scrollRectToVisible(new Rectangle(table.getCellRect(rows[0], modelCol, true)));
                 table.editCellAt(rows[0], modelCol);
             } else {
-                final String seed = guiUtils.getString(
+                final String seed = getGuiUtils().getString(
                         "Common label to be applied to " + rows.length + " entries:", // msg
                         "Bulk Renaming", // title
                         (sntui != null) ? "Bookmark" : "Marker"); // default value
@@ -481,11 +502,11 @@ public class BookmarkManager {
             mi.addActionListener(e -> {
                 if (noBookmarksError()) return;
                 final int[] modelRows = getSelectedModelRowsAllIfNone();
-                final Double size = guiUtils.getDouble("Marker size (in calibrated units):",
+                final Double size = getGuiUtils().getDouble("Marker size (in calibrated units):",
                         "Marker Size", model.getDataList().get(modelRows[modelRows.length-1]).size);
                 if (size == null) return;
                 if (size.isNaN() || size < 0) {
-                    guiUtils.error("Invalid value: Size must be a non-negative value.");
+                    getGuiUtils().error("Invalid value: Size must be a non-negative value.");
                 } else {
                     for (final int modelRow : modelRows)
                         model.getDataList().get(modelRow).size = size.floatValue();
@@ -516,7 +537,7 @@ public class BookmarkManager {
             if (noBookmarksError()) return;
             int[] modelRows = getSelectedModelRowsAllIfNone();
             if (modelRows.length == table.getRowCount()) {
-                if (!guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
+                if (!getGuiUtils().getConfirmation("Delete all bookmarks?", "Delete All?")) {
                     return;
                 }
                 reset();
@@ -552,7 +573,7 @@ public class BookmarkManager {
                 "<HTML>Group entries sharing the <b>exact same label</b>",
                 "<HTML>Group entries by common <b>starting text</b>",
                 "<HTML>Group entries by common <b>ending text</b>"};
-        final String choice = guiUtils.getChoice("How to apply distinct color tags?",
+        final String choice = getGuiUtils().getChoice("How to apply distinct color tags?",
                 "Assign Grouping Tags", options, options[0]);
         if (choice == null) return; // prompt canceled
 
@@ -599,7 +620,7 @@ public class BookmarkManager {
                         : String.format("%d entries grouped into %d unique group(s)%s",
                                 modelRows.length - skipped, groupsMap.size(),
                                 (skipped > 0) ? String.format(", %d skipped (no usable label)", skipped) : ".");
-            guiUtils.centeredMsg(msg, "Group Tagging Complete");
+            getGuiUtils().centeredMsg(msg, "Group Tagging Complete");
         }
         if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
     }
@@ -661,16 +682,16 @@ public class BookmarkManager {
     private void colocalizeBookmarks() {
         if (noBookmarksError()) return;
         if (viewer != null) {
-            guiUtils.error("Colocalization is not available in BVV mode.");
+            getGuiUtils().error("Colocalization is not available in BVV mode.");
             return;
         }
         final List<Bookmark> candidates = getSelectedBookmarks();
         final long distinctChannels = candidates.stream().mapToInt(b -> b.c).distinct().count();
         if (distinctChannels < 2) {
-            guiUtils.error("Colocalization requires bookmarks from at least 2 channels.");
+            getGuiUtils().error("Colocalization requires bookmarks from at least 2 channels.");
             return;
         }
-        final Double threshold = guiUtils.getDouble(
+        final Double threshold = getGuiUtils().getDouble(
                 "<HTML>Max. distance between colocalized bookmarks (physical units):",
                 "Colocalize Bookmarks", 5.0);
         if (threshold == null || threshold <= 0) return;
@@ -693,10 +714,10 @@ public class BookmarkManager {
         final List<Bookmark> candidates = getSelectedBookmarks();
         final String obj = (viewer == null) ? "bookmarks" : "markers";
         if (candidates.size() < 2) {
-            guiUtils.error("At least 2 "+ obj + " are required for merging.");
+            getGuiUtils().error("At least 2 "+ obj + " are required for merging.");
             return;
         }
-        final Double threshold = guiUtils.getDouble(
+        final Double threshold = getGuiUtils().getDouble(
                 "<HTML>Max. distance between "+ obj + " to be merged (physical units):",
                 "Merge Locations", 5.0);
         if (threshold == null || threshold <= 0) return;
@@ -751,7 +772,7 @@ public class BookmarkManager {
         if (noBookmarksError()) return;
         final List<Bookmark> bookmarks = getSelectedBookmarks();
         if (bookmarks.size() < 2) {
-            guiUtils.error("Not enough entries selected.");
+            getGuiUtils().error("Not enough entries selected.");
         } else {
             final NodeStatistics<Bookmark> nodeStatistics = new NodeStatistics<>(bookmarks);
             nodeStatistics.getHistogram(NodeStatistics.NEAREST_NEIGHBOR_DISTANCE).show("NNDistances");
@@ -765,7 +786,7 @@ public class BookmarkManager {
         item.addActionListener(e -> {
             if (noBookmarksError()) return;
             final SNTPoint input = SNTPoint.average(getSelectedBookmarks());
-            final SNTPoint ref = guiUtils.getCoordinates("", "Reference Point (Physical Distances)",
+            final SNTPoint ref = getGuiUtils().getCoordinates("", "Reference Point (Physical Distances)",
                     input, 2, null);
             if (ref != null) sortByPosition(new Bookmark("reference", ref.getX(), ref.getY(), ref.getZ(), 1, 1));
         });
@@ -775,7 +796,7 @@ public class BookmarkManager {
             if (noBookmarksError()) return;
             final List<Bookmark> selection = getSelectedBookmarks();
             if (selection.size() > 1) {
-                guiUtils.error("Select a single row to be used as reference location and re-run.");
+                getGuiUtils().error("Select a single row to be used as reference location and re-run.");
             } else {
                 sortByPosition(selection.getFirst());
             }
@@ -846,11 +867,11 @@ public class BookmarkManager {
     private void applyMergeResult(final MergeResult result, final String dialogTitle,
                                   final String verb, final String recordSuffix) {
         if (result.merged.isEmpty()) {
-            guiUtils.error("No bookmarks could be " + verb + " within the specified distance.");
+            getGuiUtils().error("No bookmarks could be " + verb + " within the specified distance.");
             return;
         }
         final String suffix = (result.merged.size()==1) ? " entry" : " entries";
-        if (!guiUtils.getConfirmation(
+        if (!getGuiUtils().getConfirmation(
                 result.consumed.size() + " bookmarks will be replaced by "
                         + result.merged.size() + " " + verb +  suffix + ". Proceed?",
                 dialogTitle)) {
@@ -883,7 +904,7 @@ public class BookmarkManager {
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final File file = (sntui != null) ? sntui.openFile("csv")
-                    : guiUtils.getFile(new File(SNTPrefs.lastKnownDir(), "Markers.csv"), "csv");
+                    : getGuiUtils().getFile(new File(SNTPrefs.lastKnownDir(), "Markers.csv"), "csv");
             if (file != null) {
                 recordCmd("load(\"" + file.getAbsolutePath() + "\")");
                 loadBookmarksFromFile(file);
@@ -942,7 +963,7 @@ public class BookmarkManager {
         final boolean nag = sntui.plugin.getPrefs().getTemp("clear-imported-overlay-nag", true);
         boolean wipe = sntui.plugin.getPrefs().getTemp("clear-imported-overlay", true);
         if (nag) {
-            final boolean[] options = guiUtils.getPersistentConfirmation(
+            final boolean[] options = getGuiUtils().getPersistentConfirmation(
                     "Now that ROIs have been imported as bookmarks, remove them from the image overlay? "
                             + "(This clears all ROIs from the overlay, including any drawn by other tools.)",
                     "Remove Imported Overlay?");
@@ -1012,14 +1033,14 @@ public class BookmarkManager {
         if (noBookmarksError()) return;
         final File saveFile = (file != null) ? file
                 : (sntui != null) ? sntui.saveFile("Export Bookmarks to CSV...", "SNT_Bookmarks.csv", "csv")
-                : guiUtils.getSaveFile("Export Markers to CSV...", new File(SNTPrefs.lastKnownDir(), "Markers.csv"), "csv");
+                : getGuiUtils().getSaveFile("Export Markers to CSV...", new File(SNTPrefs.lastKnownDir(), "Markers.csv"), "csv");
         if (saveFile != null) {
             recordCmd("save(\"" + saveFile.getAbsolutePath() + "\")");
             if (saveBookMarksToFile(saveFile)) {
                 if (sntui != null) sntui.showStatus("Export complete.", true);
             } else {
                 if (sntui != null) sntui.showStatus("Exporting failed.", true);
-                guiUtils.error("Exporting failed. See Console for details.");
+                getGuiUtils().error("Exporting failed. See Console for details.");
             }
         }
     }
@@ -1210,11 +1231,11 @@ public class BookmarkManager {
                     noImageOpenError();
                     return;
                 }
-                final String clipText = GuiUtils.getClipboardText();
-                final String pos = guiUtils.getString(
+                final String clipText = GuiUtils.Text.getClipboard();
+                final String pos = getGuiUtils().getString(
                         "Location XYZ coordinates, in physical units (comma/space separated): ",
                         "Go To Location...",
-                        (clipText != null && clipText.chars().anyMatch(Character::isDigit)) ? clipText.trim() : null);
+                        (GuiUtils.Text.containsNumber(clipText) && GuiUtils.Text.containsSeparator(clipText)) ? clipText.trim() : null);
                 if (pos == null) return;
                 try {
                     final PointInImage pim = SNTPoint.fromString(pos);
@@ -1235,7 +1256,7 @@ public class BookmarkManager {
 
                     }
                 } catch (final Throwable ex) {
-                    guiUtils.error("Could not extract a valid location from \"" + pos + "\".");
+                    getGuiUtils().error("Could not extract a valid location from \"" + pos + "\".");
                 }
             }
         };
@@ -1270,7 +1291,7 @@ public class BookmarkManager {
             final String msg = (viewer != null)
                     ? "No markers exist. Use the M key to place markers."
                     : "No bookmarks exist. To create one, right-click on the image and choose \"Bookmark cursor location\" (Shift+B).";
-            guiUtils.error(msg);
+            getGuiUtils().error(msg);
             return true;
         }
         return false;
@@ -1363,7 +1384,7 @@ public class BookmarkManager {
         try {
             model.populateFromFile(file);
         } catch (final Exception ex) {
-            guiUtils.error(GuiUtils.friendlyErrorMessage(ex) + ".");
+            getGuiUtils().error(GuiUtils.friendlyErrorMessage(ex) + ".");
             SNTUtils.error("loadBookmarksFromFile() failure", ex);
         }
     }
@@ -1372,7 +1393,7 @@ public class BookmarkManager {
         try {
             model.populateFromFile(filePathOrURL);
         } catch (final Exception ex) {
-            guiUtils.error(GuiUtils.friendlyErrorMessage(ex) + ".");
+            getGuiUtils().error(GuiUtils.friendlyErrorMessage(ex) + ".");
             SNTUtils.error("loadBookmarksFromFile() failure", ex);
         }
     }

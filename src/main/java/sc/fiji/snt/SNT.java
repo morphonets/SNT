@@ -5059,6 +5059,11 @@ public class SNT extends MultiDThreePanes implements
 	protected Component getActiveWindow() {
 		if (!isUIready()) return null;
 		if (ui.isActive()) return ui;
+		final sc.fiji.snt.viewer.AbstractBigViewer activeViewer = ui.getActiveBigViewer();
+		if (activeViewer != null) {
+			final JFrame viewerFrame = activeViewer.getViewerFrame();
+			if (viewerFrame != null && viewerFrame.isActive()) return viewerFrame;
+		}
 		final Window[] images = { xy_window, xz_window, zy_window };
 		for (final Window win : images) {
 			if (win != null && win.isActive()) return win;

@@ -823,6 +823,10 @@ public class GuiUtils {
 			return checkbox.isSelected();
 	}
 
+	public Component getParent() {
+		return parent;
+	}
+
 	public String getString(final String promptMsg, final String promptTitle,
 							final String defaultValue)
 	{
@@ -1295,13 +1299,37 @@ public class GuiUtils {
 		return (File) getOpenFileChooserResult(chooser);
 	}
 
+	/**
+	 * Shows a "Save" dialog, honoring {@link SNTPrefs#getUseNativeFileChooser()}: either SNT's
+	 * classic {@link FileChooser} or FlatLaf's {@link SystemFileChooser} (native OS dialog).
+	 *
+	 * @param title             the dialog title
+	 * @param file              a proposed file (name and/or directory) to pre-select, or {@code null}
+	 * @param allowedExtensions the choosable extension(s) offered in the dialog's filter; if a
+	 *                          single extension is given, it is appended to the chosen file if the
+	 *                          user typed a name without it
+	 * @return the chosen {@code File}, or {@code null} if the dialog was cancelled
+	 */
 	public File getSaveFile(final String title, final File file, final String... allowedExtensions) {
+		final FileNameExtensionFilter filter = (allowedExtensions == null || allowedExtensions.length == 0) ? null
+				: new FileNameExtensionFilter(
+						"Files of type " + String.join(",", allowedExtensions).toUpperCase(), allowedExtensions);
+		File chosenFile = (SNTPrefs.getUseNativeFileChooser()) ? showNativeSaveDialog(title, file, filter)
+				: showClassicSaveDialog(title, file, filter);
+		if (chosenFile != null && allowedExtensions != null && allowedExtensions.length == 1) {
+			final String path = chosenFile.getAbsolutePath();
+			final String extension = allowedExtensions[0];
+			if (!path.endsWith(extension))
+				chosenFile = new File(path + extension);
+		}
+		SNTPrefs.setLastKnownDir(chosenFile); // null allowed
+		return chosenFile;
+	}
+
+	private File showClassicSaveDialog(final String title, final File file, final FileNameExtensionFilter filter) {
 		File chosenFile = null;
 		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY);
-		if (allowedExtensions != null && allowedExtensions.length > 0) {
-			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
-					"Files of type " + String.join(",", allowedExtensions).toUpperCase(), allowedExtensions));
-		}
+		if (filter != null) chooser.addChoosableFileFilter(filter);
 		chooser.setFileFilter(chooser.getAcceptAllFileFilter());
 		// HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
 		final boolean focused = parent instanceof Window && parent.hasFocus();
@@ -1310,13 +1338,6 @@ public class GuiUtils {
 		if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
 			chosenFile = chooser.getSelectedFile();
 		}
-		if (chosenFile != null && allowedExtensions != null && allowedExtensions.length == 1) {
-			final String path = chosenFile.getAbsolutePath();
-			final String extension = allowedExtensions[0];
-			if (!path.endsWith(extension))
-				chosenFile = new File(path + extension);
-		}
-		SNTPrefs.setLastKnownDir(chosenFile); // null allowed
 		if (focused)
 			((Window) parent).toFront();
 		return chosenFile;
@@ -1370,9 +1391,9 @@ public class GuiUtils {
 	 * classic {@link FileChooser} (with its accessory toolbar and drag-and-drop support) or
 	 * FlatLaf's {@link SystemFileChooser} (native OS dialog). Only intended for the simple,
 	 * extension-filter-based dialogs built by the {@code getXxxFile(s)} methods above - dialogs that
-	 * need custom {@code FileFilter}s, {@code FILES_AND_DIRECTORIES} selection, or drag-and-drop
-	 * (e.g. {@link #getSaveFile}, {@link #fileChooser}, {@link #getDnDFileChooser()} and their
-	 * callers) always use the classic chooser and are not affected by this method or the preference.
+	 * need custom {@code FileFilter}s or {@code FILES_AND_DIRECTORIES} selection (e.g. {@link
+	 * #getOpenFileOrDirectory}, {@link #fileChooser}, {@link #getDnDFileChooser()} and their other
+	 * callers) should use the classic chooser and may not be affected by this method or the preference.
 	 *
 	 * @param title          the dialog title
 	 * @param selectionMode  {@code JFileChooser.FILES_ONLY} or {@code JFileChooser.DIRECTORIES_ONLY}
@@ -1452,6 +1473,56 @@ public class GuiUtils {
 		}
 		if (focused) ((Window) parent).toFront();
 		return null;
+	}
+
+	/**
+	 * As {@link #showNativeOpenDialog}, but for a "Save" dialog. Mirrors {@link
+	 * #showClassicSaveDialog}'s behavior (single file, no {@code FILES_AND_DIRECTORIES} support).
+	 */
+	private File showNativeSaveDialog(final String title, final File preset, final FileNameExtensionFilter filter) {
+		// Unlike JFileChooser.showSaveDialog(), SystemFileChooser.showSaveDialog() throws
+		// IllegalStateException if not called on the EDT
+		if (!SwingUtilities.isEventDispatchThread()) {
+			final File[] result = new File[1];
+			try {
+				SwingUtilities.invokeAndWait(() -> result[0] = showNativeSaveDialogOnEDT(title, preset, filter));
+			} catch (final InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return null;
+			} catch (final java.lang.reflect.InvocationTargetException e) {
+				SNTUtils.error("Native file dialog failed", e.getCause());
+				return null;
+			}
+			return result[0];
+		}
+		return showNativeSaveDialogOnEDT(title, preset, filter);
+	}
+
+	private File showNativeSaveDialogOnEDT(final String title, final File preset,
+			final FileNameExtensionFilter filter) {
+		final SystemFileChooser fileChooser = new SystemFileChooser();
+		fileChooser.setDialogTitle(title);
+		fileChooser.setFileSelectionMode(SystemFileChooser.FILES_ONLY);
+		if (filter != null) {
+			fileChooser.addChoosableFileFilter(
+					new SystemFileChooser.FileNameExtensionFilter(filter.getDescription(), filter.getExtensions()));
+		}
+		if (preset != null) {
+			if (preset.getParentFile() != null) fileChooser.setCurrentDirectory(preset.getParentFile());
+			fileChooser.setSelectedFile(preset);
+		}
+		// HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
+		final boolean focused = parent instanceof Window && parent.hasFocus();
+		if (focused) ((Window) parent).toBack();
+		File result = null;
+		if (fileChooser.showSaveDialog(parent) == SystemFileChooser.APPROVE_OPTION) {
+			// NB: unlike JFileChooser, getSelectedFiles() returns the selection in single-selection
+			// mode too - see FlatLaf's SystemFileChooser docs (see showNativeOpenDialogOnEDT)
+			final File[] selected = fileChooser.getSelectedFiles();
+			result = (selected.length > 0) ? selected[0] : null;
+		}
+		if (focused) ((Window) parent).toFront();
+		return result;
 	}
 
 	private Object getOpenFileChooserResult(final JFileChooser fileChooser) {
@@ -2448,18 +2519,6 @@ public class GuiUtils {
 			((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
 		else if (rootPaneContainerOrWindow instanceof Window)
 			((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
-	}
-
-	public static String getClipboardText() {
-		try {
-			final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-			final Transferable transferable = clipboard.getContents(null);
-			if (transferable != null && transferable.isDataFlavorSupported(DataFlavor.stringFlavor))
-				return (String) transferable.getTransferData(DataFlavor.stringFlavor);
-		} catch (final IOException | UnsupportedFlavorException e) {
-			return null;
-		}
-		return null;
 	}
 
 	public static void enableComponents(final java.awt.Container container,
@@ -5720,6 +5779,44 @@ public class GuiUtils {
 			}
 			return label;
 		}
+
+		public static boolean containsNumber(final String text) {
+			if (text == null) return false;
+			final int len = text.length();
+			int i = 0;
+			while (i < len) {
+				if (!Character.isDigit(text.charAt(i))) {
+					i++;
+					continue;
+				}
+				final int start = i;
+				while (i < len && Character.isDigit(text.charAt(i))) i++;
+				// run is [start, i); exclude only if trapped by letters on both sides
+				final boolean leftLetter = start > 0 && Character.isLetter(text.charAt(start - 1));
+				final boolean rightLetter = i < len && Character.isLetter(text.charAt(i));
+				if (!(leftLetter && rightLetter)) return true;
+			}
+			return false;
+		}
+
+		public static boolean containsSeparator(final String text) {
+			if (text == null) return false;
+			return text.contains(",") || text.contains(" ") || text.contains("\t") || text.contains(";")
+					|| text.contains("|") || text.contains("\n");
+		}
+
+		public static String getClipboard() {
+			try {
+				final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+				final Transferable transferable = clipboard.getContents(null);
+				if (transferable != null && transferable.isDataFlavorSupported(DataFlavor.stringFlavor))
+					return (String) transferable.getTransferData(DataFlavor.stringFlavor);
+			} catch (final IOException | UnsupportedFlavorException e) {
+				return null;
+			}
+			return null;
+		}
+
 	}
 
 	/** A process-wide, persistent queue of pending notices for a notification-center UI element. */
