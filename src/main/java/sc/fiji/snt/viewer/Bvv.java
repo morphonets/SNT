@@ -373,9 +373,7 @@ public class Bvv extends AbstractBigViewer {
         // added to an existing viewer would otherwise keep BVV's 0-65535 default.
         assert bvvHandle != null;
         final BigVolumeViewer bvvForInit = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
-        SwingUtilities.invokeLater(() ->
-                InitializeViewerState.initBrightness(0.001, 0.999,
-                        bvvForInit.getViewer().state(), bvvForInit.getViewer().getConverterSetups()));
+        initBrightnessSafely(bvvForInit.getViewer().state(), bvvForInit.getViewer().getConverterSetups(), "BVV");
 
         // Group assignment: must run after all channels are added
         final int groupIdx = multiSources.size();
@@ -1447,9 +1445,7 @@ public class Bvv extends AbstractBigViewer {
             resizeCardPanelsAsNeeded(sceneControlsCard);
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
-        SwingUtilities.invokeLater(() ->
-                InitializeViewerState.initBrightness(0.001, 0.999,
-                        bvv.getViewer().state(), bvv.getViewer().getConverterSetups()));
+        initBrightnessSafely(bvv.getViewer().state(), bvv.getViewer().getConverterSetups(), "BVV");
     }
 
     /**
@@ -2204,6 +2200,13 @@ public class Bvv extends AbstractBigViewer {
      */
     public VolumeViewerPanel getViewerPanel() {
         return (currentBvv == null) ? null : currentBvv.getViewer();
+    }
+
+    @Override
+    protected void applyAutoBrightness(final BrightnessScope scope) {
+        final VolumeViewerPanel vp = getViewerPanel();
+        if (vp == null) return;
+        applyBrightnessScope(scope, vp.state(), vp.getConverterSetups(), getCurrentSource(), "BVV");
     }
 
     /**

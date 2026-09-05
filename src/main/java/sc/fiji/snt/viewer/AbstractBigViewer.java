@@ -22,17 +22,23 @@
 
 package sc.fiji.snt.viewer;
 
+import bdv.tools.InitializeViewerState;
+import bdv.tools.brightness.ConverterSetup;
 import bdv.util.Prefs;
 import bdv.viewer.SourceAndConverter;
+import com.formdev.flatlaf.FlatClientProperties;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
+import org.scijava.command.CommandService;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
+import sc.fiji.snt.gui.cmds.BdvRenderingOptionsCmd;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -46,6 +52,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -305,6 +312,21 @@ public abstract class AbstractBigViewer {
      */
     public abstract void resyncCalibrationFromActiveSource();
 
+    /** Scope for {@link #applyAutoBrightness(BrightnessScope)}: which source(s) to recompute. */
+    protected enum BrightnessScope { CURRENT, ACTIVE, ALL }
+
+    /**
+     * Recomputes the display range (brightness/contrast) for the source(s) selected by {@code scope}, from
+     * data percentiles, on a bounded background thread - see {@link #initBrightnessSafely}. Called
+     * automatically with {@link BrightnessScope#ALL} right after a source is first added, and re-invocable
+     * on demand (any scope) via the "Auto Brightness/Contrast" scene-control button (see {@link
+     * #autoBrightnessButton}). Does nothing if this viewer isn't yet backed by an underlying BDV/BVV scene (e.g.
+     * {@code show(...)} hasn't been called).
+     *
+     * @param scope which source(s) to recompute
+     */
+    protected abstract void applyAutoBrightness(BrightnessScope scope);
+
     /**
      * Docks a component at the bottom of a {@link bdv.ui.CardPanel}, below all cards, without a
      * card header. Uses MigLayout's {@code "dock south"} constraint. If the CardPanel's container
@@ -323,6 +345,107 @@ public abstract class AbstractBigViewer {
             container.add(comp);
         }
         container.revalidate();
+    }
+
+    /** Wall-clock budget (seconds) for {@link #initBrightnessSafely}. */
+    private static final long BRIGHTNESS_INIT_TIMEOUT_SECONDS = 30;
+
+    /**
+     * Cumulative cutoff (0-1 fraction) for the low/high ends of the auto-brightness percentile range: 1%/99%.
+     * A general-purpose default, not a formal standard like IJ's  "Auto" B&C button that saturates to 0.35%
+     * (that needs a full histogram, which we won't compute)
+     * {@link #initBrightnessSafely(bdv.viewer.ViewerState, bdv.viewer.ConverterSetups, String)} (expects a 0-1 fraction)
+     * and {@link #initBrightnessSafely(SourceAndConverter, ConverterSetup, int, String)} (expects a 0-100 percentile)
+     */
+    private static final double BRIGHTNESS_CUTOFF_LOW = 0.01; // 1%
+    private static final double BRIGHTNESS_CUTOFF_HIGH = 0.99; // 99%
+
+    /**
+     * Computes and applies a display range from data percentiles ({@link InitializeViewerState#initBrightness})
+     * on a bounded background thread so that a remote N5/Zarr/SPIM data hit by a bad chunk or network stall cannot
+     * block the caller indefinitely (see {@link SNTUtils#runWithTimeout}).
+     * Callers should invoke this off the EDT; a caller that doesn't is still bounded by the timeout, just at the
+     * cost of freezing the UI for up to {@link #BRIGHTNESS_INIT_TIMEOUT_SECONDS} seconds instead o`f indefinitely.
+     * <p>
+     * On timeout or any other failure, the failure is logged and swallowed` rather than thrown: a slow/failed
+     * brightness estimate should never prevent a viewer from opening, or block whatever triggered this call
+     * (initial load, or a manual "Auto Brightness/Contrast" button click).
+     *
+     * @param state  the viewer state to sample and update
+     * @param setups the converter setups whose display ranges are updated
+     * @param label  short, human-readable description of the viewer/dataset (used only in the failure log)
+     */
+    protected static void initBrightnessSafely(final bdv.viewer.ViewerState state,
+            final bdv.viewer.ConverterSetups setups, final String label) {
+        try {
+            SNTUtils.runWithTimeout(() -> {
+                InitializeViewerState.initBrightness(BRIGHTNESS_CUTOFF_LOW, BRIGHTNESS_CUTOFF_HIGH, state, setups);
+                return null;
+            }, BRIGHTNESS_INIT_TIMEOUT_SECONDS, "computing display range for " + label);
+        } catch (final IOException e) {
+            SNTUtils.log("Could not auto-adjust brightness/contrast for " + label + " (" + e.getMessage()
+                    + "); keeping current display range. Use the 'Auto Brightness/Contrast' button to retry.");
+        }
+    }
+
+    /**
+     * Single-source counterpart of {@link #initBrightnessSafely(bdv.viewer.ViewerState,
+     * bdv.viewer.ConverterSetups, String)}, for {@link BrightnessScope#CURRENT}/{@link BrightnessScope#ACTIVE}.
+     * {@link InitializeViewerState}. This samples the source's own data directly via {@link ImgUtils#computePercentile}
+     * (max 100k pixels, regardless of image size) at its coarsest available resolution level
+     */
+    protected static void initBrightnessSafely(final SourceAndConverter<?> source, final ConverterSetup setup,
+            final int timepoint, final String label) {
+        try {
+            SNTUtils.runWithTimeout(() -> {
+                final var spimSource = source.getSpimSource();
+                final int level = Math.max(0, spimSource.getNumMipmapLevels() - 1); // coarsest level
+                @SuppressWarnings("unchecked")
+                final net.imglib2.RandomAccessibleInterval<? extends net.imglib2.type.numeric.RealType<?>> rai =
+                        (net.imglib2.RandomAccessibleInterval<? extends net.imglib2.type.numeric.RealType<?>>)
+                                spimSource.getSource(timepoint, level);
+                final double min = ImgUtils.computePercentile(rai, BRIGHTNESS_CUTOFF_LOW * 100);
+                final double max = ImgUtils.computePercentile(rai, BRIGHTNESS_CUTOFF_HIGH * 100);
+                setup.setDisplayRange(min, max);
+                return null;
+            }, BRIGHTNESS_INIT_TIMEOUT_SECONDS, "computing display range for " + label);
+        } catch (final IOException e) {
+            SNTUtils.log("Could not auto-adjust brightness/contrast for " + label + " (" + e.getMessage()
+                    + "); keeping current display range. Use the 'Auto Brightness/Contrast' button to retry.");
+        }
+    }
+
+    /**
+     * Dispatches {@link #applyAutoBrightness(BrightnessScope)} for a given scope: the single {@link
+     * #getCurrentSource() current source}, every currently active source ({@link
+     * bdv.viewer.ViewerState#isSourceActive}), or (for {@link BrightnessScope#ALL}) the whole scene via the
+     * aggregate {@link #initBrightnessSafely(bdv.viewer.ViewerState, bdv.viewer.ConverterSetups, String)}.
+     * Shared by {@link Bdv#applyAutoBrightness} and {@link Bvv#applyAutoBrightness}
+     *
+     * @param scope         which source(s) to recompute
+     * @param state         the viewer state (sources, active flags)
+     * @param setups        the converter setups (source -> display-range control lookup)
+     * @param currentSource the viewer's current/selected source, or null if none
+     * @param label         short, human-readable description of the viewer (for logging)
+     */
+    protected static void applyBrightnessScope(final BrightnessScope scope, final bdv.viewer.ViewerState state,
+            final bdv.viewer.ConverterSetups setups, final SourceAndConverter<?> currentSource, final String label) {
+        final int timepoint = state.getCurrentTimepoint();
+        switch (scope) {
+            case ALL -> initBrightnessSafely(state, setups, label);
+            case CURRENT -> {
+                if (currentSource == null) return;
+                final ConverterSetup setup = setups.getConverterSetup(currentSource);
+                if (setup != null) initBrightnessSafely(currentSource, setup, timepoint, label + " (current source)");
+            }
+            case ACTIVE -> {
+                for (final SourceAndConverter<?> sac : state.getSources()) {
+                    if (!state.isSourceActive(sac)) continue;
+                    final ConverterSetup setup = setups.getConverterSetup(sac);
+                    if (setup != null) initBrightnessSafely(sac, setup, timepoint, label + " (active sources)");
+                }
+            }
+        }
     }
 
     /**
@@ -892,6 +1015,23 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Builds the "Auto Brightness/Contrast" options button (Current Source.../Active Source(s).../All
+     * Sources...) for the scene-control toolbar. See {@link #applyAutoBrightness(BrightnessScope)}.
+     */
+    protected JButton autoBrightnessButton(final Actions actions) {
+        final JPopupMenu menu = new JPopupMenu();
+        menu.add(new JMenuItem(actions.autoBrightnessCurrentAction()));
+        menu.add(new JMenuItem(actions.autoBrightnessActiveAction()));
+        menu.addSeparator();
+        menu.add(new JMenuItem(actions.autoBrightnessAllAction()));
+        final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ADJUST, 1f, menu);
+        button.setToolTipText("<html>Recompute brightness/contrast from data percentiles.<br>Useful to retry "
+                + "after loading large/remote datasets, where the automatic estimate is bounded by a timeout "
+                + "and may fall back to a default range.</html>");
+        return button;
+    }
+
+    /**
      * Builds the second row shown below the SNT Annotations toolbar whenever this viewer has an
      * active {@link AbstractTracer} (undo/cancel controls, secondary-layer toggle, progress bar).
      * Shared by Bvv/Bdv, which both keep the returned components (see {@link #tracingStatusBar},
@@ -1004,6 +1144,47 @@ public abstract class AbstractBigViewer {
                     box.setOriginOpposite(new PointInImage(maxX, maxY, maxZ));
                     flyTo(box); // silently no-ops if the viewport isn't realized yet or the box is degenerate
                 }
+            };
+        }
+
+        /**
+         * Shared worker for the {@code autoBrightness*Action()}s below: recomputes the display range on a
+         * background thread so the EDT is never blocked - see {@link #applyAutoBrightness(BrightnessScope)}.
+         */
+        private void runAutoBrightness(final BrightnessScope scope) {
+            showViewerMessage("Computing display range...");
+            final Thread worker = new Thread(() -> {
+                applyAutoBrightness(scope);
+                SwingUtilities.invokeLater(() -> {
+                    showViewerMessage("Display range updated");
+                    repaint();
+                });
+            }, "SNT-Auto-Brightness");
+            worker.setDaemon(true);
+            worker.start();
+        }
+
+        /** Recomputes brightness/contrast for the current (selected) source only. */
+        Action autoBrightnessCurrentAction() {
+            return new AbstractAction("Current Source", IconFactory.menuIcon('\uf058', true)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) { runAutoBrightness(BrightnessScope.CURRENT); }
+            };
+        }
+
+        /** Recomputes brightness/contrast for every currently active source. */
+        Action autoBrightnessActiveAction() {
+            return new AbstractAction("Active Source(s)", IconFactory.menuIcon('\uf14a', true)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) { runAutoBrightness(BrightnessScope.ACTIVE); }
+            };
+        }
+
+        /** Recomputes brightness/contrast for every source in the scene. */
+        Action autoBrightnessAllAction() {
+            return new AbstractAction("All Sources", IconFactory.menuIcon(IconFactory.GLYPH.CHECK_DOUBLE)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) { runAutoBrightness(BrightnessScope.ALL); }
             };
         }
 
@@ -1284,8 +1465,10 @@ public abstract class AbstractBigViewer {
      */
     protected JToolBar buildBaseSceneControlToolbar() {
         final JToolBar bar = createToolbar();
-        bar.add(GuiUtils.Buttons.toolbarButton(new Actions().fitToCurrentSourceAction(),
+        final Actions actions = new Actions();
+        bar.add(GuiUtils.Buttons.toolbarButton(actions.fitToCurrentSourceAction(),
                 "Fit view to the current (selected) source"));
+        bar.add(autoBrightnessButton(actions));
         bar.addSeparator();
         // Action names match those registered by BDV/BVV NavigationActions
         final java.util.HashMap<String, List<IconFactory.GLYPH>> planes = new java.util.LinkedHashMap<>();

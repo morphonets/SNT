@@ -172,8 +172,7 @@ public class Bdv extends AbstractBigViewer {
                         bdvHandle = cs.getBdvHandle();
                         viewerPanel = bdvHandle.getViewerPanel();
                         initializeOverlays();
-                        InitializeViewerState.initBrightness(0.001, 0.999,
-                                viewerPanel.state(), bdvHandle.getConverterSetups());
+                        initBrightnessSafely(viewerPanel.state(), bdvHandle.getConverterSetups(), imp.getTitle());
                     }
                 }
             }
@@ -184,8 +183,7 @@ public class Bdv extends AbstractBigViewer {
                 bdvHandle = src.getBdvHandle();
                 viewerPanel = bdvHandle.getViewerPanel();
                 initializeOverlays();
-                InitializeViewerState.initBrightness(0.001, 0.999,
-                        viewerPanel.state(), bdvHandle.getConverterSetups());
+                initBrightnessSafely(viewerPanel.state(), bdvHandle.getConverterSetups(), imp.getTitle());
             }
         }
         return src;
@@ -358,7 +356,7 @@ public class Bdv extends AbstractBigViewer {
             viewerPanel = bdvHandle.getViewerPanel();
             initializeOverlays();
         }
-        InitializeViewerState.initBrightness(0.001, 0.999, viewerPanel.state(), bdvHandle.getConverterSetups());
+        initBrightnessSafely(viewerPanel.state(), bdvHandle.getConverterSetups(), label);
     }
 
     /**
@@ -636,6 +634,12 @@ public class Bdv extends AbstractBigViewer {
      */
     public ViewerPanel getViewerPanel() {
         return viewerPanel;
+    }
+
+    @Override
+    protected void applyAutoBrightness(final BrightnessScope scope) {
+        if (bdvHandle == null || viewerPanel == null) return;
+        applyBrightnessScope(scope, viewerPanel.state(), bdvHandle.getConverterSetups(), getCurrentSource(), "BDV");
     }
 
     /**
