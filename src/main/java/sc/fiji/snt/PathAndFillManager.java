@@ -694,7 +694,6 @@ public class PathAndFillManager extends DefaultHandler implements
         map.values().forEach( tree -> {
             //tree.setBoundingBox(boundingBox);
             tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spacing_units);
-            renameTreeAfterPrimaryPath(tree);
         });
         return map.values();
     }
@@ -737,28 +736,6 @@ public class PathAndFillManager extends DefaultHandler implements
         tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spacing_units);
         tree.setLabel(tree.list().getFirst().getTreeLabel());
         return tree;
-    }
-
-    protected boolean multipleTreesExist() {
-        if (allPaths.isEmpty()) return false;
-        final int refID = allPaths.getFirst().getTreeID();
-        for (int i = 1; i < allPaths.size(); i++) {
-            final int id = allPaths.get(i).getTreeID();
-            if (id != refID) return true;
-        }
-        return false;
-    }
-
-    private void renameTreeAfterPrimaryPath(final Tree tree) {
-        final String label = tree.getLabel(); // never null here
-        if (label.startsWith("Arbor ")) {
-            for (final Path p : tree.list()) {
-                if (p.isPrimary()) {
-                    tree.setLabel(tree.getLabel() + " rooted in " + p.getName());
-                    return;
-                }
-            }
-        }
     }
 
     public synchronized Path[] getPathsStructured(final Collection<Path> paths) {

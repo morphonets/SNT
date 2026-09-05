@@ -5367,17 +5367,13 @@ public class GuiUtils {
 		}
 
 		public static void recolorTracks(final JScrollPane scrollPane, final Color color, final boolean updateUI) {
-			final Component c = scrollPane.getCorner(JScrollPane.LOWER_TRAILING_CORNER);
-			if (c != null) {
-				c.setBackground(color);
-			} else {
-				final JPanel dummy = new JPanel();
-				dummy.setBackground(color);
-				scrollPane.setCorner(JScrollPane.LOWER_TRAILING_CORNER, dummy);
+			Component corner = scrollPane.getCorner(JScrollPane.LOWER_TRAILING_CORNER);
+			if (corner == null) {
+				corner = new JPanel();
+				scrollPane.setCorner(JScrollPane.LOWER_TRAILING_CORNER, corner);
 			}
-			final Map<String, Object> style = new HashMap<>();
-			style.put("track", color);
-			style.put("hoverTrackColor", color);
+			corner.setBackground(color);
+			final Map<String, Object> style = Map.of("track", color, "hoverTrackColor", color);
 			scrollPane.getHorizontalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
 			scrollPane.getVerticalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
 			if (updateUI) scrollPane.updateUI();

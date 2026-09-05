@@ -155,8 +155,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JScrollPane scrollPane = new JScrollPane();
         scrollPane.getViewport().add(tree);
-        navToolbar = new NavigationToolBar(tree, scrollPane);
-        add(scrollPane, BorderLayout.CENTER);
+        navToolbar = new NavigationToolBar(tree);
+        final JPanel treePanel = new JPanel(new BorderLayout());
+        treePanel.add(navToolbar, BorderLayout.NORTH);
+        treePanel.add(scrollPane, BorderLayout.CENTER);
+        add(treePanel, BorderLayout.CENTER);
 
         // Search Bar TreeSearchable
         searchableBar = new PathManagerUISearchableBar(this);
@@ -5842,7 +5845,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     /** Builds the top navigation toolbar */
     private class NavigationToolBar extends JToolBar {
 
-        private final JComponent embeddingParent;
         private final JComboBox<String> arborChoiceCombo;
         private final JToggleButton hideOthersButton;
         private final JToggleButton showAllArborsButton;
@@ -5850,17 +5852,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private String arborChoice = null; // currently chosen tree label
         private boolean navSyncGuard = false;   // prevents feedback loops between combobox and jtree
 
-        NavigationToolBar(final JTree jTree, final JScrollPane scrollPaneOfJTree) {
+        NavigationToolBar(final JTree jTree) {
             super("Navigation Toolbar", HORIZONTAL);
 
             // Tweak look so that toolbar blends in with JTree's background, etc.
-            scrollPaneOfJTree.setColumnHeaderView(this);
             setBackground(jTree.getBackground());
             setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
             setFocusable(false);
             setFloatable(true);
 
-            this.embeddingParent = scrollPaneOfJTree.getColumnHeader();
             arborChoiceCombo = new JComboBox<>();
             sortArborsButton = sortButton();
             showAllArborsButton = GuiUtils.Buttons.toolbarToggleButton(showAllAction(), "Show all structures",
@@ -6527,7 +6527,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         @Override
         public void setVisible(final boolean b) {
             super.setVisible(b);
-            embeddingParent.setVisible(b);
             if (!b && fullTreeModel != null) restoreFullModelState();
             plugin.getPrefs().set("navBar", b);
         }
