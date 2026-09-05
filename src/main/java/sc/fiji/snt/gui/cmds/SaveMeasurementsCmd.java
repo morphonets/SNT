@@ -282,11 +282,6 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
         return "tab".equalsIgnoreCase(columnDelimiter) ? ".tsv" : ".csv";
     }
 
-    private String sanitizeFilename(final String name) {
-        if (name == null) return "unnamed";
-        return name.replaceAll("[^a-zA-Z0-9.\\-]", "_");
-    }
-
     private abstract static class Saveable {
         final String name;
         final String category;
@@ -387,14 +382,15 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 
         @Override
         boolean save() {
-			File file = getOutputFile(sanitizeFilename(name) + ".svg");
+			final String safeName = SNTUtils.sanitizeFilename((name != null) ? name : "unnamed");
+			File file = getOutputFile(safeName + ".svg");
             try {
 				try {
 					SNTUtils.log("Saving SNTChart: " + file);
 					chart.saveAsSVG(file.getAbsolutePath());
 					if (close) chart.dispose();
 				} catch (final IllegalArgumentException | NullPointerException e) {
-					file = getOutputFile(sanitizeFilename(name) + ".png");
+					file = getOutputFile(safeName + ".png");
 					SNTUtils.log("... Failed. Saving as " + file);
 					chart.saveAsPNG(file.getAbsolutePath());
 					if (close) chart.dispose();

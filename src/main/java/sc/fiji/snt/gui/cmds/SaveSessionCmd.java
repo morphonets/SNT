@@ -224,7 +224,8 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         }
         for (final SNTChart chart : charts) {
             try {
-                final String filename = sanitizeFilename(chart.getTitle()) + ".svg";
+                final String title = chart.getTitle();
+                final String filename = SNTUtils.sanitizeFilename((title != null) ? title : "unnamed") + ".svg";
                 final File file = new File(chartsDir, filename);
                 chart.saveAsSVG(file.getAbsolutePath());
                 SNTUtils.log("Saved chart: " + file);
@@ -238,7 +239,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         for (final PlotWindow pw : plots) {
             final String name = pw.getTitle();
             final String filename = name.endsWith(".tif") ? name : name + ".tif";
-            final File file = new File(chartsDir, sanitizeFilename(filename));
+            final File file = new File(chartsDir, SNTUtils.sanitizeFilename(filename));
             if (SaveMeasurementsCmd.savePlot(pw, chartsDir, true)) {
                 SNTUtils.log("Saved plot: " + file);
             } else {
@@ -422,11 +423,6 @@ public class SaveSessionCmd extends CommonDynamicCmd {
             SNTUtils.error("Failed to save curation settings", e);
             failures++;
         }
-    }
-
-    private String sanitizeFilename(final String name) {
-        if (name == null) return "unnamed";
-        return name.replaceAll("[^a-zA-Z0-9.-]", "_");
     }
 
 }

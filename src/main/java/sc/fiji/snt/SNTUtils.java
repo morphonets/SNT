@@ -276,6 +276,55 @@ public class SNTUtils {
 	}
 
 	/**
+	 * Replaces characters that are unsafe/reserved in filenames with an underscore, leaving
+	 * alphanumerics, dots, and hyphens untouched.
+	 *
+	 * @param filename the candidate filename (or a full path -- only used for e.g. a whole path
+	 *                 rather than a bare filename component; separators are not treated specially
+	 *                 and will themselves be replaced)
+	 * @return the sanitized filename, or null if {@code filename} is null
+	 */
+	public static String sanitizeFilename(final String filename) {
+		return (filename == null) ? filename : filename.replaceAll("[^a-zA-Z0-9.-]", "_");
+	}
+
+	/**
+	 * Extracts the last path/URL element (typically a filename) from a file path, URL, or
+	 * cloud-storage link, e.g., {@code "/data/sample.n5"} or {@code "https://host/a/b.zarr?x=1"}
+	 * both yield {@code "b.zarr"}/{@code "sample.n5"}. Handles Windows-style backslashes, trailing
+	 * slashes, and URL query parameters/anchors.
+	 *
+	 * @param filePathOrUrlOrCloudLink the path/URL/link to parse
+	 * @return the last element, or an empty string if {@code filePathOrUrlOrCloudLink} is null or blank
+	 */
+	public static String getLastElement(String filePathOrUrlOrCloudLink) {
+		if (filePathOrUrlOrCloudLink == null || filePathOrUrlOrCloudLink.trim().isEmpty()) {
+			return "";
+		}
+		// 1. Remove URL query parameters or anchors if present
+		int queryOrAnchorIdx = filePathOrUrlOrCloudLink.indexOf('?');
+		if (queryOrAnchorIdx == -1) {
+			queryOrAnchorIdx = filePathOrUrlOrCloudLink.indexOf('#');
+		}
+		if (queryOrAnchorIdx != -1) {
+			filePathOrUrlOrCloudLink = filePathOrUrlOrCloudLink.substring(0, queryOrAnchorIdx);
+		}
+		// 2. Normalize Windows backslashes to forward slashes
+		filePathOrUrlOrCloudLink = filePathOrUrlOrCloudLink.replace('\\', '/');
+		// 3. Strip any trailing slashes so we don't return an empty string for directories
+		while (filePathOrUrlOrCloudLink.endsWith("/") && filePathOrUrlOrCloudLink.length() > 1) {
+			filePathOrUrlOrCloudLink = filePathOrUrlOrCloudLink.substring(0, filePathOrUrlOrCloudLink.length() - 1);
+		}
+		// 4. Find the last remaining slash and extract the element
+		int lastSlashIdx = filePathOrUrlOrCloudLink.lastIndexOf('/');
+		if (lastSlashIdx != -1) {
+			return filePathOrUrlOrCloudLink.substring(lastSlashIdx + 1);
+		}
+		// 5. Fallback: If no slashes exist, the input itself is the last element
+		return filePathOrUrlOrCloudLink;
+	}
+
+	/**
 	 * Returns SNT's own scratch/cache directory, used by disk-backed operations
 	 * (e.g. {@link sc.fiji.snt.tracing.auto.gwdt.DiskBackedStorageBackend}, {@link sc.fiji.snt.filter.Lazy}).
 	 * Unlike the workspace directory (see {@code SNTPrefs#getWorkspaceDir()}),

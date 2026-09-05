@@ -7184,11 +7184,15 @@ public class SNTUI extends JDialog {
     }
 
     protected String getImageFilenamePrefix() {
-        if (!accessToValidImagePlus())
-            return "display_canvas";
+        if (plugin.isStreamMode()) {
+            final AbstractBigViewer viewer = getActiveBigViewer();
+            final String title = (viewer == null) ? "" : SNTUtils.getLastElement(viewer.getPrimarySourcePath());
+            return title.isBlank() ? "streamed_data" : SNTUtils.stripExtension(SNTUtils.sanitizeFilename(title));
+        }
+        if (!accessToValidImagePlus()) return "display_canvas";
         final ImagePlus imp = plugin.getImagePlus();
         if (imp != null && imp.getTitle() != null && !imp.getTitle().isBlank()) {
-            return imp.getTitle().replaceAll("[^a-zA-Z0-9.-]", "_");
+            return SNTUtils.stripExtension(SNTUtils.sanitizeFilename(imp.getTitle()));
         }
         return "display_canvas";
     }
