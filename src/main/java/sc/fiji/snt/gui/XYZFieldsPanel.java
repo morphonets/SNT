@@ -80,6 +80,7 @@ public class XYZFieldsPanel extends JPanel {
 		format.setGroupingUsed(false);
 		final JFormattedTextField field = new JFormattedTextField(format);
 		field.setColumns(8);
+		field.setMinimumSize(field.getPreferredSize()); // important: or fields shrink in GridBagLayout
 		field.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
 			public void insertUpdate(final DocumentEvent e) { fireChange(); }

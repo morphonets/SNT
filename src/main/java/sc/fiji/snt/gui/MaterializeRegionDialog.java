@@ -35,6 +35,8 @@ import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -172,6 +174,13 @@ public class MaterializeRegionDialog extends JDialog {
 		paddingFields.addChangeListener(this::updateEstimate);
 
 		assembleDialog();
+		addComponentListener(new ComponentAdapter() {
+			@Override
+			public void componentResized(final ComponentEvent e) {
+				statusLabel.setText(
+						statusLabel.getText().replaceFirst("(?i)(width:)\\d+", "$1" + getStatusLabelMaxWidth()));
+			}
+		});
 		sizeChoiceChanged(); // also triggers the first updateEstimate()
 		setLocationRelativeTo(ui);
 		setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -281,7 +290,7 @@ public class MaterializeRegionDialog extends JDialog {
 			final StringBuilder error = new StringBuilder();
 			final BoundingBox box = resolveBoundingBox(error);
 			if (box == null) {
-				setStatus(error.toString(), GuiUtils.Colors.errorColor());
+				setStatus(error.toString(), GuiUtils.Notices.PendingNotice.ERROR);
 				okButton.setEnabled(false);
 				return;
 			}
@@ -297,7 +306,7 @@ public class MaterializeRegionDialog extends JDialog {
 			try {
 				voxelBounds = plugin.resolveVoxelBounds(box, cal, isSecondaryLayerScope());
 			} catch (final IllegalStateException | IllegalArgumentException ex) {
-				setStatus(ex.getMessage(), GuiUtils.Colors.errorColor());
+				setStatus(ex.getMessage(), GuiUtils.Notices.PendingNotice.ERROR);
 				okButton.setEnabled(false);
 				return;
 			}
@@ -340,17 +349,17 @@ public class MaterializeRegionDialog extends JDialog {
 			}
 			final String dimsMsg = String.format("Estimated crop: %dx%dx%d px%s", width, height, depth,
 					notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
-			final Color normalColor = notes.isEmpty() ? getForeground() : GuiUtils.Colors.linkColor();
+			final int type = notes.isEmpty() ? -1 : GuiUtils.Notices.PendingNotice.INFO;
 			if (bytesNeeded < 0) {
-				setStatus(dimsMsg + " (RAM estimate unavailable)", normalColor);
+				setStatus(dimsMsg + " (RAM estimate unavailable)", type);
 				okButton.setEnabled(true);
 			} else if (bytesNeeded > bytesAvailable) {
 				setStatus(String.format("%s, ~%.2f GB: exceeds the %.2f GB available. Reduce size/padding.",
-						dimsMsg, bytesNeeded / 1e9, bytesAvailable / 1e9), GuiUtils.Colors.errorColor());
+						dimsMsg, bytesNeeded / 1e9, bytesAvailable / 1e9), GuiUtils.Notices.PendingNotice.ERROR);
 				okButton.setEnabled(false);
 			} else {
 				setStatus(String.format("%s, ~%.2f GB. Pixel data will be copied into memory.", dimsMsg,
-						bytesNeeded / 1e9), normalColor);
+						bytesNeeded / 1e9), type);
 				okButton.setEnabled(true);
 			}
 		} finally {
@@ -358,9 +367,24 @@ public class MaterializeRegionDialog extends JDialog {
 		}
 	}
 
-	private void setStatus(final String text, final Color color) {
-		statusLabel.setForeground(color);
-		statusLabel.setText(GuiUtils.getWrappedText(statusLabel, text, STATUS_LABEL_MAX_WIDTH));
+	private void setStatus(final String text, final int pendingNoticeType) {
+		switch (pendingNoticeType) {
+			case GuiUtils.Notices.PendingNotice.ERROR ->
+					statusLabel.setIcon(new com.formdev.flatlaf.icons.FlatOptionPaneErrorIcon());
+			case GuiUtils.Notices.PendingNotice.INFO ->
+					statusLabel.setIcon(new com.formdev.flatlaf.icons.FlatOptionPaneInformationIcon());
+			case GuiUtils.Notices.PendingNotice.WARN ->
+					statusLabel.setIcon(new com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon());
+			default -> statusLabel.setIcon(null);
+		}
+		statusLabel.setText(GuiUtils.getWrappedText(statusLabel, text, getStatusLabelMaxWidth()));
+	}
+
+	private int getStatusLabelMaxWidth() {
+		int maxWidth = getWidth() - 16;
+		if (statusLabel.getIcon() != null)
+			maxWidth -= statusLabel.getIcon().getIconWidth();
+		return maxWidth;
 	}
 
 	/**
