@@ -3153,7 +3153,7 @@ public class SNTUI extends JDialog {
                     return;
                 }
                 try {
-                    initializeBigViewerFromPrompt(Bvv.class);
+                    initializeBigViewerFromPrompt(Bvv.class, openBVV);
                 } catch (final Throwable exc) {
                     error(exc);
                     no3DCapabilitiesError("BVV");
@@ -3194,7 +3194,7 @@ public class SNTUI extends JDialog {
                     return;
                 }
                 try {
-                    initializeBigViewerFromPrompt(Bdv.class);
+                    initializeBigViewerFromPrompt(Bdv.class, openBDV);
                 } catch (final Throwable exc) {
                     error(exc);
                 }
@@ -3216,7 +3216,8 @@ public class SNTUI extends JDialog {
         return panel;
     }
 
-    private <T extends AbstractBigViewer> void initializeBigViewerFromPrompt(final Class<T> viewerClass) {
+    private <T extends AbstractBigViewer> void initializeBigViewerFromPrompt(final Class<T> viewerClass,
+                                                                              final JButton triggerButton) {
         final String[] choices = new String[] { "Full image (all channels/frames)", "Only the channel/frame being traced", "Secondary layer"};
         final String defChoice = plugin.getPrefs().getTemp("bvvChoice", choices[0]);
         final String choice = guiUtils.getChoice("Render which kind of data?", "Render Which Image?", choices, defChoice);
@@ -3227,44 +3228,77 @@ public class SNTUI extends JDialog {
             return;
         }
         final boolean isBvv = viewerClass == Bvv.class;
-        AbstractBigViewer viewer = null;
-        try {
-            if (choices[0].equals(choice)) {
-                final ImagePlus imp = plugin.getImagePlus();
-                if (imp == null) {
-                    noValidImagePlusError();
-                    return;
-                }
-                if (isBvv) {
-                    final Bvv bvv = new Bvv(plugin);
-                    bvv.show(imp);
-                    viewer = bvv;
-                } else {
-                    final Bdv bdv = new Bdv(plugin);
-                    bdv.show(imp);
-                    viewer = bdv;
-                }
-            } else {
-                viewer = (isBvv) ? new Bvv(plugin) : new Bdv(plugin);
-                if (choices[1].equals(choice)) {
-                    viewer.showLoadedData();
-                } else if (plugin.isSecondaryDataAvailable()) {
-                    viewer.showSecondaryData();
-                } else {
-                    noSecondaryDataAvailableError();
-                    return;
+        final ImagePlus imp;
+        if (choices[0].equals(choice)) {
+            imp = plugin.getImagePlus();
+            if (imp == null) {
+                noValidImagePlusError();
+                return;
+            }
+        } else {
+            imp = null;
+        }
+        plugin.getPrefs().setTemp("bvvChoice", choice);
+
+        // Loading/rendering can be slow for large volumes: run off the EDT so the UI does not
+        // freeze while it happens. Only the resulting card panel construction (already guarded
+        // in Bdv#initializeCardPanel/Bvv#attachControlPanel) needs to hop back onto the EDT
+        class BigViewerWorker extends SwingWorker<AbstractBigViewer, Object> {
+
+            private volatile boolean secondaryDataGone;
+
+            @Override
+            protected AbstractBigViewer doInBackground() {
+                SNTUtils.setIsLoading(true);
+                try {
+                    // re-verify: choice was made a moment ago, secondary data could meanwhile be gone
+                    if (imp == null && !choices[1].equals(choice) && !plugin.isSecondaryDataAvailable()) {
+                        secondaryDataGone = true;
+                        return null;
+                    }
+                    final AbstractBigViewer viewer = isBvv ? new Bvv(plugin) : new Bdv(plugin);
+                    if (imp != null) {
+                        if (isBvv) ((Bvv) viewer).show(imp); else ((Bdv) viewer).show(imp);
+                    } else if (choices[1].equals(choice)) {
+                        viewer.showLoadedData();
+                    } else {
+                        viewer.showSecondaryData();
+                    }
+                    return viewer;
+                } catch (final Throwable exc) {
+                    error(exc);
+                    return null;
+                } finally {
+                    SNTUtils.setIsLoading(false);
                 }
             }
-            // Only promote to field once show() succeeded
-            bvvSNT = (isBvv) ? ((Bvv) viewer) : null;
-            bdvSNT = (isBvv) ? null : ((Bdv) viewer);
-            // NB: WindowListener added in Bvv#attachControlPanel()
-        } catch (final Throwable exc) {
-            error(exc);
-        } finally {
-            plugin.getPrefs().setTemp("bvvChoice", choice);
-            if (viewer != null) viewer.syncPathManagerList();
+
+            @Override
+            protected void done() {
+                triggerButton.setEnabled(true);
+                AbstractBigViewer viewer = null;
+                try {
+                    viewer = get();
+                } catch (final InterruptedException | ExecutionException exc) {
+                    error(exc);
+                } catch (final CancellationException ignored) {
+                    // user cancelled, do nothing
+                }
+                if (viewer == null) {
+                    if (secondaryDataGone) noSecondaryDataAvailableError();
+                    else if (isBvv) no3DCapabilitiesError("BVV");
+                    return;
+                }
+                // Only promote to field once show() succeeded
+                bvvSNT = isBvv ? (Bvv) viewer : null;
+                bdvSNT = isBvv ? null : (Bdv) viewer;
+                // NB: WindowListener added in Bvv#attachControlPanel()
+                viewer.syncPathManagerList();
+            }
         }
+
+        triggerButton.setEnabled(false);
+        new BigViewerWorker().execute();
     }
 
     private void no3DCapabilitiesError(final String viewer) {

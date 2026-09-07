@@ -1329,6 +1329,17 @@ public class Bvv extends AbstractBigViewer {
     }
 
     private void attachControlPanel(final BvvSource source) {
+        // addCard() calls below build JComponents directly, which is unsafe off-EDT
+        // (e.g. called from a SciJava command thread): see Bdv#initializeCardPanel
+        // for the matching CardPanel-vs-AWT-tree-lock deadlock this avoids
+        if (!SwingUtilities.isEventDispatchThread()) {
+            try {
+                SwingUtilities.invokeAndWait(() -> attachControlPanel(source));
+            } catch (final Exception e) {
+                SNTUtils.log("BVV: failed to attach control panel on EDT (" + e.getMessage() + ")");
+            }
+            return;
+        }
         final BigVolumeViewer bvv = ((BvvHandleFrame) source.getBvvHandle()).getBigVolumeViewer();
         if (currentBvv != bvv) { // Initialize overlay and add cards only once per viewer instance
             currentBvv = bvv;

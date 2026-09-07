@@ -823,6 +823,18 @@ public class Bdv extends AbstractBigViewer {
     }
 
     private void initializeCardPanel() {
+        // addCard() below builds JComponents (Card/HeaderPanel) directly, which is
+        // unsafe if this runs off-EDT (e.g. from a SciJava command thread): it can
+        // deadlock against a concurrent EDT repaint of the same CardPanel (BDV's
+        // internal card lock vs the AWT tree lock, acquired in opposite order)
+        if (!SwingUtilities.isEventDispatchThread()) {
+            try {
+                SwingUtilities.invokeAndWait(this::initializeCardPanel);
+            } catch (final Exception e) {
+                SNTUtils.log("BDV: failed to initialize card panel on EDT (" + e.getMessage() + ")");
+            }
+            return;
+        }
         bdvHandle.getSplitPanel().setCollapsed(false);
         final BdvActions actions = new BdvActions();
         final bdv.ui.CardPanel cp = bdvHandle.getCardPanel();
