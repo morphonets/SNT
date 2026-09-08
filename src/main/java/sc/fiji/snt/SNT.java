@@ -5752,6 +5752,28 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * Returns a filesystem-safe basename identifying the image currently being traced, for use as a prefix when
+	 * generating output filenames (backups, exported bookmarks, notes, etc). Handles both standard mode (title of
+	 * {@link #getImagePlus()}) and {@link #isStreamMode() stream mode} (title of the source loaded in the active
+	 * {@link SNTUI#getActiveBigViewer() big viewer}, if any).
+	 *
+	 * @return the sanitized, extension-stripped image basename, or a fallback placeholder ("streamed_data"/"snt_data")
+	 * if unavailable
+	 */
+	public String getImageFilenamePrefix() {
+		if (isStreamMode()) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = (getUI() == null) ? null : getUI().getActiveBigViewer();
+			final String title = (viewer == null) ? "" : SNTUtils.getLastElement(viewer.getPrimarySourcePath());
+			return title.isBlank() ? "streamed_data" : SNTUtils.stripExtension(SNTUtils.sanitizeFilename(title));
+		}
+		final ImagePlus imp = getImagePlus();
+		if (imp != null && !ImpUtils.isDisplayCanvas(imp) && imp.getTitle() != null && !imp.getTitle().isBlank()) {
+			return SNTUtils.stripExtension(SNTUtils.sanitizeFilename(imp.getTitle()));
+		}
+		return "snt_data";
+	}
+
+	/**
 	 * Sets the stream-mode flag returned by {@link #isStreamMode()}. Package-private: the only
 	 * legitimate callers are {@link #startUIOnEDT(boolean)} (before constructing {@link SNTUI}) and
 	 * {@link SNTUI}'s own constructor (covering direct {@code new SNTUI(plugin, bigDataMode)}

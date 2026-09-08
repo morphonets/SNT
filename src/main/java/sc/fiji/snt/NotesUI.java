@@ -118,7 +118,7 @@ public class NotesUI {
             if (noNotesError()) return;
             final File workspaceDir = sntui.getOrPromptForWorkspace();
             if (workspaceDir == null) return;
-            final String prefix = sntui.getImageFilenamePrefix();
+            final String prefix = sntui.plugin.getImageFilenamePrefix();
             exportNotes(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_notes.md"));
         });
         final JButton syntax = new JButton(IconFactory.buttonIcon('\uf1c9', false, IconFactory.defaultColor()));
@@ -161,10 +161,10 @@ public class NotesUI {
             if (!sntui.plugin.accessToValidImageData()) {
                 sntui.noValidImageDataError();
             } else {
-                if (sntui.plugin.getImagePlus() != null)
-                    editor.append("`" + standardModeImageDetails(sntui.plugin.getImagePlus()) + "`\n");
-                else if (sntui.plugin.isStreamMode())
+                if (sntui.plugin.isStreamMode())
                     editor.append("`" + streamModeImageDetails() + "`\n");
+                else if (sntui.plugin.getImagePlus() != null)
+                    editor.append("`" + standardModeImageDetails(sntui.plugin.getImagePlus()) + "`\n");
                 else
                     editor.append("`unknown image title`\n");
                 scrollToOffsetIfNotVisible(editor.getDocument().getLength());

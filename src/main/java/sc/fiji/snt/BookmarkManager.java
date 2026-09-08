@@ -948,7 +948,7 @@ public class BookmarkManager {
             jmi.addActionListener(e -> {
                 final File workspaceDir = sntui.getOrPromptForWorkspace();
                 if (workspaceDir == null) return;
-                final String prefix = sntui.getImageFilenamePrefix();
+                final String prefix = sntui.plugin.getImageFilenamePrefix();
                 final File ref = new File(workspaceDir, prefix + "_bookmarks.csv");
                 final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
                 if (file != null) loadBookmarksFromFile(file);
@@ -1022,7 +1022,7 @@ public class BookmarkManager {
             jmi.addActionListener(e -> {
                 final File workspaceDir = sntui.getOrPromptForWorkspace();
                 if (workspaceDir == null) return;
-                final String prefix = sntui.getImageFilenamePrefix();
+                final String prefix = sntui.plugin.getImageFilenamePrefix();
                 saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
             });
         }

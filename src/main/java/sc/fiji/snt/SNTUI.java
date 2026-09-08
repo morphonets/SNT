@@ -3526,24 +3526,19 @@ public class SNTUI extends JDialog {
     }
 
     protected File openFile(final String extensionWithoutPeriod) {
-        final String suggestFilename = (accessToValidImagePlus()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
+        final String suggestFilename = plugin.getImageFilenamePrefix();
         final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extensionWithoutPeriod);
         return guiUtils.getFile(suggestedFile, extensionWithoutPeriod);
     }
 
     protected File openReconstructionFile(final String extension) {
-        final String suggestFilename = (accessToValidImagePlus()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
+        final String suggestFilename = plugin.getImageFilenamePrefix();
         final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extension);
         return guiUtils.getReconstructionFile(suggestedFile, extension);
     }
 
     private File getProposedSavingFile(final String extensionWithoutDot) {
-        String filename;
-        if (accessToValidImagePlus())
-            filename = SNTUtils.stripExtension(plugin.getImagePlus().getShortTitle());
-        else
-            filename = "SNT_Data";
-        filename += "." + extensionWithoutDot;
+        final String filename = plugin.getImageFilenamePrefix() + "." + extensionWithoutDot;
         return new File(plugin.getPrefs().getRecentDir(), filename);
     }
 
@@ -7217,20 +7212,6 @@ public class SNTUI extends JDialog {
         new ImportAction(ImportAction.IMAGE, targetFile).run();
     }
 
-    protected String getImageFilenamePrefix() {
-        if (plugin.isStreamMode()) {
-            final AbstractBigViewer viewer = getActiveBigViewer();
-            final String title = (viewer == null) ? "" : SNTUtils.getLastElement(viewer.getPrimarySourcePath());
-            return title.isBlank() ? "streamed_data" : SNTUtils.stripExtension(SNTUtils.sanitizeFilename(title));
-        }
-        if (!accessToValidImagePlus()) return "display_canvas";
-        final ImagePlus imp = plugin.getImagePlus();
-        if (imp != null && imp.getTitle() != null && !imp.getTitle().isBlank()) {
-            return SNTUtils.stripExtension(SNTUtils.sanitizeFilename(imp.getTitle()));
-        }
-        return "display_canvas";
-    }
-
     protected void saveToXML(final boolean timeStampedCopy) {
         if (noPathsError() || notReadyToSaveError()) return; // do not create empty files
         if (timeStampedCopy) {
@@ -7243,7 +7224,7 @@ public class SNTUI extends JDialog {
                 return;
             }
             final String suffix = SNTUtils.getTimeStamp();
-            final String fName = getImageFilenamePrefix();
+            final String fName = plugin.getImageFilenamePrefix();
             final File targetFile = new File(backupDir, fName + "_" + suffix + ".traces");
             try {
                 pathAndFillManager.writeXML(targetFile.getAbsolutePath(), plugin.getPrefs().isSaveCompressedTraces());
