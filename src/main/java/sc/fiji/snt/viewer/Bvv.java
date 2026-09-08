@@ -842,6 +842,16 @@ public class Bvv extends AbstractBigViewer {
         final List<BvvStackSource<?>> sources = BvvFunctions.show(spimData, opts);
         if (sources.isEmpty()) return Collections.emptyList();
 
+        // This AbstractSpimData path has no hook to force the pyramid-aware renderer the way
+        // Bvv#show(SpimDataUtils.N5Sources) does, since BvvFunctions.show(spimData, opts) builds its
+        // own Source instances internally. Just log if a setup looks likely to hit BVV's blocking
+        // single-texture path, so a slow first paint on a BDV-XML/HDF5/IMS dataset is not mysterious
+        for (final BvvStackSource<?> s : sources) {
+            for (final SourceAndConverter<?> sac : s.getSources()) {
+                BvvUtils.warnIfLikelySimpleStack(sac.getSpimSource(), 0);
+            }
+        }
+
         // Populate dims/cal from the first setup's metadata so the marker bounds
         // check works for SpimData sources (where these are otherwise never set)
         if (dims == null || cal == null) {
@@ -952,6 +962,9 @@ public class Bvv extends AbstractBigViewer {
             // every channel got its own window instead of being appended to the first one
             final BvvOptions opts = bvvHandle != null
                     ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
+            // Nudge BVV toward its pyramid-aware, block-streaming renderer instead of a single full-volume texture
+            // upload, when the source structurally supports it
+            BvvUtils.preferMultiResolutionIfSafe(soc.getSpimSource(), 0);
             final BvvStackSource<?> source = BvvFunctions.show(soc, n5Sources.numTimepoints(), opts);
             sources.add(source);
             if (bvvHandle == null) bvvHandle = source.getBvvHandle(); // subsequent channels attach to this window

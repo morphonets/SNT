@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  * Package-private utility methods shared across BVV-related classes
  * ({@link Bvv}, {@link ChannelUnmixingCard}, etc.).
  */
-final class BvvUtils {
+public final class BvvUtils {
 
     /** Default camera distance (screen-pixel units) used before volume-derived params are available. */
     static final double DEFAULT_D_CAM = 2000;
@@ -525,6 +525,180 @@ final class BvvUtils {
                 nearW[1] + refinedT * dy,
                 nearW[2] + refinedT * dz
         };
+    /**
+     * Wraps a single-resolution {@link Source} in a synthetic mipmap pyramid, built by materializing it locally (see
+     * {@link ImgUtils#materialize}) and lazily subsampling that local copy. BVV's {@code VolumeRenderer} requires
+     * multiple resolution levels to pick a LOD; without one it throws on every repaint. Use this for non-pyramidal
+     * N5/Zarr sources that cannot be re-exported with a real pyramid.
+     * <p>
+     * Level 0 is the full-resolution, now-local copy; each extra level doubles the previous step size along X/Y/Z,
+     * matching how a real N5/Zarr multiscale pyramid is laid out
+     *
+     * @param source  the single-level source to wrap
+     * @param nLevels number of extra downsampled levels to synthesize
+     * @param <T>     pixel type
+     * @return a multi-resolution {@link Source} wrapping {@code source}, or {@code source} unchanged if it already has
+     * more than one level
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends NumericType<T> & NativeType<T>> Source<T> synthesizeMipmapPyramid(
+            final Source<T> source, final int nLevels) {
+        if (source.getNumMipmapLevels() > 1) return source;
+        SNTUtils.log("BVV: materializing '" + source.getName() + "' locally to synthesize a mipmap pyramid "
+                + "(" + nLevels + " extra level(s)); this may take a while for a remote source");
+        final RandomAccessibleInterval<T>[] levels = new RandomAccessibleInterval[nLevels + 1];
+        final double[][] scales = new double[nLevels + 1][3];
+        levels[0] = ImgUtils.materialize(source.getSource(0, 0)); // one-time local copy
+        scales[0] = new double[]{1, 1, 1};
+        for (int l = 1; l <= nLevels; l++) {
+            final long step = 1L << l; // 2, 4, 8...
+            levels[l] = Views.subsample(levels[0], step, step, step);
+            scales[l] = new double[]{step, step, step};
+        }
+        final AffineTransform3D transform = new AffineTransform3D();
+        source.getSourceTransform(0, 0, transform);
+        SNTUtils.log("BVV: synthetic pyramid ready for '" + source.getName() + "'");
+        return new RandomAccessibleIntervalMipmapSource<>(levels, source.getType(),
+                scales, source.getVoxelDimensions(), transform, source.getName());
+    }
+
+    /**
+     * Fetches and locally caches whichever mipmap level BVV will actually render first for {@code source}, by touching
+     * every pixel on the calling thread. Call {@link #preferMultiResolutionIfSafe} first so the stack type is already
+     * decided when this runs
+     * <p>
+     * {@code SimpleStack3D} always uploads level 0 (full resolution) as a single texture on first paint (see
+     * {@code bvv.core.render.DefaultSimpleStackManager}) so that upload is what must be warmed for it.
+     * {@code MultiResolutionStack3D} streams blocks progressively and never blocks the EDT regardless of what is cached,
+     * so warming its coarsest level here is only a courtesy (a faster first frame).
+     * <p>
+     * Call this on a background thread before {@code bvv.show(...)} so the EDT only ever sees already-cached data
+     *
+     * @param source    the source to warm up
+     * @param timepoint the timepoint to warm up
+     * @param <T>       pixel type
+     */
+    public static <T> void prefetchForShow(final Source<T> source, final int timepoint) {
+        final boolean multiRes =
+                SourceStacks.getSourceStackType(source) == SourceStacks.SourceStackType.MULTIRESOLUTION;
+        final int level = multiRes ? source.getNumMipmapLevels() - 1 : 0;
+        final RandomAccessibleInterval<T> rai = source.getSource(timepoint, level);
+        LoopBuilder.setImages(rai).multiThreaded().forEachPixel(t -> {
+        });
+    }
+
+    /**
+     * Forces BVV to render {@code source} with its pyramid-aware, block-streaming path
+     * ({@code bvv.core.multires.MultiResolutionStack3D}) instead of the naive single-texture path
+     * ({@code bvv.core.multires.SimpleStack3D}), when it is safe to do so.
+     * <p>
+     * BVV auto-detects which path to use ({@code bvv.core.multires.SourceStacks#inferSourceStackType}):
+     * it only picks the multi-resolution path when {@code source}'s pixel type is
+     * {@code TileAccess}-supported AND {@code source.getSource(timepoint, 0)} is (or wraps, via
+     * {@code VolatileView}) an {@code AbstractCellImg}. Many BDV/N5 source builders wrap their
+     * levels in a plain {@code Views}-based interval (not an {@code AbstractCellImg}), which makes
+     * BVV fall back to {@code SimpleStack3D} even for a genuinely multi-resolution, remote source.
+     * {@code SimpleStack3D} uploads the entire full-resolution volume as one texture on first paint,
+     * fetching all of it synchronously
+     * <p>
+     * This mirrors BVV's own {@code inferSourceStackType} check before overriding it, so it never
+     * forces multi-resolution rendering on a source that would actually fail it (which would throw
+     * {@code UnsupportedOperationException} from {@code TileAccess.create} on the render thread).
+     * If the check fails, this method does nothing and BVV falls back to its own (slower) default
+     *
+     * @param source    the source about to be shown in BVV
+     * @param timepoint the timepoint to inspect
+     */
+    @SuppressWarnings("rawtypes")
+    public static void preferMultiResolutionIfSafe(final Source<?> source, final int timepoint) {
+        if (source.getNumMipmapLevels() <= 1) return; // nothing to gain, only one level exists
+        if (SourceStacks.getSourceStackType(source) != SourceStacks.SourceStackType.UNDEFINED)
+            return; // already decided (e.g. a previous show() call already rendered this source)
+        if (!TileAccess.isSupportedType(source.getType())) {
+            SNTUtils.log("BVV: '" + source.getName() + "' pixel type is not supported by BVV's "
+                    + "multi-resolution renderer; leaving stack type inference to BVV");
+            return;
+        }
+        Object rai = source.getSource(timepoint, 0);
+        if (rai instanceof VolatileView) rai = ((VolatileView) rai).getVolatileViewData().getImg();
+        if (rai instanceof AbstractCellImg) {
+            SourceStacks.setSourceStackType(source, SourceStacks.SourceStackType.MULTIRESOLUTION);
+            SNTUtils.log("BVV: '" + source.getName() + "' will use pyramid-aware, block-streaming "
+                    + "rendering (avoids fetching the full volume up front)");
+        } else {
+            // Decide SIMPLE explicitly (rather than leaving it UNDEFINED for BVV's own lazy
+            // inference to set later) so prefetchForShow() knows, right now, which level to warm
+            SourceStacks.setSourceStackType(source, SourceStacks.SourceStackType.SIMPLE);
+            SNTUtils.log("BVV: '" + source.getName() + "' pyramid levels are not directly backed by "
+                    + "a CellImg (level 0 is a " + rai.getClass().getSimpleName() + "); BVV will fall "
+                    + "back to uploading the full volume as a single texture, which may block the GUI "
+                    + "for remote sources");
+        }
+    }
+
+    /**
+     * Read-only counterpart to {@link #preferMultiResolutionIfSafe} for {@link
+     * mpicbg.spim.data.generic.AbstractSpimData} sources (BDV-XML/HDF5, IMS): logs a warning if
+     * {@code source} looks likely to fall back to BVV's non-pyramid-aware {@code SimpleStack3D}
+     * renderer, without attempting to prevent it.
+     * <p>
+     * Unlike the {@code SpimDataUtils.N5Sources} path, {@code BvvFunctions.show(AbstractSpimData,
+     * BvvOptions)} builds its own {@code Source} instances internally (via {@code
+     * BigDataViewer#initSetups}), so there is no hook to call {@link #preferMultiResolutionIfSafe}
+     * on the actual instance before it first renders. {@code inferSourceStackType}'s check is a
+     * pure function of the source's structural properties (pixel type, whether level 0 is an
+     * {@code AbstractCellImg}), not of instance identity or any per-instance cached state, so
+     * running the same check here - on the {@code Source} SNT already has a handle to after {@code
+     * show()} returns - still gives an accurate answer; it just can't change the outcome
+     * <p>
+     * This is diagnostic only: it neither prefetches nor forces a stack type, so it carries none of
+     * {@link #preferMultiResolutionIfSafe}/{@link #prefetchForShow}'s risk of misbehaving on a
+     * source shape this hasn't been exercised against - it only makes a slow first paint traceable
+     * in the log after the fact, for whichever {@code AbstractSpimData} backend produced it
+     *
+     * @param source    the (already-shown) source to inspect
+     * @param timepoint the timepoint to inspect (0 is fine for this purely structural check)
+     */
+    public static void warnIfLikelySimpleStack(final Source<?> source, final int timepoint) {
+        if (source.getNumMipmapLevels() <= 1) return; // BVV falls back to SIMPLE regardless; nothing to warn about
+        if (!TileAccess.isSupportedType(source.getType())) {
+            SNTUtils.log("BVV: '" + source.getName() + "' pixel type is not supported by BVV's "
+                    + "multi-resolution renderer; it will use the single-texture SimpleStack3D path, "
+                    + "which may block the GUI on first paint for large or remote data");
+            return;
+        }
+        Object rai = source.getSource(timepoint, 0);
+        if (rai instanceof VolatileView) rai = ((VolatileView) rai).getVolatileViewData().getImg();
+        if (!(rai instanceof AbstractCellImg)) {
+            SNTUtils.log("BVV: '" + source.getName() + "' pyramid levels are not directly backed by "
+                    + "a CellImg (level 0 is a " + rai.getClass().getSimpleName() + "); BVV will likely "
+                    + "use its non-pyramid-aware SimpleStack3D renderer for this source, uploading the "
+                    + "full volume as a single texture, which may block the GUI on first paint for "
+                    + "large or remote data");
+        }
+    }
+
+    /**
+     * Diagnostic-only warning for the plain {@code ImgPlus} fallback path (see {@link
+     * SpimDataUtils#resolvePathToSource(String)}). Unlike {@link #preferMultiResolutionIfSafe}/
+     * {@link #warnIfLikelySimpleStack}, an {@code ImgPlus} always has a single mipmap level, so BVV
+     * always renders it via the non-pyramid-aware {@code SimpleStack3D} path regardless of pixel
+     * type or backing storage - there is no "is it structurally eligible for MULTIRESOLUTION"
+     * question to ask here the way there is for {@code AbstractSpimData}/{@code N5Sources}.
+     * <p>
+     * {@code resolvePathToSource} already knows this at resolution time - a remote {@code ImgPlus}
+     * is only ever produced by its own URL fallback branch ({@code ImgUtils.open(url)}) - so this
+     * simply carries that signal forward rather than trying to re-derive it by introspecting the
+     * RAI (which, for a lazily-opened remote image, may not even be a recognizable cache type)
+     *
+     * @param img       the resolved {@code ImgPlus} about to be shown in BVV
+     * @param pathOrUrl the original path or URL {@code img} was resolved from
+     */
+    public static void warnIfLikelyRemoteImgPlus(final ImgPlus<?> img, final String pathOrUrl) {
+        if (!SpimDataUtils.isRemoteUrl(pathOrUrl)) return;
+        SNTUtils.log("BVV: '" + img.getName() + "' was opened from a remote URL as a plain image "
+                + "(no pyramid); BVV will upload the full volume as a single texture, which may "
+                + "block the GUI on first paint while it downloads");
     }
 
     /**

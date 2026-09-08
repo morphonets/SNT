@@ -1481,6 +1481,21 @@ public class ImgUtils {
     }
 
     /**
+     * Copies a (possibly lazy/remote) view into a local, contiguous  {@link ArrayImgFactory}-backed image. Use before
+     * repeated random-access operations on a view backed by something expensive to re-read, e.g. a remote N5/Zarr source.
+     *
+     * @param source the view to copy
+     * @param <T>    pixel type
+     * @return a local, fully-realized copy of {@code source}
+     */
+    public static <T extends NativeType<T>> Img<T> materialize(final RandomAccessibleInterval<T> source) {
+        final ArrayImgFactory<T> factory = new ArrayImgFactory<>(source.getType());
+        final Img<T> copy = factory.create(source);
+        LoopBuilder.setImages(source, copy).multiThreaded().forEachPixel((s, t) -> t.set(s));
+        return copy;
+    }
+
+    /**
      * Saves an image to disk as a TIFF file. This is the save counterpart of
      * {@link #open(String)}.
      * <p>

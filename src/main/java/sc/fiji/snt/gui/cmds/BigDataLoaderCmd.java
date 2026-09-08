@@ -22,6 +22,8 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import bdv.viewer.Source;
+import bdv.viewer.SourceAndConverter;
 import net.imagej.ImgPlus;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator;
@@ -51,9 +53,11 @@ import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
+import sc.fiji.snt.viewer.BvvUtils;
 
 import javax.swing.*;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -71,6 +75,9 @@ import java.util.stream.Stream;
  */
 @Plugin(type = Command.class, label = "Big Data/SNT Stream", initializer = "init")
 public class BigDataLoaderCmd extends ContextCommand {
+
+    /** Initial budget given to {@link #awaitBvvDataOrPrompt}; doubled each time the user chooses to keep waiting */
+    private static final long INITIAL_PREFETCH_TIMEOUT_SECONDS = 30;
 
     private static final String TOOLTIP =
             """
@@ -147,7 +154,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         img2File = null;
         recFiles = new File(demoRoot + "autotracings.traces");
         markerFile = new File(demoRoot + "soma_detections.csv");
-        viewerType = "Big Data Viewer (BDV): Interactive reslicing";
+        viewerType = "Big Volume Viewer (BVV): 3D rendering";
         tracingEnabled = true;
     }
 
@@ -320,7 +327,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                             SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
                     // Same non-pyramidal-dataset risk as resolveBvvSources(), only relevant for BVV
                     if (viewer instanceof Bvv bvv) {
-                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir)) bvv.show(n5Sources);
+                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir) && awaitBvvSourcesReady(n5Sources)) {
+                            bvv.show(withSyntheticPyramid(n5Sources));
+                        }
                     } else if (viewer instanceof Bdv bdv) {
                         bdv.show(n5Sources);
                     }
@@ -428,13 +437,18 @@ public class BigDataLoaderCmd extends ContextCommand {
             if (source instanceof SpimDataUtils.N5Sources n5 && !confirmPyramidOrAbort(n5, path)) {
                 return null; // user chose Abort
             }
-            if (source instanceof ImgPlus<?> img && ImgUtils.exceedsDimension(img, maxTexSize)) {
-                final Object handled = handleOversizedImage(img, maxTexSize, path);
-                if (handled == null) return null; // user chose Abort
-                sources.add(handled);
-            } else {
-                sources.add(source);
+            if (source instanceof ImgPlus<?> img) {
+                // Diagnostic only. A plain ImgPlus has no pyramid, so unlike AbstractSpimData/N5Sources there is
+                // nothing to force here, only a remote-origin freeze risk worth logging
+                BvvUtils.warnIfLikelyRemoteImgPlus(img, path);
+                if (ImgUtils.exceedsDimension(img, maxTexSize)) {
+                    final Object handled = handleOversizedImage(img, maxTexSize, path);
+                    if (handled == null) return null; // user chose Abort
+                    sources.add(handled);
+                    continue;
+                }
             }
+            sources.add(source);
         }
         return new ResolvedSources(sources, deferredPaths);
     }
@@ -445,7 +459,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             if (source instanceof AbstractSpimData<?> spim) {
                 bvv.show(spim);
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                bvv.show(n5);
+                if (awaitBvvSourcesReady(n5)) bvv.show(withSyntheticPyramid(n5));
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) img);
@@ -779,9 +793,9 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (viewer.getSNT() != null) { // tracing capabilities present
             final PathAndFillManager pafm = viewer.getSNT().getPathAndFillManager();
             trees.forEach(tree -> pafm.addTree(tree, tree.getLabel())); // registers as editable Paths
-            // addTree() (unlike addTrees()) intentionally skips this check (see its javadoc), so trigger
-            // it explicitly here. If a SNTUI exists, reuse its own persistent-warning dialog (same one
-            // shown by traditional-mode reconstruction imports) instead of a one-off dialog of our own
+            // addTree() (unlike addTrees()) intentionally skips this check, so trigger it explicitly here. If a SNTUI
+            // exists, reuse its own persistent-warning dialog (same one shown by traditional-mode reconstruction
+            // imports) instead of a one-off dialog of our own
             pafm.validateImageDimensions();
             if (viewer.getSNT().getUI() != null) {
                 try {
@@ -827,14 +841,13 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /**
-     * Warns before loading a non-pyramidal (single resolution level) N5/Zarr source into BVV. BVV's
-     * GPU brick-cache/raycasting renderer assumes a proper multi-resolution pyramid; a single-level
-     * dataset crashes BVV's {@code VolumeRenderer}!? (NB: BDV needs no pyramid)
+     * Checks whether {@code n5Sources} has a multi-resolution pyramid. If not, offers to build one locally via
+     * {@link BvvUtils#synthesizeMipmapPyramid}, since BVV's 3D renderer requires one and becomes unresponsive w/o one!?
      *
-     * @param n5Sources the resolved N5/Zarr source(s)
-     * @param path      the original path, used only for the warning message
-     * @return true if there is a pyramid (nothing to warn about) or the user chose to continue anyway;
-     *         false if the user chose to abort
+     * @param n5Sources the sources to check
+     * @param path      the original path, used only for the confirmation message
+     * @return true if there is already a pyramid, or the user chose to build one locally; false if
+     * the user chose to cancel
      */
     private static boolean confirmPyramidOrAbort(final SpimDataUtils.N5Sources n5Sources, final String path) {
         if (n5Sources.sources().isEmpty()) return true; // nothing to check; downstream logic already handles this
@@ -842,17 +855,94 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (nLevels > 1) return true;
         final String message = String.format(
                 "'%s' has no multi-resolution pyramid (a single resolution level only). Big Volume "
-                        + "Viewer's 3D renderer relies on such a pyramid and has been known to fail or "
-                        + "become unresponsive without one. Continue loading it anyway?",
+                        + "Viewer's 3D renderer requires one, so SNT can build one locally instead. "
+                        + "This downloads the full volume once, which may take a while for a large "
+                        + "remote dataset. Build a pyramid now?",
                 new File(path).getName());
         // The loading splash screen (SNTUtils#setIsLoading(true), running since run() started) is an
         // always-on-top window that can end up rendered above this confirmation
         SNTUtils.setIsLoading(false);
         try {
             return new GuiUtils(null).getConfirmation(message, "Non-pyramidal N5/Zarr Dataset",
-                    "Continue Anyway", "Cancel");
+                    "Build Pyramid", "Cancel");
         } finally {
             SNTUtils.setIsLoading(true);
+        }
+    }
+
+    /**
+     * Rewraps every source in {@code n5Sources} via {@link BvvUtils#synthesizeMipmapPyramid},
+     * preserving each source's existing converter. No-op for sources that already have a pyramid
+     *
+     * @param n5Sources the sources to rewrap
+     * @return an equivalent {@link SpimDataUtils.N5Sources} with pyramid-backed sources
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static SpimDataUtils.N5Sources withSyntheticPyramid(final SpimDataUtils.N5Sources n5Sources) {
+        final List<SourceAndConverter<?>> rewrapped = (List<SourceAndConverter<?>>) (List<?>) n5Sources.sources()
+                .stream()
+                .map(soc -> new SourceAndConverter(
+                        BvvUtils.synthesizeMipmapPyramid((Source) soc.getSpimSource(), 3),
+                        soc.getConverter()))
+                .toList();
+        return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name());
+    }
+
+
+    /**
+     * Calls {@link #awaitBvvDataOrPrompt} for every source in {@code n5Sources}
+     *
+     * @param n5Sources the sources about to be shown in BVV
+     * @return true if the caller should proceed to show {@code n5Sources}; false if the user cancelled
+     */
+    private static boolean awaitBvvSourcesReady(final SpimDataUtils.N5Sources n5Sources) {
+        for (final SourceAndConverter<?> soc : n5Sources.sources()) {
+            if (!awaitBvvDataOrPrompt(soc.getSpimSource())) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Ensures {@code source}'s data is fetched before it is first shown in BVV, since BVV's own
+     * first-paint fetch happens synchronously on the EDT and can freeze the GUI with no feedback
+     * (see {@link BvvUtils#prefetchForShow}). Also decides up front whether {@code source} can use
+     * BVV's pyramid-aware renderer instead of its single-texture fallback (see {@link
+     * BvvUtils#preferMultiResolutionIfSafe}), since that decision determines which level needs to be
+     * warmed. If the fetch is taking unusually long (slow/remote connection), prompts the user to
+     * keep waiting, proceed anyway, or cancel, doubling the wait budget each time they choose to
+     * keep waiting
+     *
+     * @param source the source about to be shown in BVV
+     * @return true if the caller should proceed to show {@code source}; false if the user canceled
+     */
+    private static boolean awaitBvvDataOrPrompt(final Source<?> source) {
+        long timeoutSeconds = INITIAL_PREFETCH_TIMEOUT_SECONDS;
+        GuiUtils.setSplashMessage("Fetching '" + source.getName() + "'...");
+        BvvUtils.preferMultiResolutionIfSafe(source, 0);
+        while (true) {
+            try {
+                SNTUtils.runWithTimeout(() -> {
+                    BvvUtils.prefetchForShow(source, 0);
+                    return null;
+                }, timeoutSeconds, "fetching '" + source.getName() + "' for BVV");
+                return true;
+            } catch (final IOException e) {
+                final String message = String.format(
+                        "'%s' is taking longer than %ds to load (slow or remote connection?). Open as-is now " +
+                                "(volume may render incorrectly until fully loaded), keep waiting, or abort loading?",
+                        source.getName(), timeoutSeconds);
+                SNTUtils.setIsLoading(false);
+                final String choice;
+                try {
+                    choice = new GuiUtils(null).getChoice(message, "BVV: Slow Remote Volume",
+                            new String[]{"Keep Waiting", "Open As-is", "Abort"}, "Keep Waiting");
+                } finally {
+                    SNTUtils.setIsLoading(true);
+                }
+                if (choice == null || "Abort".equals(choice)) return false;
+                if ("Open As-is".equals(choice)) return true;
+                timeoutSeconds *= 2; // "Keep Waiting"
+            }
         }
     }
 
