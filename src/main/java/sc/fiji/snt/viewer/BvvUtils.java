@@ -23,19 +23,30 @@
 package sc.fiji.snt.viewer;
 
 import bdv.util.AxisOrder;
+import bdv.util.RandomAccessibleIntervalMipmapSource;
+import bdv.util.volatiles.VolatileView;
 import bdv.viewer.Source;
 import bvv.core.VolumeViewerPanel;
+import bvv.core.blocks.TileAccess;
+import bvv.core.multires.SourceStacks;
 import bvv.core.util.MatrixMath;
 import ij.ImagePlus;
+import net.imagej.ImgPlus;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.cell.AbstractCellImg;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import net.imglib2.loops.LoopBuilder;
 import net.imglib2.realtransform.AffineTransform3D;
+import net.imglib2.type.NativeType;
+import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.ImgUtils;
 
 import java.awt.Point;
 import java.io.BufferedReader;
@@ -216,6 +227,14 @@ public final class BvvUtils {
         t.applyInverse(nearW, nearV);
         t.applyInverse(farW, farV);
 
+        if (SNTUtils.isDebugMode()) {
+            SNTUtils.log(String.format(
+                    "BVV click-ray: mouse=(%d,%d) center=(%.1f,%.1f) dCam=%.1f near=%.1f far=%.1f%n"
+                            + "  nearW=(%.3f,%.3f,%.3f) farW=(%.3f,%.3f,%.3f)",
+                    mouse.x, mouse.y, cx, cy, dCam, nearClip, farClip,
+                    nearW[0], nearW[1], nearW[2], farW[0], farW[1], farW[2]));
+        }
+
         return new double[][]{nearW, farW};
     }
 
@@ -306,18 +325,28 @@ public final class BvvUtils {
     }
 
     /**
-     * Returns the interpolated intensity of {@code src} at {@code worldPt},
-     * used to compare peaks found across multiple channels.
+     * Returns the interpolated intensity of {@code src} at {@code worldPt}, normalized to [0,1] via
+     * {@code (raw - displayMin) / (displayMax - displayMin)}.
+     *
+     * <p>Normalization matters when comparing peaks across multiple channels/sources (see
+     * {@code Bvv#searchPeakAcrossSources}): raw pixel values are not comparable across sources with different bit
+     * depths or contrast settings, so comparing raw intensities would bias the result toward whichever source has the
+     * largest raw values rather than whichever is actually the brightest/most visible one on screen
+     *
+     * @param displayMin display-range minimum for {@code src} (e.g. from its {@code ConverterSetup})
+     * @param displayMax display-range maximum for {@code src}
      */
-    static double peakValue(final double[] worldPt,
-                            final Source<?> src, final int timePoint, final int level) {
+    static double peakValue(final double[] worldPt, final Source<?> src, final int timePoint,
+                            final int level, final double displayMin, final double displayMax) {
         final RandomAccessibleInterval<?> rai = src.getSource(timePoint, level);
         if (rai == null) return 0;
         final AffineTransform3D srcT = new AffineTransform3D();
         src.getSourceTransform(timePoint, level, srcT);
         final double[] voxPt = new double[3];
         srcT.applyInverse(voxPt, worldPt);
-        return sampleAt(rai, voxPt);
+        final double raw = sampleAt(rai, voxPt);
+        final double range = displayMax - displayMin;
+        return (range > 0) ? (raw - displayMin) / range : raw;
     }
 
     @SuppressWarnings("unchecked")
@@ -325,6 +354,21 @@ public final class BvvUtils {
         final RandomAccessibleInterval<T> rai = (RandomAccessibleInterval<T>) raiRaw;
         final net.imglib2.RealRandomAccess<T> ra = Views.interpolate(Views.extendZero(rai),
                 new NLinearInterpolatorFactory<T>()).realRandomAccess();
+        ra.setPosition(voxPt);
+        return ra.get().getRealDouble();
+    }
+
+    /** Samples {@code ra} at ray-parameter index {@code i}, reusing the given scratch buffers */
+    private static <T extends RealType<T>> double sampleRayValue(
+            final double[] nearW, final double dx, final double dy, final double dz,
+            final double len, final double step, final AffineTransform3D srcT,
+            final net.imglib2.RealRandomAccess<T> ra, final double[] worldPt, final double[] voxPt,
+            final int i) {
+        final double t = (i * step) / len;
+        worldPt[0] = nearW[0] + t * dx;
+        worldPt[1] = nearW[1] + t * dy;
+        worldPt[2] = nearW[2] + t * dz;
+        srcT.applyInverse(voxPt, worldPt);
         ra.setPosition(voxPt);
         return ra.get().getRealDouble();
     }
@@ -361,6 +405,16 @@ public final class BvvUtils {
     static final double RAY_SEARCH_RADIUS_VOXELS_WIDE = 60;
 
     /**
+     * Sentinel passed to {@link #rayMaxima} to search the ray's *entire* near-to-far extent, bypassing the focal-plane
+     * window entirely. Tried by {@code Bvv#findClickRayMaxima()} only when both  {@link #RAY_SEARCH_RADIUS_VOXELS} and
+     * {@link #RAY_SEARCH_RADIUS_VOXELS_WIDE} find nothing, which happens whenever the visible structure sits far (in
+     * ray-depth) from wherever the view's current focal plane happens to be, e.g. right after opening a dataset or
+     * navigating without having scrolled the depth to match what's on screen. In that situation tethering to the focal
+     * plane is actively wrong: the visible structure the user clicked on is somewhere else along the ray
+     */
+    static final double RAY_SEARCH_RADIUS_VOXELS_FULL = Double.POSITIVE_INFINITY;
+
+    /**
      * Walks the world-space ray from nearW to farW and returns the world-space
      * position of the intensity maximum near the focal plane. Sub-voxel accuracy
      * is achieved via a 3-point parabola fit.
@@ -383,7 +437,8 @@ public final class BvvUtils {
      * @param focalT           parametric position of the focal plane along the ray,
      *                         in [0,1]; typically nearClip / (nearClip + farClip)
      * @param searchRadiusVoxels physical search radius, in voxels of the sampled level, around the
-     *                           focal point (see {@link #RAY_SEARCH_RADIUS_VOXELS})
+     *                           focal point (see {@link #RAY_SEARCH_RADIUS_VOXELS}), or
+     *                           {@link #RAY_SEARCH_RADIUS_VOXELS_FULL} to search the whole ray
      * @return world-space position of the intensity maximum, or null if the ray
      *         misses the volume entirely (all samples in the window are zero)
      */
@@ -417,17 +472,31 @@ public final class BvvUtils {
         final int nSteps = (int) Math.ceil(len / step);
 
         // Search window: fixed physical radius around the focal index, converted to a step count
-        // at the current level/zoom rather than a fraction of the (zoom-dependent) ray length
+        // at the current level/zoom rather than a fraction of the (zoom-dependent) ray length.
+        // RAY_SEARCH_RADIUS_VOXELS_FULL (infinite) bypasses this entirely and covers [0,nSteps]
         final int focalIdx = Math.max(0, Math.min(nSteps, (int) Math.round(focalT * nSteps)));
-        final double searchRadiusWorld = searchRadiusVoxels * minVoxel;
-        final int windowSteps = Math.max(1, (int) Math.ceil(searchRadiusWorld / step));
+        final int windowSteps;
+        if (Double.isInfinite(searchRadiusVoxels)) {
+            windowSteps = nSteps;
+        } else {
+            final double searchRadiusWorld = searchRadiusVoxels * minVoxel;
+            windowSteps = Math.max(1, (int) Math.ceil(searchRadiusWorld / step));
+        }
         final int i0 = Math.max(0,      focalIdx - windowSteps);
         final int i1 = Math.min(nSteps, focalIdx + windowSteps);
 
         final RandomAccessibleInterval<?> rai = src.getSource(timePoint, level);
         if (rai == null) return null;
 
-        return sampleRay(nearW, farW, rai, srcT, dx, dy, dz, len, step, nSteps, i0, i1);
+        if (SNTUtils.isDebugMode()) {
+            SNTUtils.log(String.format(
+                    "BVV rayMaxima['%s']: level=%d len=%.3f minVoxel=%.4f step=%.4f nSteps=%d%n"
+                            + "  focalT=%.4f focalIdx=%d radiusVox=%.1f window=[%d,%d)",
+                    src.getName(), level, len, minVoxel, step, nSteps,
+                    focalT, focalIdx, searchRadiusVoxels, i0, i1));
+        }
+
+        return sampleRay(nearW, farW, rai, srcT, dx, dy, dz, len, step, nSteps, i0, i1, src.getName());
     }
 
     /**
@@ -442,7 +511,7 @@ public final class BvvUtils {
             final AffineTransform3D srcT,
             final double dx, final double dy, final double dz,
             final double len, final double step, final int nSteps,
-            final int i0, final int i1) {
+            final int i0, final int i1, final String debugName) {
 
         final RandomAccessibleInterval<T> rai = (RandomAccessibleInterval<T>) raiRaw;
         final net.imglib2.RealRandomAccess<T> ra =
@@ -486,7 +555,26 @@ public final class BvvUtils {
         int runStart = maxIdx, runEnd = maxIdx;
         while (runStart > i0 && vals[runStart - 1 - i0] >= maxVal - plateauEps) runStart--;
         while (runEnd < i1 - 1 && vals[runEnd + 1 - i0] >= maxVal - plateauEps) runEnd++;
+        final int runStartInWindow = runStart, runEndInWindow = runEnd;
+
+        // A structure whose extent along the ray exceeds the search window (e.g. a large/saturated soma vs. the tight
+        // RAY_SEARCH_RADIUS_VOXELS) gets its plateau cut off by i0/i1 rather than  by the actual data. Taking the
+        // midpoint of that truncated run biases the result toward  whichever side the window happened to cut off;
+        // continue outward past the window, still following the same contiguous plateau, until the real edges are found
+        // (or the ray ends)
+        while (runStart > 0 && sampleRayValue(nearW, dx, dy, dz, len, step, srcT, ra, worldPt, voxPt, runStart - 1) >= maxVal - plateauEps)
+            runStart--;
+        while (runEnd < nSteps - 1 && sampleRayValue(nearW, dx, dy, dz, len, step, srcT, ra, worldPt, voxPt, runEnd + 1) >= maxVal - plateauEps)
+            runEnd++;
         final int anchorIdx = (runStart + runEnd) / 2;
+
+        if (SNTUtils.isDebugMode()) {
+            SNTUtils.log(String.format(
+                    "BVV rayMaxima['%s']: maxIdx=%d maxVal=%.3f%n runInWindow=[%d,%d] runExtended=[%d,%d]%s anchorIdx=%d",
+                    debugName, maxIdx, maxVal, runStartInWindow, runEndInWindow, runStart, runEnd,
+                    (runStart != runStartInWindow || runEnd != runEndInWindow) ? " [plateau extended past search window]" : "",
+                    anchorIdx));
+        }
 
         // 3-point parabola refinement for sub-voxel accuracy (if not at endpoints). Harmless on a
         // genuine plateau: the immediate neighbors of its midpoint are themselves part of the flat
@@ -520,11 +608,18 @@ public final class BvvUtils {
             refinedT = (anchorIdx * step) / len;
         }
 
-        return new double[]{
+        final double[] result = {
                 nearW[0] + refinedT * dx,
                 nearW[1] + refinedT * dy,
                 nearW[2] + refinedT * dz
         };
+        if (SNTUtils.isDebugMode()) {
+            SNTUtils.log(String.format("BVV rayMaxima['%s']: refinedT=%.5f result=(%.3f,%.3f,%.3f)",
+                    debugName, refinedT, result[0], result[1], result[2]));
+        }
+        return result;
+    }
+
     /**
      * Wraps a single-resolution {@link Source} in a synthetic mipmap pyramid, built by materializing it locally (see
      * {@link ImgUtils#materialize}) and lazily subsampling that local copy. BVV's {@code VolumeRenderer} requires

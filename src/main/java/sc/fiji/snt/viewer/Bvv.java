@@ -79,6 +79,14 @@ public class Bvv extends AbstractBigViewer {
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     /**
+     * Minimum normalized (0-1, see {@link BvvUtils#peakValue}) intensity for a ray-max result to be treated as a
+     * genuine hit on visible signal rather than background/noise. Below this, {@link #findClickRayMaxima()} widens/
+     * escalates the search radius instead of accepting the point: a window can contain *some* nonzero sample without
+     * containing the structure actually being clicked
+     */
+    private static final double PEAK_SIGNIFICANCE = 0.2;
+
+    /**
      * Returns the most recently created {@link Bvv} instance, or {@code null}
      * if none has been created yet. Convenience accessor for scripts.
      *
@@ -1665,6 +1673,12 @@ public class Bvv extends AbstractBigViewer {
                         final double[] viewerPt = new double[3];
                         current.apply(target, viewerPt);
 
+                        if (SNTUtils.isDebugMode()) {
+                            SNTUtils.log(String.format(
+                                    "BVV recenter click: screen=(%d,%d) target=(%.3f,%.3f,%.3f) viewerZ=%.3f",
+                                    e.getX(), e.getY(), target[0], target[1], target[2], viewerPt[2]));
+                        }
+
                         if (reactTracingEnabled && renderingOptions.strategy == RecenterStrategy.ADAPTIVE) {
                             // Skip the recenter entirely when the click already lands close enough to the
                             // focal plane that foreshortening error is negligible. This is the common case
@@ -2405,35 +2419,81 @@ public class Bvv extends AbstractBigViewer {
                 (current != null && visible.contains(current))
                 ? java.util.Collections.singleton(current)
                 : visible;
-        // Tight radius first (keeps the result tethered to the clicked point, see
-        // BvvUtils#RAY_SEARCH_RADIUS_VOXELS); only widen if that finds nothing at all, so a click
-        // that's merely a few voxels off a thin/dim structure doesn't silently come back empty
-        double[] peak = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS);
-        if (peak == null) {
-            peak = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
-            if (peak != null)
-                SNTUtils.log("BVV: ray-max found nothing within " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS
-                        + " voxels of the clicked point; widened to " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+        if (SNTUtils.isDebugMode()) {
+            SNTUtils.log("BVV findClickRayMaxima: focalT=" + focalT + " near=" + near + " far=" + far
+                    + " sampling " + toSample.size() + " source(s)"
+                    + (current != null ? " (current-only: " + current.getSpimSource().getName() + ")" : ""));
+        }
+
+        // Tight radius first (keeps the result tethered to the clicked point, see  BvvUtils#RAY_SEARCH_RADIUS_VOXELS);
+        // only widen if that finds nothing significant, so a click that's merely a few voxels off a thin/dim structure
+        // doesn't silently come back empty. "Significant" (see PEAK_SIGNIFICANCE) matters as much as "found": a window
+        // can contain some nonzero sample (background/noise, a few % of the display range) without containing the
+        // actually-visible structure the user clicked on, which may sit outside the window entirely
+        double[] result = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS);
+        if (result == null || result[3] < PEAK_SIGNIFICANCE) {
+            final double[] wide = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+            if (wide != null && (result == null || wide[3] > result[3])) {
+                if (result == null) SNTUtils.log("BVV: ray-max found nothing within "
+                        + BvvUtils.RAY_SEARCH_RADIUS_VOXELS + " voxels of the clicked point; widened to "
+                        + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+                result = wide;
+            }
+        }
+        if (result == null || result[3] < PEAK_SIGNIFICANCE) {
+            // Neither window found a peak clearly above background: the visible structure is not near the view's
+            // current focal plane at all (common right after loading a dataset, or after navigating without scrolling
+            // depth to match). Fall back to searching the ray's entire near-to-far extent rather than settling for a
+            // dim/background sample or perpetually returning the (likely wrong) focal-plane position
+            final double[] full = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_FULL);
+            if (full != null && (result == null || full[3] > result[3])) {
+                SNTUtils.log("BVV: ray-max found nothing significant within " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE
+                        + " voxels of the focal plane either; searched the full ray instead");
+                result = full;
+            }
+        }
+        final double[] peak = (result == null) ? null : new double[]{result[0], result[1], result[2]};
+        if (SNTUtils.isDebugMode()) {
+            SNTUtils.log("BVV findClickRayMaxima: final peak = "
+                    + (result == null ? "null" : String.format("(%.3f,%.3f,%.3f) normVal=%.4f",
+                            result[0], result[1], result[2], result[3])));
         }
         return peak;
     }
 
-    /** Searches all of {@code toSample} for the highest-value ray-max peak within {@code searchRadiusVoxels} */
+    /**
+     * Searches all of {@code toSample} for the highest-value ray-max peak within {@code searchRadiusVoxels}.
+     *
+     * @return {@code {x, y, z, normalizedValue}}, or null if no source produced any peak at all
+     */
     private double[] searchPeakAcrossSources(final java.util.Collection<bdv.viewer.SourceAndConverter<?>> toSample,
                                              final int tp, final double focalT, final double[][] ray,
                                              final VolumeViewerPanel vp, final double near, final double far,
                                              final double searchRadiusVoxels) {
         double[] bestPeak = null;
         double   bestVal  = Double.NEGATIVE_INFINITY;
+        final bdv.viewer.ConverterSetups converterSetups = (bvvHandle != null) ? bvvHandle.getConverterSetups() : null;
         for (final bdv.viewer.SourceAndConverter<?> sac : toSample) {
             final bdv.viewer.Source<?> src = sac.getSpimSource();
             final int level = BvvUtils.bestMipLevel(vp, src, tp, pathOverlay.overlayRenderer.dCam, near, far);
             final double[] p = BvvUtils.rayMaxima(ray[0], ray[1], src, tp, focalT, level, searchRadiusVoxels);
             if (p == null) continue;
-            final double val = BvvUtils.peakValue(p, src, tp, level);
+            // Normalize by each source's own display range so a channel with larger raw values
+            // (e.g. 16-bit vs 8-bit, or simply un-normalized contrast) doesn't always win the
+            // comparison regardless of which channel is actually visible at the clicked point
+            final ConverterSetup setup = (converterSetups != null) ? converterSetups.getConverterSetup(sac) : null;
+            final double dispMin = (setup != null) ? setup.getDisplayRangeMin() : 0;
+            final double dispMax = (setup != null) ? setup.getDisplayRangeMax() : 255;
+            final double val = BvvUtils.peakValue(p, src, tp, level, dispMin, dispMax);
+            if (SNTUtils.isDebugMode()) {
+                SNTUtils.log(String.format(
+                        "BVV searchPeakAcrossSources[radius=%.0f]: '%s' level=%d dispRange=[%.1f,%.1f] "
+                                + "point=(%.3f,%.3f,%.3f) normVal=%.4f",
+                        searchRadiusVoxels, src.getName(), level, dispMin, dispMax, p[0], p[1], p[2], val));
+            }
             if (val > bestVal) { bestVal = val; bestPeak = p; }
         }
-        return bestPeak;
+        return (bestPeak == null) ? null : new double[]{bestPeak[0], bestPeak[1], bestPeak[2], bestVal};
     }
 
     @Override
