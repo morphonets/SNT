@@ -141,7 +141,7 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     @SuppressWarnings("unused")
     private void loadDemo() {
-        final String demoRoot = "https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/";
+        final String demoRoot = "https://raw.githubusercontent.com/morphonets/misc/9fff79ac35816d052676682093cdc21de28a226d/dataset-demos/marmoset_neurons/";
         // fine to declare URL as file even though File collapses "//" -> "/": restoreUrlScheme() already handles that
         img1File = new File("https://ome-zarr-scivis.s3.us-east-1.amazonaws.com/v0.4/96x0/marmoset_neurons.ome.zarr");
         img2File = null;

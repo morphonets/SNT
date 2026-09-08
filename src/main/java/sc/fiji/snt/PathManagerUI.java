@@ -482,6 +482,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         popup.add(getDuplicateMenuItem(singlePathListener));
         popup.add(getRenameMenuItem(singlePathListener));
         popup.addSeparator();
+        popup.add(navToolbar.zoomToPathsButton(true));
+        popup.addSeparator();
         popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
         popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_SELECTED_LEVEL));
         popup.addSeparator();
@@ -5895,7 +5897,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             addSeparator();
 
             // zoom/go to
-            add(zoomToPathsButton());
+            add(zoomToPathsButton(false));
             add(zoomToNodeButton());
             addSeparator();
 
@@ -6149,15 +6151,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             return true;
         }
 
-        private JButton zoomToPathsButton() {
-            final JButton button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, IconFactory.secondaryColor(), 1f));
-            button.setActionCommand("Zoom To Selected Paths");
+        AbstractButton zoomToPathsButton(final boolean asMenuItem) {
+            final String actName = "Zoom To Selected Path(s)";
+            final AbstractButton button;
+            if (asMenuItem) {
+                button = new JMenuItem(actName, IconFactory.menuIcon(IconFactory.GLYPH.SEARCH_PLUS));
+            } else {
+                button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, IconFactory.secondaryColor(), 1f));
+                button.setActionCommand(actName);
+                button.setToolTipText(actName);
+            }
             button.addActionListener( e -> {
                 final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
                 zoomToBoundingBox(paths);
                 if (paths != null && paths.size()==1) doubleClickZoomTipIfNeeded();
             });
-            button.setToolTipText("Zoom to selected path(s)");
             return button;
         }
 
