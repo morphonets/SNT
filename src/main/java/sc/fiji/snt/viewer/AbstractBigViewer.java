@@ -99,15 +99,13 @@ public abstract class AbstractBigViewer {
      * Trees currently rendered in this viewer, keyed by unique display label.
      * Insertion order is preserved so the first-added tree stays first.
      * <p>
-     * {@code SNT#updateTracingViewers(boolean, boolean)} fires off a brand new background {@code
-     * Thread} for every {@code syncPathManagerList()} call, with no coordination between successive
-     * calls - during active interactive tracing (many calls in quick succession) more than one of
-     * these can run at the same time. All reads/writes of this plain, non-thread-safe {@link
-     * LinkedHashMap} (here, {@link #addTree(Tree, boolean)}, {@link #removeTree(String)}, {@link
-     * #clearAllTrees()}, {@link #syncPathManagerList()}, {@link #getRenderedTrees()}) must go through
-     * {@link #renderedTreesLock} to avoid a {@link java.util.ConcurrentModificationException}
-     * (previously reachable when tracing on a materialized crop, which generates the required
-     * high rate of {@code updateTracingViewers()} calls).
+     * {@code SNT#updateTracingViewers(boolean, boolean)} fires off a new background {@code Thread} for every
+     * {@code syncPathManagerList()} call, with no coordination between successive calls - during active interactive
+     * tracing (many calls in quick succession) more than one of these can run at the same time. All reads/writes
+     * of this plain, non-thread-safe {@link LinkedHashMap} (here, {@link #addTree(Tree, boolean)},
+     * {@link #removeTree(String)}, {@link #clearAllTrees()}, {@link #syncPathManagerList()},
+     * {@link #getRenderedTrees()}) must go through {@link #renderedTreesLock} to avoid a
+     * {@link java.util.ConcurrentModificationException}
      */
     protected final Map<String, Tree> renderedTrees = new LinkedHashMap<>();
 

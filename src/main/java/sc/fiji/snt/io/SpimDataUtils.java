@@ -68,6 +68,14 @@ import sc.fiji.snt.util.ImgUtils;
  */
 public class SpimDataUtils {
 
+    /**
+     * Overall wall-clock budget (seconds) for resolving a remote (S3/HTTPS) N5/Zarr container or image URL as per
+     * {@link SNTUtils#runWithTimeout}. A bit more generous than {@link SNTUtils#openRemoteStream}'s per-connection
+     * timeout, since discovery may involve several sequential requests (root/group metadata, per-dataset attributes,
+     * etc.), not a single read.
+     */
+    private static final long NETWORK_TIMEOUT_SECONDS = 45;
+
     private SpimDataUtils() {
         // static utility class
     }
@@ -91,13 +99,23 @@ public class SpimDataUtils {
         // public S3-hosted OME-Zarr datasets) before any File-based logic gets a chance to corrupt the string
         if (isRemoteUrl(filePathOrUrl)) {
             final String url = restoreUrlScheme(filePathOrUrl);
+            // NB: N5/Zarr discovery goes through third-party readers (n5-universe/n5-viewer_fiji) with no timeout knob.
+            // A stalled/unreachable remote host call can hang indefinitely, including downstream EDT calls (e.g., BDV/
+            // BVV's own show()/render init)
             try {
-                return resolveN5ToSources(url, displayNameFromUrl(url));
-            } catch (final RuntimeException e) {
+                return SNTUtils.runWithTimeout(() -> resolveN5ToSources(url, displayNameFromUrl(url)),
+                        NETWORK_TIMEOUT_SECONDS, "resolving remote N5/Zarr container '" + url + "'");
+            } catch (final RuntimeException | IOException e) {
                 SNTUtils.log("Could not resolve remote URL '" + url + "' as an N5/Zarr container ("
                         + e.getMessage() + "); trying as a conventional image URL instead");
             }
-            final ImgPlus<?> remoteImg = ImgUtils.open(url);
+            final ImgPlus<?> remoteImg;
+            try {
+                remoteImg = SNTUtils.runWithTimeout(() -> ImgUtils.open(url), NETWORK_TIMEOUT_SECONDS,
+                        "opening remote image '" + url + "'");
+            } catch (final IOException e) {
+                throw new IllegalArgumentException("Could not open URL: " + url + " (" + e.getMessage() + ")", e);
+            }
             if (remoteImg == null)
                 throw new IllegalArgumentException("Could not open URL: " + url);
             return remoteImg;

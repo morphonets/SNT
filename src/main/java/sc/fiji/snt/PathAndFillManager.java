@@ -3086,7 +3086,8 @@ public class PathAndFillManager extends DefaultHandler implements
         if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
             final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
             final String fileNameWithoutExtn = SNTUtils.stripExtension(fileName);
-            return loadGuessingType(fileNameWithoutExtn, new URI(filePathOrURL).toURL().openStream());
+            // NB: SNTUtils#openRemoteStream() applies explicit connect/read timeouts
+            return loadGuessingType(fileNameWithoutExtn, SNTUtils.openRemoteStream(filePathOrURL));
         }
         return load(new File(filePathOrURL).getAbsolutePath());
     }

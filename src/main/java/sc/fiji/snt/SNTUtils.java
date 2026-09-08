@@ -62,7 +62,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
@@ -74,10 +74,15 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -758,6 +763,81 @@ public class SNTUtils {
 			GuiUtils.closeSplashScreen();
 	}
 
+	/** Connect timeout (seconds) applied to ad-hoc remote reads (see {@link #openRemoteStream(String)}). */
+	private static final int NETWORK_CONNECT_TIMEOUT_SECONDS = 15;
+
+	/** Read timeout (seconds) applied to ad-hoc remote reads (see {@link #openRemoteStream(String)}). */
+	private static final int NETWORK_READ_TIMEOUT_SECONDS = 30;
+
+	/**
+	 * Opens an {@link InputStream} to {@code url} with explicit connect/read timeouts, so a stalled or
+	 * unreachable remote host fails with a clear {@link IOException} instead of hanging indefinitely -
+	 * the default behavior of {@link java.net.URL#openStream()}, whose underlying {@link URLConnection} has no
+	 * timeout at all unless one is set explicitly. Used for remote reconstruction/marker/demo files
+	 * (e.g. {@code https://.../autotracings.traces}), which are typically small enough that a single
+	 * bounded connection (rather than {@link #runWithTimeout}'s background-thread wrapper) is enough.
+	 *
+	 * @param url the URL to open (e.g. a remote .traces/.csv file, or a .zip archive)
+	 * @return an InputStream ready to be read
+	 * @throws IOException if the URL is malformed or the connection could not be opened
+	 */
+	public static InputStream openRemoteStream(final String url) throws IOException {
+		try {
+			final URLConnection conn = new URI(url).toURL().openConnection();
+			conn.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(NETWORK_CONNECT_TIMEOUT_SECONDS));
+			conn.setReadTimeout((int) TimeUnit.SECONDS.toMillis(NETWORK_READ_TIMEOUT_SECONDS));
+			return conn.getInputStream();
+		} catch (final URISyntaxException e) {
+			throw new IOException("Malformed URL: " + url, e);
+		}
+	}
+
+	/**
+	 * Runs {@code task} on a bounded background (daemon) thread, guarding against blocking I/O - typically remote
+	 * N5/Zarr discovery, that can otherwise hang indefinitely on a stalled connection with no feedback to the user.
+	 * <p>
+	 * Unlike {@link #openRemoteStream(String)} (a single bounded connection), this bounds the *entire* operation,
+	 * however many network round-trips it internally makes.
+	 * <p>
+	 * On timeout, the background thread is best-effort interrupted via {@link ExecutorService#shutdownNow()};
+	 * if the underlying I/O call ignores interruption (common for plain socket reads), that thread may still
+	 * leak until the stalled connection itself eventually times out or errors, but the calling thread is freed
+	 * immediately to report the failure, rather than hanging alongside it.
+	 *
+	 * @param task           the (typically network-bound) operation to run
+	 * @param timeoutSeconds how long to wait before giving up
+	 * @param description    short, human-readable description of {@code task} (e.g. "resolving remote
+	 *                       N5/Zarr container"), used in the timeout message
+	 * @return the result of {@code task}
+	 * @throws RuntimeException if {@code task} itself throws one (rethrown as-is, preserving normal
+	 *                          control-flow for callers that distinguish specific unchecked exceptions)
+	 * @throws IOException      if {@code task} times out, is interrupted, or throws a checked exception
+	 */
+	public static <T> T runWithTimeout(final Callable<T> task, final long timeoutSeconds, final String description)
+			throws IOException {
+		final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+			final Thread t = new Thread(r, "SNT-Network-Timeout");
+			t.setDaemon(true); // never blocks JVM exit, even if task itself never returns
+			return t;
+		});
+		try {
+			return executor.submit(task).get(timeoutSeconds, TimeUnit.SECONDS);
+		} catch (final TimeoutException te) {
+			throw new IOException("Timed out after " + timeoutSeconds + "s while " + description
+					+ ". Please check your network connection and try again.", te);
+		} catch (final InterruptedException ie) {
+			Thread.currentThread().interrupt();
+			throw new IOException("Interrupted while " + description, ie);
+		} catch (final ExecutionException ee) {
+			final Throwable cause = (ee.getCause() != null) ? ee.getCause() : ee;
+			if (cause instanceof RuntimeException re) throw re; // preserve original control-flow
+			if (cause instanceof IOException ioe) throw ioe;
+			throw new IOException("Failed while " + description + ": " + cause.getMessage(), cause);
+		} finally {
+			executor.shutdownNow(); // best-effort interrupt of a still-stuck task; thread is daemon regardless
+		}
+	}
+
 	/**
 	 * Downloads a file from the specified URL to a temporary file
 	 *
@@ -767,10 +847,9 @@ public class SNTUtils {
 	 * @throws URISyntaxException if the URL is malformed
 	 */
 	public static File downloadToTempFile(final String fileUrl) throws IOException, URISyntaxException {
-		final URL url = new URI(fileUrl).toURL();
 		java.nio.file.Path tempFile = Files.createTempFile(null, null);
 		tempFile.toFile().deleteOnExit();
-		try (final InputStream in = url.openStream(); final OutputStream out = Files.newOutputStream(tempFile)) {
+		try (final InputStream in = openRemoteStream(fileUrl); final OutputStream out = Files.newOutputStream(tempFile)) {
 			final byte[] buffer = new byte[1024];
 			int bytesRead;
 			while ((bytesRead = in.read(buffer)) != -1) {
