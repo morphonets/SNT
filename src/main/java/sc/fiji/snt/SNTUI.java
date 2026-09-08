@@ -3249,7 +3249,7 @@ public class SNTUI extends JDialog {
 
             @Override
             protected AbstractBigViewer doInBackground() {
-                SNTUtils.setIsLoading(true);
+                SNTUtils.setIsLoading(true, false);
                 try {
                     // re-verify: choice was made a moment ago, secondary data could meanwhile be gone
                     if (imp == null && !choices[1].equals(choice) && !plugin.isSecondaryDataAvailable()) {
@@ -3269,7 +3269,7 @@ public class SNTUI extends JDialog {
                     error(exc);
                     return null;
                 } finally {
-                    SNTUtils.setIsLoading(false);
+                    SNTUtils.setIsLoading(false, false);
                 }
             }
 
@@ -5505,7 +5505,10 @@ public class SNTUI extends JDialog {
             pack();
             pmUI.setSize(getSize()); // set the Path Manager to similar dimensions
             setVisible(true);
-            SNTUtils.setIsLoading(false);
+            // Skipped in stream/big-data mode: BigDataLoaderCmd (the only caller that starts SNT this way) has more
+            // loading left to do after SNTUI becomes visible (e.g. fetching a  remote BVV volume) and closes the
+            // splash screen itself, in its own finally block, once hat is actually done.
+            if (!plugin.isStreamMode()) SNTUtils.setIsLoading(false, false);
             if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
             InternalUtils.ijmLogMessage();
             notifyBinaryAutoTracingAvailableAsAppropriate();

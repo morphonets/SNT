@@ -107,7 +107,6 @@ import java.util.stream.IntStream;
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
 
-	private static SplashScreen splashScreen;
 	private Component parent;
 	private boolean popupExceptionTriggered;
 	private static JColorChooser colorChooser;
@@ -2271,24 +2270,46 @@ public class GuiUtils {
 		}
 	}
 
+	/**
+	 * Registers one more caller that wants the loading splash screen open, showing it if it is not already showing.
+	 * Calls nest: the splash is only actually closed once every {@code initSplashScreen()} has been matched by a
+	 * {@link #closeSplashScreen()}.
+	 * handled here
+	 */
 	public static void initSplashScreen() {
-		splashScreen = new SplashScreen();
-		splashScreen.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(final MouseEvent e) {
-				closeSplashScreen();
-			}
-		});
+		SplashScreen.open();
 	}
 
+	/**
+	 * Updates the loading splash screen's status text. Does nothing if the splash screen is not currently showing
+	 *
+	 * @param message the new status text
+	 */
+	public static void setSplashMessage(final String message) {
+		SplashScreen.updateStatus(message);
+	}
+
+	/**
+	 * Switches the loading splash screen to (or back from) its wider "SNT Stream" layout, for callers that will post
+	 * longer, dynamic status messages via {@link #setSplashMessage(String)}. Does nothing if the splash screen is not
+	 * currently showing
+	 *
+	 * @param streamMode true for the wide "SNT Stream" layout, false for the default one
+	 */
+	public static void setSplashStreamMode(final boolean streamMode) {
+		SplashScreen.updateStreamMode(streamMode);
+	}
+
+	/**
+	 * Releases one registration made by {@link #initSplashScreen()}; the splash only actually closes
+	 * once every such registration has been released - see {@code SplashScreen#close()}
+	 */
 	public static void closeSplashScreen() {
-		if (splashScreen != null) splashScreen.dispose();
-		splashScreen = null;
+		SplashScreen.close();
 	}
 
 	public static void addSeparator(final JComponent component,
-									final String heading, final boolean vgap, final GridBagConstraints c)
-	{
+									final String heading, final boolean vgap, final GridBagConstraints c) {
 		addSeparator(component, leftAlignedLabel(heading, null, true), vgap, c);
 	}
 

@@ -3593,6 +3593,7 @@ public class Viewer3D {
         private java.awt.Point loc;
         private Dimension dim;
         private boolean isFullScreen;
+        private boolean splashReleased;
 
         /**
          * Instantiates a new viewer frame.
@@ -3935,7 +3936,12 @@ public class Viewer3D {
 
         @Override
         public void setVisible(final boolean b) {
-            SNTUtils.setIsLoading(false);
+            // Release only once, on first becoming visible: repeated show/hide calls must not
+            // touch a splash registration that may by then belong to an unrelated, concurrent load
+            if (b && !splashReleased) {
+                splashReleased = true;
+                SNTUtils.setIsLoading(false, false);
+            }
             super.setVisible(b);
         }
     }

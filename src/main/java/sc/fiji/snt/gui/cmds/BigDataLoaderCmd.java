@@ -226,8 +226,9 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
 
         AbstractBigViewer viewer = null;
+        boolean splashClosed = false; // guards against the finally block closing it a 2nd time below
         try {
-            SNTUtils.setIsLoading(true);
+            SNTUtils.setIsLoading(true, true);
             if (tracer && threeD)
                 viewer = runBvvWithTracing(filePaths);
             else if (tracer)
@@ -237,10 +238,11 @@ public class BigDataLoaderCmd extends ContextCommand {
             else
                 viewer = runBdv(filePaths);
         } catch (final Exception e) {
-            SNTUtils.setIsLoading(false); // hide splashscreen behind error dialog
+            splashClosed = true;
+            SNTUtils.setIsLoading(false, false); // hide splashscreen behind error dialog
             error("An error occurred: " + GuiUtils.friendlyErrorMessage(e));
         } finally {
-            SNTUtils.setIsLoading(false);
+            if (!splashClosed) SNTUtils.setIsLoading(false, false);
             if (viewer != null && viewer.getViewerFrame() != null && BoundingBox.UNSET_SPACING_UNIT.equals(viewer.getPhysicalUnit())) {
                 // viewer is reassigned above, so it is not effectively final: capture it for the lambda below
                 final AbstractBigViewer finalViewer = viewer;
@@ -861,12 +863,12 @@ public class BigDataLoaderCmd extends ContextCommand {
                 new File(path).getName());
         // The loading splash screen (SNTUtils#setIsLoading(true), running since run() started) is an
         // always-on-top window that can end up rendered above this confirmation
-        SNTUtils.setIsLoading(false);
+        SNTUtils.setIsLoading(false, true);
         try {
             return new GuiUtils(null).getConfirmation(message, "Non-pyramidal N5/Zarr Dataset",
                     "Build Pyramid", "Cancel");
         } finally {
-            SNTUtils.setIsLoading(true);
+            SNTUtils.setIsLoading(true, true);
         }
     }
 
@@ -931,13 +933,13 @@ public class BigDataLoaderCmd extends ContextCommand {
                         "'%s' is taking longer than %ds to load (slow or remote connection?). Open as-is now " +
                                 "(volume may render incorrectly until fully loaded), keep waiting, or abort loading?",
                         source.getName(), timeoutSeconds);
-                SNTUtils.setIsLoading(false);
+                SNTUtils.setIsLoading(false, true);
                 final String choice;
                 try {
                     choice = new GuiUtils(null).getChoice(message, "BVV: Slow Remote Volume",
                             new String[]{"Keep Waiting", "Open As-is", "Abort"}, "Keep Waiting");
                 } finally {
-                    SNTUtils.setIsLoading(true);
+                    SNTUtils.setIsLoading(true, true);
                 }
                 if (choice == null || "Abort".equals(choice)) return false;
                 if ("Open As-is".equals(choice)) return true;
@@ -961,13 +963,13 @@ public class BigDataLoaderCmd extends ContextCommand {
                 img.getName(), maxTexSize);
         // See confirmPyramidOrAbort(): the loading splash screen can end up rendered on top of this
         // dialog, so hide it for the duration of the prompt and restore it afterward
-        SNTUtils.setIsLoading(false);
+        SNTUtils.setIsLoading(false, true);
         final String choice;
         try {
             choice = new GuiUtils(null).getChoice(message, "BVV: Volume Too Large",
                     new String[]{DOWNSAMPLE, CONVERT, ABORT}, DOWNSAMPLE);
         } finally {
-            SNTUtils.setIsLoading(true);
+            SNTUtils.setIsLoading(true, true);
         }
 
         if (choice == null || ABORT.equals(choice)) {

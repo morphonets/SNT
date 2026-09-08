@@ -44,9 +44,127 @@ class SplashScreen extends JWindow {
 
 	private static final long serialVersionUID = 1L;
 	private static final int fontSizeRef = GuiUtils.MenuItems.defaultHeight();
+	private JProgressBar progressBar;
+	private JLabel logoLabel;
+	private JLabel messageLabel;
+	private boolean streamMode;
+
+	// Keep a tally of how many callers currently want the splash open (GuiUtils#initSplashScreen()/closeSplashScreen())
+	private static final AtomicInteger openCount = new AtomicInteger(0);
+	private static SplashScreen instance;
 
 	SplashScreen() {
 		initAndDisplay();
+	}
+
+	/**
+	 * Registers one more caller that wants the splash open, showing it if this is the first (does nothing if it is
+	 * already showing). Blocks until actually visible: runs the construction on the EDT (via
+	 * {@link SwingUtilities#invokeAndWait} when called off it, e.g. from a SciJava command's background thread) rather
+	 * than a fire-and-forget {@code invokeLater}, so a caller that proceeds straight into EDT-heavy work (e.g. opening
+	 * BVV) can't race ahead of the splash's own queued show request and leave the user with no feedback during a long
+	 * wait. Safe to call from any thread; skipped entirely in a headless environment
+	 */
+	static void open() {
+		if (openCount.getAndIncrement() != 0 || GraphicsEnvironment.isHeadless()) return;
+		if (SwingUtilities.isEventDispatchThread()) {
+			openOnEDT();
+			return;
+		}
+		try {
+			SwingUtilities.invokeAndWait(SplashScreen::openOnEDT);
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (final java.lang.reflect.InvocationTargetException e) {
+			SNTUtils.error("Could not display splash screen", e.getCause());
+		}
+	}
+
+	private static void openOnEDT() {
+		final SplashScreen created = new SplashScreen();
+		instance = created;
+		created.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				if (created.streamMode) return;
+				// allow splash to be dismissed only in 'traditional' mode
+				openCount.set(0);
+				close();
+			}
+		});
+	}
+
+	/**
+	 * Releases one registration made by {@link #open()}; the splash is only actually disposed once
+	 * every such registration has been released. Safe to call from any thread; a no-op if the
+	 * splash is not currently showing (including in a headless environment, where it never opens)
+	 */
+	static void close() {
+		if (openCount.updateAndGet(d -> Math.max(0, d - 1)) != 0 || instance == null) return;
+		instance.dispose();
+		instance = null;
+	}
+
+	/**
+	 * Forwards to {@link #setStatus(String)} on the current splash instance, if any is showing
+	 *
+	 * @param message the new status text
+	 */
+	static void updateStatus(final String message) {
+		if (instance != null) instance.setStatus(message);
+	}
+
+	/**
+	 * Forwards to {@link #setStreamMode(boolean)} on the current splash instance, if any is showing. Needs to be called
+	 * afeter
+	 *
+	 * @param streamMode true for the wide "SNT Stream" layout, false for the default one
+	 */
+	static void updateStreamMode(final boolean streamMode) {
+		if (instance != null) instance.setStreamMode(streamMode);
+	}
+
+	/**
+	 * Updates the status text shown below the logo. Safe to call from any thread
+	 *
+	 * @param message the new status text
+	 */
+	void setStatus(final String message) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			progressBar.setString(message);
+		} else {
+			SwingUtilities.invokeLater(() -> progressBar.setString(message));
+		}
+	}
+
+	/**
+	 * Switches the splash between its default layout and the stream-mode layout, allowing longer messages. Safe to call
+	 * from any thread.
+	 *
+	 * @param streamMode true for the wide "SNT Stream" layout, false for the default one
+	 */
+	void setStreamMode(final boolean streamMode) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			setStreamModeOnEDT(streamMode);
+		} else {
+			SwingUtilities.invokeLater(() -> setStreamModeOnEDT(streamMode));
+		}
+	}
+
+	private void setStreamModeOnEDT(final boolean streamMode) {
+		this.streamMode = streamMode;
+		final Dimension dim = getScaledIconDimensions(512, 528);
+		final String iconPath = streamMode ? "gui/SNTStreamLogo.svg" : "gui/SNTLogo.svg";
+		try {
+			logoLabel.setIcon(new FlatSVGIcon(iconPath, dim.width, dim.height));
+		} catch (final Exception ignored) {
+			// keep whatever icon is already showing
+		}
+		messageLabel.setText(streamMode
+				? "<html><b>Loading Big Data...</b><br>This may take a while for a<br>slow or remote connection.</html>"
+				: "");
+		pack();
+		setLocationRelativeTo(null); // re-center now that the window size may have changed
 	}
 
 	static Icon getIcon() {
@@ -109,20 +227,27 @@ class SplashScreen extends JWindow {
 	}
 
 	private void initAndDisplay() {
-		final JProgressBar progressBar = new JProgressBar();
+		progressBar = new JProgressBar();
 		progressBar.setIndeterminate(true);
 		progressBar.setStringPainted(true);
 		progressBar.setString("Initializing...");
 		progressBar.setBackground(getContentPane().getBackground());
 		setLayout(new BorderLayout(4,4));
-		final JLabel logo = getIconAsLabel();
-        logo.setBorder(new EmptyBorder(fontSizeRef, fontSizeRef, fontSizeRef / 2, fontSizeRef));
-        add(logo, BorderLayout.CENTER);
+		logoLabel = getIconAsLabel();
+        logoLabel.setBorder(new EmptyBorder(fontSizeRef, fontSizeRef, fontSizeRef / 2, fontSizeRef));
+        // Empty by default: only setStreamMode(true) fills this in
+        messageLabel = new JLabel();
+        messageLabel.setBorder(new EmptyBorder(fontSizeRef, 0, fontSizeRef / 2, fontSizeRef));
+        final JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.add(logoLabel, BorderLayout.WEST);
+        contentPanel.add(messageLabel, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.CENTER);
 		add(progressBar, BorderLayout.SOUTH);
 		pack();
 		setLocationRelativeTo(null);
 		setAlwaysOnTop(true);
-		SwingUtilities.invokeLater(() -> setVisible(true));
+		// Caller (GuiUtils#initSplashScreen) is responsible for running this constructor on the EDT
+		setVisible(true);
 	}
 
 	private static class FlatLafSvgAnimatedLabel extends JLabel {

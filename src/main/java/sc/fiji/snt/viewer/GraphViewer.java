@@ -130,16 +130,20 @@ public class GraphViewer {
      * @return the assembled window
      */
     public Window show(final String title) {
-    	if (context == null)
-            setContext(SNTUtils.getContext());
-    	if (editor == null) initEditor();
-        final JFrame frame = editor.createFrame(getContext());
-        if (title != null) frame.setTitle(title);
-        GuiUtils.removeIcon(frame);
-        //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
-        SNTUtils.setIsLoading(false);
-        SwingUtilities.invokeLater(() -> frame.setVisible(true));
-        return frame;
+        SNTUtils.setIsLoading(true, false); // building the adapter/component can be slow for large graphs
+        try {
+            if (context == null)
+                setContext(SNTUtils.getContext());
+            if (editor == null) initEditor();
+            final JFrame frame = editor.createFrame(getContext());
+            if (title != null) frame.setTitle(title);
+            GuiUtils.removeIcon(frame);
+            //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
+            SwingUtilities.invokeLater(() -> frame.setVisible(true));
+            return frame;
+        } finally {
+            SNTUtils.setIsLoading(false, false);
+        }
     }
 
     public static void main(final String[] args) {

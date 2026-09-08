@@ -113,7 +113,11 @@ public class SNTLoaderCmd extends DynamicCommand {
 	@Override
 	public void initialize() {
 		if (sntService != null && sntService.isActive() && sntService.getUI() != null) {
-			exit("SNT seems to be already running. Please close the current instance and re-run.");
+			// NB: Do not call exit(String), which also calls SNTUtils.setIsLoading(false, false). We have not yet
+			// called setIsLoading(true, ...): doing so would release a splash-screen registration that does not
+			// belong to this instance and could dismiss the splash of another command
+			GuiUtils.errorPrompt("SNT seems to be already running. Please close the current instance and re-run.", true);
+			cancel("");
 			return;
 		}
 		// TODO: load defaults from prefService?
@@ -236,17 +240,15 @@ public class SNTLoaderCmd extends DynamicCommand {
 	@Override
 	public void run() {
 
-		SNTUtils.setIsLoading(true);
+		SNTUtils.setIsLoading(true, false);
 		final boolean noImg = IMAGE_NONE.equals(imageChoice) || (IMAGE_FILE.equals(imageChoice) && imageFile == null);
 
 		if (noImg) {
 			final PathAndFillManager pathAndFillManager = new PathAndFillManager();
 			if (tracesFile != null && tracesFile.exists()) {
 				pathAndFillManager.setHeadless(true);
-				if (!pathAndFillManager.load(tracesFile.getAbsolutePath()))
-				{
-					exit(String.format("%s is not a valid file", tracesFile
-						.getAbsolutePath()));
+				if (!pathAndFillManager.load(tracesFile.getAbsolutePath())) {
+					exit(String.format("%s is not a valid file", tracesFile.getAbsolutePath()));
 				}
 			}
 
@@ -395,7 +397,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	}
 
 	private void exit(final String msg) {
-		SNTUtils.setIsLoading(false);
+		SNTUtils.setIsLoading(false, false);
 		if (msg != null && !msg.isEmpty()) {
 			GuiUtils.errorPrompt(msg, true);
 		}

@@ -756,11 +756,19 @@ public class SNTUtils {
 		return file.getName();
 	}
 
-	public static void setIsLoading(boolean isLoading) {
-		if (isLoading && !GraphicsEnvironment.isHeadless())
-			GuiUtils.initSplashScreen();
-		else
-			GuiUtils.closeSplashScreen();
+	/**
+	 * Shows or hides the loading splash screen. Calls nest safely: several independent call chains can be "loading" at
+	 * once, so the splash only actually closes once every {@code true} has been balanced by a matching {@code false},
+	 * hence calls should be made in a try/finally block.
+	 *
+	 * @param isLoading  true to show the splash screen (or register one more caller that wants it showing, if already
+	 *                   showing); false to release one such registration, closing the splash once no callers still hold it
+	 * @param streamMode true for the wide "SNT Stream" layout, false for the default one
+	 */
+	public static void setIsLoading(final boolean isLoading, final boolean streamMode) {
+		if (isLoading) GuiUtils.initSplashScreen();
+		else GuiUtils.closeSplashScreen();
+		GuiUtils.setSplashStreamMode(streamMode); // Defensive: reset stream mode from an unrelated BigDataLoaderCmd load
 	}
 
 	/** Connect timeout (seconds) applied to ad-hoc remote reads (see {@link #openRemoteStream(String)}). */
@@ -1025,7 +1033,7 @@ public class SNTUtils {
 			return getInstance();
 
         } else {
-			setIsLoading(true);
+			setIsLoading(true, false);
 			final PathAndFillManager pathAndFillManager = new PathAndFillManager();
 			final SNT snt = new SNT(getContext(), pathAndFillManager);
 			snt.initialize(null);
