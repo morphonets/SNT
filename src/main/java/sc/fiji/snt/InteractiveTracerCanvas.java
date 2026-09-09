@@ -855,8 +855,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             return;
         }
         highlightShollCenterNode(centerPath, centerIndex);
-        // Repaint so the highlighted focal node is visible before/while the Sholl prompt opens
-        tracerPlugin.updateAllViewers();
+        // Repaint so the highlighted focal node is visible before/while the Sholl prompt opens. Only the
+        // classic canvas panes render editableNodeIndex, so a full updateAllViewers() is unnecessary here
+        tracerPlugin.repaintAllPanes();
         tracerPlugin.startSholl(centerScaled);
     }
 

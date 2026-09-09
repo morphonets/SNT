@@ -227,6 +227,9 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 	private boolean noFocalPointSpecified;
 	// Tracks the single node (if any) highlighted to indicate the resolved Sholl focal point.
 	private Path centerHighlightPath;
+	// Snapshot of the Path Manager selection at prompt-opening time. Used to warn the user if it no longer matches
+	// what "Selected paths" filtering will use at analysis time (in case this prompt is made non-modal
+	private Set<Path> selectedPathsAtInit;
 
 	/* Common summary table shared by all instances */
 	private static volatile ShollTable commonSummaryTable;
@@ -289,6 +292,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 			return;
 		}
 		if (snt != null) {
+			warnIfSelectionChangedSincePromptOpened();
 			logger.info("Retrieving filtered paths... ");
 			final Tree filteredTree = getFilteredTree();
 			if (filteredTree == null || filteredTree.isEmpty()) {
@@ -448,6 +452,9 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 			final ArrayList<String> filteredchoices = new ArrayList<>(mlitm.getChoices());
 			if (!filteredchoices.contains("Selected paths")) filteredchoices.add(1, "Selected paths");
 			mlitm.setChoices(filteredchoices);
+			// If this prompt is made non-modal the Path Manager stays interactive while it is open:
+			// remember the selection now to be able to warn later if it changed
+			selectedPathsAtInit = new HashSet<>(snt.getPathAndFillManager().getSelectedPaths());
 		} else {
 			resolveInput("previewShells");
 			resolveInput("annotationsDescription");
@@ -603,6 +610,20 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 			save = false;
 			helper.setParentToActiveWindow();
 			helper.error("No files saved: Output directory is not valid or writable.", "Please Change Output Directory");
+		}
+	}
+
+	/*
+	 * Best-effort heads-up only: if the Path Manager selection may have been changed (or the "Selected paths"
+	 * filter choice may no longer match the paths the user had in mind) since this prompt first opened
+	 */
+	private void warnIfSelectionChangedSincePromptOpened() {
+		if (selectedPathsAtInit == null || !filterChoice.toLowerCase().contains("selected")) return;
+		final Set<Path> currentSelection = snt.getPathAndFillManager().getSelectedPaths();
+		if (!selectedPathsAtInit.equals(currentSelection)) {
+			helper.setParentToActiveWindow();
+			helper.tempMsg("Path selection changed since this prompt was opened. "
+					+ "'Selected paths' filtering may not reflect your original choice.");
 		}
 	}
 

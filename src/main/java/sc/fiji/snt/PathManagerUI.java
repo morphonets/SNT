@@ -1176,7 +1176,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             plugin.getPrefs().setTemp("singletree", choice);
             for (final Tree t : trees) {
                 if (t.getLabel().equals(choice)) {
-                    restoreFullModelAsNeeded(trees);
+                    // Scope to the chosen structure only: passing the full 'trees' collection here would make the size
+                    // check in restoreFullModelAsNeeded() always trigger a full-model reset (and clear the current
+                    // selection) whenever more than one structure exists, even if the choice matches  the structure the
+                    // nav toolbar is already isolating
+                    restoreFullModelAsNeeded(Collections.singleton(t));
                     return t;
                 }
             }
@@ -1845,9 +1849,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 if (currPath.isDescendant(nextPath))
                     expanded.add(currPath);
             }
+            // DefaultTreeModel#reload() invalidates every TreePath, which clears the JTree's selection as side effect:
+            // snapshot it first and reapply it after, so callers of PathManagerUI#update()/#reload() do not silently
+            // lose the current Path Manager selection (see restoreFullModelState())
+            final Set<Path> selectedPathsBefore = getSelectedPaths();
             ((DefaultTreeModel)getModel()).reload();
-            for (final TreePath path : expanded)
-                expandPath(path);
+            for (final TreePath path : expanded) expandPath(path);
+            setSelectedPaths(selectedPathsBefore);
         }
 
         int getNumberOfNodes() {
@@ -6358,12 +6366,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         void restoreFullModelState() {
             arborChoice = null;
+            // Swapping the model clears the JTree's selection as a side effect: snapshot it first and reapply it after,
+            // so that operations relying on the current Path Manager selection are not silently broken by this
+            final Set<Path> selectedPathsBefore = tree.getSelectedPaths();
             tree.setModel(fullTreeModel);
+            tree.setSelectedPaths(selectedPathsBefore);
             hideOthersButton.setSelected(false);
             plugin.clearIsolatedTreeID(); // undo any active canvas/Bdv/Bvv isolation from applyHideOthers(true)
-            // Re-enable sorting now that the full (multi-arbor) model is restored:
-            // applyHideOthers(true) disables it while a single arbor is isolated, and
-            // this path (e.g. the "show all structures" button) must undo that.
+            // Re-enable sorting now that the full (multi-arbor) model is restored:  applyHideOthers(true) disables it
+            // while a single arbor is isolated, and this path (e.g. the "show all structures" button) must undo that
             sortArborsButton.setEnabled(getAllTreeLabels().size() > 1);
             GuiUtils.Trees.expandAllNodes(tree);
         }
