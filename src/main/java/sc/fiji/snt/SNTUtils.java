@@ -823,13 +823,9 @@ public class SNTUtils {
 	 */
 	public static <T> T runWithTimeout(final Callable<T> task, final long timeoutSeconds, final String description)
 			throws IOException {
-		final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-			final Thread t = new Thread(r, "SNT-Network-Timeout");
-			t.setDaemon(true); // never blocks JVM exit, even if task itself never returns
-			return t;
-		});
+		final BackgroundTask<T> bg = submitBackground(task, "SNT-Network-Timeout");
 		try {
-			return executor.submit(task).get(timeoutSeconds, TimeUnit.SECONDS);
+			return bg.future().get(timeoutSeconds, TimeUnit.SECONDS);
 		} catch (final TimeoutException te) {
 			throw new IOException("Timed out after " + timeoutSeconds + "s while " + description
 					+ ". Please check your network connection and try again.", te);
@@ -842,7 +838,42 @@ public class SNTUtils {
 			if (cause instanceof IOException ioe) throw ioe;
 			throw new IOException("Failed while " + description + ": " + cause.getMessage(), cause);
 		} finally {
-			executor.shutdownNow(); // best-effort interrupt of a still-stuck task; thread is daemon regardless
+			bg.cancel(); // best-effort interrupt of a still-stuck task; thread is daemon regardless
+		}
+	}
+
+	/**
+	 * Submits {@code task} to a bounded background (daemon) thread and returns immediately with a handle to
+	 * it, instead of waiting for it like {@link #runWithTimeout} does. Use this when a caller needs to wait
+	 * on the same operation more than once - e.g. a retry-prompt loop with a growing timeout budget - without
+	 * restarting the operation from scratch on every attempt, which is what looping calls to
+	 * {@link #runWithTimeout} would do: each call submits a fresh task to a fresh executor and best-effort
+	 * cancels it as soon as that call's own wait times out.
+	 *
+	 * @param task       the (typically network-bound) operation to run
+	 * @param threadName name given to the backing daemon thread, for diagnostics
+	 * @return a handle bundling the running {@link Future} and the {@link ExecutorService} backing it; call
+	 *         {@link BackgroundTask#cancel()} exactly once done with it, whether or not it ever completed
+	 */
+	public static <T> BackgroundTask<T> submitBackground(final Callable<T> task, final String threadName) {
+		final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+			final Thread t = new Thread(r, threadName);
+			t.setDaemon(true); // never blocks JVM exit, even if task itself never returns
+			return t;
+		});
+		return new BackgroundTask<>(executor.submit(task), executor);
+	}
+
+	/**
+	 * Handle to a task submitted via {@link #submitBackground}: the running {@link Future} plus the
+	 * single-thread {@link ExecutorService} backing it, so a caller can wait on the same future repeatedly
+	 * (e.g. across a retry-prompt loop) and cancel/shut it down exactly once when done with it.
+	 */
+	public record BackgroundTask<T>(Future<T> future, ExecutorService executor) {
+		/** Best-effort cancels {@link #future} and shuts down {@link #executor}. No-op if already done. */
+		public void cancel() {
+			future.cancel(true);
+			executor.shutdownNow();
 		}
 	}
 

@@ -100,7 +100,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -515,6 +518,56 @@ public class GuiUtils {
 		return (String) JOptionPane.showInputDialog(parent, //
 				getWrappedText(new JLabel(), message), title, JOptionPane.QUESTION_MESSAGE, null, choices,
 				(defaultChoice == null) ? choices[0] : defaultChoice);
+	}
+
+	/**
+	 * Like {@link #getChoice(String, String, String[], String)}, but the choices are shown as buttons and the prompt
+	 * races a background {@code task}: if it completes before the user picks a button, the dialog is dismissed
+	 * automatically/ Useful for "this is taking a while, keep waiting / open as-is / abort?" prompts wrapped around
+	 * slow network fetches/
+	 *
+	 * @param message       the prompt message
+	 * @param title         the dialog title
+	 * @param choices       the button labels, shown in order
+	 * @param defaultChoice the button focused by default, or {@code null} for {@code choices[0]}
+	 * @param task          the background task racing the prompt
+	 * @return the label of the button the user clicked, or {@link Optional#empty()} if {@code task}
+	 * completed on its own (or the dialog was closed without a button click) before the user answered
+	 * @throws InterruptedException if the calling thread is interrupted while waiting
+	 */
+	public Optional<String> getChoiceRaceable(final String message, final String title, final String[] choices,
+											  final String defaultChoice, final Future<?> task) throws InterruptedException {
+
+		final JOptionPane optionPane = new JOptionPane(getLabel(message),
+				JOptionPane.QUESTION_MESSAGE, JOptionPane.DEFAULT_OPTION, null, choices,
+				(defaultChoice == null) ? choices[0] : defaultChoice);
+		final JDialog dialog = optionPane.createDialog(parent, title);
+
+		// Watches the background task. If it finishes before the user answers, dismiss the dialog as if no button had
+		// been pressed, so the caller can treat that the same as a timed-out wait that happened to resolve itself while
+		// nobody was there to answer
+		final Thread watcher = new Thread(() -> {
+			try {
+				task.get();
+				SwingUtilities.invokeLater(dialog::dispose);
+			} catch (final InterruptedException ignored) {
+				// user answered first; see the finally block below
+			} catch (final ExecutionException | CancellationException ignored) {
+				// task failed or was canceled elsewhere; leave the prompt up for the user to decide
+			}
+		}, "GuiUtils-race-watcher");
+		watcher.setDaemon(true);
+		watcher.start();
+
+		try {
+			makeVisible(dialog, true);
+		} finally {
+			watcher.interrupt();
+		}
+		dialog.dispose();
+
+		final Object result = optionPane.getValue();
+		return (result instanceof String s) ? Optional.of(s) : Optional.empty();
 	}
 
 	public String[] getTwoChoices(final String title,

@@ -57,13 +57,16 @@ import sc.fiji.snt.viewer.BvvUtils;
 
 import javax.swing.*;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
@@ -895,7 +898,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * Calls {@link #awaitBvvDataOrPrompt} for every source in {@code n5Sources}
      *
      * @param n5Sources the sources about to be shown in BVV
-     * @return true if the caller should proceed to show {@code n5Sources}; false if the user cancelled
+     * @return true if the caller should proceed to show {@code n5Sources}; false if the user canceled
      */
     private static boolean awaitBvvSourcesReady(final SpimDataUtils.N5Sources n5Sources) {
         for (final SourceAndConverter<?> soc : n5Sources.sources()) {
@@ -918,33 +921,67 @@ public class BigDataLoaderCmd extends ContextCommand {
      * @return true if the caller should proceed to show {@code source}; false if the user canceled
      */
     private static boolean awaitBvvDataOrPrompt(final Source<?> source) {
-        long timeoutSeconds = INITIAL_PREFETCH_TIMEOUT_SECONDS;
         GuiUtils.setSplashMessage("Fetching '" + source.getName() + "'...");
         BvvUtils.preferMultiResolutionIfSafe(source, 0);
-        while (true) {
-            try {
-                SNTUtils.runWithTimeout(() -> {
-                    BvvUtils.prefetchForShow(source, 0);
-                    return null;
-                }, timeoutSeconds, "fetching '" + source.getName() + "' for BVV");
-                return true;
-            } catch (final IOException e) {
-                final String message = String.format(
-                        "'%s' is taking longer than %ds to load (slow or remote connection?). Open as-is now " +
-                                "(volume may render incorrectly until fully loaded), keep waiting, or abort loading?",
-                        source.getName(), timeoutSeconds);
-                SNTUtils.setIsLoading(false, true);
-                final String choice;
+        // Submitted once and waited on repeatedly below (rather than resubmitted via SNTUtils#runWithTimeout
+        // on every retry), so a fetch that keeps running while the user is away from the "keep waiting?"
+        // prompt is not silently abandoned and restarted from scratch once they return.
+        final SNTUtils.BackgroundTask<Void> task = SNTUtils.submitBackground(() -> {
+            BvvUtils.prefetchForShow(source, 0);
+            return null;
+        }, "SNT-BVV-Prefetch");
+        try {
+            long timeoutSeconds = INITIAL_PREFETCH_TIMEOUT_SECONDS;
+            while (true) {
                 try {
-                    choice = new GuiUtils(null).getChoice(message, "BVV: Slow Remote Volume",
-                            new String[]{"Keep Waiting", "Open As-is", "Abort"}, "Keep Waiting");
-                } finally {
-                    SNTUtils.setIsLoading(true, true);
+                    task.future().get(timeoutSeconds, TimeUnit.SECONDS);
+                    return true;
+                } catch (final TimeoutException te) {
+                    final String message = String.format(
+                            """
+                            <html>
+                            <i>%s</i> is taking longer than %ds to load (slow or remote connection?).<br>
+                            Fetching continues in the background no matter what you choose here, so it is safe to<br>
+                            leave this dialog alone: it closes on its own once loading finishes.
+                            <dl>
+                            <dt><b>Keep Waiting</b></dt>
+                            <dd>Simply dismisses the dialog for now</dd>
+                            <dt><b>Open As-is</b></dt>
+                            <dd>Attempts to open the volume immediately (may render incorrectly until fully loaded)</dd>
+                            <dt><b>Abort</b></dt>
+                            <dd>Stops the fetch</dd>
+                            </dl>""",
+                            GuiUtils.Text.escapeHtml(source.getName()), timeoutSeconds);
+                    SNTUtils.setIsLoading(false, true);
+                    final Optional<String> choice;
+                    try {
+                        choice = new GuiUtils(null).getChoiceRaceable(message, "BVV: Slow Remote Volume",
+                                new String[]{"Keep Waiting", "Open As-is", "Abort"}, "Keep Waiting", task.future());
+                    } finally {
+                        SNTUtils.setIsLoading(true, true);
+                    }
+                    if (choice.isEmpty()) {
+                        // Dismissed without an explicit answer. If the task actually finished (the watcher auto-closed
+                        // the dialog), task.future().get() above will now return immediately; otherwise the user closed
+                        // the dialog without picking an option, which we treat the same as "Keep Waiting" so the next
+                        // prompt reports the correct (doubled) elapsed timeout
+                        if (!task.future().isDone()) timeoutSeconds *= 2;
+                        continue;
+                    }
+                    if ("Abort".equals(choice.get())) return false;
+                    if ("Open As-is".equals(choice.get())) return true; // task keeps running in the background; may still warm the cache
+                    timeoutSeconds *= 2; // "Keep Waiting"
                 }
-                if (choice == null || "Abort".equals(choice)) return false;
-                if ("Open As-is".equals(choice)) return true;
-                timeoutSeconds *= 2; // "Keep Waiting"
             }
+        } catch (final InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (final ExecutionException ee) {
+            final Throwable cause = (ee.getCause() != null) ? ee.getCause() : ee;
+            if (cause instanceof RuntimeException re) throw re; // preserve original control-flow
+            throw new RuntimeException("Failed while fetching '" + source.getName() + "' for BVV", cause);
+        } finally {
+            task.cancel(); // no-op if already finished; ensures we never leak the executor/thread
         }
     }
 
