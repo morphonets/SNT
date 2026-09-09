@@ -2685,39 +2685,6 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Synchronizes the Path Manager contents with BVV display.
-     *
-     * @return true if synchronization was successful
-     * @throws IllegalArgumentException if this is a standalone viewer not tethered to a SNT instance
-     */
-    @Override
-    public boolean syncPathManagerList() {
-        if (snt == null)
-            throw new IllegalArgumentException("This function is only available in snt-aware Bvv instances");
-        final Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
-        final Set<String> currentLabels = trees.stream().map(Tree::getLabel)
-                .collect(java.util.stream.Collectors.toSet());
-        // A tree that has been entirely deleted from the Path Manager (every one of its paths
-        // removed) no longer appears in getTrees() at all, so it would never be matched by the
-        // "refresh existing labels" step below. Prune it here by diffing against what we rendered
-        // last time instead, otherwise it lingers in the BVV scene forever.
-        final Set<String> stale = new HashSet<>(syncedPathManagerLabels);
-        stale.removeAll(currentLabels);
-        stale.forEach(renderedTrees.keySet()::remove);
-        // Force a refresh of the trees that do still exist, so edits (nodes, color, selection) are
-        // picked up rather than just additions/removals.
-        currentLabels.forEach(renderedTrees.keySet()::remove);
-        syncedPathManagerLabels.clear();
-        syncedPathManagerLabels.addAll(currentLabels);
-        if (trees.isEmpty()) {
-            syncOverlays(); // still need to push the removal above to the screen
-            return false;
-        }
-        addCollection(trees, true);
-        return true;
-    }
-
-    /**
      * Lightweight alternative to {@link #syncPathManagerList()} for pure selection changes. Patches
      * color/thickness in place for already-rendered trees instead of rebuilding the Path Manager's
      * tree grouping and recomputing screen-space geometry for the whole scene. Does nothing if paths

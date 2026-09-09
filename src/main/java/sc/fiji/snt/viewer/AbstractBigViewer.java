@@ -110,7 +110,7 @@ public abstract class AbstractBigViewer {
     protected final Map<String, Tree> renderedTrees = new LinkedHashMap<>();
 
     /** Guards all access to {@link #renderedTrees} (and {@link #syncedPathManagerLabels}) */
-    private final Object renderedTreesLock = new Object();
+    final Object renderedTreesLock = new Object();
 
     /**
      * Labels of the trees rendered by the last {@link #syncPathManagerList()} call. Needed because
@@ -168,31 +168,33 @@ public abstract class AbstractBigViewer {
         if (snt == null)
             throw new IllegalArgumentException("Only available in SNT-tethered instances");
         final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
-        if (trees.isEmpty()) {
-            clearAllTrees();
-            return false;
-        }
-
-        final java.util.Set<String> currentLabels = trees.stream().map(Tree::getLabel)
-                .collect(java.util.stream.Collectors.toSet());
-        // See renderedTreesLock: this method can run concurrently with another instance of
-        // itself (or addTree()/removeTree()/clearAllTrees()/getRenderedTrees()) on a different
-        // background thread - guard every touch of renderedTrees/syncedPathManagerLabels
+        // getTrees() builds each Tree from a label HashMap (PathAndFillManager#getTrees()), so within a single call
+        // every Tree has a distinct, stable label - unlike renderedTrees' own keys, which are
+        // getUniqueLabel()-disambiguated and can carry a "(n)" suffix from a  genuinely-ambiguous historical add
+        // (e.g. two files loaded with the same name). Removing and re-adding every tree on every sync routes new/kept
+        // trees back through getUniqueLabel() and mints a brand new suffixed key even for an already-tracked tree
+        // Here we match by bare label and update matching entries IN PLACE (same key, fresh Tree reference) so
+        // unchanged trees are never removed from renderedTrees at  all, are never touched by getUniqueLabel(), and
+        // keep their cached screen geometry; only genuinely new trees go through addTree(), and only genuinely deleted
+        // ones are removed
+        final java.util.Map<String, Tree> newByLabel = new java.util.LinkedHashMap<>();
+        for (final Tree t : trees) newByLabel.put(t.getLabel(), t);
         synchronized (renderedTreesLock) {
-            // A tree that has been entirely deleted from the Path Manager no longer appears in getTrees() at all,
-            // so it would never be matched by the  "refresh existing labels" step. Prune it here by diffing against
-            // what was last rendered
-            final java.util.Set<String> stale = new java.util.HashSet<>(syncedPathManagerLabels);
-            stale.removeAll(currentLabels);
-            stale.forEach(renderedTrees.keySet()::remove);
-            // Force a refresh of the trees that do still exist, so edits (nodes, color, selection) are picked up
-            // rather than just additions/removals
-            currentLabels.forEach(renderedTrees.keySet()::remove);
+            final java.util.Iterator<java.util.Map.Entry<String, Tree>> it = renderedTrees.entrySet().iterator();
+            while (it.hasNext()) {
+                final java.util.Map.Entry<String, Tree> entry = it.next();
+                final Tree replacement = newByLabel.remove(entry.getValue().getLabel());
+                if (replacement != null) entry.setValue(replacement); // same key: reuse, don't re-add
+                else it.remove(); // no longer in the Path Manager
+            }
+            // Whatever remains in newByLabel was never rendered before: genuinely new trees
+            newByLabel.values().forEach(t -> addTree(t, false)); // reentrant lock, safe to call here
             syncedPathManagerLabels.clear();
-            syncedPathManagerLabels.addAll(currentLabels);
+            syncedPathManagerLabels.addAll(trees.stream().map(Tree::getLabel)
+                    .collect(java.util.stream.Collectors.toSet()));
         }
-        addCollection(trees, true);
-        return true;
+        syncOverlays();
+        return !trees.isEmpty();
     }
 
     /**
