@@ -740,6 +740,9 @@ public class SNTService extends AbstractService implements ImageJService {
 		} else {
 			getUI().exitRequested();
 		}
+		// Safety net alongside SNT#dispose()'s own call: make sure no tagged ImagePlus outlives
+		// this service regardless of which branch above actually tore down the session
+		ImpUtils.clearAllTags();
 	}
 
 	@Override

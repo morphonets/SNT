@@ -6573,7 +6573,16 @@ public class SNTUI extends JDialog {
         /* ImageListener */
         @Override
         public void imageClosed(final ImagePlus imp) {
+            // Forget imp's materialized-crop/display-canvas tags (if any) as soon as it is
+            // known to be closed, regardless of which case below matches or returns earl
+            try {
+                imageClosedImpl(imp);
+            } finally {
+                ImpUtils.forgetTags(imp);
+            }
+        }
 
+        private void imageClosedImpl(final ImagePlus imp) {
             // Case 1: A display canvas was closed. Do nothing
             if (ImpUtils.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
                 SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);

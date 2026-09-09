@@ -63,9 +63,12 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * Static utilities for handling and manipulation of {@link ImagePlus}s
@@ -1104,12 +1107,23 @@ public class ImpUtils {
         return copy;
     }
 
+    // Identity-keyed (ImagePlus does not override equals()/hashCode(), so default Object identity applies) and
+    // weakly-held: once nothing else references a tagged ImagePlus (e.g. after it is closed and superseded), the entry
+    // is reclaimed by the GC on its own, so these registries never need to be reset wholesale during normal operation.
+    // clearAllTags() below is only a safety net for session teardown (SNT#dispose()/SNTService#dispose()), and
+    // forgetTags(ImagePlus) lets a caller (e.g. SNTUI's ImageListener) drop an entry deterministically as soon as it is
+    // closed. Previously these tags were stored via imp.setProperty("Info", ...)/imp.getInfoProperty(), which turned
+    // out not to be durable across an image's lifetime (somehow the property could read back null well before the image
+    // was closed, and could not be intercepted by IJ's ImageListener)
+    private static final Set<ImagePlus> MATERIALIZED_CROP_TAGS = Collections.newSetFromMap(new WeakHashMap<>());
+    private static final Set<ImagePlus> DISPLAY_CANVAS_TAGS = Collections.newSetFromMap(new WeakHashMap<>());
+
     /**
      * Used by SNT to tag an eagerly-materialized pixel crop of a streamed volume as such.
      * @param imp the image to be tagged
      */
     public  static void setIsMaterializedCrop(final ImagePlus imp) {
-        if (imp != null) imp.setProperty("Info", "SNT Materialized Crop\n");
+        if (imp != null) MATERIALIZED_CROP_TAGS.add(imp);
     }
 
     /**
@@ -1118,14 +1132,14 @@ public class ImpUtils {
      * @return true if {@link setIsMaterializedCrop(ImagePlus)} was previous called on {@code imp}
      */
     public static boolean isMaterializedCrop(final ImagePlus imp) {
-        return imp != null && "SNT Materialized Crop\n".equals(imp.getInfoProperty());
+        return imp != null && MATERIALIZED_CROP_TAGS.contains(imp);
     }
     /**
      * Used by SNT to tag an image as a Display Canvas (typically a blank placeholder image).
      * @param imp the image to be tagged
      */
     public static void setIsDisplayCanvas(final ImagePlus imp) {
-        if (imp != null) imp.setProperty("Info", "SNT Display Canvas\n");
+        if (imp != null) DISPLAY_CANVAS_TAGS.add(imp);
     }
 
     /**
@@ -1134,7 +1148,29 @@ public class ImpUtils {
      * @return true if {@link setIsDisplayCanvas(ImagePlus)} was previous called on {@code imp}
      */
     public static boolean isDisplayCanvas(final ImagePlus imp) {
-        return imp != null && "SNT Display Canvas\n".equals(imp.getInfoProperty());
+        return imp != null && DISPLAY_CANVAS_TAGS.contains(imp);
+    }
+
+    /**
+     * Removes {@code imp} from both the materialized-crop and display-canvas tag registries. Call once an image is
+     * known to be closed/discarded, for deterministic (rather than GC-timed) cleanup; harmless if {@code imp} was never
+     * tagged.
+     *
+     * @param imp the image to forget
+     */
+    public static void forgetTags(final ImagePlus imp) {
+        if (imp == null) return;
+        MATERIALIZED_CROP_TAGS.remove(imp);
+        DISPLAY_CANVAS_TAGS.remove(imp);
+    }
+
+    /**
+     * Clears both tag registries entirely. Intended as a session-teardown safety net, not for routine use: individual
+     * images are already forgotten via {@link #forgetTags(ImagePlus)} as they close.
+     */
+    public static void clearAllTags() {
+        MATERIALIZED_CROP_TAGS.clear();
+        DISPLAY_CANVAS_TAGS.clear();
     }
 
     /**
