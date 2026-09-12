@@ -232,8 +232,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
         togglePauseTracingMenuItem.addItemListener(listener);
         pMenu.add(togglePauseTracingMenuItem);
-        togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE,
-                IconFactory.menuIcon('\uf04d', true));
+        togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE, IconFactory.menuIcon(IconFactory.GLYPH.PAUSE2));
         togglePauseSNTMenuItem.addItemListener(listener);
         pMenu.add(togglePauseSNTMenuItem);
     }
@@ -746,9 +745,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private boolean uiReadyForModeChange(final int mode) {
         if (!tracerPlugin.isUIready()) return false;
-        return tracerPlugin.tracingHalted || tracerPlugin
-                .getUIState() == SNTUI.WAITING_TO_START_PATH || tracerPlugin
-                .getUIState() == mode;
+        final int state = tracerPlugin.getUIState();
+        final boolean nonStreamedCanvasExists = !tracerPlugin.isStreamMode() || tracerPlugin.isMaterializedCrop();
+        return nonStreamedCanvasExists &&
+                (tracerPlugin.tracingHalted || state == SNTUI.WAITING_TO_START_PATH || state == mode);
     }
 
     protected void fakeMouseMoved(final boolean shift_pressed,

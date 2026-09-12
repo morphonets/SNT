@@ -169,36 +169,47 @@ public class SeedOverlay {
     /**
      * Counts seeds whose voxel coordinates fall outside the given image bounds.
      * <p>
-     * Coordinates are interpreted as physical (calibrated) units, divided by the corresponding {@code spacing} to yield
-     * voxel indices. A seed is considered out-of-bounds when its rounded voxel index is negative or &ge; the dimension
-     * on any axis. The z-axis is only checked when {@code dims.length >= 3}.
+     * Coordinates are interpreted as physical (calibrated) world units. Per {@code SNT#getWorldOriginOffset()}'s
+     * ({@code world = voxelIndex * spacing + offset}), {@code offset} is subtracted <b>before</b> dividing by
+     * {@code spacing} to recover the voxel index - omitting it misreports every seed as out-of-bounds whenever
+     * the tethered image/source is not anchored at world (0,0,0), regardless of how much of the source is currently
+     * materialized. A seed is considered out-of-bounds when its rounded voxel index is negative or &ge;
+     * the dimension on any axis. The z-axis is only checked when {@code dims.length >= 3}.
      *
      * @param dims    image dimensions in voxels (length 2 for 2D, 3 for 3D); if {@code null} or length &lt; 2, returns 0
-     * @param spacing pixel size per axis in physical units; should match  {@code dims} length. {@code null} returns 0
+     * @param spacing pixel size per axis in physical units; should match {@code dims} length. {@code null} returns 0
+     * @param offset  world origin offset per axis (see {@code SNT#getWorldOriginOffset()}); {@code null} or too
+     *                short is treated as all-zero (i.e., world == pixel * spacing)
      * @return number of seeds outside the image bounds
      */
-    public int countOutOfBounds(final long[] dims, final double[] spacing) {
+    public int countOutOfBounds(final long[] dims, final double[] spacing, final double[] offset) {
         if (dims == null || dims.length < 2 || spacing == null) return 0;
         int n = 0;
         for (final SeedPoint s : seeds) {
-            if (isOutOfBounds(s, dims, spacing)) n++;
+            if (isOutOfBounds(s, dims, spacing, offset)) n++;
         }
         return n;
     }
 
-    private static boolean isOutOfBounds(final SeedPoint s, final long[] dims, final double[] spacing) {
-        if (!inAxis(s.x, spacing[0], dims[0])) return true;
-        if (!inAxis(s.y, spacing[1], dims[1])) return true;
+    private static boolean isOutOfBounds(final SeedPoint s, final long[] dims, final double[] spacing,
+                                          final double[] offset) {
+        if (!inAxis(s.x, spacing[0], offsetAt(offset, 0), dims[0])) return true;
+        if (!inAxis(s.y, spacing[1], offsetAt(offset, 1), dims[1])) return true;
         if (dims.length > 2) {
             final double sz = (spacing.length > 2) ? spacing[2] : 1.0;
-            return !inAxis(s.z, sz, dims[2]);
+            return !inAxis(s.z, sz, offsetAt(offset, 2), dims[2]);
         }
         return false;
     }
 
-    private static boolean inAxis(final double physicalCoord, final double spacing, final long dim) {
+    private static double offsetAt(final double[] offset, final int axis) {
+        return (offset != null && offset.length > axis) ? offset[axis] : 0.0;
+    }
+
+    private static boolean inAxis(final double physicalCoord, final double spacing, final double offset,
+                                   final long dim) {
         if (spacing <= 0) return true; // can't validate without calibration; treat as in-bounds
-        final long voxel = Math.round(physicalCoord / spacing);
+        final long voxel = Math.round((physicalCoord - offset) / spacing);
         return voxel >= 0 && voxel < dim;
     }
 

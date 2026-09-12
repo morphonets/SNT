@@ -78,8 +78,26 @@ public final class SeedRois {
     public static List<SeedPoint> toSeeds(final Roi[] rois, final ImagePlus imp,
                                           final double confidence,
                                           final String type, final String source) {
+        return toSeeds(rois, imp, confidence, type, source, null);
+    }
+
+    /**
+     * As {@link #toSeeds(Roi[], ImagePlus, double, String, String)}, additionally correcting for
+     * {@code SNT#getWorldOriginOffset()}: {@code world = pixel * spacing + offset}. Needed whenever
+     * {@code imp} is not anchored at world (0,0,0) (e.g. a Stream-mode materialized crop) - omitting
+     * it silently mislocates every produced seed by the offset.
+     *
+     * @param offset world origin offset per axis; {@code null} or too short is treated as all-zero
+     */
+    public static List<SeedPoint> toSeeds(final Roi[] rois, final ImagePlus imp,
+                                          final double confidence,
+                                          final String type, final String source,
+                                          final double[] offset) {
         if (rois == null || rois.length == 0) return new ArrayList<>(0);
         final double confSafe = Math.clamp(confidence, 0.0, 1.0);
+        final double ox = offsetAt(offset, 0);
+        final double oy = offsetAt(offset, 1);
+        final double oz = offsetAt(offset, 2);
 
         final double sx, sy, sz;
         final int defaultC, defaultT, defaultZ;
@@ -112,14 +130,14 @@ public final class SeedRois {
             int z = roi.getZPosition();
             if (z <= 0) z = roi.getPosition();
             if (z <= 0) z = defaultZ;
-            final double zPhys = (z - 1) * sz; // 1-based slice -> 0-based physical depth
+            final double zPhys = (z - 1) * sz + oz; // 1-based slice -> 0-based physical depth
 
             if (roi instanceof PointRoi pr) {
                 // Each contained point becomes its own seed (radius 0)
                 final FloatPolygon poly = pr.getFloatPolygon();
                 for (int i = 0; i < poly.npoints; i++) {
                     seeds.add(new SeedPoint(
-                            poly.xpoints[i] * sx, poly.ypoints[i] * sy, zPhys,
+                            poly.xpoints[i] * sx + ox, poly.ypoints[i] * sy + oy, zPhys,
                             confSafe, 0.0, c, t, typeSafe, srcSafe));
                 }
                 continue;
@@ -164,7 +182,7 @@ public final class SeedRois {
                 yVox = b.getCenterY();
                 radius = 0.0;
             }
-            seeds.add(new SeedPoint(xVox * sx, yVox * sy, zPhys, confSafe, radius, c, t, typeSafe, srcSafe));
+            seeds.add(new SeedPoint(xVox * sx + ox, yVox * sy + oy, zPhys, confSafe, radius, c, t, typeSafe, srcSafe));
         }
         return seeds;
     }
@@ -182,15 +200,30 @@ public final class SeedRois {
      * @return a list of ROIs (either PointROI (seeds without radius) or OvalRoi.
      */
     public static List<Roi> toRois(final Collection<SeedPoint> seeds, final ImagePlus imp) {
+        return toRois(seeds, imp, null);
+    }
+
+    /**
+     * As {@link #toRois(Collection, ImagePlus)}, additionally correcting for
+     * {@code SNT#getWorldOriginOffset()}: {@code pixel = (world - offset) / spacing}. Needed whenever
+     * {@code imp} is not anchored at world (0,0,0) (e.g. a Stream-mode materialized crop) - omitting
+     * it silently mislocates every produced ROI by the offset.
+     *
+     * @param offset world origin offset per axis; {@code null} or too short is treated as all-zero
+     */
+    public static List<Roi> toRois(final Collection<SeedPoint> seeds, final ImagePlus imp, final double[] offset) {
         if (seeds == null || seeds.isEmpty()) return new ArrayList<>(0);
         final Calibration cal = (imp == null) ? new Calibration() : imp.getCalibration();
+        final double ox = offsetAt(offset, 0);
+        final double oy = offsetAt(offset, 1);
+        final double oz = offsetAt(offset, 2);
         final List<Roi> rois = new ArrayList<>(seeds.size());
         for (final SeedPoint seed : seeds) {
             if (seed == null) continue;
-            final double xVox = seed.x / cal.pixelWidth;
-            final double yVox = seed.y / cal.pixelHeight;
+            final double xVox = (seed.x - ox) / cal.pixelWidth;
+            final double yVox = (seed.y - oy) / cal.pixelHeight;
             final double rVox = seed.radius / Math.sqrt(cal.pixelWidth * cal.pixelHeight);
-            final int zSlice = (int) Math.round(cal.getRawZ(seed.z)) + 1; // 1-based index
+            final int zSlice = (int) Math.round(cal.getRawZ(seed.z - oz)) + 1; // 1-based index
             final int c = (seed.channel >= 1) ? seed.channel : 0;
             final int t = (seed.frame >= 1) ? seed.frame : 0;
             final Roi roi = (seed.radius > 0)
@@ -202,6 +235,10 @@ public final class SeedRois {
             rois.add(roi);
         }
         return rois;
+    }
+
+    private static double offsetAt(final double[] offset, final int axis) {
+        return (offset != null && offset.length > axis) ? offset[axis] : 0.0;
     }
 
 }

@@ -27,6 +27,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedOverlay.ColorMode;
 import sc.fiji.snt.seed.SeedPoint;
+import sc.fiji.snt.util.PointInCanvas;
 
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
@@ -198,6 +199,11 @@ public final class SeedOverlayRenderer {
         final double sx = snt.getPixelWidth();
         final double sy = snt.getPixelHeight();
         final double sz = snt.getPixelDepth();
+        // Seeds are stored in true-world coordinates, but this canvas may be indexed by a different local grid
+        // (a Stream-mode materialized crop, or any source with a non-zero  SNT#getWorldOriginOffset()) or seeds
+        // silently fail to line up with (and are culled off) such a canvas even though they render fine in Bdv/Bvv,
+        // which draws directly in world space
+        final PointInCanvas canvasOffset = snt.getActiveCanvasPixelOffset();
         final double mag = canvas.getMagnification();
         final double inPlaneSpacing = inPlaneSpacing(plane, sx, sy, sz);
 
@@ -219,11 +225,11 @@ public final class SeedOverlayRenderer {
                 // see what they explicitly picked from the table.
                 if (!isSelected && (s.confidence < low || s.confidence > high)) continue;
 
-                final int seedSlice = seedSliceForPlane(s, plane, sx, sy, sz);
+                final int seedSlice = seedSliceForPlane(s, plane, sx, sy, sz, canvasOffset);
                 final int depthDiff = Math.abs(seedSlice - currentSlice);
                 if (strictBand && depthDiff > band) continue;
 
-                final double[] screen = screenCoordsForPlane(s, canvas, plane, sx, sy, sz);
+                final double[] screen = screenCoordsForPlane(s, canvas, plane, sx, sy, sz, canvasOffset);
                 final double screenX = screen[0];
                 final double screenY = screen[1];
 
@@ -286,27 +292,31 @@ public final class SeedOverlayRenderer {
     }
 
     /**
-     * Returns the voxel-space depth-axis slice index of {@code s} for the given plane.
+     * Returns the voxel-space depth-axis slice index of {@code s} for the given plane, in this
+     * canvas's own local grid (see {@link SNT#getActiveCanvasPixelOffset()}).
      */
     private static int seedSliceForPlane(final SeedPoint s, final int plane,
-                                         final double sx, final double sy, final double sz) {
+                                         final double sx, final double sy, final double sz,
+                                         final PointInCanvas offset) {
         return switch (plane) {
-            case MultiDThreePanes.XY_PLANE -> (int) Math.round(s.z / sz);
-            case MultiDThreePanes.XZ_PLANE -> (int) Math.round(s.y / sy);
-            case MultiDThreePanes.ZY_PLANE -> (int) Math.round(s.x / sx);
+            case MultiDThreePanes.XY_PLANE -> (int) Math.round(s.z / sz + offset.z);
+            case MultiDThreePanes.XZ_PLANE -> (int) Math.round(s.y / sy + offset.y);
+            case MultiDThreePanes.ZY_PLANE -> (int) Math.round(s.x / sx + offset.x);
             default -> 0;
         };
     }
 
     /**
-     * Returns {@code {screenX, screenY}} for the given seed on the given canvas.
+     * Returns {@code {screenX, screenY}} for the given seed on the given canvas, correcting for
+     * this canvas's own local grid (see {@link SNT#getActiveCanvasPixelOffset()}).
      */
     private static double[] screenCoordsForPlane(final SeedPoint s, final TracerCanvas canvas,
                                                  final int plane,
-                                                 final double sx, final double sy, final double sz) {
-        final double vx = s.x / sx;
-        final double vy = s.y / sy;
-        final double vz = s.z / sz;
+                                                 final double sx, final double sy, final double sz,
+                                                 final PointInCanvas offset) {
+        final double vx = s.x / sx + offset.x;
+        final double vy = s.y / sy + offset.y;
+        final double vz = s.z / sz + offset.z;
         return switch (plane) {
             case MultiDThreePanes.XZ_PLANE -> new double[]{
                     canvas.myScreenXDprecise(vx), canvas.myScreenYDprecise(vz)};

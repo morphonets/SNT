@@ -26,6 +26,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.TracerCanvas;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.util.PointInCanvas;
 
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -85,10 +86,13 @@ public final class SeedOverlayCanvasHandler {
         // Cursor depth = current slice on the depth axis for this pane
         final int currentDepthSlice = canvas.getImage().getZ() - 1;
 
-        // Resolve to (physicalX, physicalY, physicalZ) in image-physical space
+        // Resolve to (physicalX, physicalY, physicalZ) in image-physical/world space. This canvas may be indexed
+        // by a local grid offset from world (a Stream-mode materialized  crop, or any source with a non-zero
+        // SNT#getWorldOriginOffset()) - correct via SNT#getActiveCanvasPixelOffset()
         final double[] phys = paneToPhysical(canvas.getPlane(),
                 paneVoxelX, paneVoxelY, currentDepthSlice,
-                snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth());
+                snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth(),
+                snt.getActiveCanvasPixelOffset());
 
         // Physical tolerance ≈ PIXEL_TOLERANCE / magnification × in-plane spacing.
         // We use the larger of the two in-plane spacings to be forgiving.
@@ -118,11 +122,17 @@ public final class SeedOverlayCanvasHandler {
      */
     private static double[] paneToPhysical(final int plane,
                                            final double paneX, final double paneY, final int depth,
-                                           final double sx, final double sy, final double sz) {
+                                           final double sx, final double sy, final double sz,
+                                           final PointInCanvas offset) {
+        // world = (voxel - canvasOffset) * spacing, the inverse of SeedOverlayRenderer's
+        // voxel = world / spacing + canvasOffset
         return switch (plane) {
-            case MultiDThreePanes.XZ_PLANE -> new double[]{paneX * sx, depth * sy, paneY * sz};
-            case MultiDThreePanes.ZY_PLANE -> new double[]{depth * sx, paneY * sy, paneX * sz};
-            default -> new double[]{paneX * sx, paneY * sy, depth * sz}; // MultiDThreePanes.XY_PLANE
+            case MultiDThreePanes.XZ_PLANE -> new double[]{
+                    (paneX - offset.x) * sx, (depth - offset.y) * sy, (paneY - offset.z) * sz};
+            case MultiDThreePanes.ZY_PLANE -> new double[]{
+                    (depth - offset.x) * sx, (paneY - offset.y) * sy, (paneX - offset.z) * sz};
+            default -> new double[]{
+                    (paneX - offset.x) * sx, (paneY - offset.y) * sy, (depth - offset.z) * sz}; // MultiDThreePanes.XY_PLANE
         };
     }
 }

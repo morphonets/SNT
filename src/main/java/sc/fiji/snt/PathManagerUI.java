@@ -1191,6 +1191,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     /* Should be called only outside PathManagerUI (#getMultipleTreesInternal() being the only exception)  */
     protected Collection<Tree> getMultipleTrees() {
         final Collection<Tree> trees = pathAndFillManager.getTrees();
+        if (trees.isEmpty()) {
+            return trees;
+        }
         if (trees.size() == 1) {
             restoreFullModelAsNeeded(trees);
             return trees;

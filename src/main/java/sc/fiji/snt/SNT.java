@@ -1509,7 +1509,12 @@ public class SNT extends MultiDThreePanes implements
 		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip
 		// pathAndFillManager.assignSpatialSettings(...), which would otherwise reset every Path's canvasOffset to zero
 		// and overwrite their spacing. No new world origin offset is needed either
+		final boolean wasTracingHalted = tracingHalted;
 		initialize(crop.imp());
+		// initialize(ImagePlus) sets tracingHalted = !accessToValidImageData(), which is always false for a
+		// materialized crop (it is always a valid image), silently un-pausing tracing regardless of whether the user
+		// had it paused before materializing
+		pauseTracing(wasTracingHalted, false);
 
 		// Position every Path relative to the crop's own local pixel grid: its own (0,0,0) is voxelMin in the full
 		// dataset's grid, not the dataset's own origin. Paths outside these bounds simply will not render on the
@@ -1599,7 +1604,7 @@ public class SNT extends MultiDThreePanes implements
 		tracingHalted = !accessToValidImageData();
 		updateUIFromInitializedImp(imp.isVisible());
 		xy.setRoi(sourceImageROI);
-		if (!sameImp && !seedOverlay.isEmpty()) {
+		if (!sameImp && !seedOverlay.isEmpty() && !ImpUtils.isMaterializedCrop(imp)) {
 			// Imported seeds are tied to a specific image's coordinate space; discard them when switching to a
 			// different primary image so we never render stale points on the wrong canvas.
 			final boolean discard = (getUI() == null) || getConfirmation(
@@ -2573,10 +2578,10 @@ public class SNT extends MultiDThreePanes implements
 				currentPath.setName("Current Path");
 			path.setSelected(true); // so it is rendered as an active path
 		}
-		getXYCanvas().setCurrentPath(path);
+		if (getXYCanvas() != null) getXYCanvas().setCurrentPath(path); //xy canvas may be null in stream mode
 		if (!single_pane) {
-			getZYCanvas().setCurrentPath(path);
-			getXZCanvas().setCurrentPath(path);
+			if (getZYCanvas() != null) getZYCanvas().setCurrentPath(path); // may be null in stream mode
+			if (getXZCanvas() != null) getXZCanvas().setCurrentPath(path); // idem
 		}
 		if (use3DViewer) {
 			if (oldCurrentPath != null) {

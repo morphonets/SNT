@@ -1196,6 +1196,11 @@ public class SNTUI extends JDialog {
             // Re-apply on top of the blanket enable above: a 2D crop still has no Z to snap within
             snapWindowZsizeSpinner.setEnabled(enable && isStackAvailable());
         }
+        if (seedManager != null) {
+            seedManager.updateZoomControlsEnabled();
+            // Out-of-bounds count depends on image bounds/origin offset, both of which change here
+            seedManager.refreshFromOverlay();
+        }
         updateActiveCTposBadge();
     }
 
@@ -5202,14 +5207,7 @@ public class SNTUI extends JDialog {
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 null);
         diameters.setEnabled(diametersCheckBox.isEnabled());
-        if (plugin.isStreamMode()) {
-            // Composite icon: DOTCIRCLE (what the toggle does) + CROP (scope: materialized crop only)
-            diameters.setIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-            diameters.setDisabledIcon(IconFactory.doubleIcon(GLYPH.DOTCIRCLE, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
-            diameters.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        } else {
-            IconFactory.assignIcon(diameters, GLYPH.DOTCIRCLE);
-        }
+        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), diameters, GLYPH.DOTCIRCLE);
         menu.add(diameters);
 
         GuiUtils.addSeparator(menu, "Tracing:");
@@ -5225,14 +5223,7 @@ public class SNTUI extends JDialog {
                 },
                 KeyStroke.getKeyStroke('S'));
         snap.setEnabled(useSnapWindow.isEnabled());
-        if (plugin.isStreamMode()) {
-            // Composite icon: POINTER (what the toggle does) + CROP (scope: materialized crop only)
-            snap.setIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-            snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
-            snap.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        } else {
-            IconFactory.assignIcon(snap, GLYPH.POINTER);
-        }
+        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), snap, GLYPH.POINTER);
         menu.add(snap);
         final JCheckBoxMenuItem secLayer = GuiUtils.MenuItems.checkboxMenuItem("Secondary Layer",
                 secLayerActivateCheckbox.isSelected(),
@@ -5256,33 +5247,27 @@ public class SNTUI extends JDialog {
                     } else {
                         plugin.pauseTracing(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
                     }
-                    ((JCheckBoxMenuItem) e.getSource()).setSelected(currentState == TRACING_PAUSED); // re-sync
+                    // tracingHalted, not currentState: TRACING_PAUSED is redirected to STREAMING
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(plugin.tracingHalted); // re-sync
                 },
                 KeyStroke.getKeyStroke("shift P"));
-        IconFactory.assignIcon(pauseTracing, '\uf04c', true, IconFactory.defaultColor());
+        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), pauseTracing, GLYPH.PAUSE2);
         menu.add(pauseTracing);
         menu.addSeparator();
         final JCheckBoxMenuItem stopSNT = GuiUtils.MenuItems.checkboxMenuItem("Pause SNT",
                 currentState == SNT_PAUSED,
                 e -> {
                     plugin.pause(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
-                    ((JCheckBoxMenuItem) e.getSource()).setSelected(currentState == SNT_PAUSED); // re-sync
+                    // isEventsDisabled, not currentState: valid even without a materialized crop
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(plugin.getTracingCanvas().isEventsDisabled()); // re-sync
                 },
                 null);
-        IconFactory.assignIcon(stopSNT, '\uf04d', true, IconFactory.defaultColor());
+        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), stopSNT, GLYPH.STOP);
         menu.add(stopSNT);
-
-        if (plugin.isStreamMode()) {
-            List.of(pauseTracing, stopSNT).forEach( jmi -> {
-                jmi.setEnabled(false);
-                jmi.setToolTipText("Not available in Stream mode.\n" +
-                        "The equivalent action remains available from the image contextual menu of a materialized crop.");
-            });
-        }
 
         menu.addPopupMenuListener(new PopupMenuListener() {
             @Override
-            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+            public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {
                 selPaths.setSelected(showPathsSelected.isSelected());
                 selPaths.setEnabled(showPathsSelected.isEnabled() && currentState != SNT_PAUSED);
                 nearbyZ.setSelected(partsNearbyCSpinner.isSelected());
@@ -5302,21 +5287,26 @@ public class SNTUI extends JDialog {
                 snap.setEnabled(useSnapWindow.isEnabled() && currentState != SNT_PAUSED);
                 if (plugin.isStreamMode()) {
                     // Re-derived on every open: materialization may have changed since construction
-                    snap.setIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-                    snap.setDisabledIcon(IconFactory.doubleIcon(GLYPH.POINTER, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
+                    InternalUtils.applyStreamModeCompositeIcon(true, snap, GLYPH.POINTER);
                 }
                 secLayer.setSelected(secLayerActivateCheckbox.isSelected());
                 secLayer.setEnabled(secLayerActivateCheckbox.isEnabled() && currentState != SNT_PAUSED);
-                pauseTracing.setSelected(currentState == TRACING_PAUSED);
-                stopSNT.setSelected(currentState == SNT_PAUSED);
-                pauseTracing.setEnabled(!plugin.isStreamMode() && currentState != SNT_PAUSED);
+
+                // aligned with InteractiveTracerCanvas#uiReadyForModeChange: no accessToTracingCanvas check
+                final boolean traditionalMode = !plugin.isStreamMode() || plugin.isMaterializedCrop();
+                pauseTracing.setSelected(plugin.tracingHalted);
+                pauseTracing.setEnabled(traditionalMode && currentState != SNT_PAUSED);
+                stopSNT.setEnabled(traditionalMode);
+                stopSNT.setSelected(traditionalMode && plugin.getTracingCanvas().isEventsDisabled());
             }
 
             @Override
-            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {} // do nothing
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+            } // do nothing
 
             @Override
-            public void popupMenuCanceled(PopupMenuEvent e) {} // do nothing
+            public void popupMenuCanceled(PopupMenuEvent e) {
+            } // do nothing
 
         });
         return menu;
@@ -6917,6 +6907,17 @@ public class SNTUI extends JDialog {
             if (SpimDataUtils.isRemoteUrl(filename))
                 return ImportAction.URL;
             return -1;
+        }
+
+        static void applyStreamModeCompositeIcon(final boolean streamMode, final JMenuItem item, final GLYPH glyph) {
+            if (streamMode) {
+                // Composite icon as earlier
+                item.setIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
+                item.setDisabledIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
+                item.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+            } else {
+                IconFactory.assignIcon(item, glyph);
+            }
         }
 
         static JLabel addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,

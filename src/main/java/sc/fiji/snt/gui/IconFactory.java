@@ -176,6 +176,7 @@ public class IconFactory {
         OPTIONS('\uf013', true), //
         PASTE('\uf0ea', true), //
         PAUSE('\uf28b', true), //
+        PAUSE2('\uf04c', true), //
         PEN('\uf303', true), //
         PERSON_CHALKBOARD('\ue53d', true),//
         PLAY('\uf144', true), //
@@ -213,6 +214,7 @@ public class IconFactory {
         STREAM('\uf550', true), //
         SUN('\uf185', true), //
         SYNC('\uf2f1', true), //
+        STOP('\uf04d', true), //
         TABLE('\uf0ce', true), //
         TABLE_COLUMNS('\uf0db', true), //
         TAG('\uf02b', true), //
