@@ -149,6 +149,7 @@ public class CrossoverFinder {
 
         final List<Double> dists = new ArrayList<>();
         final List<Double> angles = new ArrayList<>();
+        final List<Double> axisDevs = new ArrayList<>();
         final List<Vector3d> midpoints = new ArrayList<>();
 
         // Guard: paths must have at least one segment
@@ -171,6 +172,7 @@ public class CrossoverFinder {
                 dists.add(cr.dist);
                 angles.add(angleDeg(tA, tB));
                 midpoints.add(mid(cr.p, cr.q));
+                axisDevs.add(axisDeviationDeg(cr, tA, tB));
             }
         }
         if (dists.isEmpty()) return Optional.empty();
@@ -188,6 +190,10 @@ public class CrossoverFinder {
         final double medAng = median(angles);
         if (cfg.thetaMinDeg > 0 && medAng < cfg.thetaMinDeg) return Optional.empty();
         if (cfg.thetaMaxDeg > 0 && medAng > cfg.thetaMaxDeg) return Optional.empty();
+        final double medAxisDev = median(axisDevs.stream().filter(v -> !Double.isNaN(v)).toList());
+        if (cfg.maxAxisDeviationDeg > 0 && !Double.isNaN(medAxisDev) && medAxisDev > cfg.maxAxisDeviationDeg) {
+            return Optional.empty();
+        }
         final Vector3d c = mean(midpoints);
 
         final Set<Path> participants = new LinkedHashSet<>(Arrays.asList(A, B));
@@ -299,6 +305,21 @@ public class CrossoverFinder {
         double dot = Math.abs(u.dot(v));
         dot = Math.clamp(dot, -1.0, 1.0);
         return Math.toDegrees(Math.acos(dot));
+    }
+
+    /**
+     * Angle (degrees) between the closest-approach connector and each segment's own tangent, averaged. Near 0 for an
+     * end-to-end continuation (e.g. a gap in a beaded neurite); near 90 for a side-by-side offset (e.g. two distinct
+     * fibers in a tight bundle), even though both cases can have parallel tangents and pass
+     * {@link #angleDeg(Vector3d, Vector3d)}
+     */
+    private static double axisDeviationDeg(final ClosestResult cr, final Vector3d tA, final Vector3d tB) {
+        final Vector3d connector = new Vector3d(cr.q);
+        connector.sub(cr.p);
+        final double len = connector.length();
+        if (len <= 1e-9) return Double.NaN; // touching; no lateral offset to measure
+        connector.scale(1.0 / len);
+        return 0.5 * (angleDeg(connector, tA) + angleDeg(connector, tB));
     }
 
     private static Vector3d mid(final Vector3d p, final Vector3d q) {
@@ -449,6 +470,16 @@ public class CrossoverFinder {
         public double nodeWitnessRadius = -1.0;
 
         /**
+         * Maximum allowed angle (degrees) between the closest-approach connector and each path's own local tangent.
+         * {@link #thetaMaxDeg} alone cannot separate a true end-to-end continuation (e.g. a gap in a beaded neurite)
+         * from a side-by-side  offset between two distinct, parallel structures (e.g. two fibers in a tight bundle):
+         * both share the same tangent-to-tangent angle. This filter looks at how the connector between the two paths
+         * is oriented instead: near 0 for a continuation, near 90 for a lateral offset. Set to {@code 0} to disable.
+         * <p>Default: {@code 0.0} (disabled).</p>
+         */
+        double maxAxisDeviationDeg = 0.0;
+
+        /**
          * Sets {@link #proximity}.
          *
          * @param v neighborhood radius in real‑world units; values {@code < 0} are clamped to {@code 0}
@@ -536,6 +567,17 @@ public class CrossoverFinder {
             return this;
         }
 
+        /**
+         * Sets {@link #maxAxisDeviationDeg}.
+         *
+         * @param v maximum connector-to-tangent deviation in degrees; {@code < 0} is clamped to {@code 0} (disables filtering)
+         * @return this config (for chaining)
+         */
+        public Config maxAxisDeviationDeg(final double v) {
+            this.maxAxisDeviationDeg = Math.max(0, v);
+            return this;
+        }
+
         @Override
         public String toString() {
             return "Config{proximity=" + proximity
@@ -544,7 +586,8 @@ public class CrossoverFinder {
                     + ", thetaMinDeg=" + thetaMinDeg
                     + ", thetaMaxDeg=" + thetaMaxDeg
                     + ", sameCTOnly=" + sameCTOnly
-                    + ", nodeWitnessRadius=" + nodeWitnessRadius + "}";
+                    + ", nodeWitnessRadius=" + nodeWitnessRadius
+                    + ", maxAxisDeviationDeg=" + maxAxisDeviationDeg + "}";
         }
     }
 

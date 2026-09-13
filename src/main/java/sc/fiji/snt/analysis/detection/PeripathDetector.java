@@ -171,6 +171,15 @@ public class PeripathDetector {
 
                     if (maximaIdx.length == 0) continue;
 
+                    // Local-contrast score: how far each peak rises above the annulus' own floor.
+                    // Not a true saddle-based prominence (see CrossSectionUtils#findMaxima1D), but a
+                    // simple, scale-comparable "peak minus background" proxy that is easy to compute
+                    // for both the 1D (this branch) and 2D (MaximumFinder, below) cases alike
+                    float annulusFloor = Float.POSITIVE_INFINITY;
+                    for (final float v : profile) {
+                        if (!Float.isNaN(v)) annulusFloor = Math.min(annulusFloor, v);
+                    }
+
                     final double mid = (nSamples - 1) / 2.0;
                     for (final int idx : maximaIdx) {
                         final double g = mid - idx;
@@ -179,10 +188,11 @@ public class PeripathDetector {
 
                         final float intensity = profile[idx];
                         final double distPhysical = Math.abs(g) * scaleA;
+                        final double score = Float.isInfinite(annulusFloor) ? Double.NaN : intensity - annulusFloor;
 
                         rawDetections.add(new Detection(
                                 wx, wy, node.z,
-                                intensity, path, i, distPhysical));
+                                intensity, path, i, distPhysical, -1, score));
                     }
 
                 } else {
@@ -207,6 +217,13 @@ public class PeripathDetector {
 
                     if (maxima == null || maxima.npoints == 0) continue;
 
+                    // See the same NB in the 2D/1D branch above re: this being a "peak minus local
+                    // floor" contrast proxy, not MaximumFinder's own (unreported) internal prominence
+                    float annulusFloor = Float.POSITIVE_INFINITY;
+                    for (final float v : (float[]) fp.getPixels()) {
+                        if (!Float.isNaN(v)) annulusFloor = Math.min(annulusFloor, v);
+                    }
+
                     for (int m = 0; m < maxima.npoints; m++) {
                         final int gx = maxima.xpoints[m];
                         final int gy = maxima.ypoints[m];
@@ -223,10 +240,11 @@ public class PeripathDetector {
                                 (gx - centerGrid) * (gx - centerGrid) +
                                         (gy - centerGrid) * (gy - centerGrid));
                         final double distPhysical = distGrid * scaleIso;
+                        final double score = Float.isInfinite(annulusFloor) ? Double.NaN : intensity - annulusFloor;
 
                         rawDetections.add(new Detection(
                                 worldPos[0], worldPos[1], worldPos[2],
-                                intensity, path, i, distPhysical));
+                                intensity, path, i, distPhysical, -1, score));
                     }
                 }
             }

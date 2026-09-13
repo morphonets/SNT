@@ -37,6 +37,8 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.analysis.detection.PeripathDetector;
+import sc.fiji.snt.seed.SeedOverlay;
+import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
@@ -62,6 +64,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
     private static final String RADIUS_MULTIPLIER = "Multiplier of node radii";
     private static final String OUTPUT_BOOKMARKS = "Bookmarked locations";
     private static final String OUTPUT_ROIS = "ROIs";
+    public static final String OUTPUT_SEEDS = "Seed point";
 
     @Parameter(label = "Detection channel", min = "1",
             description = "Image channel for maxima detection (1-based index)")
@@ -107,7 +110,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                     + "Set to 0 for automatic (= outer radius).")
     private double mergingDistance = 0;
 
-    @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS})
+    @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS, OUTPUT_SEEDS})
     private String outputChoice;
 
     @Parameter(label = "Paths", required = false, persist = false)
@@ -157,9 +160,11 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         outerRadiusModeChanged();
 
         final MutableModuleItem<String> outputChoiceItem = getInfo().getMutableInput("outputChoice", String.class);
-        // ROI output needs a classic canvas to attach the PointRoi to
+        // ROI output needs a classic canvas to attach the PointRoi to; Seed output needs neither a
+        // canvas nor an ImagePlus (detection still needs valid image data, but that is already
+        // enforced unconditionally at the top of run(), regardless of output choice)
         if (snt.getImagePlus() == null)
-            outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS));
+            outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS, OUTPUT_SEEDS));
     }
 
     @SuppressWarnings("unused")
@@ -208,11 +213,13 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
 
         // Short-circuit ROI output as early as possible, before running (possibly expensive)
         // detection: matches the fall-through condition of the ROI branch further below (anything
-        // that isn't "Bookmarked locations" picked with a UI present, since headless invocations
-        // have no BookmarkManager to add to either)
-        final boolean roiOutput = !(ui != null && OUTPUT_BOOKMARKS.equals(outputChoice));
+        // that isn't "Bookmarked locations"/"Seed point" picked appropriately, since headless
+        // invocations have no BookmarkManager to add to either)
+        final boolean seedsOutput = OUTPUT_SEEDS.equals(outputChoice);
+        final boolean bookmarksOutput = ui != null && OUTPUT_BOOKMARKS.equals(outputChoice);
+        final boolean roiOutput = !seedsOutput && !bookmarksOutput;
         if (roiOutput && snt.getImagePlus() == null) {
-            error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+            error(String.format("ROI output requires a %s. Use 'Bookmarked locations' or 'Seed point' output instead.",
                     (snt.isStreamMode() ? "materialized crop" : "valid image")));
             return;
         }
@@ -317,7 +324,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             if (ui != null)
                 ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
 
-            if (ui != null && OUTPUT_BOOKMARKS.equals(outputChoice)) {
+            if (bookmarksOutput) {
 
                 // Add to bookmark manager, tagged per path
                 // NB: Detection#xyzct()/RoiConverter (ROI branch below) read each Path's CURRENT
@@ -335,6 +342,38 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                 resetUI();
                 ui.selectTab("Bookmarks");
                 ui.showStatus(results.size() + " maxima added to Bookmark Manager.", true);
+
+            } else if (seedsOutput) {
+
+                // Unlike xyzct() (pixel space, for ROI/Bookmark output), Detection#x/y/z are already
+                // real-world coordinates (back-projected from the sampled cross-section), so no
+                // canvasOffset/world-origin correction is needed here (contrast SomaDetectorCmd#toSeedPoint,
+                // whose SomaUtils.SomaResult starts from a raw voxel index instead)
+                double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+                for (final Detection d : results) {
+                    if (Double.isNaN(d.score)) continue;
+                    if (d.score < min) min = d.score;
+                    if (d.score > max) max = d.score;
+                }
+                final double range = (max > min) ? max - min : 1;
+                final SeedOverlay overlay = snt.getSeedOverlay();
+                final List<SeedPoint> newSeeds = new ArrayList<>(results.size());
+                for (final Detection d : results) {
+                    final double confidence = Double.isNaN(d.score) ? 1.0 : (d.score - min) / range;
+                    final double radius = d.path.getNodeRadius(d.nodeIndex);
+                    newSeeds.add(new SeedPoint(d.x, d.y, d.z, confidence, radius,
+                            d.path.getChannel(), d.path.getFrame(), "maximum", "peripath-detector"));
+                }
+                // addAll() fires SeedOverlay's listeners once, not once per detection: with results
+                // in the thousands, add() in a loop meant a full viewer-side resync (and a
+                // background-thread AnnotationOverlay mutation racing the PainterThread's render
+                // pass) on every single seed
+                overlay.addAll(newSeeds);
+                resetUI();
+                if (ui != null) {
+                    ui.selectTab("Seeds");
+                    ui.showStatus(results.size() + " maxima added as seeds.", true);
+                }
 
             } else {
                 // Add to ROI Manager: one grouped PointRoi per path

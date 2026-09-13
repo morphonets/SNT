@@ -49,7 +49,9 @@ import ij.ImagePlus;
 import ij.gui.Plot;
 import ij.plugin.filter.MaximumFinder;
 import net.imagej.Dataset;
+import net.imagej.DatasetService;
 import net.imagej.ImageJ;
+import net.imagej.ImgPlus;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.Path;
@@ -196,6 +198,40 @@ public class PathProfiler extends CommonDynamicCmd {
 			throw new IllegalArgumentException("Tree cannot be null");
 		this.tree = tree;
 		this.dataset = dataset;
+		setSpatialUnitAndAvgSept();
+		setRadius(0);
+		setShape(ProfileProcessor.Shape.LINE);
+		setMetric(ProfileProcessor.Metric.MEAN);
+	}
+
+	/**
+	 * Instantiates a new Profiler directly from a {@link RandomAccessibleInterval}, without requiring a resident
+	 * {@link Dataset}/{@link ImagePlus}. Useful for e.g. Stream-mode sessions, where the crop-independent,
+	 * full-resolution source (see {@code SNT#getBdvTracingData()}) is only ever available as a raw RAI - going
+	 * through {@link ImagePlus}/{@link Dataset} there would either force a materialization of the whole
+	 * (potentially huge) source, or, if built from whatever is currently loaded on the classic canvas, silently scope
+	 * sampling to a materialized crop rather than the full source. {@code rai} itself is only wrapped (never copied),
+	 * so this is cheap regardless of how large the backing source is - the underlying data is still accessed
+	 * lazily, one node at a time, by {@link #assignValues()}.
+	 *
+	 * @param tree    the Tree to be profiled
+	 * @param rai     the (uncalibrated) image data from which pixel intensities will be retrieved,
+	 *                single channel/frame. Note that no effort is made to ensure that the image is
+	 *                suitable for profiling
+	 * @param spacing voxel spacing, per {@code rai} dimension, in physical units
+	 * @param unit    the spatial unit of {@code spacing} (e.g., "um"), or {@code null} if unknown
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public PathProfiler(final Tree tree, final RandomAccessibleInterval<?> rai, final double[] spacing,
+	                    final String unit) {
+		if (rai == null)
+			throw new IllegalArgumentException("RandomAccessibleInterval cannot be null");
+		if (tree == null)
+			throw new IllegalArgumentException("Tree cannot be null");
+		this.tree = tree;
+		initContextAsNeeded();
+		final ImgPlus imgPlus = ImgUtils.wrapWithSpacing(rai, spacing, unit);
+		this.dataset = getContext().getService(DatasetService.class).create(imgPlus);
 		setSpatialUnitAndAvgSept();
 		setRadius(0);
 		setShape(ProfileProcessor.Shape.LINE);

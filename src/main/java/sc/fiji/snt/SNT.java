@@ -1874,9 +1874,6 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void dispose() {
 		getPrefs().savePluginPrefs(true);
-		// Safety net: individual images already forget their own tags as they close (see SNTUI.GuiListener#imageClosed)
-		// but clear both registries outright on teardown too, in case any tagged ImagePlus outlives this session
-		ImpUtils.clearAllTags();
 		// dispose data structures
 		cancelSearch(true); // will discard tracerThreadPool, fillerThreadPool, currentSearchThread, manualSearchThread, tubularGeodesicsThread
 		flushSecondaryData(); // will discard secondaryData
@@ -1909,6 +1906,9 @@ public class SNT extends MultiDThreePanes implements
 		xz_tracer_canvas = null;
 		zy_tracer_canvas = null;
 		SNTUtils.setPlugin(null);
+		// Safety net: individual images already forget their own tags as they close (see SNTUI.GuiListener#imageClosed)
+		// but clear both registries outright on teardown too, in case any tagged ImagePlus outlives this session
+		ImpUtils.clearAllTags();
 	}
 
 	public void cancelSearch(final boolean cancelFillToo) {

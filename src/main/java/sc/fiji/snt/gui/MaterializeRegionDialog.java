@@ -381,7 +381,12 @@ public class MaterializeRegionDialog extends JDialog {
 	}
 
 	private int getStatusLabelMaxWidth() {
-		int maxWidth = getWidth() - 16;
+		// getWidth() is 0 before the first pack()/show, e.g. when sizeChoiceChanged() triggers the initial
+		// updateEstimate() call in the constructor. There the getWidth() - 16 fallback yields a near-zero/negative
+		// width, which forces the wrapped HTML into a tall, one-word-per-line block and inflates pack()'s result;
+		// the later componentResized() fix then shrinks the label but not the already packed dialog, leaving blank
+		// space above/below. STATUS_LABEL_MAX_WIDTH is a sane placeholder
+		int maxWidth = (getWidth() > 0) ? getWidth() - 16 : STATUS_LABEL_MAX_WIDTH;
 		if (statusLabel.getIcon() != null)
 			maxWidth -= statusLabel.getIcon().getIconWidth();
 		return maxWidth;

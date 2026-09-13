@@ -27,17 +27,21 @@ import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import net.imglib2.display.ColorTable;
+import net.imglib2.realtransform.AffineTransform3D;
 import org.scijava.command.CommandService;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.cmds.ImportSeedPointsCmd;
-import sc.fiji.snt.gui.cmds.LoadSeedsFromLabelsImageCmd;
-import sc.fiji.snt.gui.cmds.LoadSeedsFromROIsCmd;
+import sc.fiji.snt.gui.cmds.*;
+import sc.fiji.snt.plugin.DetectTuftsCmd;
+import sc.fiji.snt.plugin.RootDetectorCmd;
+import sc.fiji.snt.plugin.SomaDetectorCmd;
 import sc.fiji.snt.seed.*;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 
 import javax.swing.*;
 import javax.swing.event.ChangeListener;
@@ -91,6 +95,15 @@ public class SeedManager extends JPanel {
      * magnification (see {@link GuiUtils.VisitingZoom#resetFor}).
      */
     private final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
+    /**
+     * Zoom controls (bottom toolbar): meaningless without a live {@link ImagePlus} (Stream mode's flyToSeed() only
+     * repositions the Bdv/Bvv camera, so these are disabled whenever {@code snt.getImagePlus()} is {@code null}.
+     * Kept in sync with Stream mode's materialized-crop state via {@code SNTUI#updateMaterializationDependentControls()}
+     * (see {@link #updateZoomControlsEnabled()}).
+     */
+    private JLabel zoomLabel;
+    private JSpinner zoomSpinner;
+    private JButton resetZoomButton;
 
     /**
      * Guards against feedback loops between widget listeners and overlay fires.
@@ -144,7 +157,7 @@ public class SeedManager extends JPanel {
         gbc.gridy = 0;
 
         // Seeds section: heading + short synopsis
-        SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeded Tracing:",
+        SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeds:",
                 "https://imagej.net/plugins/snt/seeds", true, gbc, false);
         gbc.gridy++;
         add(GuiUtils.longSmallMsg(panelHeading(), this), gbc);
@@ -780,17 +793,44 @@ public class SeedManager extends JPanel {
 
     private void goToSeed(final SeedPoint s) {
         if (s == null) return;
+
+        if (snt.isStreamMode()) {
+            final AbstractBigViewer viewer = sntui.getActiveBigViewer();
+            if (viewer != null) {
+                flyToSeed(viewer, s);
+            } else if (!snt.isMaterializedCrop()){
+                sntui.error("No image is currently open.");
+                return;
+            }
+        }
+
+        // Deferred to its own EDT event rather than run inline right after flyToSeed() above:
+        // the Bdv/Bvv camera move is cheap (an affine transform, animated independently of the
+        // EDT), while the classic-canvas half below is a synchronous, EDT-blocking repaint of
+        // every path + the seed overlay. Chaining them in the same dispatch made the crop
+        // visibly lag behind an already-moving viewer; queuing it separately lets that first
+        // move actually paint before this heavier work starts.
+        SwingUtilities.invokeLater(() -> goToSeedOnClassicCanvas(s));
+    }
+
+    private void goToSeedOnClassicCanvas(final SeedPoint s) {
         final ImagePlus imp = snt.getImagePlus();
         if (imp == null) {
-            sntui.error("No image is currently open.");
+            if (!snt.isStreamMode()) sntui.error("No image is currently open.");
             return;
         }
         final double sx = snt.getPixelWidth();
         final double sy = snt.getPixelHeight();
         final double sz = snt.getPixelDepth();
-        final double vx = s.x / sx;
-        final double vy = s.y / sy;
-        final double vz = s.z / sz;
+        // world -> pixel, in THIS canvas's own local grid (see SNT#getActiveCanvasPixelOffset()):
+        // voxel = world / spacing + canvasOffset. Reduces to the world-origin-only correction
+        // (BookmarkManager#worldToPixel) whenever no crop is materialized; also accounts for the
+        // crop's own voxelMin shift otherwise - using getWorldOriginOffset() alone here would
+        // mislocate every seed on a materialized crop's canvas (same bug as SeedOverlayRenderer)
+        final PointInCanvas canvasOffset = snt.getActiveCanvasPixelOffset();
+        final double vx = s.x / sx + canvasOffset.x;
+        final double vy = s.y / sy + canvasOffset.y;
+        final double vz = s.z / sz + canvasOffset.z;
         final int nz = imp.getNSlices();
         // Are we navigating to outside the image?
         if (vx < 0 || vx > imp.getWidth() || vy < 0 || vy > imp.getHeight() || vz < 0 || vz > nz) {
@@ -802,9 +842,9 @@ public class SeedManager extends JPanel {
         final int c = (s.channel >= 1) ? Math.min(s.channel, imp.getNChannels()) : imp.getC();
         final int t = (s.frame >= 1) ? Math.min(s.frame, imp.getNFrames()) : imp.getT();
         final int zSlice = voxelToSlice(vz, nz);
-        imp.setPosition(c, zSlice, t);
+        imp.setPositionWithoutUpdate(c, zSlice, t); // do not paint canvas
         final double zoom = visitingZoom.fraction();
-        ImpUtils.zoomTo(imp, zoom, (int) vx, (int) vy);
+        ImpUtils.zoomTo(imp, zoom, (int) vx, (int) vy); // will trigger repaint
         if (!snt.getSinglePane()) {
             // Side panes show all Z by definition - no setPosition needed -
             // but the in-pane "depth" axis still uses the same voxel-to-slice
@@ -822,6 +862,32 @@ public class SeedManager extends JPanel {
      */
     private static int voxelToSlice(final double vz, final int nSlices) {
         return Math.max(1, Math.min(nSlices, (int) Math.round(vz) + 1));
+    }
+
+    /**
+     * Viewer mode: animates {@code viewer}'s camera to {@code s}'s world position.
+     * Mirrors {@code BookmarkManager#flyTo(Bookmark)}.
+     */
+    private static void flyToSeed(final AbstractBigViewer viewer, final SeedPoint s) {
+        final AffineTransform3D current = viewer.getViewerTransform();
+        // screenPos = R * worldPos + t, so t_new = screenCentre - R * worldPos
+        final double[] worldPos = {s.x, s.y, s.z};
+        final double[] mapped = new double[3];
+        current.apply(worldPos, mapped);
+        final double rx = mapped[0] - current.get(0, 3);
+        final double ry = mapped[1] - current.get(1, 3);
+        final double rz = mapped[2] - current.get(2, 3);
+        final double cX = viewer.getViewerWidth() / 2.0;
+        final double cY = viewer.getViewerHeight() / 2.0;
+        final AffineTransform3D target = current.copy();
+        target.set(cX - rx, 0, 3);
+        target.set(cY - ry, 1, 3);
+        target.set(   - rz, 2, 3);
+        viewer.setViewerTransform(target, 300);
+        if (s.frame != SeedPoint.CT_UNSET && viewer.getCurrentTimepoint() != s.frame) {
+            viewer.setCurrentTimepoint(s.frame);
+        }
+        viewer.showViewerMessage("Flying to seed");
     }
 
 
@@ -857,8 +923,10 @@ public class SeedManager extends JPanel {
         }
     }
 
-    // Refresh from overlay state
-    private void refreshFromOverlay() {
+    // Refresh from overlay state. Package-private: also called from
+    // SNTUI#updateMaterializationDependentControls() on crop materialize/dematerialize,
+    // since the out-of-bounds count depends on the current image bounds/origin offset
+    void refreshFromOverlay() {
         updatingFromOverlay = true;
         try {
             toggleVisibilityAction.putValue(Action.SELECTED_KEY, overlay.isVisible());
@@ -907,9 +975,10 @@ public class SeedManager extends JPanel {
         // Append a passive out-of-bounds indicator when applicable
         final int oob = countSeedsOutOfBounds();
         if (oob > 0) {
+            final String imageType = (snt.isStreamMode()) ? "materialized crop" : "image";
             countLabel.setText(String.format(
-                    "<html>%s &nbsp;·&nbsp; <span style='color:#E53E4D;'>⚠ %,d outside image</span></html>",
-                    baseText, oob));
+                    "<html>%s &nbsp;·&nbsp; <span style='color:#E53E4D;'>⚠ %,d outside %s</span></html>",
+                    baseText, oob, imageType));
             countLabel.setToolTipText(String.format(
                     "<HTML>%,d seed(s) lie outside the current image bounds.<br>" +
                     "Likely causes: Seeds were prepared for a different image, the image was<br>" +
@@ -936,7 +1005,15 @@ public class SeedManager extends JPanel {
         spacing[0] = snt.getPixelWidth();
         spacing[1] = snt.getPixelHeight();
         if (is3D) spacing[2] = snt.getPixelDepth();
-        return overlay.countOutOfBounds(dims, spacing);
+        // Seeds are stored in world/calibrated coordinates; the current canvas (a materialized crop, a classic-mode
+        // placeholder canvas built around the loaded paths' bounding box, or otherwise) may not be anchored at world
+        // (0,0,0). SNT#getActiveCanvasPixelOffset() is the single, unified  pixel-space answer to "where is world
+        // (0,0,0) on the CURRENT canvas" - it already folds in SNT#getWorldOriginOffset() (see
+        // SNT#getMaterializedCropWorldBounds()'
+        final PointInCanvas canvasOffset = snt.getActiveCanvasPixelOffset();
+        final double[] offset = {-canvasOffset.x * spacing[0], -canvasOffset.y * spacing[1],
+                (spacing.length > 2) ? -canvasOffset.z * spacing[2] : 0};
+        return overlay.countOutOfBounds(dims, spacing, offset);
     }
 
     private JToolBar bottomToolbar() {
@@ -944,16 +1021,21 @@ public class SeedManager extends JPanel {
         impButton.setToolTipText("Import seeds");
         final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export seeds");
+        final JButton createButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.PLUS, 1f, createMenu());
+        createButton.setToolTipText("Compute seeds from tracings or image features");
         final JButton traceButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ROBOT, 1f, seedTracingMenu());
-        traceButton.setToolTipText("<HTML>Run auto-tracers from listed seeds.");
+        traceButton.setToolTipText("Run auto-tracers from listed seeds.");
 
         // Visiting-zoom spinner (BookmarkManager parity): applied when
-        // double-clicking a row to fly to the seed's location.
-        final JSpinner zoomSpinner = visitingZoom.buildSpinner();
-        final JLabel zoomLabel = new JLabel("Visiting zoom level (%):");
+        // double-clicking a row to fly to the seed's location. Disabled whenever
+        // there is no live ImagePlus (see #updateZoomControlsEnabled)
+        zoomSpinner = visitingZoom.buildSpinner();
+        final String tooltipSuffix = (snt.isStreamMode()) ? "\nin the materialized crop image" : "";
+        zoomSpinner.setToolTipText( zoomSpinner.getToolTipText() + tooltipSuffix);
+        zoomLabel = new JLabel("Visiting zoom level (%):");
         zoomLabel.setToolTipText(zoomSpinner.getToolTipText());
 
-        final JButton resetZoomButton = GuiUtils.Buttons.undo(
+        resetZoomButton = GuiUtils.Buttons.undo(
                 "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         resetZoomButton.addActionListener(e -> {
             if (null == snt.getImagePlus()) {
@@ -963,6 +1045,7 @@ public class SeedManager extends JPanel {
                 zoomSpinner.setValue(visitingZoom.percentage());
             }
         });
+        updateZoomControlsEnabled();
 
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
@@ -970,6 +1053,7 @@ public class SeedManager extends JPanel {
         tb.add(expButton);
         tb.addSeparator();
         tb.add(Box.createHorizontalGlue());
+        tb.add(createButton);
         tb.add(traceButton);
         tb.addSeparator();
         tb.add(Box.createHorizontalGlue());
@@ -977,6 +1061,20 @@ public class SeedManager extends JPanel {
         tb.add(zoomSpinner);
         tb.add(resetZoomButton);
         return tb;
+    }
+
+    /**
+     * Enables/disables the visiting-zoom controls based on whether a live {@link ImagePlus}
+     * currently exists. Meaningless in Stream mode while no crop is materialized, since
+     * {@code flyToSeed()} repositions the Bdv/Bvv camera without ever changing its zoom.
+     * Called once at construction, and again by {@code SNTUI#updateMaterializationDependentControls()}
+     * whenever Stream mode's materialized-crop state changes.
+     */
+    void updateZoomControlsEnabled() {
+        final boolean enable = snt.getImagePlus() != null;
+        if (zoomLabel != null) zoomLabel.setEnabled(enable);
+        if (zoomSpinner != null) zoomSpinner.setEnabled(enable);
+        if (resetZoomButton != null) resetZoomButton.setEnabled(enable);
     }
 
     /**
@@ -1079,6 +1177,40 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Saves seeds to the current session as seeds.csv");
         menu.add(jmi);
         jmi.addActionListener(e -> saveToSessionDir());
+        return menu;
+    }
+
+    private JPopupMenu createMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+
+        GuiUtils.addSeparator(menu, "Create Seeds from Tracings:");
+        JMenuItem jmi = new JMenuItem("Detect Swellings...");
+        jmi.setToolTipText("Detects boutons/varicosities along traced paths from\n" +
+                "radius (and, optionally, intensity) profiles");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectSwellings());
+        jmi = new JMenuItem("Detect Tufts...");
+        jmi.setToolTipText("Detects clusters of nearby terminal branches (tufts)\n" +
+                "in the currently traced structure");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectTufts());
+        jmi = new JMenuItem("Detect Roots...");
+        jmi.setToolTipText("Detects disconnected tracings that start close together,\n" +
+                "as if branching from a shared soma that wasn't imaged");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectRoots());
+
+        GuiUtils.addSeparator(menu, "Extract Seeds from Image:");
+        jmi = new JMenuItem("Detect Maxima...");
+        jmi.setToolTipText("Detects intensity maxima (varicosities, spines, synaptic puncta)\n" +
+                "in annular cross-sections around traced paths");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectMaxima());
+        jmi = new JMenuItem("Detect Somas...");
+        jmi.setToolTipText("Detects cell bodies in the current image, adding one seed per detected soma");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectSomas());
+
         return menu;
     }
 
@@ -1253,7 +1385,7 @@ public class SeedManager extends JPanel {
             sel = overlay.list();
         final List<Roi> rois;
         try {
-            rois = SeedRois.toRois(sel, snt.getImagePlus());
+            rois = SeedRois.toRois(sel, snt.getImagePlus(), snt.getWorldOriginOffset());
         } catch (final Throwable ex) {
             sntui.error("Failed to convert seeds to ROIs: " + ex.getMessage());
             return;
@@ -1278,6 +1410,79 @@ public class SeedManager extends JPanel {
         if (cs != null) cs.run(LoadSeedsFromLabelsImageCmd.class, true);
     }
 
+    private void detectTufts() {
+        runDetectorCmd(DetectTuftsCmd.class);
+    }
+
+    private void detectRoots() {
+        runDetectorCmd(RootDetectorCmd.class);
+    }
+
+    private void runDetectorCmd(final Class<? extends CommonDynamicCmd> cmdClass) {
+        final Collection<Tree> trees = sntui.getPathManager().getMultipleTrees();
+        if (trees == null) { // user canceled prompt
+            return;
+        }
+        if (trees.isEmpty()) {
+            sntui.error("There are no traced paths to scan.");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(cmdClass, true, "trees", trees);
+    }
+
+    /**
+     * Thin wrapper around {@link AlongPathDetectorCmd}: runs it with {@code paths}/{@code outputChoice}
+     * pre-resolved to the currently selected (or, if none selected, all) traced paths and "add as seed"
+     * (see {@link AlongPathDetectorCmd#OUTPUT_SEEDS}), so the harvester only prompts for the detection
+     * settings that actually matter here (swelling factor, intensity threshold, etc.) rather than the
+     * full command's output-format picker.
+     */
+    private void detectSwellings() {
+        final List<Path> paths = sntui.getPathManager().getSelectedPaths(true);
+        if (paths == null || paths.isEmpty()) {
+            sntui.error("There are no traced paths to scan.");
+            return;
+        }
+        // NB: a non-destructive fit ("Keep original path(s)" in the Fit Radii dialog, the default)
+        // never puts radii on the path itself - only on its getFitted() flavor (see PathFitter#applyFit()).
+        // Checking hasRadii() alone here would wrongly reject paths that AlongPathDetectorCmd's own
+        // init() would happily pick up via its identical fitted-flavor fallback
+        if (paths.stream().noneMatch(p -> p.hasRadii() || (p.getFitted() != null && p.getFitted().hasRadii()))) {
+            sntui.error("Swelling detection requires paths with fitted radii.\n"
+                    + "Please fit radii first (Refine> menu).");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(AlongPathDetectorCmd.class, true,
+                "paths", paths, "outputChoice", AlongPathDetectorCmd.OUTPUT_SEEDS);
+    }
+
+    private void detectMaxima() {
+        if (!snt.accessToValidImageData()) {
+            sntui.error("Maxima detection requires valid image data to be loaded.");
+            return;
+        }
+        final List<Path> paths = sntui.getPathManager().getSelectedPaths(true);
+        if (paths == null || paths.isEmpty()) {
+            sntui.error("There are no traced paths to scan.");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(PeripathDetectorCmd.class, true,
+                "paths", paths, "outputChoice", PeripathDetectorCmd.OUTPUT_SEEDS);
+    }
+
+    private void detectSomas() {
+        if (!snt.accessToValidImageData()) {
+            sntui.error("No valid image data available.");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(SomaDetectorCmd.class, true,
+                "scopeChoice", SomaDetectorCmd.SCOPE_ALL, "outputChoice", SomaDetectorCmd.OUTPUT_SEEDS);
+    }
+
     private File getSessionDir() {
         final File workspaceDir = sntui.getOrPromptForWorkspace();
         if (workspaceDir == null)
@@ -1294,8 +1499,7 @@ public class SeedManager extends JPanel {
     private CommandService getCommandService() {
         final CommandService cs = snt.getContext().getService(CommandService.class);
         if (cs == null) {
-            SNTUtils.log("CommandService unavailable; cannot import.");
-            sntui.error("Could not run import command.");
+            sntui.error("Could not run command: CommandService unavailable.");
         }
         return cs;
     }

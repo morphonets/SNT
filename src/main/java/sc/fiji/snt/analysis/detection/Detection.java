@@ -58,6 +58,13 @@ public class Detection {
      * produced the contact.
      */
     public final int labelValue;
+    /**
+     * Detector-specific raw strength score (e.g. a swelling's radius-to-neighbor-average ratio), or {@code Double.NaN}
+     * if the producing detector does not compute one. Not comparable across detector types; a caller normalizing this
+     * into a {@code [0,1]} confidence (e.g. for a {@link sc.fiji.snt.seed.SeedPoint}) should do so per-run, relative
+     * to other detections from the same detector (see {@code sc.fiji.snt.tracing.auto.TuftDetector#normalizedIntensities})
+     */
+    public final double score;
 
     /**
      * Creates a new detection.
@@ -73,7 +80,7 @@ public class Detection {
     public Detection(final double x, final double y, final double z,
                      final double intensity, final Path path, final int nodeIndex,
                      final double distanceFromSkeleton) {
-        this(x, y, z, intensity, path, nodeIndex, distanceFromSkeleton, -1);
+        this(x, y, z, intensity, path, nodeIndex, distanceFromSkeleton, -1, Double.NaN);
     }
 
     /**
@@ -92,6 +99,26 @@ public class Detection {
     public Detection(final double x, final double y, final double z,
                      final double intensity, final Path path, final int nodeIndex,
                      final double distanceFromSkeleton, final int labelValue) {
+        this(x, y, z, intensity, path, nodeIndex, distanceFromSkeleton, labelValue, Double.NaN);
+    }
+
+    /**
+     * Creates a new detection with an associated label value and raw score.
+     *
+     * @param x                    X-coordinate in real-world units
+     * @param y                    Y-coordinate in real-world units
+     * @param z                    Z-coordinate in real-world units
+     * @param intensity            intensity at the detection site
+     * @param path                 associated path
+     * @param nodeIndex            index of the nearest node on the path
+     * @param distanceFromSkeleton distance from the skeleton (physical units)
+     * @param labelValue           label-image value associated with this detection, or {@code -1} if not applicable
+     * @param score                detector-specific raw strength score, or {@code Double.NaN} if not computed
+     */
+    public Detection(final double x, final double y, final double z,
+                     final double intensity, final Path path, final int nodeIndex,
+                     final double distanceFromSkeleton, final int labelValue,
+                     final double score) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -100,6 +127,7 @@ public class Detection {
         this.nodeIndex = nodeIndex;
         this.distanceFromSkeleton = distanceFromSkeleton;
         this.labelValue = labelValue;
+        this.score = score;
     }
 
     /**
@@ -140,12 +168,12 @@ public class Detection {
 
     @Override
     public String toString() {
-        final String base = String.format(
+        String base = String.format(
                 "Detection[x=%.3f,y=%.3f,z=%.3f; I=%.1f; dist=%.3f; path=%s; node=%d",
                 x, y, z, intensity, distanceFromSkeleton,
                 path != null ? path.getName() : "null", nodeIndex);
-        return (labelValue >= 0)
-                ? base + "; label=" + labelValue + "]"
-                : base + "]";
+        if (labelValue >= 0) base += "; label=" + labelValue;
+        if (!Double.isNaN(score)) base += String.format("; score=%.3f", score);
+        return base + "]";
     }
 }

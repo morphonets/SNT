@@ -78,7 +78,7 @@ public class LoadSeedsFromROIsCmd extends CommonDynamicCmd {
 
         final List<SeedPoint> seeds;
         try {
-            seeds = SeedRois.toSeeds(rois, snt.getImagePlus(), confidence, typeLabel, "roi");
+            seeds = SeedRois.toSeeds(rois, snt.getImagePlus(), confidence, typeLabel, "roi", snt.getWorldOriginOffset());
         } catch (final RuntimeException ex) {
             error("Failed to convert ROIs to seeds: " + ex.getMessage());
             return;

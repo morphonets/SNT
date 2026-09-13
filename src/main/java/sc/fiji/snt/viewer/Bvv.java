@@ -4104,9 +4104,12 @@ public class Bvv extends AbstractBigViewer {
             int selectedIndex = -1;
             // Source annotations
             private List<Annotation> annotations = new ArrayList<>();
-            private boolean cacheValid = false;
-            // Cached screen data
-            private AnnotationScreenData[] screenData;
+            private volatile boolean cacheValid = false;
+            // Cached screen data. Volatile: computeScreenData() only ever publishes a fully-built
+            // local array here in a single reference store (see below), so a concurrent
+            // invalidateCache() - e.g. triggered from a background-thread SeedOverlay update -
+            // can only ever observe the previous complete array or null, never a partially-filled one
+            private volatile AnnotationScreenData[] screenData;
             // Canvas dimensions cache
             private int canvasWidth, canvasHeight;
             private double centerX, centerY;
@@ -4152,6 +4155,11 @@ public class Bvv extends AbstractBigViewer {
                     cacheValid = true;
                 }
 
+                // Snapshot the volatile field once for this frame: guaranteed complete or null,
+                // never partially built, even if another thread invalidates mid-frame
+                final AnnotationScreenData[] frameData = screenData;
+                if (frameData == null) return;
+
                 // Get clipping info
                 final boolean doClip = renderingOptions.isClippingEnabled();
                 final double[] clipPos = doClip ? getClipPosition() : null;
@@ -4162,8 +4170,8 @@ public class Bvv extends AbstractBigViewer {
                 // Batch by color for more efficient rendering
                 final Map<Color, List<Integer>> colorBatches = new HashMap<>();
 
-                for (int i = 0; i < screenData.length; i++) {
-                    final AnnotationScreenData data = screenData[i];
+                for (int i = 0; i < frameData.length; i++) {
+                    final AnnotationScreenData data = frameData[i];
 
                     // Skip off-screen
                     if (!data.visible) continue;
@@ -4202,7 +4210,7 @@ public class Bvv extends AbstractBigViewer {
                 for (final Map.Entry<Color, List<Integer>> entry : colorBatches.entrySet()) {
                     g2d.setColor(entry.getKey());
                     for (final int idx : entry.getValue()) {
-                        final AnnotationScreenData data = screenData[idx];
+                        final AnnotationScreenData data = frameData[idx];
                         final int d = (int) Math.round(2 * data.screenRadius);
                         final int x = (int) Math.round(data.screenX - data.screenRadius);
                         final int y = (int) Math.round(data.screenY - data.screenRadius);
@@ -4214,7 +4222,7 @@ public class Bvv extends AbstractBigViewer {
             }
 
             private void computeScreenData() {
-                screenData = new AnnotationScreenData[annotations.size()];
+                final AnnotationScreenData[] local = new AnnotationScreenData[annotations.size()];
 
                 final double margin = 100.0;
 
@@ -4261,8 +4269,13 @@ public class Bvv extends AbstractBigViewer {
                             data.screenX <= canvasWidth + margin &&
                             data.screenY <= canvasHeight + margin;
 
-                    screenData[i] = data;
+                    local[i] = data;
                 }
+
+                // Publish the fully-built array in one atomic reference store; a concurrent
+                // invalidateCache() can now only ever null the field or leave the previous
+                // complete array in place, never observe a partially-filled one
+                screenData = local;
             }
 
             private double[] getClipPosition() {

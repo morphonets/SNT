@@ -39,6 +39,8 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.seed.SeedOverlay;
+import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
@@ -57,7 +59,7 @@ import java.util.List;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Detect Soma...", initializer = "init")
+@Plugin(type = Command.class, label = "Detect Soma(s)...", initializer = "init")
 public class SomaDetectorCmd extends CommonDynamicCmd {
 
     /** Traditional-mode outputs */
@@ -68,8 +70,12 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
     /** outputs common to both traditional and stream modes */
     private static final String OUTPUT_PATH = "Single-node path";
     private static final String OUTPUT_BOOKMARK = "Bookmark/marker";
+    /**
+     * Adds a {@link SeedPoint} to {@link sc.fiji.snt.SeedManager}'s {@link SeedOverlay} instead of any ROI/path/bookmark.
+     */
+    public static final String OUTPUT_SEEDS = "Seed point";
 
-    private static final String SCOPE_ALL = "All somata in image";
+    public static final String SCOPE_ALL = "All somata in image";
     private static final String SCOPE_BRIGHTEST = "Brightest/largest soma only";
 
     @Parameter(label = "Scope", choices = {SCOPE_BRIGHTEST, SCOPE_ALL},
@@ -112,10 +118,11 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
     private boolean zPosUserSet;
 
     @Parameter(label = "Output type",
-            choices = { OUTPUT_BOOKMARK, OUTPUT_PATH, OUTPUT_AREA_ROI, OUTPUT_CIRCLE_ROI, OUTPUT_POINT_ROI },
+            choices = { OUTPUT_BOOKMARK, OUTPUT_PATH, OUTPUT_SEEDS, OUTPUT_AREA_ROI, OUTPUT_CIRCLE_ROI, OUTPUT_POINT_ROI },
             description = "<HTML>Type of output:<br>" +
                     "<b>Bookmark/marker</b>: Bookmarked position at soma center w/ size from distance transform<br>" +
                     "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>" +
+                    "<b>Seed point</b>: Seed Manager entry at soma center w/ radius from distance transform<br>" +
                     "<b>Area ROI</b>: Contour from thresholding + wand selection<br>" +
                     "<b>Circular ROI</b>: Circle w/ radius from distance transform<br>" +
                     "<b>Point ROI</b>: Single point at soma center<br>")
@@ -159,23 +166,31 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         img = snt.getLoadedDataAsImg(false);
         if (imp == null && img == null) {
             error("No valid image data available.");
+            return;
         }
         warnIfMaterializedCropActive();
         if (snt != null && snt.isStreamMode()) {
-            outputChoice = OUTPUT_BOOKMARK;
+            // Preserve an outputChoice already resolved by a caller (e.g. SeedManager's "Create Seeds from Somas..."
+            // pre-resolving outputChoice=OUTPUT_SEEDS via CommandService#run); only fall back to  OUTPUT_BOOKMARK when
+            // nothing valid for Stream mode was supplied
+            final List<String> streamModeOutputs = List.of(OUTPUT_BOOKMARK, OUTPUT_PATH, OUTPUT_SEEDS);
+            if (outputChoice == null || !streamModeOutputs.contains(outputChoice)) {
+                outputChoice = OUTPUT_BOOKMARK;
+            }
             final MutableModuleItem<String> outputItem = getInfo().getMutableInput("outputChoice", String.class);
             if (outputItem != null) {
-                outputItem.setChoices(List.of(OUTPUT_BOOKMARK, OUTPUT_PATH));
+                outputItem.setChoices(streamModeOutputs);
                 outputItem.setDescription("<HTML>Type of output:<br>" +
                         "<b>Bookmark/marker</b>: Bookmarked position at soma center w/ size from distance transform<br>" +
-                        "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>");
+                        "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>" +
+                        "<b>Seed point</b>: Seed Manager entry at soma center w/ radius from distance transform<br>");
             }
         } else {
             // Classic mode always has imp.getZ() to fall back on: the Depth override is moot there
             resolveInput("zPosChoice");
             resolveInput("zPos");
         }
-        getInfo().setLabel(String.format("Detect Soma [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix()));
+        getInfo().setLabel(String.format("Detect Soma(s) [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix()));
     }
 
     private String zLabelSuffix() {
@@ -229,7 +244,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
 
     @Override
     public void run() {
-        if (imp == null && img == null) {
+        if (imp == null && img == null || isCanceled()) {
             return;
         }
         final int zSlice;
@@ -287,6 +302,10 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             addSomaMarker(result, spacing, null);
             status("Soma added as marker", true);
             if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
+        } else if (OUTPUT_SEEDS.equals(outputChoice)) {
+            snt.getSeedOverlay().add(toSeedPoint(result, spacing));
+            status("Soma added as seed", true);
+            if (ui != null) ui.selectTab("Seeds");
         } else {
             Roi roi = createOutputRoi(result);
             if (roi == null && (OUTPUT_AREA_ROI.equals(outputChoice) || OUTPUT_CIRCLE_ROI.equals(outputChoice))) {
@@ -360,6 +379,13 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             }
             if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
             status(results.size() + " soma(s) added as markers", true);
+        } else if (OUTPUT_SEEDS.equals(outputChoice)) {
+            final SeedOverlay overlay = snt.getSeedOverlay();
+            for (final SomaUtils.SomaResult result : results) {
+                overlay.add(toSeedPoint(result, spacing));
+            }
+            if (ui != null) ui.selectTab("Seeds");
+            status(results.size() + " soma(s) added as seeds", true);
         } else if (imp != null) {
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
@@ -397,6 +423,31 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         for (final SomaUtils.SomaResult result : results) {
             SNTUtils.log("  " + result.toString());
         }
+    }
+
+    /**
+     * Converts {@code result} into a {@link SeedPoint} at its centroid, in world/physical coordinates.
+     * Mirrors {@link #addSomaMarker(SomaUtils.SomaResult, double[], Color)}'s Stream-mode handling: {@code
+     * result.toNode(spacing)} gives a physical center relative to the loaded data's own raw grid, so the
+     * world-origin offset (see {@code SNT#getWorldOriginOffset()}) must be added back in Stream mode for
+     * the seed to land at the correct world position (a {@link SeedOverlay} always stores true-world
+     * coordinates, same convention as {@link sc.fiji.snt.seed.SeedRois}/{@code ImportSeedPointsCmd}).
+     * Detected somata carry no natural per-soma confidence score, so confidence is set to {@code 1.0}
+     * (maximum), same as a user-placed/imported seed with no stated confidence.
+     */
+    private SeedPoint toSeedPoint(final SomaUtils.SomaResult result, final double[] spacing) {
+        final Path.PathNode centroid = result.toNode(spacing);
+        double x = centroid.x;
+        double y = centroid.y;
+        double z = centroid.z;
+        if (snt.isStreamMode()) {
+            final double[] offset = snt.getWorldOriginOffset(); // only set in stream mode
+            x += offset[0];
+            y += offset[1];
+            z += offset[2];
+        }
+        return new SeedPoint(x, y, z, 1.0, centroid.radius, snt.getChannel(), snt.getFrame(), "soma",
+                "soma-detector");
     }
 
     /**

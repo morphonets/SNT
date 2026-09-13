@@ -163,6 +163,11 @@ public class AlongPathDetector {
                 // Radius swelling check
                 if (avgNeighbor <= 0 || radii[i] < avgNeighbor * cfg.swellingFactor)
                     continue;
+                // How swollen this node is, in units of the neighbor average - the same
+                // quantity just compared against cfg.swellingFactor above. Kept as the
+                // detection's raw score (see Detection#score); a caller wanting a [0,1]
+                // confidence normalizes this across a run's results
+                final double swellingRatio = radii[i] / avgNeighbor;
 
                 // Intensity check (if enabled)
                 final double nodeIntensity;
@@ -178,7 +183,8 @@ public class AlongPathDetector {
                 rawDetections.add(new Detection(
                         node.x, node.y, node.z,
                         nodeIntensity, path, i,
-                        0.0)); // on-skeleton → distance = 0
+                        0.0, // on-skeleton -> distance = 0
+                        -1, swellingRatio));
             }
         }
 

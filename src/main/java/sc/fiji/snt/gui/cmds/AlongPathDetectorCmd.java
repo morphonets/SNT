@@ -36,6 +36,8 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.AlongPathDetector;
 import sc.fiji.snt.analysis.detection.Detection;
+import sc.fiji.snt.seed.SeedOverlay;
+import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
@@ -93,8 +95,9 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
 
     private static final String OUTPUT_BOOKMARKS = "Bookmarked locations";
     private static final String OUTPUT_ROIS = "ROIs";
+    public static final String OUTPUT_SEEDS = "Seed point";
 
-    @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS})
+    @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS, OUTPUT_SEEDS})
     private String outputChoice;
 
     @Parameter(label = "Paths", required = false, persist = false)
@@ -146,9 +149,10 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
         }
 
         final MutableModuleItem<String> outputChoiceItem = getInfo().getMutableInput("outputChoice", String.class);
-        // ROI output needs a classic canvas to attach the PointRoi t
+        // ROI output needs a classic canvas to attach the PointRoi to; Seed output needs
+        // neither a canvas nor an image (radius-only detection works without one)
         if (snt.getImagePlus() == null)
-            outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS));
+            outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS, OUTPUT_SEEDS));
     }
 
     private boolean noPathsError() {
@@ -163,11 +167,20 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
     public void run() {
         if (noPathsError()) return;
 
-        // Short-circuit ROI output as early as possible, before running
-        final boolean roiOutput = !(ui != null && OUTPUT_BOOKMARKS.equals(outputChoice));
+        // Short-circuit as early as possible, before running (possibly expensive) detection.
+        // Seed output needs only an active SNT session (no image, no canvas); Bookmark output
+        // needs a UI; anything else (including headless, which has no BookmarkManager to use
+        // either) falls back to requiring a valid image for ROI output
+        final boolean seedsOutput = OUTPUT_SEEDS.equals(outputChoice);
+        final boolean bookmarksOutput = ui != null && OUTPUT_BOOKMARKS.equals(outputChoice);
+        final boolean roiOutput = !seedsOutput && !bookmarksOutput;
         if (roiOutput && (snt == null || snt.getImagePlus() == null)) {
-            error(String.format("ROI output requires a %s. Use 'Bookmarked locations' output instead.",
+            error(String.format("ROI output requires a %s. Use 'Bookmarked locations' or 'Seed point' output instead.",
                     (snt != null && snt.isStreamMode() ? "materialized crop" : "valid image")));
+            return;
+        }
+        if (seedsOutput && snt == null) {
+            error("Seed output requires an active SNT session.");
             return;
         }
 
@@ -313,6 +326,32 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
                 resetUI();
                 ui.selectTab("Bookmarks");
                 ui.showStatus(results.size() + " swellings added to Bookmark Manager.", true);
+
+            } else if (OUTPUT_SEEDS.equals(outputChoice)) {
+
+                // Unlike xyzct() (pixel space, for ROI/Bookmark output), Detection#x/y/z are already
+                // real-world coordinates carried over from the source Path's own nodes, so no
+                // canvasOffset/world-origin correction is needed here (contrast SomaDetectorCmd#toSeedPoint,
+                // whose SomaUtils.SomaResult starts from a raw voxel index instead)
+                double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+                for (final Detection d : results) {
+                    if (Double.isNaN(d.score)) continue;
+                    if (d.score < min) min = d.score;
+                    if (d.score > max) max = d.score;
+                }
+                final double range = (max > min) ? max - min : 1;
+                final SeedOverlay overlay = snt.getSeedOverlay();
+                for (final Detection d : results) {
+                    final double confidence = Double.isNaN(d.score) ? 1.0 : (d.score - min) / range;
+                    final double radius = d.path.getNodeRadius(d.nodeIndex);
+                    overlay.add(new SeedPoint(d.x, d.y, d.z, confidence, radius,
+                            d.path.getChannel(), d.path.getFrame(), "swelling", "along-path-detector"));
+                }
+                resetUI();
+                if (ui != null) {
+                    ui.selectTab("Seeds");
+                    ui.showStatus(results.size() + " swellings added as seeds.", true);
+                }
 
             } else {
                 // imp/roiOutput already validated up front, before detection ran - see the guard at

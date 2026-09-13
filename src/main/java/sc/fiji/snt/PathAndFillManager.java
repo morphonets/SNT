@@ -3140,8 +3140,21 @@ public class PathAndFillManager extends DefaultHandler implements
             // NB: not plugin.width/height/depth directly -- those temporarily reflect a materialized
             // crop's own (small) size while one is open (see SNT#getFullImageDimensions() javadoc)
             final int[] fullDims = plugin.getFullImageDimensions();
+            // boundingBox (compared below) holds every loaded Path's true WORLD coordinates - which, on a
+            // Stream-mode source not anchored at world (0,0,0) (see SNT#getWorldOriginOffset()), already
+            // carry that offset baked in (SNT#applyWorldOriginOffsetIfAny(Path)). Anchoring pluginBoundingBox
+            // at a hardcoded (0,0,0) falsely flags every node as out-of-bounds, regardless of whether they actually
+            // fit the image. fullDims is a voxel count (see getFullImageDimensions()', so it also needs the image's
+            // own spacing applied - BoundingBox defaults to uncalibrated (1,1,1), which silently mismatches
+            // boundingBox's physical units whenever the  image's real spacing isn't 1.
+            // Not getActiveCanvasPixelOffset()/a crop's own calibration here:
+            // getFullImageDimensions() is deliberately the FULL, uncropped extent, so it must be paired with
+            // the crop-independent world offset, not whatever crop happens to be materialized
+            final double[] worldOriginOffset = plugin.getWorldOriginOffset();
             final BoundingBox pluginBoundingBox = new BoundingBox();
-            pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
+            pluginBoundingBox.setOrigin(new PointInImage(worldOriginOffset[0], worldOriginOffset[1], worldOriginOffset[2]));
+            pluginBoundingBox.setSpacing(plugin.getPixelWidth(), plugin.getPixelHeight(), plugin.getPixelDepth(),
+                    plugin.getSpacingUnits());
             pluginBoundingBox.setDimensions(fullDims[0], fullDims[1], fullDims[2]);
             if (!pluginBoundingBox.contains(boundingBox)) {
                 plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);

@@ -55,6 +55,7 @@ import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.*;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.seed.SeedOverlayBigViewerHandler;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
@@ -179,6 +180,9 @@ public class SNTUI extends JDialog {
     /* AbstractBigViewers */
     protected Bvv bvvSNT;
     protected Bdv bdvSNT;
+    /** Bridges SeedOverlay into bvvSNT/bdvSNT's AnnotationOverlay; see setBvvOnEDT/setBdvOnEDT */
+    private SeedOverlayBigViewerHandler bvvSeedHandler;
+    private SeedOverlayBigViewerHandler bdvSeedHandler;
 
     /**
      * Returns the {@link AbstractBigViewer} (BVV or BDV) currently tethered to this UI, in
@@ -1082,6 +1086,8 @@ public class SNTUI extends JDialog {
         }
         if (sciViewSNT != null && sciViewSNT.getSciView() != null && sciViewSNT.getSciView().mainWindow != null)
             sciViewSNT.getSciView().mainWindow.close();
+        if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
+        if (bdvSeedHandler != null) { bdvSeedHandler.dispose(); bdvSeedHandler = null; }
         bvvSNT = null;
         bdvSNT = null;
         sciViewSNT = null;
@@ -1349,6 +1355,9 @@ public class SNTUI extends JDialog {
 
     private void setBvvOnEDT(final Bvv bvv) {
         this.bvvSNT = bvv;
+        // Re-tether the seed overlay bridge to whichever viewer (if any) is now active
+        if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
+        if (bvv != null) bvvSeedHandler = SeedOverlayBigViewerHandler.install(bvv, plugin.getSeedOverlay());
         syncBookmarksTabContent();
         if (bvv != null && bvv.getViewerFrame() != null) {
             if (plugin.isStreamMode()) bvv.getViewerFrame().setTitle("SNT Stream (BVV)");
@@ -1376,6 +1385,7 @@ public class SNTUI extends JDialog {
                         bvvSNT.getViewerFrame().getViewerPanel().stop();
                         bvvSNT.getViewerFrame().dispose();
                         bvvSNT = null;
+                        if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
                         syncBookmarksTabContent();
                     }
                 }
@@ -1411,6 +1421,9 @@ public class SNTUI extends JDialog {
 
     private void setBdvOnEDT(final Bdv bdv) {
         this.bdvSNT = bdv;
+        // Re-tether the seed overlay bridge to whichever viewer (if any) is now active
+        if (bdvSeedHandler != null) { bdvSeedHandler.dispose(); bdvSeedHandler = null; }
+        if (bdv != null) bdvSeedHandler = SeedOverlayBigViewerHandler.install(bdv, plugin.getSeedOverlay());
         syncBookmarksTabContent();
         if (bdv != null && bdv.getViewerFrame() != null) {
             if (plugin.isStreamMode()) bdv.getViewerFrame().setTitle("SNT Stream (BDV)");
@@ -1435,6 +1448,7 @@ public class SNTUI extends JDialog {
                         bdvSNT.getViewerFrame().getViewerPanel().stop();
                         bdvSNT.getViewerFrame().dispose();
                         bdvSNT = null;
+                        if (bdvSeedHandler != null) { bdvSeedHandler.dispose(); bdvSeedHandler = null; }
                         syncBookmarksTabContent();
                     }
                 }
@@ -3938,18 +3952,6 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
         menu.add(jmiSoma);
-        final JMenuItem jmiFromSeeds = new JMenuItem("From Seeds...", IconFactory.menuIcon(GLYPH.SEEDLING));
-        jmiFromSeeds.setToolTipText("Open the Seeds tab to import/generate candidates and trace from them.");
-        jmiFromSeeds.addActionListener(e -> {
-            final int idx = tabbedPane.getSelectedIndex();
-            if (idx > -1 && "Seeds".equals(tabbedPane.getTitleAt(idx))) {
-                showMessage("The \"Seeds\" tab is already active. Use its toolbar to access seed-based tracing.",
-                        "Seeds Tab Already Selected");
-            } else {
-                selectTab("Seeds");
-            }
-        }); // Navigation only: actual tracing lives in the Seeds tab pop
-        menu.add(jmiFromSeeds);
 
         // From File(s): file-based / batch processing
         GuiUtils.addSeparator(menu, "Batch Processing:");
@@ -5998,9 +6000,10 @@ public class SNTUI extends JDialog {
                 new TabRevealAction("Delineations"));
         // Seeds tab
         commandFinder.registerKeywords(
-                "Seeded Tracing",
+                "Seeds",
                 List.of("Tabs"),
-                List.of("seed", "soma", "import csv", "labels/mask image", "autotrace", "candidate points", "prediction", "waypoint"),
+                List.of("seeded tracing", "autotrace", "tufts", "swellings", "maxima", "somas",
+                        "candidate points", "prediction", "waypoint", "roi", "labels/mask image", "import csv"),
                 new TabExecuteAction("Seeds"),
                 new TabRevealAction("Seeds"));
         // Notes tab

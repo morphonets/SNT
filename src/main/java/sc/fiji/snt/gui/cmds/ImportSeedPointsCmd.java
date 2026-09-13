@@ -307,10 +307,14 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
         // For radius, use the minimum in-plane spacing as a conservative scalar
         // (radius is a scalar; the input is in voxel units, no anisotropy info)
         final double sr = Math.min(sx, sy);
+        // world = voxel * spacing + offset (see SNT#getWorldOriginOffset()); omitting offset
+        // mislocates every imported seed whenever the tethered image is not anchored at
+        // world (0,0,0), e.g. a Stream-mode materialized crop
+        final double[] offset = snt.getWorldOriginOffset();
         final List<SeedPoint> out = new ArrayList<>(voxelSeeds.size());
         for (final SeedPoint v : voxelSeeds) {
-            out.add(new SeedPoint(v.x * sx, v.y * sy, v.z * sz, v.confidence, v.radius * sr,
-                    v.channel, v.frame, v.type, v.source));
+            out.add(new SeedPoint(v.x * sx + offset[0], v.y * sy + offset[1], v.z * sz + offset[2],
+                    v.confidence, v.radius * sr, v.channel, v.frame, v.type, v.source));
         }
         return out;
     }
