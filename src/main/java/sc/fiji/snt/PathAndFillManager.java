@@ -963,7 +963,7 @@ public class PathAndFillManager extends DefaultHandler implements
     {
         if (enableUIupdates) {
             for (final PathAndFillListener listener : listeners)
-                listener.setPathList(allPaths, justAdded, expandAll);
+                listener.setPathList(justAdded, expandAll);
             for (final PathAndFillListener pafl : listeners)
                 pafl.setFillList(allFills);
         }
@@ -3317,16 +3317,56 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     /**
-     * Returns the 'de facto' Paths (excluding null or fitted versions).
-     * The returned list is a snapshot safe for iteration even if paths
-     * are concurrently added or removed.
+     * Single source of truth (manager-bound convenience over {@link Path#isDeFactoPath(Collection)}) for whether
+     * {@code p} should be treated as a normal, standalone/"de facto" path rather than one redundant with an un-fitted
+     * counterpart already registered here.
+     * <p>
+     * Deliberately checks object identity against {@link #allPaths} rather than looking up
+     * {@code p.getUnfitted().getID()} via {@link #getPathFromID(int)}: registration (e.g. {@link #addTree(Tree, String)}
+     * with {@code forceNewId=true}) reassigns every path a new ID, discarding whatever ID it had in its source file.
+     * An un-fitted counterpart that was
+     * never registered still carries its <em>original</em> file ID, which can -- and in practice  does -- collide with
+     * the freshly assigned ID of some unrelated, actually-registered path, making an ID-based lookup a false positive.
      *
-     * @return the paths associated with this PathAndFillManager instance excluding
-     *         those that are null or fitted version of other paths.
+     * @param p the path to check
+     * @return true if {@code p} is not a fitted-version path, or its un-fitted counterpart is not registered with this
+     * manager; false if it is redundant and should be skipped
+     * @see Path#isDeFactoPath(Collection)
+     */
+    public synchronized boolean isDeFactoPath(final Path p) {
+        if (p == null) return false;
+        if (!p.isFittedVersionOfAnotherPath()) return true;
+        final Path unfitted = p.getUnfitted();
+        return unfitted == null || !allPaths.contains(unfitted);
+    }
+
+    /**
+     * Returns the "orphaned" fitted paths currently registered with this manager: fitted-version paths
+     * ({@link Path#isFittedVersionOfAnotherPath()}) whose un-fitted original was never registered here (see
+     * {@link #isDeFactoPath(Path)}). Their pre-fit geometry no longer exists in this session, and saving them (see
+     * {@link #writeXML}) writes a {@code fittedversionof} reference to a path ID that is not present in the saved file.
+     *
+     * @return the orphaned fitted paths, or an empty list if none
+     * @see #isDeFactoPath(Path)
+     */
+    public synchronized List<Path> getOrphanedFittedPaths() {
+        return allPaths.stream().filter(this::isDeFactoPath).filter(Path::isFittedVersionOfAnotherPath)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns the 'de facto' Paths (excluding null or fitted versions). he returned list is a snapshot safe for
+     * iteration even if paths are concurrently added or removed.
+     * <p>
+     * A fitted-version path is only excluded when its un-fitted counterpart is also registered with this manager, i.e.,
+     * when that counterpart is available to represent it instead. See {@link #isDeFactoPath(Path)} for why that check
+     * -- rather than an unconditional exclusion -- is necessary.
+     *
+     * @return a filtered list of paths, excluding nulls and redundant fitted versions
+     * @see #isDeFactoPath(Path)
      */
     public List<Path> getPathsFiltered() {
-        return getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
-                .collect(Collectors.toList());
+        return getPaths().stream().filter(this::isDeFactoPath).collect(Collectors.toList());
     }
 
     /* (non-Javadoc)

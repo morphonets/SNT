@@ -1119,11 +1119,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     /* (non-Javadoc)
-     * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
+     * @see PathAndFillListener#setPathList(Path, boolean)
      */
     @Override
-    public void setPathList(final List<Path> pathList, final Path justAdded,
-                            final boolean expandAll)
+    public void setPathList(final Path justAdded, final boolean expandAll)
     {
 
         SwingUtilities.invokeLater(() -> {
@@ -1132,14 +1131,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final Set<Path> selectedPathsBefore = tree.getSelectedPaths();
             final Set<Path> expandedPathsBefore = tree.getExpandedPaths();
 
-            /*
-             * Ignore the arguments and get the real path list from the PathAndFillManager:
-             */
+            /* Always rebuild from the PathAndFillManager's own live state */
             final HelpfulTreeModel model = new HelpfulTreeModel();
             final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
+            // See PathAndFillManager#isDeFactoPath(Path): a primary path that is itself a fitted
+            // version of another path is normally skipped, since its un-fitted counterpart is
+            // expected to be registered here and displayed in its place instead. Only true skip
+            // it when that counterpart is actually present -- otherwise this path is the only
+            // remaining representative of its root and must still be shown
             for (final Path primaryPath : primaryPaths) {
-                // Add the primary path if it's not just a fitted version of another:
-                if (!primaryPath.isFittedVersionOfAnotherPath())
+                if (pathAndFillManager.isDeFactoPath(primaryPath))
                     model.addNode(model.root(), primaryPath);
             }
             tree.setModel(fullTreeModel = model);
@@ -2124,7 +2125,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     /** Reloads the contents of {@link PathAndFillManager} */
     public void reload() {
-        setPathList(pathAndFillManager.getPaths(), null, true);
+        setPathList(null, true);
     }
 
     private void closeTable() {
@@ -4384,11 +4385,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         "Confirm?")) {
                     return;
                 }
-                selectedPaths.forEach(p -> {
-                    if (!p.isFittedVersionOfAnotherPath()) p.setRadius(userRad);
-                });
+                // See PathAndFillManager#isDeFactoPath(Path): a fitted-version path is only
+                // skipped when its un-fitted original is still registered elsewhere. E.g.,
+                // zeroing/assigning a constant radius on an orphaned fitted path -- keeping its
+                // xyz refinement while discarding/overriding just its thickness -- is legitimate
+                // and should not be silently ignored
+                int skipped = 0;
+                for (final Path p : selectedPaths) {
+                    if (pathAndFillManager.isDeFactoPath(p)) {
+                        p.setRadius(userRad);
+                    } else {
+                        skipped++;
+                    }
+                }
                 removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.MEAN_RADIUS_TAG_CMD, !noRadius, false);
-                displayTmpMsg("Command finished. Fitted path(s) ignored.");
+                displayTmpMsg("Command finished." + ((skipped > 0) ? " " + skipped + " fitted path(s) ignored." : ""));
                 plugin.updateAllViewers();
                 plugin.setUnsavedChanges(true);
             }
@@ -5046,6 +5057,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         sb.append("<i>This may cause rendering/connection issues. Consider re-importing affected paths.</i><br>");
                     }
 
+                    // Add orphaned fitted-path warning if present
+                    if (analysis.hasOrphanedFittedPathWarnings()) {
+                        sb.append("<br><b>Fitted-path warning:</b> ")
+                                .append(analysis.orphanedFittedPaths)
+                                .append(" fitted path(s) have no un-fitted original registered in this session.<br>")
+                                .append("<i>Their pre-fit geometry is not available; re-import from the source file ")
+                                .append("if the raw, un-fitted trace is needed.</i><br>");
+                    }
+
                     sb.append("<br>Rebuilding will:<ul>")
                             .append("<li>Reset tree IDs (").append(analysis.currentTreeCount)
                             .append(" tree(s) will be renumbered 1-").append(analysis.currentTreeCount).append(")</li>")
@@ -5076,6 +5096,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         }
                         sb.append("</ul>");
                         sb.append("<i>This may cause rendering/connection issues.</i><br><br>");
+                    }
+
+                    // Still show orphaned fitted-path warning if present
+                    if (analysis.hasOrphanedFittedPathWarnings()) {
+                        sb.append("<b>Fitted-path warning:</b> ")
+                                .append(analysis.orphanedFittedPaths)
+                                .append(" fitted path(s) have no un-fitted original registered in this session.<br>")
+                                .append("<i>Their pre-fit geometry is not available; re-import from the source file ")
+                                .append("if the raw, un-fitted trace is needed.</i><br><br>");
                     }
 
                     sb.append("All ").append(analysis.totalPaths).append(" path(s) in ")
@@ -5120,7 +5149,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final Map<Integer, List<Path>> pathsByTree = new HashMap<>();
 
             for (final Path p : paths) {
-                if (p == null || p.isFittedVersionOfAnotherPath()) continue;
+                // See PathAndFillManager#isDeFactoPath(Path)
+                if (p == null || !pathAndFillManager.isDeFactoPath(p)) continue;
 
                 // Track tree IDs
                 treeIds.add(p.getTreeID());
@@ -5185,15 +5215,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
 
-            // Count actual paths (excluding fitted versions)
+            // Count actual paths (excluding redundant fitted versions -- see PathAndFillManager#isDeFactoPath(Path))
             final int totalPaths = (int) paths.stream()
-                    .filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
+                    .filter(p -> p != null && pathAndFillManager.isDeFactoPath(p))
                     .count();
 
             // Count primary paths (trees)
             final int treeCount = (int) paths.stream()
-                    .filter(p -> p != null && !p.isFittedVersionOfAnotherPath() && p.isPrimary())
+                    .filter(p -> p != null && pathAndFillManager.isDeFactoPath(p) && p.isPrimary())
                     .count();
+
+            // See PathAndFillManager#getOrphanedFittedPaths(): fitted-version paths whose
+            // un-fitted original was never registered with this manager. Typically means this
+            // data came from a route that substituted the fitted flavor in place of the raw one
+            // before registration (e.g. Tree(Collection<Path>) via Tree.listFromFile()), so the
+            // pre-fit geometry no longer exists in this session
+            final int orphanedFittedPaths = pathAndFillManager.getOrphanedFittedPaths().size();
 
             return new RelationshipAnalysis(
                     totalPaths,
@@ -5204,7 +5241,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     disconnectedChildren,
                     misorientedPaths,
                     inconsistentCalibrations,
-                    inconsistentCanvasOffsets
+                    inconsistentCanvasOffsets,
+                    orphanedFittedPaths
             );
         }
 
@@ -5220,7 +5258,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 int disconnectedChildren,
                 int misorientedPaths,
                 int inconsistentCalibrations,
-                int inconsistentCanvasOffsets) {
+                int inconsistentCanvasOffsets,
+                int orphanedFittedPaths) {
 
             boolean hasIssues() {
                 return totalIssues() > 0;
@@ -5234,9 +5273,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return inconsistentCalibrations > 0 || inconsistentCanvasOffsets > 0;
             }
 
+            /**
+             * True if one or more registered paths are fitted-version paths whose un-fitted
+             * original was never registered with this manager (see
+             * {@link PathAndFillManager#isDeFactoPath(Path)}). Rebuilding relationships cannot
+             * fix this -- the pre-fit geometry is simply gone from this session -- so it is
+             * surfaced as a warning, not counted in {@link #totalIssues()}.
+             */
+            boolean hasOrphanedFittedPathWarnings() {
+                return orphanedFittedPaths > 0;
+            }
+
             int totalIssues() {
                 return orphanedPaths + inconsistentTreeIds + inconsistentOrders + disconnectedChildren;
-                // NB: misorientedPaths and spatial warnings are warnings, not counted as rebuild issues
+                // NB: misorientedPaths, spatial warnings, and orphaned fitted paths are warnings,
+                // not counted as rebuild issues (rebuilding relationships cannot fix any of them)
             }
 
         }
@@ -6289,8 +6340,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
             final DefaultMutableTreeNode jTreeRoot = ((DefaultMutableTreeNode) model.getRoot());
             jTreeRoot.removeAllChildren();
+            // See PathAndFillManager#isDeFactoPath(Path)
             for (final Path primaryPath : primaryPaths) {
-                if (!primaryPath.isFittedVersionOfAnotherPath())
+                if (pathAndFillManager.isDeFactoPath(primaryPath))
                     model.addNode(jTreeRoot, primaryPath);
             }
             model.reload();

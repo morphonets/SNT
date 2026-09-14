@@ -456,7 +456,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             connectToEditingPath(childPath, parentPath);
             // Trigger UI refresh to show updated hierarchy
             if (tracerPlugin.getUI() != null)
-                tracerPlugin.getUI().getPathManager().setPathList(null, null, false);
+                tracerPlugin.getUI().getPathManager().setPathList(null, false);
         } finally {
             // Always restore state and clear preview (in case of early return)
             connectionPreview = null;

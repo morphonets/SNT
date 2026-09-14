@@ -524,11 +524,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
     }
 
     /* (non-Javadoc)
-     * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
+     * @see PathAndFillListener#setPathList(Path, boolean)
      */
     @Override
-    public void setPathList(final List<Path> pathList, final Path justAdded,
-                            final boolean expandAll) // ignored
+    public void setPathList(final Path justAdded, final boolean expandAll) // ignored
     {}
 
     /* (non-Javadoc)

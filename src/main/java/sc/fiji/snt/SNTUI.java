@@ -7274,6 +7274,7 @@ public class SNTUI extends JDialog {
     protected boolean saveToXML(final File file, final boolean promptForNodeValuesExport) {
         if (noPathsError()) return false; // do not create empty files
         if (promptForNodeValuesExport) promptForNodeValuesExport();
+        warnOnOrphanedFittedPaths();
         showStatus("Saving traces to " + file.getAbsolutePath(), false);
 
         final int preSavingState = currentState;
@@ -7309,6 +7310,31 @@ public class SNTUI extends JDialog {
             if (choices[0].equals(choice))
                 pathAndFillManager.getPaths().forEach(path -> path.setNodeValues(null));
         }
+    }
+
+    /**
+     * Warns (once, with a permanent opt-out) if one or more paths about to be saved are
+     * "orphaned" fitted paths (see {@link PathAndFillManager#getOrphanedFittedPaths()}): fitted
+     * versions whose un-fitted original was never registered in this session, typically because
+     * the data was loaded through a route that substitutes the fitted flavor in place of the raw
+     * one before registration. Saving such a path writes a {@code fittedversionof} reference to
+     * a path ID that is not present anywhere in the saved file -- its pre-fit geometry cannot be
+     * recovered by reloading it.
+     */
+    private void warnOnOrphanedFittedPaths() {
+        final boolean nag = plugin.getPrefs().getTemp("orphanedFitted-nag", true);
+        if (!nag) return;
+        final int n = pathAndFillManager.getOrphanedFittedPaths().size();
+        if (n == 0) return;
+        final Boolean prompt = guiUtils.getPersistentWarning(String.format(
+                "Reminder: %d fitted path(s) being saved have no un-fitted original registered in "
+                        + "this session (their pre-fit geometry is not available). The saved file will "
+                        + "reference that missing original by ID, and will not fully restore the fitted "
+                        + "relationship if reloaded.<br>Re-import from the source file instead if the raw, "
+                        + "un-fitted trace is needed.", n),
+                "Possible Loss of Pre-Fit Geometry");
+        if (prompt != null) // do nothing if user dismissed the dialog
+            plugin.getPrefs().setTemp("orphanedFitted-nag", !prompt);
     }
 
     private void warnOnPossibleAnnotationLoss() {

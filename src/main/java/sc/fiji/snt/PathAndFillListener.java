@@ -27,7 +27,7 @@ import java.util.List;
 
 interface PathAndFillListener {
 
-	void setPathList(List<Path> pathList, Path justAdded, boolean expandAll);
+	void setPathList(Path justAdded, boolean expandAll);
 
 	void setFillList(List<Fill> fillList);
 

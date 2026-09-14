@@ -186,6 +186,11 @@ public class PathFitter implements Callable<Path> {
     private PathFitter(final RandomAccessibleInterval<? extends RealType<?>> img, final Path path) {
         if (path == null)
             throw new IllegalArgumentException("Cannot fit a null path");
+        // Unlike PathFitter(SNT, Path) below, this constructor (and its ImagePlus/ImgPlus/spacing-arg
+        // public overloads, used e.g. by Path#fitRadii(ImagePlus) for scripting, and by the
+        // auto-tracing pipelines) has no PathAndFillManager reference to consult, so it cannot tell
+        // whether path's un-fitted original is still registered there or not: it stays with the
+        // conservative, flag-only check.
         if (path.isFittedVersionOfAnotherPath())
             throw new IllegalArgumentException("Trying to fit an already fitted path");
         setImage(img);
@@ -208,7 +213,12 @@ public class PathFitter implements Callable<Path> {
     public PathFitter(final SNT plugin, final Path path) {
         if (path == null)
             throw new IllegalArgumentException("Cannot fit a null path");
-        if (path.isFittedVersionOfAnotherPath())
+        // Registration-aware, not a raw isFittedVersionOfAnotherPath() check: a fitted-version path
+        // whose un-fitted original is not (or no longer) registered with the plugin's manager (see
+        // PathAndFillManager#isDeFactoPath(Path)) is treated everywhere else in the UI as a normal,
+        // standalone/"de facto" path -- it should remain fittable here too. Only block when the
+        // original is genuinely still registered, in which case fitting *it* is what's intended.
+        if (!plugin.getPathAndFillManager().isDeFactoPath(path))
             throw new IllegalArgumentException("Trying to fit an already fitted path");
         this.plugin = plugin;
         setImage(plugin.getLoadedData());

@@ -5248,7 +5248,11 @@ public class SNT extends MultiDThreePanes implements
 
 	public void selectPath(final Path p, final boolean addToExistingSelection) {
 		final HashSet<Path> pathsToSelect = new HashSet<>();
-		if (p.isFittedVersionOfAnotherPath()) pathsToSelect.add(p.fittedVersionOf);
+		// See PathAndFillManager#isDeFactoPath(Path): only redirect selection to the un-fitted
+		// original when it is actually registered here (and thus itself a selectable entry in
+		// PathManagerUI); otherwise p is the de-facto standalone entry and must be selected
+		// directly, or nothing ends up selected at all
+		if (!pathAndFillManager.isDeFactoPath(p)) pathsToSelect.add(p.fittedVersionOf);
 		else pathsToSelect.add(p);
 		if (isEditModeEnabled()) { // impose a single editing path
 			if (ui != null) ui.getPathManager().setSelectedPaths(pathsToSelect, this);
@@ -5269,8 +5273,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	@Override
-	public void setPathList(final List<Path> pathList, final Path justAdded,
-							final boolean expandAll) // ignored
+	public void setPathList(final Path justAdded, final boolean expandAll) // ignored
 	{}
 
 	@Override
@@ -6201,7 +6204,9 @@ public class SNT extends MultiDThreePanes implements
 		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());
 		g.drawImage(holdingImp.getImage(), 0, 0, null);
 		for (final Path p : pathAndFillManager.getPaths()) {
-			if (p == null || p.isFittedVersionOfAnotherPath()) continue;
+			// See PathAndFillManager#isDeFactoPath(Path): only skip a fitted-version path when
+			// its un-fitted counterpart is also registered here to be drawn in its place
+			if (p == null || !pathAndFillManager.isDeFactoPath(p)) continue;
 			final Path drawPath = (p.getUseFitted() && p.getFitted() != null) ? p.getFitted() : p;
 			drawPath.drawPathAsPoints(g, canvas, this);
 		}

@@ -2540,6 +2540,31 @@ public class Path implements Comparable<Path>, Cloneable {
 		return fittedVersionOf;
 	}
 
+	/**
+	 * Single source of truth for the "should this fitted-version path be treated as redundant/standalone" decision
+	 * used throughout listings, filters, and measurements.
+	 * <p>
+	 * A fitted-version path ({@link #isFittedVersionOfAnotherPath()}) is normally  considered redundant -- it is
+	 * expected to be represented instead by its un-fitted counterpart ({@link #getUnfitted()}), which is typically
+	 * registered alongside it. But that assumption can be violated: {@link Tree#Tree(java.util.Collection)} (used
+	 * e.g. by {@link Tree#listFromFile(String)}) substitutes a path's fitted flavor in place of the original whenever
+	 * {@link #getUseFitted()} is true, so if the source file also flagged that original path as primary/root, only
+	 * the fitted substitute ever ends up in {@code paths}, and its un-fitted twin never arrives. In that case
+	 * this path is the only remaining representative and must NOT be treated as redundant, or it silently vanishes
+	 * from whatever is being listed/measured.
+	 *
+	 * @param paths the collection this path is being considered against (e.g., an entire  {@link PathAndFillManager}'s
+	 *              paths, or a {@link Tree}'s own path list). For large collections, prefer passing a
+	 *              {@link java.util.Set} -- membership is tested with {@link java.util.Collection#contains(Object)}
+	 * @return true if this path should be treated as a normal, standalone/"de facto" path (either it is not a fitted
+	 *         version, or its un-fitted counterpart is missing from {@code paths}); false if it is redundant and should
+	 *         be skipped in favor of that counterpart
+	 * @see PathAndFillManager#isDeFactoPath(Path)
+	 */
+	public boolean isDeFactoPath(final java.util.Collection<Path> paths) {
+		return !isFittedVersionOfAnotherPath() || !paths.contains(fittedVersionOf);
+	}
+
 	protected void setFitted(final Path p) {
 		if (getFitted() != null && p != null) {
 			throw new IllegalArgumentException(
@@ -2569,8 +2594,25 @@ public class Path implements Comparable<Path>, Cloneable {
 		this.useFitted = useFitted;
 	}
 
+	/**
+	 * Discards the fitted relationship linked to this Path, severing it from whichever side {@code this} represents.
+	 * <p>
+	 * If this Path <em>has</em> a fitted counterpart ({@link #getFitted()} != null -- the common, documented usage:
+	 * discarding the fit of an original, un-fitted Path), that counterpart's backward link is cleared and forgotten.
+	 * <p>
+	 * If, instead, this Path <em>is itself</em> a fitted version of another Path
+	 * ({@link #isFittedVersionOfAnotherPath()}), that backward link ({@link #fittedVersionOf}) is cleared too, and the
+	 * original's forward link (if it still points back to this Path) is cleared in turn.
+	 */
 	protected void discardFit() {
-		fitted = null;
+		if (fitted != null) {
+			fitted.fittedVersionOf = null;
+			fitted = null;
+		}
+		if (fittedVersionOf != null) {
+			if (fittedVersionOf.fitted == this) fittedVersionOf.fitted = null;
+			fittedVersionOf = null;
+		}
 		useFitted = false;
 	}
 
