@@ -152,7 +152,7 @@ public class DetectTuftsCmd extends CommonDynamicCmd {
 
         final boolean weightByThickness = WEIGHT_RADIUS.equals(weighting) || WEIGHT_BOTH.equals(weighting);
         final boolean weightByIntensity = WEIGHT_INTENSITY.equals(weighting) || WEIGHT_BOTH.equals(weighting);
-        final RandomAccessibleInterval<?> rai = weightByIntensity ? snt.getBdvTracingData() : null;
+        final RandomAccessibleInterval<?> rai = weightByIntensity ? snt.getFullSourceData() : null;
         if (weightByIntensity && rai == null) {
             error("Weight by intensity requires an image; no image data is available.");
             return;

@@ -6248,18 +6248,18 @@ public class SNTUI extends JDialog {
 
     /**
      * Crop-independent counterpart of {@link #launchSigmaPaletteAround(int, int, int)}: sources its
-     * bounds from {@link SNT#getBdvTracingData()} instead of {@link SNT#getLoadedData()}, so a
+     * bounds from {@link SNT#getFullSourceData()} instead of {@link SNT#getLoadedData()}, so a
      * BDV/BVV click that lands outside a materialized crop's (smaller) bounds still previews the
      * region actually clicked, instead of silently clamping to the crop's edge. See {@code
      * AbstractBigViewer.Actions#pickSigmaPointAction()}, which pairs this with {@link
      * SNT#getDefaultCanvasPixelOffset()} to convert the click.
      *
-     * @param x pixel X position (0-based), in {@link SNT#getBdvTracingData()}'s own grid
-     * @param y pixel Y position (0-based), in {@link SNT#getBdvTracingData()}'s own grid
+     * @param x pixel X position (0-based), in {@link SNT#getFullSourceData()}'s own grid
+     * @param y pixel Y position (0-based), in {@link SNT#getFullSourceData()}'s own grid
      * @param z 1-based Z-slice index, matching {@link ImagePlus#getZ()}'s convention
      */
     public void launchSigmaPaletteAroundStreamed(final int x, final int y, final int z) {
-        launchSigmaPaletteAroundData(x, y, z, plugin.getBdvTracingData());
+        launchSigmaPaletteAroundData(x, y, z, plugin.getFullSourceData());
     }
 
     private void launchSigmaPaletteAroundData(final int x, final int y, final int z,

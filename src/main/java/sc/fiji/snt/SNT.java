@@ -4423,15 +4423,17 @@ public class SNT extends MultiDThreePanes implements
 
 	/**
 	 * Non-generic wrapper around {@link #getStreamedOrLoadedData()}, for callers outside this
-	 * class that need BDV/BVV's own crop-independent view of the pixel data currently being traced -
-	 * e.g. the Sigma preview palette (see {@code AbstractBigViewer#pickSigmaPointAction()}), which
-	 * must show data around the point actually clicked in BDV/BVV, not clamped to whatever (possibly
-	 * smaller) crop happens to be materialized on the classic canvas at the same time. Pair with
-	 * {@link #getDefaultCanvasPixelOffset()} for converting a click into a pixel index into this data.
+	 * class that need the full, crop-independent source data - e.g. BDV/BVV's own tracing/search
+	 * (shared by both viewers, see {@code AbstractBigViewer}) or the Sigma preview palette, which
+	 * must show data around the point actually clicked, not clamped to whatever (possibly smaller)
+	 * crop happens to be materialized on the classic canvas at the same time. In classic
+	 * (non-streamed) sessions this is simply {@link #getLoadedData()}, since no crop can ever be
+	 * materialized there. Pair with {@link #getDefaultCanvasPixelOffset()} for converting a click
+	 * into a pixel index into this data.
 	 *
 	 * @return the same data as {@link #getStreamedOrLoadedData()}
 	 */
-	public RandomAccessibleInterval<?> getBdvTracingData() {
+	public RandomAccessibleInterval<?> getFullSourceData() {
 		return getStreamedOrLoadedData();
 	}
 

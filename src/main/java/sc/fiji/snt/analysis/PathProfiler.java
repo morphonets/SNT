@@ -207,7 +207,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	/**
 	 * Instantiates a new Profiler directly from a {@link RandomAccessibleInterval}, without requiring a resident
 	 * {@link Dataset}/{@link ImagePlus}. Useful for e.g. Stream-mode sessions, where the crop-independent,
-	 * full-resolution source (see {@code SNT#getBdvTracingData()}) is only ever available as a raw RAI - going
+	 * full-resolution source (see {@code SNT#getFullSourceData()}) is only ever available as a raw RAI - going
 	 * through {@link ImagePlus}/{@link Dataset} there would either force a materialization of the whole
 	 * (potentially huge) source, or, if built from whatever is currently loaded on the classic canvas, silently scope
 	 * sampling to a materialized crop rather than the full source. {@code rai} itself is only wrapped (never copied),

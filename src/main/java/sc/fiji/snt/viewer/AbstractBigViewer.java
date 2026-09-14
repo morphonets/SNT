@@ -1312,7 +1312,7 @@ public abstract class AbstractBigViewer {
                     // rendering always shows the full, uncropped volume regardless of what the classic
                     // canvas has materialized, so this must stay crop-independent too, same as the rest
                     // of BDV/BVV tracing this session - getDefaultCanvasPixelOffset() paired with
-                    // launchSigmaPaletteAroundStreamed() (which reads getBdvTracingData()), not the live,
+                    // launchSigmaPaletteAroundStreamed() (which reads getFullSourceData()), not the live,
                     // possibly crop-local getActiveCanvasPixelOffset()/getLoadedData()
                     final sc.fiji.snt.util.PointInCanvas offset = snt.getDefaultCanvasPixelOffset();
                     final int x = (int) Math.round(pos.getDoublePosition(0) / snt.getPixelWidth() + offset.x);
