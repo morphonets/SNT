@@ -25,6 +25,8 @@ package sc.fiji.snt.io;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.HttpURLConnection;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,10 +57,12 @@ import org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator;
 import org.janelia.saalfeldlab.n5.ij.N5Importer;
 import org.janelia.saalfeldlab.n5.ui.DataSelection;
 import org.janelia.saalfeldlab.n5.universe.N5DatasetDiscoverer;
+import org.janelia.saalfeldlab.n5.universe.N5Factory;
 import org.janelia.saalfeldlab.n5.universe.N5TreeNode;
 import org.janelia.saalfeldlab.n5.universe.metadata.N5Metadata;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.ImgUtils;
+import software.amazon.awssdk.regions.Region;
 
 /**
  * Utilities for working with {@link AbstractSpimData} and BigDataViewer XML
@@ -396,6 +400,92 @@ public class SpimDataUtils {
     public record N5Sources(List<SourceAndConverter<?>> sources, int numTimepoints, String name) {}
 
     /**
+     * Timeout (ms) for {@link #probeS3Region(String)}'s single HEAD request: generous enough for a slow
+     * connection, but short enough that a fully unreachable host does not stall discovery for long
+     */
+    private static final int S3_PROBE_TIMEOUT_MS = 8000;
+
+    /**
+     * Response header S3 uses to report a bucket's actual region, present even on an anonymous request
+     * routed to the wrong region (see {@link #probeS3Region(String)})
+     */
+    private static final String S3_REGION_HEADER = "x-amz-bucket-region";
+
+    /** Region assumed when {@link #probeS3Region(String)} cannot determine a bucket's actual region */
+    private static final Region S3_FALLBACK_REGION = Region.US_EAST_1;
+
+    /**
+     * Opens a bare {@code s3://bucket/key} container's {@link N5Reader} with an explicit region, without
+     * requiring the caller (or the URI itself) to name it. A plain {@code s3://} URI carries no region
+     * info, and {@link N5Importer.N5ViewerReaderFun} builds its {@link N5Factory} with no region
+     * override, so such a URI otherwise fails to even construct an S3 client.
+     * <p>
+     * Deliberately leaves credentials untouched: {@code n5-aws-s3} already tries anonymous access first
+     * and falls back to {@code DefaultCredentialsProvider} (env vars, {@code ~/.aws/credentials}, IAM
+     * role, etc.) if that is rejected, which is exactly right for a private bucket. Setting our own
+     * {@code AnonymousCredentialsProvider} instance here would defeat that fallback, since it is gated on
+     * a reference check against their own internal instance
+     *
+     * @param uri    the {@code s3://bucket/key...} URI
+     * @param region the region to open {@code uri} with (see {@link #probeS3Region})
+     * @return an {@link N5Reader} backed by region-resolved S3 access
+     */
+    private static N5Reader openS3Reader(final String uri, final Region region) {
+        final N5Factory factory = new N5Factory();
+        factory.getOptions().cacheAttributes(true); // N5Factory#cacheAttributes(boolean) is deprecated
+        return factory.s3Configuration(builder -> builder.region(region)).openReader(uri);
+    }
+
+    /**
+     * Walks {@code error}'s cause chain for an {@link software.amazon.awssdk.awscore.exception.AwsServiceException}
+     * carrying the {@value #S3_REGION_HEADER} response header - present on a region-mismatch failure even though the
+     * request itself failed, since S3 needs it to redirect the caller - and returns the region it names. Used by
+     * {@link #resolveN5ToSources(String, String)} to retry once with the region S3 itself  reports, when
+     * {@link #probeS3Region}'s own guess turns out to be wrong.
+     *
+     * @param error the failure to inspect
+     * @return the region {@code error} reports, or {@code null} if none is found anywhere in its cause chain
+     */
+    private static Region correctedRegionFrom(final Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof final software.amazon.awssdk.awscore.exception.AwsServiceException se && se.awsErrorDetails() != null
+                    && se.awsErrorDetails().sdkHttpResponse() != null) {
+                final String discovered = se.awsErrorDetails().sdkHttpResponse()
+                        .firstMatchingHeader(S3_REGION_HEADER).orElse(null);
+                if (discovered != null) return Region.of(discovered);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Determines {@code bucket}'s actual AWS region via one unauthenticated HEAD request to its global
+     * endpoint: S3 always echoes the {@value #S3_REGION_HEADER} response header, even for a request with
+     * no credentials routed to the wrong region, since it needs that header to redirect the caller. Falls
+     * back to {@link #S3_FALLBACK_REGION} if the header is absent or the probe itself fails (e.g. no
+     * network), so callers always get a region to build an S3 client with
+     *
+     * @param bucket the bucket name (no scheme/key)
+     * @return the discovered region, or {@link #S3_FALLBACK_REGION} if it could not be determined
+     */
+    private static Region probeS3Region(final String bucket) {
+        try {
+            final HttpURLConnection conn = (HttpURLConnection)
+                    URI.create("https://" + bucket + ".s3.amazonaws.com/").toURL().openConnection();
+            conn.setRequestMethod("HEAD");
+            conn.setConnectTimeout(S3_PROBE_TIMEOUT_MS);
+            conn.setReadTimeout(S3_PROBE_TIMEOUT_MS);
+            final String discovered = conn.getHeaderField(S3_REGION_HEADER);
+            conn.disconnect();
+            return (discovered == null) ? S3_FALLBACK_REGION : Region.of(discovered);
+        } catch (final IOException | RuntimeException e) {
+            SNTUtils.log("Could not determine region of s3 bucket '" + bucket + "' (" + e.getMessage()
+                    + "); assuming " + S3_FALLBACK_REGION);
+            return S3_FALLBACK_REGION;
+        }
+    }
+
+    /**
      * Opens an N5 or OME-Zarr container directly via {@code n5-ij}/{@code n5-universe}/{@code n5-viewer_fiji}.
      *
      * @param dir the {@code .n5} or {@code .zarr} directory
@@ -418,27 +508,79 @@ public class SpimDataUtils {
      *                                  recognized metadata is found
      */
     private static N5Sources resolveN5ToSources(final String rootPath, final String name) {
+        if (rootPath.toLowerCase(Locale.ROOT).startsWith("s3://"))
+            return resolveS3ToSources(rootPath, name);
         try {
             final N5Reader n5 = new N5Importer.N5ViewerReaderFun().apply(rootPath);
             if (n5 == null)
                 throw new IllegalArgumentException("Could not open N5/Zarr container: " + rootPath);
-
-            final N5TreeNode root = N5DatasetDiscoverer.discover(n5,
-                    Arrays.asList(N5ViewerCreator.n5vParsers),
-                    Arrays.asList(N5ViewerCreator.n5vGroupParsers));
-            final List<N5Metadata> found = new ArrayList<>();
-            collectMetadata(root, found);
-            if (found.isEmpty())
-                throw new IllegalArgumentException(
-                        "No recognized N5/OME-NGFF metadata found at '" + rootPath + "'.");
-
-            final List<N5Metadata> selected = N5Viewer.unwrapMultichannelSelections(new DataSelection(n5, found));
-            SNTUtils.log("BVV: opening N5/Zarr container via n5-viewer_fiji: " + rootPath
-                    + " (" + found.size() + " dataset(s) found)");
-            return buildN5Sources(n5, selected, name);
+            return discoverAndBuild(n5, rootPath, name);
         } catch (final IOException | RuntimeException e) {
             throw new IllegalArgumentException("Could not open N5/Zarr container: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * s3-specific variant of {@link #resolveN5ToSources(String, String)}: resolves {@code uri}'s bucket
+     * region (see {@link #probeS3Region}) and, if opening/discovering with it fails with a
+     * region-mismatch error, retries the whole sequence once with the region S3 itself reports in that
+     * failure (see {@link #correctedRegionFrom}) - which can happen if the probe guessed wrong or fell
+     * back to {@link #S3_FALLBACK_REGION}
+     *
+     * @param uri  the {@code s3://bucket/key...} URI
+     * @param name display name for the resulting {@link N5Sources}
+     * @return the resolved sources
+     * @throws IllegalArgumentException if the container cannot be opened (with the probed region, or the
+     *                                  corrected one) or no recognized metadata is found
+     */
+    private static N5Sources resolveS3ToSources(final String uri, final String name) {
+        final Region guessed = probeS3Region(URI.create(uri).getHost());
+        try {
+            return discoverAndBuild(openS3Reader(uri, guessed), uri, name);
+        } catch (final IOException | RuntimeException e) {
+            final Region corrected = correctedRegionFrom(e);
+            if (corrected == null || corrected.equals(guessed))
+                throw new IllegalArgumentException("Could not open N5/Zarr container: " + e.getMessage(), e);
+            SNTUtils.log("S3 region mismatch opening '" + uri + "' (assumed " + guessed
+                    + "); retrying with region reported by S3: " + corrected);
+            try {
+                return discoverAndBuild(openS3Reader(uri, corrected), uri, name);
+            } catch (final IOException | RuntimeException e2) {
+                throw new IllegalArgumentException("Could not open N5/Zarr container: " + e2.getMessage(), e2);
+            }
+        }
+    }
+
+    /**
+     * Discovers recognized N5/OME-NGFF metadata in {@code n5} and builds the resulting {@link N5Sources}.
+     * Shared by both the conventional (local/https) and s3-specific (see {@link #resolveS3ToSources})
+     * opening paths
+     *
+     * @param n5       the already-open reader
+     * @param rootPath the container's path/URI, used only for logging/error messages
+     * @param name     display name for the resulting {@link N5Sources}
+     * @return the resolved sources
+     * @throws IOException              propagated from {@link #buildN5Sources}
+     * @throws IllegalArgumentException if no recognized metadata is found
+     */
+    private static N5Sources discoverAndBuild(final N5Reader n5, final String rootPath, final String name)
+            throws IOException {
+        if (n5 == null)
+            throw new IllegalArgumentException("Could not open N5/Zarr container: " + rootPath);
+
+        final N5TreeNode root = N5DatasetDiscoverer.discover(n5,
+                Arrays.asList(N5ViewerCreator.n5vParsers),
+                Arrays.asList(N5ViewerCreator.n5vGroupParsers));
+        final List<N5Metadata> found = new ArrayList<>();
+        collectMetadata(root, found);
+        if (found.isEmpty())
+            throw new IllegalArgumentException(
+                    "No recognized N5/OME-NGFF metadata found at '" + rootPath + "'.");
+
+        final List<N5Metadata> selected = N5Viewer.unwrapMultichannelSelections(new DataSelection(n5, found));
+        SNTUtils.log("BVV: opening N5/Zarr container via n5-viewer_fiji: " + rootPath
+                + " (" + found.size() + " dataset(s) found)");
+        return buildN5Sources(n5, selected, name);
     }
 
     /**
