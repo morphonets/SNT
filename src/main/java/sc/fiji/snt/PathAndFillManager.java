@@ -3064,16 +3064,39 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     public boolean loadGuessingType(final String filePathOrURL) throws IOException, URISyntaxException {
+        return loadGuessingType(filePathOrURL, true);
+    }
+
+    /**
+     * Loads a reconstruction file (any supported format), optionally keeping
+     * existing paths.
+     *
+     * @param filePathOrURL the file path or URL
+     * @param replace if false, imported SWC/JSON data is appended to existing
+     *                paths. Note that TRACES files always replace existing paths
+     * @return true, if successful
+     */
+    public boolean loadGuessingType(final String filePathOrURL, final boolean replace)
+            throws IOException, URISyntaxException {
         if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
             final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
             final String fileNameWithoutExtn = SNTUtils.stripExtension(fileName);
             // NB: SNTUtils#openRemoteStream() applies explicit connect/read timeouts
-            return loadGuessingType(fileNameWithoutExtn, SNTUtils.openRemoteStream(filePathOrURL));
+            return loadGuessingType(fileNameWithoutExtn, SNTUtils.openRemoteStream(filePathOrURL), replace);
         }
-        return load(new File(filePathOrURL).getAbsolutePath());
+        final File f = new File(filePathOrURL);
+        if (replace) return load(f.getAbsolutePath());
+        try (final InputStream is = Files.newInputStream(f.toPath())) {
+            return loadGuessingType(SNTUtils.stripExtension(f.getName()), is, false);
+        }
     }
 
     public boolean loadGuessingType(final String optionalDescription, final InputStream is) throws IOException {
+        return loadGuessingType(optionalDescription, is, true);
+    }
+
+    private boolean loadGuessingType(final String optionalDescription, final InputStream is,
+                                     final boolean replace) throws IOException {
         final BufferedInputStream bis = (is instanceof BufferedInputStream) ? ((BufferedInputStream)is) : new BufferedInputStream(is);
         final IOUtils.ReconstructionFormat guessedType = IOUtils.detectFormat(bis, false);
         final boolean existingEnableUiUpdates = enableUIupdates;
@@ -3095,7 +3118,7 @@ public class PathAndFillManager extends DefaultHandler implements
                 break;
             case SWC:
                 final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
-                result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, true);
+                result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, replace);
                 break;
             case NDF:
                 result = loadNDF(bis);
