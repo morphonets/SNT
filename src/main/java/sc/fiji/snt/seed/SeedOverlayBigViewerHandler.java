@@ -104,7 +104,7 @@ public final class SeedOverlayBigViewerHandler {
     public void dispose() {
         overlay.removeListener(listener);
         final AbstractBigViewer.AnnotationOverlay annotations = viewer.annotations();
-        if (annotations != null) annotations.clear();
+        if (annotations != null) annotations.clear(SeedOverlayBigViewerHandler.class);
     }
 
     private void onAltClick(final MouseEvent e) {
@@ -112,7 +112,10 @@ public final class SeedOverlayBigViewerHandler {
         if (annotations == null) return;
         final SNT snt = viewer.getSNT();
         if (snt != null && snt.getUI() != null && snt.getUI().getState() != SNTUI.TRACING_PAUSED) return;
-        final int idx = annotations.hitTest(e.getX(), e.getY());
+        // Owner-scoped: restricts the hit-test to this handler's own layer and returns an index local to it
+        // (matching pushed's indexing), so a click on e.g. a bookmark marker sharing
+        // the same overlay is not mistaken for a seed hit
+        final int idx = annotations.hitTest(SeedOverlayBigViewerHandler.class, e.getX(), e.getY());
         if (idx < 0 || idx >= pushed.size()) return;
         e.consume();
         final SeedPoint hit = pushed.get(idx);
@@ -143,7 +146,7 @@ public final class SeedOverlayBigViewerHandler {
         if (annotations == null) return;
         if (source.isEmpty() || !source.isVisible() || source.getTransparency() <= 0) {
             pushed = List.of();
-            annotations.clear();
+            annotations.clear(SeedOverlayBigViewerHandler.class);
             return;
         }
         List<SeedPoint> seeds = source.filtered();
@@ -151,6 +154,7 @@ public final class SeedOverlayBigViewerHandler {
         pushed = seeds;
 
         final ColorTable table = source.getColorTable();
+        final Color unknownConfidenceColor = source.getUnknownConfidenceColor();
         final SeedOverlay.ColorMode mode = source.getColorMode();
         final double low = source.getLowConfidence();
         final double high = source.getHighConfidence();
@@ -168,10 +172,10 @@ public final class SeedOverlayBigViewerHandler {
             points.add(s.toPointInImage());
             sizes.add((float) (s.radius > 0 ? s.radius : viewer.getDefaultMarkerSize()));
             // No slice concept in a 3D viewer, so depthFalloff is always 1
-            colors.add(SeedOverlayRenderer.colorForSeed(table, mode, s, low, high,
+            colors.add(SeedOverlayRenderer.colorForSeed(table, unknownConfidenceColor, mode, s, low, high,
                     transparency, seedIndexMap, categoryOrdinals));
         }
-        annotations.replaceAll(points, sizes, colors);
+        annotations.replaceAll(SeedOverlayBigViewerHandler.class, points, sizes, colors);
     }
 
     private static Map<SeedPoint, Integer> indexMap(final List<SeedPoint> all) {

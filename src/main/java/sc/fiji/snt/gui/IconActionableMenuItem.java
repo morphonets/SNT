@@ -52,6 +52,7 @@ public class IconActionableMenuItem extends JMenuItem {
 
 	private final List<ActionListener> iconActionListeners = new ArrayList<>();
 	private boolean iconHovered;
+	private Icon hoverIcon;
 
 	public IconActionableMenuItem(final String text, final Icon icon) {
 		super(text, icon);
@@ -65,6 +66,26 @@ public class IconActionableMenuItem extends JMenuItem {
 
 	public void removeIconActionListener(final ActionListener listener) {
 		iconActionListeners.remove(listener);
+	}
+
+	/**
+	 * Sets an alternate icon shown in place of the default icon while the icon is hovered,  instead of the translucent
+	 * highlight rectangle used by default.  {@code null} (the default) restores the highlight-rectangle behavior.
+	 */
+	public void setIconHoverIcon(final Icon icon) {
+		this.hoverIcon = icon;
+	}
+
+	/**
+	 * Swaps in {@link #hoverIcon} (if set) while the icon is hovered - resolved here, at the same
+	 * place the UI delegate reads the icon to paint, rather than painting {@link #hoverIcon} over
+	 * the default icon in {@link #paint(Graphics)}: painting both would blend them wherever
+	 * {@link #hoverIcon} isn't fully opaque (glyph icons are mostly transparent outside their
+	 * strokes), whereas resolving the icon here means only one is ever drawn per paint pass.
+	 */
+	@Override
+	public Icon getIcon() {
+		return (iconHovered && hoverIcon != null) ? hoverIcon : super.getIcon();
 	}
 
 	private Rectangle iconBounds() {
@@ -112,7 +133,10 @@ public class IconActionableMenuItem extends JMenuItem {
 	@Override
 	public void paint(final Graphics g) {
 		super.paint(g);
-		if (!iconHovered) return;
+		// hoverIcon != null: the getIcon() override above already swapped the painted icon, so the
+		// highlight rectangle below - meant to flag the (otherwise visually unchanged) icon as
+		// hoverable - would be redundant on top of an icon that already changed
+		if (!iconHovered || hoverIcon != null) return;
 		final Rectangle b = iconBounds();
 		if (b.isEmpty()) return;
 		final Graphics2D g2 = (Graphics2D) g.create();

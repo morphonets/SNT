@@ -148,7 +148,10 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
                 return;
             }
             if (topK.equals(choice)) {
-                finalSeeds.sort(Comparator.comparingDouble((SeedPoint s) -> s.confidence).reversed());
+                // NaN confidence ("no basis to judge", see SeedConfidence) must not win "most confident" via
+                // Double.compare's NaN-is-greatest convention when truncating to the top K - sort it last instead
+                finalSeeds.sort(Comparator.comparingDouble((SeedPoint s) ->
+                        Double.isNaN(s.confidence) ? Double.NEGATIVE_INFINITY : s.confidence).reversed());
                 truncated = finalSeeds.size() - LARGE_IMPORT_THRESHOLD;
                 finalSeeds = new ArrayList<>(finalSeeds.subList(0, LARGE_IMPORT_THRESHOLD));
             } else {

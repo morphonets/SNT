@@ -140,7 +140,7 @@ public class SomaUtils {
         // Return enriched result with units and Z
         return new SomaResult(
                 baseResult.center, baseResult.centroid, baseResult.mask, baseResult.contour,
-                baseResult.radius, baseResult.threshold, effectiveZ, units
+                baseResult.radius, baseResult.threshold, effectiveZ, units, baseResult.integratedDensity
         );
     }
 
@@ -273,7 +273,7 @@ public class SomaUtils {
 
         return new SomaResult(
                 baseResult.center, baseResult.centroid, baseResult.mask, baseResult.contour,
-                baseResult.radius, baseResult.threshold, effectiveZ, units
+                baseResult.radius, baseResult.threshold, effectiveZ, units, baseResult.integratedDensity
         );
     }
 
@@ -756,7 +756,7 @@ public class SomaUtils {
             }
             enrichedResults.add(new SomaResult(
                     base.center, base.centroid, base.mask, base.contour,
-                    base.radius, base.threshold, somaZ, units
+                    base.radius, base.threshold, somaZ, units, base.integratedDensity
             ));
         }
 
@@ -1363,9 +1363,13 @@ public class SomaUtils {
         // Compute centroid in voxel coords
         final double[] centroid = computeMaskCentroid(mask, null);
 
+        // Integrated density (sum of source intensity within the mask) - a relative
+        // signal-strength proxy for this soma, see SomaResult#integratedDensity
+        final double integratedDensity = computeIntegratedDensity(mask, source);
+
         return new SomaResult(
                 new long[]{seedX, seedY}, centroid, mask, contour,
-                radiusVoxels, threshold, -1, null
+                radiusVoxels, threshold, -1, null, integratedDensity
         );
     }
 
@@ -1636,6 +1640,31 @@ public class SomaUtils {
     }
 
     /**
+     * Computes the integrated density (sum of intensity) of {@code source} over the foreground of a binary {@code mask}
+     * of matching dimensions/extent.
+     *
+     * @param mask   binary mask; only {@code true} pixels are summed
+     * @param source intensity image the mask was derived from - same dimensions as {@code mask}
+     * @return sum of {@code source} pixel values under {@code mask}, in raw (uncalibrated)
+     * intensity units; {@code Double.NaN} if {@code mask} or {@code source} is {@code null}
+     */
+    public static double computeIntegratedDensity(final Img<BitType> mask,
+                                                    final RandomAccessibleInterval<? extends RealType<?>> source) {
+        if (mask == null || source == null) return Double.NaN;
+        double sum = 0;
+        final Cursor<BitType> cursor = mask.localizingCursor();
+        final RandomAccess<? extends RealType<?>> ra = source.randomAccess();
+        while (cursor.hasNext()) {
+            cursor.fwd();
+            if (cursor.get().get()) {
+                ra.setPosition(cursor);
+                sum += ra.get().getRealDouble();
+            }
+        }
+        return sum;
+    }
+
+    /**
      * Prunes narrow protrusions from mask using EDT.
      * Removes pixels where local thickness is below a fraction of maximum thickness.
      */
@@ -1760,17 +1789,21 @@ public class SomaUtils {
     /**
      * Container for soma detection results.
      *
-     * @param center       Soma center in voxel coordinates (from findRoot or seed)
-     * @param centroid     Mask centroid in voxel coordinates (may differ from center)
-     * @param mask         Binary mask of soma region
-     * @param contour      Boundary contour polygon
-     * @param radius       Estimated soma radius (equivalent radius from area) in voxels
-     * @param threshold    Threshold used for detection
-     * @param zSlice       Z-slice where soma was detected (0-indexed), or -1 if 2D
-     * @param spacingUnits Spacing units (e.g., "µm", "pixels"), or null if unset
+     * @param center            Soma center in voxel coordinates (from findRoot or seed)
+     * @param centroid          Mask centroid in voxel coordinates (may differ from center)
+     * @param mask              Binary mask of soma region
+     * @param contour           Boundary contour polygon
+     * @param radius            Estimated soma radius (equivalent radius from area) in voxels
+     * @param threshold         Threshold used for detection
+     * @param zSlice            Z-slice where soma was detected (0-indexed), or -1 if 2D
+     * @param spacingUnits      Spacing units (e.g., "µm", "pixels"), or null if unset
+     * @param integratedDensity Sum of source pixel intensity over the mask (raw, uncalibrated  units);
+     *                          {@code Double.NaN} if not computed. A relative signal-strength proxy across a batch of
+     *                          results from the same detection run - e.g. {@code SomaDetectorCmd} min-max-normalizes it
+     *                          to derive a per-soma confidence when exporting detections as seeds.
      */
     public record SomaResult(long[] center, double[] centroid, Img<BitType> mask, Polygon contour, double radius,
-                             double threshold, int zSlice, String spacingUnits) {
+                             double threshold, int zSlice, String spacingUnits, double integratedDensity) {
 
         /**
          * Checks if a valid contour was extracted.

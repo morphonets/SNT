@@ -61,7 +61,12 @@ public final class SeedPoint implements SNTPoint {
     public final double y;
     /** Physical Z coordinate (calibrated). 0 for 2D images. */
     public final double z;
-    /** Detector confidence in {@code [0, 1]}. */
+    /**
+     * Detector confidence in {@code [0, 1]}, or {@code NaN} if the detector had no basis to judge this candidate
+     * against others (see {@code SeedConfidence#percentileClipNormalize}). Consumers that read this as a real number
+     * (range filters, color mapping, descending-confidence sorts) must handle {@code NaN} explicitly rather than
+     * relying on incidental {@code NaN} comparison/arithmetic semantics.
+     */
     public final double confidence;
     /** Estimated radius in physical units. {@code 0} if unknown. */
     public final double radius;

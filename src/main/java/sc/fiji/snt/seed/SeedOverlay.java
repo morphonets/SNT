@@ -24,6 +24,8 @@ package sc.fiji.snt.seed;
 
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.util.ColorMaps;
+
+import java.awt.Color;
 import smile.neighbor.KDTree;
 import smile.neighbor.Neighbor;
 
@@ -102,6 +104,11 @@ public class SeedOverlay {
     private boolean visible = true;
     private ColorTable colorTable = ColorMaps.get(DEFAULT_COLOR_TABLE_NAME);
     private String colorTableName = DEFAULT_COLOR_TABLE_NAME;
+    /**
+     * Fallback color for a seed whose {@link SeedPoint#confidence} is {@code NaN} (see
+     * {@code sc.fiji.snt.seed.SeedConfidence}). Used only in {@link ColorMode#CONFIDENCE} mode
+     */
+    private Color unknownConfidenceColor = Color.GRAY;
     /**
      * Global transparency multiplier in {@code [0, 1]}. Renderer multiplies
      * this into the per-seed alpha so users can fade the whole overlay without
@@ -496,7 +503,10 @@ public class SeedOverlay {
         // the first k that fall in [low, high]
         final List<SeedPoint> out = new ArrayList<>(Math.min(k, seeds.size()));
         for (final SeedPoint s : sortedByConfDesc) {
-            if (s.confidence < lowConfidence || s.confidence > highConfidence) continue;
+            // NaN ("no basis to judge", see SeedConfidence) fails both comparisons below and
+            // would otherwise slip through unfiltered - exclude it explicitly, consistent with
+            // the inclusive form used by getVisibleCount()/filtered().
+            if (Double.isNaN(s.confidence) || s.confidence < lowConfidence || s.confidence > highConfidence) continue;
             out.add(s);
             if (out.size() >= k) break;
         }
@@ -605,6 +615,25 @@ public class SeedOverlay {
         if (resolved == null) return;
         colorTable = resolved;
         colorTableName = name;
+        fireChanged();
+    }
+
+    /**
+     * @return the fallback color used for {@code NaN}-confidence seeds in {@link ColorMode#CONFIDENCE} mode.
+     * Never {@code null}.
+     */
+    public Color getUnknownConfidenceColor() {
+        return unknownConfidenceColor;
+    }
+
+    /**
+     * Sets the fallback color used for {@code NaN}-confidence seeds in {@link ColorMode#CONFIDENCE} mode.
+     * {@code null} resets to default. Fires listeners on success.
+     */
+    public void setUnknownConfidenceColor(final Color color) {
+        final Color c = (color == null) ? Color.GRAY : color;
+        if (c.equals(unknownConfidenceColor)) return;
+        unknownConfidenceColor = c;
         fireChanged();
     }
 
@@ -740,7 +769,12 @@ public class SeedOverlay {
     private void ensureSortedByConfidence() {
         if (sortedByConfDesc != null) return;
         final List<SeedPoint> snapshot = new ArrayList<>(seeds);
-        snapshot.sort(Comparator.comparingDouble((SeedPoint s) -> s.confidence).reversed());
+        // Comparator.comparingDouble(...).reversed() would otherwise put NaN ("no basis to
+        // judge", see SeedConfidence) FIRST: Double.compare ranks NaN as greater than every
+        // other double, so plain .reversed() treats "unknown" as "most confident". Substitute
+        // NEGATIVE_INFINITY as the sort key for NaN instead, so it sorts last.
+        snapshot.sort(Comparator.comparingDouble(
+                (SeedPoint s) -> Double.isNaN(s.confidence) ? Double.NEGATIVE_INFINITY : s.confidence).reversed());
         sortedByConfDesc = snapshot;
     }
 }

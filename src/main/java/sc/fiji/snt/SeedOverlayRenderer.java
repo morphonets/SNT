@@ -128,6 +128,7 @@ public final class SeedOverlayRenderer {
         final double transparency = overlay.getTransparency();
         if (transparency <= 0) return; // fully transparent → nothing to draw
         final ColorTable colorTable = overlay.getColorTable();
+        final Color unknownConfidenceColor = overlay.getUnknownConfidenceColor();
         final Set<SeedPoint> selected = overlay.getSelectedSeeds();
         // Resolve seeds to draw: if the effective post-filter draw count is
         // huge, fall back to top-K-by-confidence.
@@ -222,8 +223,12 @@ public final class SeedOverlayRenderer {
             for (final SeedPoint s : seedsToConsider) {
                 final boolean isSelected = selected.contains(s);
                 // Selected seeds bypass the range filter so the user can always
-                // see what they explicitly picked from the table.
-                if (!isSelected && (s.confidence < low || s.confidence > high)) continue;
+                // see what they explicitly picked from the table. A NaN confidence
+                // ("no basis to judge", see SeedConfidence) fails both comparisons
+                // below and would otherwise slip through unfiltered - exclude it
+                // explicitly so this agrees with SeedOverlay#getVisible()/filtered(),
+                // which use the inclusive form and correctly exclude NaN already.
+                if (!isSelected && (Double.isNaN(s.confidence) || s.confidence < low || s.confidence > high)) continue;
 
                 final int seedSlice = seedSliceForPlane(s, plane, sx, sy, sz, canvasOffset);
                 final int depthDiff = Math.abs(seedSlice - currentSlice);
@@ -243,7 +248,7 @@ public final class SeedOverlayRenderer {
                         || screenY + pixelRadius < 0 || screenY - pixelRadius > canvasH) continue;
 
                 final double depthFalloff = depthFalloff(depthDiff, band);
-                final Color color = colorForSeed(colorTable, colorMode, s,
+                final Color color = colorForSeed(colorTable, unknownConfidenceColor, colorMode, s,
                         low, high, depthFalloff * transparency,
                         seedIndexMap, categoryOrdinals);
 
@@ -350,13 +355,14 @@ public final class SeedOverlayRenderer {
      * Stateless: pass {@code depthFalloff = 1.0} when there's no slice-distance
      * concept (table rows have no Z).
      */
-    public static Color colorForSeed(final ColorTable table, final ColorMode mode,
+    public static Color colorForSeed(final ColorTable table, final Color unknownConfidenceColor,
+                                     final ColorMode mode,
                                      final SeedPoint s, final double low, final double high,
                                      final double depthFalloff,
                                      final Map<SeedPoint, Integer> seedIndexMap,
                                      final Map<String, Integer> categoryOrdinals) {
         return switch (mode) {
-            case CONFIDENCE -> colorFromTable(table, s.confidence, low, high, depthFalloff);
+            case CONFIDENCE -> colorFromTable(table, unknownConfidenceColor, s.confidence, low, high, depthFalloff);
             case INDEX -> {
                 final Integer idx = (seedIndexMap == null) ? null : seedIndexMap.get(s);
                 yield colorFromTableByIndex(table, (idx != null) ? idx : 0,
@@ -381,9 +387,19 @@ public final class SeedOverlayRenderer {
      * derived from confidence × depthFalloff so dim seeds and far-from-slice
      * seeds both fade gracefully.
      */
-    private static Color colorFromTable(final ColorTable table,
+    private static Color colorFromTable(final ColorTable table, final Color unknownConfidenceColor,
                                         final double conf, final double low, final double high,
                                         final double depthFalloff) {
+        if (Double.isNaN(conf)) {
+            // "No basis to judge" (see SeedConfidence): the overlay's user-configurable fallback
+            // color (SeedOverlay#getUnknownConfidenceColor(), mirroring DelineationsManager's
+            // "Non-delineating color") at full alpha (scaled only by depth), so an
+            // unknown-confidence seed reads as deliberately distinct rather than an arbitrary LUT
+            // color, or - as NaN arithmetic would otherwise produce here - invisible (alpha 0).
+            final int alpha = Math.max(0, Math.min(255, (int) Math.round(MAX_ALPHA * depthFalloff)));
+            return new Color(unknownConfidenceColor.getRed(), unknownConfidenceColor.getGreen(),
+                    unknownConfidenceColor.getBlue(), alpha);
+        }
         final int len = table.getLength();
         final double span = (high > low) ? (high - low) : 1.0;
         final double t = Math.max(0, Math.min(1, (conf - low) / span));

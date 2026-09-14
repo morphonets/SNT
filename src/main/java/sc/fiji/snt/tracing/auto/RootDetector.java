@@ -52,6 +52,7 @@ public class RootDetector {
 
     private double radius;
     private boolean weightByThickness = true;
+    private double percentileClip = 10.0;
 
     /**
      * Creates a detector with the given convergence radius.
@@ -74,6 +75,14 @@ public class RootDetector {
      */
     public void setWeightByThickness(final boolean weightByThickness) {
         this.weightByThickness = weightByThickness;
+    }
+
+    /**
+     * Sets the robustness margin (0-45) for confidence normalization; see
+     * {@link sc.fiji.snt.seed.SeedConfidence#percentileClipNormalize(double[], double)}. Default: 10
+     */
+    public void setPercentileClip(final double percentileClip) {
+        this.percentileClip = percentileClip;
     }
 
     /**
@@ -100,7 +109,7 @@ public class RootDetector {
         if (nodes.size() < 2) return List.of(); // nothing to converge
 
         final List<DensityClusterer.Result> results = DensityClusterer.cluster(
-                nodes, labels, weights, radius, weightByThickness, false, 2, "root-detector");
+                nodes, labels, weights, radius, weightByThickness, false, 2, "root-detector", percentileClip);
         return results.stream().map(DensityClusterer.Result::seed).toList();
     }
 

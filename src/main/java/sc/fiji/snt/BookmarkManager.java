@@ -187,8 +187,7 @@ public class BookmarkManager {
                           : Color.YELLOW;
             colors.add(c);
         }
-        // replaceAll() does clear + re-add with a single repaint, avoiding flicker
-        viewer.annotations().replaceAll(points, sizes, colors);
+        viewer.annotations().replaceAll(BookmarkManager.class, points, sizes, colors);
     }
 
     /** Returns the floating dialog for viewer mode, creating it on first call. */
@@ -335,7 +334,7 @@ public class BookmarkManager {
                 final int viewRow = table.getSelectedRow();
                 final int modelIdx = (viewRow < 0) ? -1
                         : table.convertRowIndexToModel(viewRow);
-                viewer.annotations().setSelectedIndex(modelIdx);
+                viewer.annotations().setSelectedIndex(BookmarkManager.class, modelIdx);
             } else {
                 if (highlightToggle == null || !highlightToggle.isSelected()) return;
                 showHighlights();
@@ -370,7 +369,7 @@ public class BookmarkManager {
                 @Override
                 public void mouseClicked(final java.awt.event.MouseEvent e) {
                     if (viewer.annotations() == null) return;
-                    final int modelIdx = viewer.annotations().hitTest(e.getX(), e.getY());
+                    final int modelIdx = viewer.annotations().hitTest(BookmarkManager.class, e.getX(), e.getY());
                     // Bounds-check against the *model* row count before converting: hitTest() can return an index
                     // that is momentarily stale relative to the table (e.g. the renderer's screenData snapshot
                     // lagging a model change), and convertRowIndexToView throws IndexOutOfBoundsException

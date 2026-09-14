@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.tracing.auto;
 
+import sc.fiji.snt.seed.SeedConfidence;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.util.PointInImage;
 import smile.neighbor.KDTree;
@@ -67,13 +68,15 @@ final class DensityClusterer {
      *                          always reflects only the clusters actually being returned. Pass {@code 1} for no
      *                          filtering.
      * @param source            {@link SeedPoint#source} recorded on every returned seed
+     * @param percentileClip    robustness margin (0-45) for the final confidence normalization; see
+     *                          {@link SeedConfidence#percentileClipNormalize(double[], double)}
      * @return one {@link Result} per detected cluster meeting {@code minSupportCount}, sorted by descending
      * confidence. Empty if {@code nodes} is empty or nothing meets the threshold
      */
     static List<Result> cluster(final List<PointInImage> nodes, final List<String> nodeLabels,
                                  final List<Double> nodeWeights, final double radius,
                                  final boolean weightByThickness, final boolean weightByIntensity,
-                                 final int minSupportCount, final String source) {
+                                 final int minSupportCount, final String source, final double percentileClip) {
         if (nodes.isEmpty()) return List.of();
         if (nodes.size() == 1) {
             return (minSupportCount > 1) ? List.of()
@@ -141,16 +144,19 @@ final class DensityClusterer {
         }
         if (finalNodes.isEmpty()) return List.of();
 
-        final double min = finalScores.stream().mapToDouble(Double::doubleValue).min().orElse(0);
-        final double max = finalScores.stream().mapToDouble(Double::doubleValue).max().orElse(1);
-        final double range = (max > min) ? max - min : 1;
+        final double[] scoresArray = finalScores.stream().mapToDouble(Double::doubleValue).toArray();
+        final double[] confidences = SeedConfidence.percentileClipNormalize(scoresArray, percentileClip);
 
         final List<Result> results = new ArrayList<>(finalNodes.size());
         for (int i = 0; i < finalNodes.size(); i++) {
-            final double confidence = (finalScores.get(i) - min) / range;
-            results.add(new Result(toSeed(finalNodes.get(i), confidence, finalLabels.get(i), source), finalSupport.get(i)));
+            results.add(new Result(toSeed(finalNodes.get(i), confidences[i], finalLabels.get(i), source), finalSupport.get(i)));
         }
-        results.sort(Comparator.comparingDouble((Result r) -> r.seed().confidence).reversed());
+        // NaN confidence ("no basis to judge", see SeedConfidence) must not win "most
+        // confident" via Double.compare's NaN-is-greatest convention; sort it last instead.
+        results.sort(Comparator.comparingDouble((Result r) -> {
+            final double c = r.seed().confidence;
+            return Double.isNaN(c) ? Double.NEGATIVE_INFINITY : c;
+        }).reversed());
         return results;
     }
 

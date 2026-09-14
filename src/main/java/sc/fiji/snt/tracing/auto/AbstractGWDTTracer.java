@@ -4164,7 +4164,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      */
     private double biasAmountFor(final SeedPoint seed, final double maxRadius) {
         final double raw = switch (waypointBiasSource) {
-            case CONFIDENCE -> Math.clamp(seed.confidence, 0.0, 1.0);
+            // A NaN confidence ("no basis to judge", see SeedConfidence) must not propagate into
+            // the GWDT grid as a NaN bias amount (which would poison downstream cost arithmetic
+            // silently, since NaN comparisons/sums fail rather than throwing) - treat it as no
+            // bias at all. TODO(Tiago): confirm this fail-safe default (0 = don't bias this
+            // waypoint) is the intended behavior, vs. e.g. falling back to waypointBiasFixedFactor.
+            case CONFIDENCE -> Double.isNaN(seed.confidence) ? 0.0 : Math.clamp(seed.confidence, 0.0, 1.0);
             case RADIUS -> (maxRadius > 0) ? Math.clamp(seed.radius / maxRadius, 0.0, 1.0) : 1.0;
             case FIXED -> Math.clamp(waypointBiasFixedFactor, 0.0, 1.0);
         };

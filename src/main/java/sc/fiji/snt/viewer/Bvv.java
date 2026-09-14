@@ -3932,10 +3932,32 @@ public class Bvv extends AbstractBigViewer {
      */
     public static class AnnotationOverlay implements AbstractBigViewer.AnnotationOverlay {
 
+        /**
+         * Sentinel owner key for the legacy, ownerless single-layer API ({@link #addAnnotation(SNTPoint, float, Color)},
+         * {@link #clear()}, {@link #replaceAll(java.util.List, java.util.List, java.util.List)}). Kept as its own
+         * layer - like every other owner - so it coexists with owner-scoped layers (e.g. bookmarks, seeds) rather
+         * than sharing storage with them; see the class javadoc note below on why layers exist at all.
+         */
+        private static final Object DEFAULT_LAYER = new Object();
+
         private final BigViewerPanel viewerPanel;
         private final AnnRenderer annRenderer;
         private final Bvv viewer;
-        private final List<Annotation> annotations = new ArrayList<>();
+        /**
+         * Annotations, partitioned by owner. Independent features (bookmarks/markers, detector-derived
+         * seeds, the legacy ownerless API) each get their own list here, so that one feature's
+         * clear()/replaceAll() never wipes another's markers - all layers are still rendered together
+         * (see {@link #flatten()}/{@link #updateScene()}). LinkedHashMap for deterministic iteration
+         * order, which {@link #flatten()} relies on to keep {@link #layerRanges} stable between calls.
+         */
+        private final Map<Object, List<Annotation>> layers = new LinkedHashMap<>();
+        /**
+         * [start, end) range each owner occupies in the most recently flattened list, i.e. in
+         * {@code annRenderer.screenData}/{@code annRenderer.selectedIndex} index space. Rebuilt by
+         * every {@link #flatten()} call; used to translate owner-local indices to/from the global
+         * indices {@link #hitTest(int, int)}/{@link #setSelectedIndex(int)} operate on.
+         */
+        private final Map<Object, int[]> layerRanges = new LinkedHashMap<>();
         private final PathRenderingOptions renderingOptions;
 
         AnnotationOverlay(final BigViewerPanel viewerPanel, final Bvv viewer, final PathRenderingOptions renderingOptions) {
@@ -3950,11 +3972,15 @@ public class Bvv extends AbstractBigViewer {
             this(viewerPanel, null, renderingOptions);
         }
 
+        private List<Annotation> layer(final Object owner) {
+            return layers.computeIfAbsent(owner, k -> new ArrayList<>());
+        }
+
         /**
          * Replace the current annotations with the provided list.
          */
         public void setAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
-            annotations.clear();
+            layer(DEFAULT_LAYER).clear();
             addAnnotations(points, radius, color);
         }
 
@@ -3963,9 +3989,10 @@ public class Bvv extends AbstractBigViewer {
          */
         public void addAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
             if (points != null) {
+                final List<Annotation> list = layer(DEFAULT_LAYER);
                 for (SNTPoint p : points) {
                     final Color pColor = (p instanceof Path.PathNode pn) ? pn.getColor() : null;
-                    annotations.add(new Annotation(p, radius, (pColor == null) ? color : pColor));
+                    list.add(new Annotation(p, radius, (pColor == null) ? color : pColor));
                 }
             }
             updateScene();
@@ -3975,15 +4002,32 @@ public class Bvv extends AbstractBigViewer {
          * Add a single annotation.
          */
         public void addAnnotation(final SNTPoint p, final float radius, final Color color) {
-            if (p != null) annotations.add(new Annotation(p, radius, color));
+            addAnnotation(DEFAULT_LAYER, p, radius, color);
+        }
+
+        @Override
+        public void addAnnotation(final Object owner, final SNTPoint p, final float radius, final Color color) {
+            if (p != null) layer(owner).add(new Annotation(p, radius, color));
             updateScene();
         }
 
         /**
-         * Remove all annotations.
+         * Remove all annotations, from every layer/owner.
          */
         public void clear() {
-            annotations.clear();
+            clearAll();
+        }
+
+        @Override
+        public void clearAll() {
+            layers.clear();
+            updateScene();
+        }
+
+        @Override
+        public void clear(final Object owner) {
+            final List<Annotation> list = layers.get(owner);
+            if (list != null) list.clear();
             updateScene();
         }
 
@@ -3991,9 +4035,11 @@ public class Bvv extends AbstractBigViewer {
             return !annRenderer.hide;
         }
 
-        /** Returns the number of annotations currently in the overlay. */
+        /** Returns the number of annotations currently in the overlay, across all layers/owners. */
         public int getCount() {
-            return annotations.size();
+            int n = 0;
+            for (final List<Annotation> list : layers.values()) n += list.size();
+            return n;
         }
 
         /**
@@ -4005,10 +4051,28 @@ public class Bvv extends AbstractBigViewer {
         }
 
         /**
+         * Flattens every owner's layer into a single list, in stable (LinkedHashMap) owner order,
+         * and records each owner's [start, end) range in {@link #layerRanges} - the mapping the
+         * owner-scoped {@link #hitTest(Object, int, int)}/{@link #setSelectedIndex(Object, int)}
+         * need to translate between an owner-local index and the global index space
+         * {@code annRenderer} actually renders/hit-tests against.
+         */
+        private List<Annotation> flatten() {
+            final List<Annotation> flat = new ArrayList<>(getCount());
+            layerRanges.clear();
+            for (final Map.Entry<Object, List<Annotation>> e : layers.entrySet()) {
+                final int start = flat.size();
+                flat.addAll(e.getValue());
+                layerRanges.put(e.getKey(), new int[]{start, flat.size()});
+            }
+            return flat;
+        }
+
+        /**
          * Ensure renderers/nodes reflect current annotation list.
          */
         public void updateScene() {
-            annRenderer.setAnnotations(annotations);
+            annRenderer.setAnnotations(flatten());
             viewerPanel.requestRepaint();
         }
 
@@ -4017,6 +4081,16 @@ public class Bvv extends AbstractBigViewer {
             if (annRenderer.selectedIndex == index) return;
             annRenderer.selectedIndex = index;
             viewerPanel.requestRepaint();
+        }
+
+        @Override
+        public void setSelectedIndex(final Object owner, final int index) {
+            final int[] range = layerRanges.get(owner);
+            if (range == null || index < 0 || range[0] + index >= range[1]) {
+                setSelectedIndex(-1);
+            } else {
+                setSelectedIndex(range[0] + index);
+            }
         }
 
         /**
@@ -4038,6 +4112,28 @@ public class Bvv extends AbstractBigViewer {
         }
 
         /**
+         * Owner-scoped hit-test: same screen-circle test as {@link #hitTest(int, int)}, restricted to
+         * {@code owner}'s own [start, end) range within the flattened, currently-rendered annotation
+         * list (see {@link #layerRanges}), with the result translated back to an owner-local index.
+         */
+        @Override
+        public int hitTest(final Object owner, final int screenX, final int screenY) {
+            final int[] range = layerRanges.get(owner);
+            if (range == null) return -1;
+            final AnnRenderer.AnnotationScreenData[] data = annRenderer.screenData;
+            if (data == null) return -1;
+            final int end = Math.min(range[1], data.length);
+            for (int i = range[0]; i < end; i++) {
+                if (data[i] == null || !data[i].visible) continue;
+                final double dx = screenX - data[i].screenX;
+                final double dy = screenY - data[i].screenY;
+                final double r  = Math.max(data[i].screenRadius, 4.0);
+                if (dx * dx + dy * dy <= r * r) return i - range[0];
+            }
+            return -1;
+        }
+
+        /**
          * Replaces all annotations in one shot with a single repaint.
          * Overrides the default to avoid the per-call repaints from
          * clear() and addAnnotation(), which can produce visible flicker.
@@ -4046,11 +4142,26 @@ public class Bvv extends AbstractBigViewer {
         public void replaceAll(final java.util.List<sc.fiji.snt.util.SNTPoint> points,
                                final java.util.List<Float>                     sizes,
                                final java.util.List<java.awt.Color>            colors) {
-            annotations.clear();
+            replaceAll(DEFAULT_LAYER, points, sizes, colors);
+        }
+
+        /**
+         * Owner-scoped variant: replaces only {@code owner}'s layer with a single repaint, leaving
+         * every other owner's annotations (bookmarks, seeds, the legacy ownerless layer, ...)
+         * untouched. This is what {@code BookmarkManager} and {@code SeedOverlayBigViewerHandler}
+         * use, each with its own owner key, so neither wipes the other's markers.
+         */
+        @Override
+        public void replaceAll(final Object owner,
+                               final java.util.List<sc.fiji.snt.util.SNTPoint> points,
+                               final java.util.List<Float>                     sizes,
+                               final java.util.List<java.awt.Color>            colors) {
+            final List<Annotation> list = layer(owner);
+            list.clear();
             for (int i = 0; i < points.size(); i++) {
                 final java.awt.Color c = (colors.get(i) != null) ? colors.get(i) : java.awt.Color.YELLOW;
                 final sc.fiji.snt.util.SNTPoint p = points.get(i);
-                if (p != null) annotations.add(new Annotation(p, sizes.get(i), c));
+                if (p != null) list.add(new Annotation(p, sizes.get(i), c));
             }
             updateScene(); // single repaint
         }

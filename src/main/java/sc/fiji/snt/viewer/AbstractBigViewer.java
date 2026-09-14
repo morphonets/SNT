@@ -1536,11 +1536,46 @@ public abstract class AbstractBigViewer {
         void addAnnotation(SNTPoint p, float radius, Color color);
 
         /**
-         * Removes all annotations from the overlay and triggers a repaint.
+         * Owner-scoped variant of {@link #addAnnotation(SNTPoint, float, Color)}. Independent
+         * callers (e.g. {@code BookmarkManager} and {@code SeedOverlayBigViewerHandler}) pass a
+         * distinct, stable {@code owner} key (typically their own {@code Class} object) so their
+         * annotations are tracked as a separate layer: clearing/replacing one owner's layer never
+         * touches another owner's. All layers - including the legacy ownerless one used by
+         * {@link #addAnnotation(SNTPoint, float, Color)} - are rendered together. Implementations
+         * that don't support per-owner layers may fall back to the shared/ownerless behavior.
+         *
+         * @param owner  identifies the layer this annotation belongs to
+         * @param p      the position (world coordinates)
+         * @param radius sphere radius in physical units
+         * @param color  fill color
+         */
+        default void addAnnotation(Object owner, SNTPoint p, float radius, Color color) {
+            addAnnotation(p, radius, color);
+        }
+
+        /**
+         * Removes all annotations, from every layer/owner, and triggers a repaint.
          */
         void clear();
 
-        /** Returns the number of annotations currently in the overlay. */
+        /**
+         * Removes every layer's annotations and triggers a repaint. Equivalent to {@link #clear()}
+         * for implementations without per-owner layers; named separately from the owner-scoped
+         * {@link #clear(Object)} to make the "wipe everything" intent explicit at call sites.
+         */
+        default void clearAll() { clear(); }
+
+        /**
+         * Owner-scoped variant of {@link #clear()}: removes only {@code owner}'s annotations,
+         * leaving every other owner's layer (and the legacy ownerless one) untouched, and triggers
+         * a repaint. Implementations that don't support per-owner layers may fall back to
+         * {@link #clear()}, which - unlike this method - clears everything.
+         *
+         * @param owner identifies the layer to clear
+         */
+        default void clear(Object owner) { clear(); }
+
+        /** Returns the number of annotations currently in the overlay, across all layers. */
         int getCount();
 
         /** Returns true if the overlay is currently rendered. */
@@ -1568,6 +1603,17 @@ public abstract class AbstractBigViewer {
         default void setSelectedIndex(int index) {}
 
         /**
+         * Owner-scoped variant of {@link #setSelectedIndex(int)}: {@code index} is local to
+         * {@code owner}'s own layer (e.g. a row index into that owner's model), not a global index
+         * into the combined, all-layers annotation list. Implementations that don't support
+         * per-owner layers may fall back to {@link #setSelectedIndex(int)}.
+         *
+         * @param owner identifies the layer {@code index} is relative to
+         * @param index layer-local index of the annotation to highlight, or -1 for none
+         */
+        default void setSelectedIndex(Object owner, int index) { setSelectedIndex(index); }
+
+        /**
          * Returns the model index of the annotation whose rendered circle/sphere
          * contains the given screen point, or -1 if none is hit.
          *
@@ -1575,6 +1621,20 @@ public abstract class AbstractBigViewer {
          * @param screenY y coordinate in viewer-display pixels
          */
         default int hitTest(int screenX, int screenY) { return -1; }
+
+        /**
+         * Owner-scoped variant of {@link #hitTest(int, int)}: only considers {@code owner}'s own
+         * annotations, and - if one is hit - returns an index local to that owner's layer (parallel
+         * to what {@link #replaceAll(Object, java.util.List, java.util.List, java.util.List)} was
+         * given for that owner), not a global index into the combined, all-layers list.
+         * Implementations that don't support per-owner layers may fall back to
+         * {@link #hitTest(int, int)}.
+         *
+         * @param owner   identifies the layer to hit-test against
+         * @param screenX x coordinate in viewer-display pixels
+         * @param screenY y coordinate in viewer-display pixels
+         */
+        default int hitTest(Object owner, int screenX, int screenY) { return hitTest(screenX, screenY); }
 
         /**
          * Replaces all annotations atomically and requests a single repaint.
@@ -1593,6 +1653,28 @@ public abstract class AbstractBigViewer {
                 final Color c = (colors.get(i) != null) ? colors.get(i) : Color.YELLOW;
                 addAnnotation(points.get(i), sizes.get(i), c);
             }
+        }
+
+        /**
+         * Owner-scoped variant of {@link #replaceAll(java.util.List, java.util.List, java.util.List)}:
+         * atomically replaces only {@code owner}'s layer, leaving every other owner's annotations
+         * (and the legacy ownerless layer) untouched. This is the method independent features
+         * sharing one big-viewer overlay - e.g. bookmarks/markers and detector-derived seeds -
+         * should use, so that one feature's sync never wipes another's markers. Implementations
+         * that don't support per-owner layers may fall back to
+         * {@link #replaceAll(java.util.List, java.util.List, java.util.List)}, which - unlike this
+         * method - replaces the single shared/ownerless layer instead.
+         *
+         * @param owner  identifies the layer to replace
+         * @param points list of positions (world coordinates); null entries are skipped
+         * @param sizes  sphere radii in physical units, parallel to points
+         * @param colors fill colors, parallel to points; null entries use Color.YELLOW
+         */
+        default void replaceAll(final Object owner,
+                                final java.util.List<SNTPoint> points,
+                                final java.util.List<Float>    sizes,
+                                final java.util.List<Color>    colors) {
+            replaceAll(points, sizes, colors);
         }
     }
 

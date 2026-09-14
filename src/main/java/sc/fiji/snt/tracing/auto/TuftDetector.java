@@ -78,6 +78,7 @@ public class TuftDetector {
     private boolean weightByThickness = true;
     private boolean weightByIntensity = true;
     private boolean penalizeShortBranches = true;
+    private double percentileClip = 10.0;
 
     public enum Type {
         TIPS, BRANCH_POINTS, TERMINAL_BRANCH_POINTS, TERMINAL_BRANCHES, BRANCH_DENSITY, TERMINAL_BRANCH_DENSITY;
@@ -136,6 +137,14 @@ public class TuftDetector {
     }
 
     /**
+     * Sets the robustness margin (0-45) for confidence normalization; see
+     * {@link sc.fiji.snt.seed.SeedConfidence#percentileClipNormalize(double[], double)}. Default: 10
+     */
+    public void setPercentileClip(final double percentileClip) {
+        this.percentileClip = percentileClip;
+    }
+
+    /**
      * Detects tufts of the given type in {@code tree}.
      *
      * @param tree the tree to scan
@@ -179,7 +188,8 @@ public class TuftDetector {
         final List<String> labels = new ArrayList<>(nodeTypes.size());
         for (final Type type : nodeTypes) labels.add(type.toString().toLowerCase());
         final List<DensityClusterer.Result> results = DensityClusterer.cluster(
-                nodes, labels, nodeWeights, radius, weightByThickness, weightByIntensity, 1, "tuft-detector");
+                nodes, labels, nodeWeights, radius, weightByThickness, weightByIntensity, 1, "tuft-detector",
+                percentileClip);
         return results.stream().map(DensityClusterer.Result::seed).toList();
     }
 

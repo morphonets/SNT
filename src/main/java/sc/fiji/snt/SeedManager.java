@@ -32,6 +32,7 @@ import org.scijava.command.CommandService;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconActionableMenuItem;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.plugin.DetectTuftsCmd;
@@ -229,8 +230,35 @@ public class SeedManager extends JPanel {
         p.add(colorModeCombo);
         p.add(Box.createHorizontalGlue());
         p.add(GuiUtils.Buttons.ColorTableButton(1f, overlay::setColorTable, SeedOverlay.DEFAULT_COLOR_TABLE_NAME,
-                getTransparencyMenuItem()));
+                getUnknownConfidenceColorMenuItem(), getTransparencyMenuItem(), new JMenuItem("separator"),
+                getRescaleConfidenceMenuItem()));
         return p;
+    }
+
+    private JMenuItem getUnknownConfidenceColorMenuItem() {
+        final IconActionableMenuItem jmi = new IconActionableMenuItem("Fallback Color...",
+                IconFactory.nodeIcon(overlay.getUnknownConfidenceColor()));
+        jmi.setToolTipText("<HTML>Fallback color for seeds with undetermined (<i>NaN</i>) confidence,<br>" +
+                "e.g. a detector batch too small or too uniform to normalize against.<br>" +
+                "Only used in Confidence color mode.<br>Click the icon to reset.");
+        jmi.addActionListener(e -> {
+            final Color newColor = sntui.guiUtils.getColor("Unknown Confidence Color",
+                    overlay.getUnknownConfidenceColor(), (String[]) null);
+            if (newColor == null || newColor.equals(overlay.getUnknownConfidenceColor())) return;
+            overlay.setUnknownConfidenceColor(newColor);
+            jmi.setIcon(IconFactory.nodeIcon(newColor));
+        });
+        jmi.setIconHoverIcon(IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        jmi.addIconActionListener(e -> {
+            overlay.setUnknownConfidenceColor(null); // resets to default; see SeedOverlay#setUnknownConfidenceColor
+            jmi.setIcon(IconFactory.nodeIcon(overlay.getUnknownConfidenceColor()));
+            sntui.showStatus("Fallback color reset", true);
+            if (jmi.getParent() instanceof JPopupMenu popup && popup.getInvoker() != null) {
+                final Component invoker = popup.getInvoker();
+                SwingUtilities.invokeLater(() -> popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2));
+            }
+        });
+        return jmi;
     }
 
     private JMenuItem getTransparencyMenuItem() {
@@ -245,6 +273,36 @@ public class SeedManager extends JPanel {
                     "Transparency", defaultPct);
             if (pct == null) return;
             overlay.setTransparency((100 - pct) / 100.0);
+        });
+        return menuItem;
+    }
+
+    /**
+     * On-demand action, deliberately not automatic: {@link SeedOverlay#getLowConfidence()}/
+     * {@link SeedOverlay#getHighConfidence()} double as the user-driven visibility filter
+     * (see {@link #buildSliderRow}), so silently
+     * re-fitting them to the data on every seed edit would fight anyone actively narrowing that
+     * filter. Instead this lets the user explicitly snap the sliders to the current min/max
+     * confidence - e.g. after editing a seed so the CONFIDENCE color coding (which samples the LUT
+     * within [lowConfidence, highConfidence], see {@link SeedOverlay.ColorMode#CONFIDENCE}) spreads
+     * across the full range of the data again, mirroring an "Auto" brightness/contrast action.
+     */
+    private JMenuItem getRescaleConfidenceMenuItem() {
+        final JMenuItem menuItem = new JMenuItem("Fit Confidence Range to Data",
+                IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_DLUR));
+        menuItem.setToolTipText("<HTML>Sets the Lower/Upper confidence sliders to the current<br>" +
+                "minimum/maximum confidence across all seeds, so the CONFIDENCE<br>" +
+                "color-coding spans the full data range again. Run this after<br>" +
+                "editing a seed's confidence, or after loading/detecting new seeds");
+        menuItem.addActionListener(e -> {
+            if (noSeedsError()) return;
+            double min = Double.POSITIVE_INFINITY;
+            double max = Double.NEGATIVE_INFINITY;
+            for (final SeedPoint s : overlay.list()) {
+                if (s.confidence < min) min = s.confidence;
+                if (s.confidence > max) max = s.confidence;
+            }
+            overlay.setConfidenceRange(min, max);
         });
         return menuItem;
     }
@@ -654,7 +712,7 @@ public class SeedManager extends JPanel {
                 rebuildSwatchCaches();
             }
             final Color col = SeedOverlayRenderer.colorForSeed(
-                    overlay.getColorTable(), mode, s,
+                    overlay.getColorTable(), overlay.getUnknownConfidenceColor(), mode, s,
                     overlay.getLowConfidence(), overlay.getHighConfidence(),
                     1.0, swatchIndexMap, swatchCategoryOrdinals);
             return (col == null) ? null : IconFactory.accentIcon(col, true);

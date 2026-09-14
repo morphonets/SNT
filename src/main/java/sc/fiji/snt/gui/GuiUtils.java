@@ -4945,7 +4945,12 @@ public class GuiUtils {
 			}
 			if (extraItems != null && extraItems.length > 0) {
 				popupMenu.addSeparator();
-				for (final JMenuItem item : extraItems) popupMenu.add(item);
+				for (final JMenuItem item : extraItems) {
+					if (item.getText() != null && item.getText().equalsIgnoreCase("separator"))
+						popupMenu.addSeparator();
+					else
+						popupMenu.add(item);
+				}
 			}
 			return OptionsButton(IconFactory.GLYPH.COLOR2, scalingFactor, popupMenu);
 		}
