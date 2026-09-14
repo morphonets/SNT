@@ -6971,7 +6971,7 @@ public class Viewer3D {
                                 failures++;
                             } else if (treesInFile.size() > 1) {
                                 addProgressLoad(treesInFile.size());
-                                TreeUtils.assignUniqueColors(treesInFile);
+                                TreeUtils.assignUniqueColorsIfUncolored(treesInFile);
                                 for (final Tree tree : treesInFile) {
                                     addTree(tree);
                                     incrementProgress();

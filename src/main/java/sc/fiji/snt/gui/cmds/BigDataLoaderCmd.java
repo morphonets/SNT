@@ -49,7 +49,7 @@ import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImgUtils;
-import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
@@ -793,9 +793,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                 return;
             }
         }
-        final org.scijava.util.ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
-        int i = 0;
-        for (final Tree tree : trees) tree.setColor(colors[i++]);
+        TreeUtils.assignUniqueColorsIfUncolored(trees, "dim"); // Only color trees that don't already carry authored path/node colors
         viewer.add(trees); // renders in the viewer's overlay
         if (viewer.getSNT() != null) { // tracing capabilities present
             final PathAndFillManager pafm = viewer.getSNT().getPathAndFillManager();

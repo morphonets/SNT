@@ -390,7 +390,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 					public Object doInBackground() {
 						if (trees.stream().anyMatch(Tree::is3D)) {
 							final Viewer3D v3d = new Viewer3D(true);
-							TreeUtils.assignUniqueColors(trees);
+							TreeUtils.assignUniqueColorsIfUncolored(trees);
 							v3d.add(trees);
 							return v3d;
 						} else {

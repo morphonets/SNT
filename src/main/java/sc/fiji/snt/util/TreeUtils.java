@@ -115,6 +115,43 @@ public class TreeUtils {
     }
 
     /**
+     * Assigns distinct colors to trees that have no pre-existing color information, leaving trees with custom path/node
+     * colors untouched. Useful when importing files that may already carry authored colors (e.g., a traces file with
+     * per-path color attributes), where forcing a single flat color per tree would discard that information.
+     *
+     * @param trees the trees to (conditionally) color
+     * @see #assignUniqueColors(Collection)
+     * @see Path#hasCustomColor()
+     * @see Path#hasNodeColors()
+     */
+    public static void assignUniqueColorsIfUncolored(final Collection<Tree> trees) {
+        final List<Tree> uncolored = trees.stream()
+                .filter(tree -> tree.list().stream().noneMatch(p -> p.hasCustomColor() || p.hasNodeColors()))
+                .toList();
+        if (!uncolored.isEmpty()) assignUniqueColors(uncolored);
+    }
+
+
+    /**
+     * Assigns distinct colors to trees that have no pre-existing color information, leaving trees with custom path/node
+     * colors untouched. Useful when importing files that may already carry authored colors (e.g., a traces file with
+     * per-path color attributes), where forcing a single flat color per tree would discard that information.
+     *
+     * @param trees       the trees to (conditionally) color
+     * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', 'blue', or 'dim'.
+     * @see SNTColor#getDistinctColors(int, String)
+     * @see #assignUniqueColors(Collection)
+     * @see Path#hasCustomColor()
+     * @see Path#hasNodeColors()
+     */
+    public static void assignUniqueColorsIfUncolored(final Collection<Tree> trees, final String excludedHue) {
+        final List<Tree> uncolored = trees.stream()
+                .filter(tree -> tree.list().stream().noneMatch(p -> p.hasCustomColor() || p.hasNodeColors()))
+                .toList();
+        if (!uncolored.isEmpty()) assignUniqueColors(uncolored, excludedHue);
+    }
+
+    /**
      * Computes the angle (in degrees) needed to make a tree appear upright in the
      * XY viewing plane. The angle is derived from the extension angle of a
      * reference path (the longest geodesic by default) using compass conventions
