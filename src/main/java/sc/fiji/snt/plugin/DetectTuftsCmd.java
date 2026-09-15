@@ -114,6 +114,13 @@ public class DetectTuftsCmd extends CommonDynamicCmd {
                     "branch at least as long as it contributes in full.")
     private boolean penalizeShortBranches = true;
 
+    @Parameter(label = "Percentile clip (%)", min = "0", max = "45", required = false,
+            description = "<HTML>Robustness margin for seed confidence normalization. The Nth/(100-N)th<br>"
+                    + "percentile of detection scores are mapped to confidence N/100 and (1-N/100),<br>"
+                    + "with outliers beyond that range clamped to [0,1]. Set to 0 for plain min-max<br>"
+                    + "normalization.")
+    private double percentileClip = 10.0;
+
     @Parameter(label = "Replace existing seeds",
             description = "<HTML>If checked, existing seeds are replaced.<br>"
                     + "If unchecked, detected tufts are appended.")
@@ -121,6 +128,8 @@ public class DetectTuftsCmd extends CommonDynamicCmd {
 
     protected void init() {
         super.init(true);
+        resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
+        percentileClip = 10d;
         if (trees == null || trees.isEmpty()) {
             error("No structure to scan.");
         }
@@ -189,6 +198,7 @@ public class DetectTuftsCmd extends CommonDynamicCmd {
                     detector.setWeightByThickness(weightByThickness);
                     detector.setWeightByIntensity(weightByIntensity);
                     detector.setPenalizeShortBranches(penalizeShortBranches);
+                    detector.setPercentileClip(percentileClip);
                     final int prevSize = seeds.size();
                     // Pooled single pass across all requested types, so overlapping  candidates (e.g. a fork right
                     // next to a tip) are cross-suppressed rather than reported once per type

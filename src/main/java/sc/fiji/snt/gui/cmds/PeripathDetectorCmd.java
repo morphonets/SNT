@@ -37,6 +37,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.analysis.detection.PeripathDetector;
+import sc.fiji.snt.seed.SeedConfidence;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.util.BoundingBox;
@@ -110,6 +111,13 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                     + "Set to 0 for automatic (= outer radius).")
     private double mergingDistance = 0;
 
+    @Parameter(label = "Percentile clip (%)", min = "0", max = "45", required = false,
+            description = "<HTML>Robustness margin for seed confidence normalization. The Nth/(100-N)th<br>"
+                    + "percentile of detection scores are mapped to confidence N/100 and (1-N/100),<br>"
+                    + "with outliers beyond that range clamped to [0,1]. Set to 0 for plain min-max<br>"
+                    + "normalization. Ignored unless Output is set to \"" + OUTPUT_SEEDS + "\".")
+    private double percentileClip = 10.0;
+
     @Parameter(label = "Output", choices = {OUTPUT_ROIS, OUTPUT_BOOKMARKS, OUTPUT_SEEDS})
     private String outputChoice;
 
@@ -165,6 +173,8 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         // enforced unconditionally at the top of run(), regardless of output choice)
         if (snt.getImagePlus() == null)
             outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS, OUTPUT_SEEDS));
+        resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
+        percentileClip = 10d;
     }
 
     @SuppressWarnings("unused")
@@ -349,19 +359,15 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                 // real-world coordinates (back-projected from the sampled cross-section), so no
                 // canvasOffset/world-origin correction is needed here (contrast SomaDetectorCmd#toSeedPoint,
                 // whose SomaUtils.SomaResult starts from a raw voxel index instead)
-                double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
-                for (final Detection d : results) {
-                    if (Double.isNaN(d.score)) continue;
-                    if (d.score < min) min = d.score;
-                    if (d.score > max) max = d.score;
-                }
-                final double range = (max > min) ? max - min : 1;
+                final double[] scores = new double[results.size()];
+                for (int i = 0; i < results.size(); i++) scores[i] = results.get(i).score;
+                final double[] confidences = SeedConfidence.percentileClipNormalize(scores, percentileClip);
                 final SeedOverlay overlay = snt.getSeedOverlay();
                 final List<SeedPoint> newSeeds = new ArrayList<>(results.size());
-                for (final Detection d : results) {
-                    final double confidence = Double.isNaN(d.score) ? 1.0 : (d.score - min) / range;
+                for (int i = 0; i < results.size(); i++) {
+                    final Detection d = results.get(i);
                     final double radius = d.path.getNodeRadius(d.nodeIndex);
-                    newSeeds.add(new SeedPoint(d.x, d.y, d.z, confidence, radius,
+                    newSeeds.add(new SeedPoint(d.x, d.y, d.z, confidences[i], radius,
                             d.path.getChannel(), d.path.getFrame(), "maximum", "peripath-detector"));
                 }
                 // addAll() fires SeedOverlay's listeners once, not once per detection: with results

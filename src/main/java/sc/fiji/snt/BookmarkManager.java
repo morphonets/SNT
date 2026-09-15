@@ -496,41 +496,9 @@ public class BookmarkManager {
         mi.addActionListener(e -> applyUniqueTags());
         tagMenu.addSeparator();
         tagMenu.add(mi);
-        if (viewer != null) {
-            mi = new JMenuItem("Size...", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
-            mi.addActionListener(e -> {
-                if (noBookmarksError()) return;
-                final int[] modelRows = getSelectedModelRowsAllIfNone();
-                final Double size = getGuiUtils().getDouble("Marker size (in calibrated units):",
-                        "Marker Size", model.getDataList().get(modelRows[modelRows.length-1]).size);
-                if (size == null) return;
-                if (size.isNaN() || size < 0) {
-                    getGuiUtils().error("Invalid value: Size must be a non-negative value.");
-                } else {
-                    for (final int modelRow : modelRows)
-                        model.getDataList().get(modelRow).size = size.floatValue();
-                    model.fireTableRowsUpdated(modelRows[0], modelRows[modelRows.length-1]);
-                }
-            });
-            pMenu.add(mi);
-        }
-        pMenu.addSeparator();
-        if (sntui != null) {
-            mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
-            mi.setToolTipText("Matches bookmarks across channels within a distance threshold, replacing them with centroids");
-            mi.addActionListener(e -> colocalizeBookmarks());
-            pMenu.add(mi);
-        }
+        pMenu.add(getSizeMenu());
 
-        mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
-        mi.addActionListener(e -> mergeBookmarks());
-        pMenu.add(mi);
-        mi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
-        mi.addActionListener(e -> showNNDistribution());
-        pMenu.add(mi);
         pMenu.addSeparator();
-
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
@@ -553,8 +521,25 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
 
-        pMenu.addSeparator();
+        GuiUtils.addSeparator(pMenu, "Utilities:");
+        if (sntui != null) {
+            mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+            mi.setToolTipText("Matches bookmarks across channels within a distance threshold, replacing them with centroids");
+            mi.addActionListener(e -> colocalizeBookmarks());
+            pMenu.add(mi);
+        }
+
+        mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
+        mi.addActionListener(e -> mergeBookmarks());
+        pMenu.add(mi);
+        mi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
+        mi.addActionListener(e -> showNNDistribution());
+        pMenu.add(mi);
         pMenu.add(sortByDistanceMenu());
+
+        GuiUtils.addSeparator(pMenu, "Table Controls:");
+
         pMenu.add(GuiUtils.Tables.resetAndResizeColumnsMenuItem(
                 table, () -> recordComment("Bookmark Manager: resizeColumns()"),
                 columnWidthFractions()));
@@ -676,6 +661,52 @@ public class BookmarkManager {
             viewRows[i] = table.convertRowIndexToModel(viewRows[i]);
         }
         return viewRows;
+    }
+
+    private JMenu getSizeMenu() {
+        final JMenu menu = new JMenu("Size");
+        menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
+        JMenuItem mi = new JMenuItem("Set...", IconFactory.menuIcon(IconFactory.GLYPH.DOTCIRCLE));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final int[] modelRows = getSelectedModelRowsAllIfNone();
+            final Double size = getGuiUtils().getDouble("Marker size (in calibrated units):",
+                    "Marker Size", model.getDataList().get(modelRows[modelRows.length-1]).size);
+            if (size == null) return;
+            if (size.isNaN() || size < 0) {
+                getGuiUtils().error("Invalid value: Size must be a non-negative value.");
+            } else {
+                for (final int modelRow : modelRows)
+                    model.getDataList().get(modelRow).size = size.floatValue();
+                model.fireTableRowsUpdated(modelRows[0], modelRows[modelRows.length-1]);
+            }
+        });
+        menu.add(mi);
+        menu.addSeparator();
+        mi = new JMenuItem("Increase Size...", IconFactory.menuIcon(IconFactory.GLYPH.CARET_UP));
+        mi.setToolTipText("Scale up the marker size of selected entries by a %");
+        mi.addActionListener(e -> scaleSelectedSize(true));
+        menu.add(mi);
+        mi = new JMenuItem("Decrease Size...", IconFactory.menuIcon(IconFactory.GLYPH.CARET_DOWN));
+        mi.setToolTipText("Scale down the marker size of selected entries by a %");
+        mi.addActionListener(e -> scaleSelectedSize(false));
+        menu.add(mi);
+        return menu;
+    }
+
+    private void scaleSelectedSize(final boolean increase) {
+        if (noBookmarksError()) return;
+        final int[] modelRows = getSelectedModelRowsAllIfNone();
+        final String title = increase ? "Increase Size" : "Decrease Size";
+        final Integer pct = getGuiUtils().getPercentage(
+                "Scale marker size of " + modelRows.length + " entries by (%):", title, 10);
+        if (pct == null || pct == 0) return;
+        final double factor = increase ? 1 + pct / 100.0 : 1 - pct / 100.0;
+        for (final int modelRow : modelRows) {
+            final Bookmark b = model.getDataList().get(modelRow);
+            b.size = (float) Math.max(0, b.size * factor);
+        }
+        model.fireTableRowsUpdated(modelRows[0], modelRows[modelRows.length - 1]);
     }
 
     private void colocalizeBookmarks() {

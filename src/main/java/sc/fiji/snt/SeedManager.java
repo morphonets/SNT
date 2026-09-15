@@ -39,6 +39,8 @@ import sc.fiji.snt.plugin.DetectTuftsCmd;
 import sc.fiji.snt.plugin.RootDetectorCmd;
 import sc.fiji.snt.plugin.SomaDetectorCmd;
 import sc.fiji.snt.seed.*;
+import smile.neighbor.KDTree;
+import smile.neighbor.Neighbor;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
@@ -240,7 +242,7 @@ public class SeedManager extends JPanel {
                 IconFactory.nodeIcon(overlay.getUnknownConfidenceColor()));
         jmi.setToolTipText("<HTML>Fallback color for seeds with undetermined (<i>NaN</i>) confidence,<br>" +
                 "e.g. a detector batch too small or too uniform to normalize against.<br>" +
-                "Only used in Confidence color mode.<br>Click the icon to reset.");
+                "Only used in Confidence color mode.<br>Click icon to reset.");
         jmi.addActionListener(e -> {
             final Color newColor = sntui.guiUtils.getColor("Unknown Confidence Color",
                     overlay.getUnknownConfidenceColor(), (String[]) null);
@@ -252,7 +254,7 @@ public class SeedManager extends JPanel {
         jmi.addIconActionListener(e -> {
             overlay.setUnknownConfidenceColor(null); // resets to default; see SeedOverlay#setUnknownConfidenceColor
             jmi.setIcon(IconFactory.nodeIcon(overlay.getUnknownConfidenceColor()));
-            sntui.showStatus("Fallback color reset", true);
+            sntui.showStatus("Seed fallback color reset", true);
             if (jmi.getParent() instanceof JPopupMenu popup && popup.getInvoker() != null) {
                 final Component invoker = popup.getInvoker();
                 SwingUtilities.invokeLater(() -> popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2));
@@ -262,9 +264,9 @@ public class SeedManager extends JPanel {
     }
 
     private JMenuItem getTransparencyMenuItem() {
-        final JMenuItem menuItem = new JMenuItem("Transparency...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
-        menuItem.setToolTipText("Adjust seed transparency");
-        menuItem.addActionListener(e -> {
+        final IconActionableMenuItem jmi = new IconActionableMenuItem("Transparency...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
+        jmi.setToolTipText("<HTML>Adjust transparency of seed markers.<br>Click icon to reset.");
+        jmi.addActionListener(e -> {
             // overlay.getTransparency() is an OPACITY multiplier (1.0 = fully opaque),
             // same misnomer as Bvv.RenderingOptions. The prompt asks for transparency
             // (0% = opaque, 100% = invisible)
@@ -274,19 +276,18 @@ public class SeedManager extends JPanel {
             if (pct == null) return;
             overlay.setTransparency((100 - pct) / 100.0);
         });
-        return menuItem;
+        jmi.setIconHoverIcon(IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        jmi.addIconActionListener(e -> {
+            overlay.setTransparency(1); // default: fully opaque
+            sntui.showStatus("Seed transparency reset", true);
+            if (jmi.getParent() instanceof JPopupMenu popup && popup.getInvoker() != null) {
+                final Component invoker = popup.getInvoker();
+                SwingUtilities.invokeLater(() -> popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2));
+            }
+        });
+        return jmi;
     }
 
-    /**
-     * On-demand action, deliberately not automatic: {@link SeedOverlay#getLowConfidence()}/
-     * {@link SeedOverlay#getHighConfidence()} double as the user-driven visibility filter
-     * (see {@link #buildSliderRow}), so silently
-     * re-fitting them to the data on every seed edit would fight anyone actively narrowing that
-     * filter. Instead this lets the user explicitly snap the sliders to the current min/max
-     * confidence - e.g. after editing a seed so the CONFIDENCE color coding (which samples the LUT
-     * within [lowConfidence, highConfidence], see {@link SeedOverlay.ColorMode#CONFIDENCE}) spreads
-     * across the full range of the data again, mirroring an "Auto" brightness/contrast action.
-     */
     private JMenuItem getRescaleConfidenceMenuItem() {
         final JMenuItem menuItem = new JMenuItem("Fit Confidence Range to Data",
                 IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_DLUR));
@@ -296,6 +297,10 @@ public class SeedManager extends JPanel {
                 "editing a seed's confidence, or after loading/detecting new seeds");
         menuItem.addActionListener(e -> {
             if (noSeedsError()) return;
+            if (overlay.size() < 2) {
+                sntui.error("There must be at least 2 seeds.");
+                return;
+            }
             double min = Double.POSITIVE_INFINITY;
             double max = Double.NEGATIVE_INFINITY;
             for (final SeedPoint s : overlay.list()) {
@@ -436,7 +441,7 @@ public class SeedManager extends JPanel {
     }
 
     private JScrollPane buildTablePane() {
-        tableModel = new SeedTableModel(overlay, snt);
+        tableModel = new SeedTableModel(overlay);
         seedTable = new JTable(tableModel) {
             private static final long serialVersionUID = 1L;
             @Override
@@ -498,24 +503,27 @@ public class SeedManager extends JPanel {
         // column resize/reset (parity with the Bookmark Manager table menu).
         final JPopupMenu menu = new JPopupMenu();
         menu.add(GuiUtils.Tables.deselectSelectAllMenuItem(seedTable, null));
+        menu.add(getSelectByCoverageMenu());
         menu.addSeparator();
 
         JMenuItem jmi = new JMenuItem("Edit...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         jmi.setToolTipText("Edit selected seed(s)");
         jmi.addActionListener(e -> editSelected());
         menu.add(jmi);
+        menu.add(getScaleConfidenceMenu());
+        menu.add(getScaleRadiusMenu());
+        menu.addSeparator();
         jmi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
         jmi.addActionListener( e -> deleteSelected());
         menu.add(jmi);
         GuiUtils.addSeparator(menu, "Seed Reviews:");
         menu.add(buildSendToCurationSubmenu());
-        menu.addSeparator();
+        GuiUtils.addSeparator(menu, "Table Controls:");
 
         menu.add(GuiUtils.Tables.resetAndResizeColumnsMenuItem(
                 seedTable, () -> recordComment("Seed Manager: resizeColumns()"),
                 seedColumnWidthFractions()));
-        menu.addSeparator();
         seedTable.setComponentPopupMenu(menu);
 
         final JScrollPane scroll = new JScrollPane(seedTable);
@@ -830,10 +838,8 @@ public class SeedManager extends JPanel {
 
     /** Preferred column width fractions for the seed table */
     private float[] seedColumnWidthFractions() {
-        // Columns: X, Y, Z, Conf, Radius, Type, Source [, Status]
-        return (tableModel.getColumnCount() >= 8)
-                ? new float[]{0.09f, 0.09f, 0.09f, 0.09f, 0.10f, 0.16f, 0.22f, 0.16f}
-                : new float[]{0.11f, 0.11f, 0.11f, 0.11f, 0.12f, 0.18f, 0.26f};
+        // Columns: X, Y, Z, Conf, Radius, Type, Source
+        return new float[]{0.11f, 0.11f, 0.11f, 0.11f, 0.12f, 0.18f, 0.26f};
     }
 
     /**
@@ -1538,7 +1544,8 @@ public class SeedManager extends JPanel {
         }
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(SomaDetectorCmd.class, true,
-                "scopeChoice", SomaDetectorCmd.SCOPE_ALL, "outputChoice", SomaDetectorCmd.OUTPUT_SEEDS);
+                "scopeChoice", SomaDetectorCmd.SCOPE_ALL, "outputChoice", SomaDetectorCmd.OUTPUT_SEEDS,
+                "HEADER", "");
     }
 
     private File getSessionDir() {
@@ -1646,6 +1653,177 @@ public class SeedManager extends JPanel {
         SeedPointEditDialog.editBulk(this, overlay, indices);
     }
 
+    private JMenu getScaleConfidenceMenu() {
+        final JMenu menu = new JMenu("Scale Confidence");
+        menu.setIcon(IconFactory.menuIcon('\uf338', true));
+        JMenuItem jmi = new JMenuItem("Increase Confidence...", IconFactory.menuIcon(IconFactory.GLYPH.CARET_UP));
+        jmi.setToolTipText("Scale up the confidence of selected seed(s) by a percentage");
+        jmi.addActionListener(e -> scaleSelectedConfidence(true));
+        menu.add(jmi);
+        jmi = new JMenuItem("Decrease Confidence...", IconFactory.menuIcon(IconFactory.GLYPH.CARET_DOWN));
+        jmi.setToolTipText("Scale down the confidence of selected seed(s) by a percentage");
+        jmi.addActionListener(e -> scaleSelectedConfidence(false));
+        menu.add(jmi);
+        return menu;
+    }
+
+    private void scaleSelectedConfidence(final boolean increase) {
+        if (noSeedsError()) return;
+        final List<SeedPoint> targets = resolveTargetSeeds();
+        if (targets.isEmpty()) {
+            sntui.error("No seeds selected.");
+            return;
+        }
+        final String title = increase ? "Increase Confidence" : "Decrease Confidence";
+        final Integer pct = sntui.guiUtils.getPercentage(
+                "Scale confidence of " + targets.size() + " seed(s) by (%):", title, 10);
+        if (pct == null || pct == 0) return;
+        final double factor = increase ? 1 + pct / 100.0 : 1 - pct / 100.0;
+        overlay.scaleConfidence(targets, factor);
+    }
+
+    private JMenu getScaleRadiusMenu() {
+        final JMenu menu = new JMenu("Scale Radius");
+        menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
+        JMenuItem jmi = new JMenuItem("Increase Radius...", IconFactory.menuIcon(IconFactory.GLYPH.CARET_UP));
+        jmi.setToolTipText("Scale up the radius of selected seed(s) by a percentage");
+        jmi.addActionListener(e -> scaleSelectedRadius(true));
+        menu.add(jmi);
+        jmi = new JMenuItem("Decrease Radius...", IconFactory.menuIcon(IconFactory.GLYPH.CARET_DOWN));
+        jmi.setToolTipText("Scale down the radius of selected seed(s) by a percentage");
+        jmi.addActionListener(e -> scaleSelectedRadius(false));
+        menu.add(jmi);
+        return menu;
+    }
+
+    private void scaleSelectedRadius(final boolean increase) {
+        if (noSeedsError()) return;
+        final List<SeedPoint> targets = resolveTargetSeeds();
+        if (targets.isEmpty()) {
+            sntui.error("No seeds selected.");
+            return;
+        }
+        final String title = increase ? "Increase Radius" : "Decrease Radius";
+        final Integer pct = sntui.guiUtils.getPercentage(
+                "Scale radius of " + targets.size() + " seed(s) by (%):", title, 10);
+        if (pct == null || pct == 0) return;
+        final double factor = increase ? 1 + pct / 100.0 : 1 - pct / 100.0;
+        overlay.scaleRadius(targets, factor);
+    }
+
+    /**
+     * Resolves the seeds targeted by the table: the current selection, or -
+     * if nothing is selected - every row currently visible (mirrors the
+     * "no selection" branch of {@link #editSelected()}).
+     */
+    private List<SeedPoint> resolveTargetSeeds() {
+        final Set<SeedPoint> sel = overlay.getSelectedSeeds();
+        if (!sel.isEmpty()) return new ArrayList<>(sel);
+        return visibleSeeds();
+    }
+
+    /**
+     * @return the seeds backing the table rows currently shown, i.e. after
+     * the confidence-range {@link RowFilter} installed on the table's
+     * {@link javax.swing.RowSorter} has hidden out-of-range rows. Order
+     * follows the current view (sorting/reordering), not the overlay's.
+     */
+    private List<SeedPoint> visibleSeeds() {
+        final List<SeedPoint> visible = new ArrayList<>();
+        final javax.swing.RowSorter<?> sorter = (seedTable != null) ? seedTable.getRowSorter() : null;
+        final int viewCount = (sorter != null)
+                ? sorter.getViewRowCount()
+                : ((seedTable != null) ? seedTable.getRowCount() : overlay.size());
+        for (int v = 0; v < viewCount; v++) {
+            final int modelRow = (sorter != null) ? sorter.convertRowIndexToModel(v) : v;
+            if (modelRow >= 0 && modelRow < overlay.size()) visible.add(overlay.get(modelRow));
+        }
+        return visible;
+    }
+
+    private JMenu getSelectByCoverageMenu() {
+        final JMenu menu = new JMenu("Select by Path Coverage");
+        menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROUTE));
+        menu.setToolTipText("<HTML>Selects seeds currently shown by checking<br>" +
+                "whether they have traced path node nearby");
+        JMenuItem jmi = new JMenuItem("Select Covered", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
+        jmi.setToolTipText("Selects seeds that already have a nearby traced path node");
+        jmi.addActionListener(e -> selectByCoverage(true));
+        menu.add(jmi);
+        jmi = new JMenuItem("Select Uncovered", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE_XMARK));
+        jmi.setToolTipText("Selects seeds with no nearby traced path node");
+        jmi.addActionListener(e -> selectByCoverage(false));
+        menu.add(jmi);
+        return menu;
+    }
+
+    private void selectByCoverage(final boolean covered) {
+        if (noSeedsError()) return;
+        final List<SeedPoint> candidates = visibleSeeds();
+        if (candidates.isEmpty()) {
+            sntui.error("No seeds are currently shown (check the confidence-range filter).");
+            return;
+        }
+        final KDTree<Object> pathTree = buildPathTree();
+        final List<SeedPoint> matches = new ArrayList<>();
+        for (final SeedPoint s : candidates) {
+            final boolean isCovered = isCovered(s, pathTree);
+            if (isCovered == covered) matches.add(s);
+        }
+        if (matches.isEmpty()) {
+            sntui.error((covered)
+                    ? "There are no covered seeds among those shown: All are uncovered."
+                    : "There are no uncovered seeds among those shown: All are covered.");
+        } else {
+            overlay.setSelectedSeeds(matches);
+            sntui.showStatus(String.format("%,d/%,d shown seed(s) %s", matches.size(), candidates.size(),
+                    covered ? "covered" : "uncovered"), true);
+        }
+    }
+
+    /**
+     * @return {@code true} if {@code pathTree} has a node within {@link #coverageToleranceFor(SeedPoint)} of
+     * {@code seed}; {@code false} if {@code pathTree} is {@code null} (no paths yet) or no node qualifies.
+     */
+    private boolean isCovered(final SeedPoint seed, final KDTree<Object> pathTree) {
+        if (pathTree == null) return false;
+        final Neighbor<double[], Object> hit = pathTree.nearest(new double[]{seed.x, seed.y, seed.z});
+        return hit != null && hit.distance() <= coverageToleranceFor(seed);
+    }
+
+    /**
+     * Builds a Smile {@link KDTree} indexing every node of every path in {@code snt}'s {@link PathAndFillManager}.
+     * Returns {@code null} if there are no paths or no nodes. The value type is {@code Object} (we only need the
+     * spatial query; we don't read the value back).
+     */
+    private KDTree<Object> buildPathTree() {
+        final PathAndFillManager pafm = snt.getPathAndFillManager();
+        if (pafm == null || pafm.size() == 0) return null;
+        final List<double[]> coords = new ArrayList<>(1024);
+        final List<Object> values = new ArrayList<>(1024);
+        for (int i = 0; i < pafm.size(); i++) {
+            final Path p = pafm.getPath(i);
+            if (p == null) continue;
+            final int sz = p.size();
+            for (int j = 0; j < sz; j++) {
+                coords.add(new double[]{p.getNode(j).x, p.getNode(j).y, p.getNode(j).z});
+                values.add(Boolean.TRUE); // placeholder
+            }
+        }
+        if (coords.isEmpty()) return null;
+        return new KDTree<>(coords.toArray(new double[0][]), values.toArray());
+    }
+
+    /**
+     * Physical-distance tolerance for declaring a seed "covered". Generous by
+     * design: {@code max(seed.radius x 1.5, 3 x in-plane voxel size)}.
+     */
+    private double coverageToleranceFor(final SeedPoint seed) {
+        final double seedScale = seed.radius * 1.5;
+        final double voxelScale = 3.0 * Math.max(snt.getPixelWidth(), snt.getPixelHeight());
+        return Math.max(seedScale, voxelScale);
+    }
+
     private boolean noSeedsError() {
         if (overlay.isEmpty()) {
             sntui.error("No seeds exist. Import or generate seeds first.");
@@ -1658,9 +1836,20 @@ public class SeedManager extends JPanel {
         if (noSeedsError()) return;
         final Set<SeedPoint> sel = overlay.getSelectedSeeds();
         if (sel.isEmpty()) {
-            // No selection -> "clear all" prompt. Do NOT fall through to the
-            if (sntui.guiUtils.getConfirmation("Remove all " + overlay.size() + " seed(s)?", "Clear Seed Overlay?")) {
-                overlay.clear();
+            final List<SeedPoint> visible = visibleSeeds();
+            if (visible.isEmpty()) {
+                sntui.error("No seeds are currently shown (check the confidence-range filter).");
+                return;
+            }
+            final boolean allShown = visible.size() == overlay.size();
+            final String msg = (allShown)
+                    ? "Remove all " + overlay.size() + " seed(s)?"
+                    : "Remove " + visible.size() + " shown seed(s)? " + (overlay.size() - visible.size())
+                    + " seed(s) hidden by the confidence-range filter will be kept.";
+            final String ttl = (allShown) ? "Clear Seed Overlay?" : "Delete " + visible.size() + " Seed(s)?";
+            if (sntui.guiUtils.getConfirmation(msg, ttl)) {
+                if (allShown) overlay.clear();
+                else overlay.removeAll(visible);
             }
             return;
         }

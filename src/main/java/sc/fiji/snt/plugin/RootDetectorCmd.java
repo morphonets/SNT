@@ -60,6 +60,13 @@ public class RootDetectorCmd extends CommonDynamicCmd {
                     "simply don't contribute, so this is harmless but useless on paths without radii.")
     private boolean weightByThickness = true;
 
+    @Parameter(label = "Percentile clip (%)", min = "0", max = "45", required = false,
+            description = "<HTML>Robustness margin for seed confidence normalization. The Nth/(100-N)th<br>"
+                    + "percentile of detection scores are mapped to confidence N/100 and (1-N/100),<br>"
+                    + "with outliers beyond that range clamped to [0,1]. Set to 0 for plain min-max<br>"
+                    + "normalization.")
+    private double percentileClip = 10.0;
+
     @Parameter(label = "Replace existing seeds",
             description = "<HTML>If checked, existing seeds are replaced.<br>"
                     + "If unchecked, detected convergences are appended.")
@@ -73,6 +80,8 @@ public class RootDetectorCmd extends CommonDynamicCmd {
         if (trees == null || trees.isEmpty()) {
             error("No structure to scan.");
         }
+        resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
+        percentileClip = 10d;
     }
 
     @Override
@@ -86,6 +95,7 @@ public class RootDetectorCmd extends CommonDynamicCmd {
             status("Detecting root convergences...", false);
             final RootDetector detector = new RootDetector(Math.max(radius, snt.getAverageSeparation()));
             detector.setWeightByThickness(weightByThickness);
+            detector.setPercentileClip(percentileClip);
             final List<SeedPoint> seeds = detector.detect(trees);
             if (!seeds.isEmpty()) {
                 final SeedOverlay overlay = snt.getSeedOverlay();

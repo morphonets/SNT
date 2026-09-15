@@ -22,22 +22,12 @@
 
 package sc.fiji.snt.seed;
 
-import sc.fiji.snt.Path;
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNT;
-import smile.neighbor.KDTree;
-import smile.neighbor.Neighbor;
-
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * {@link javax.swing.table.TableModel} backed by a {@link SeedOverlay}. Seven
- * columns ({@code X, Y, Z, Conf, Radius, Type, Source}, plus an optional
- * {@code Status} column when an {@link SNT} instance is supplied so coverage
- * can be derived live from the active tracing).
+ * columns: {@code X, Y, Z, Conf, Radius, Type, Source}.
  * <p>
  * All cells are read-only: to relocate a seed, change confidence/radius/type,
  * or relabel its provenance, open the {@link SeedPointEditDialog} (single mode
@@ -50,6 +40,11 @@ import java.util.List;
  * {@link javax.swing.table.TableRowSorter}; out-of-range rows are hidden by
  * the sorter (not removed from the model), so view↔model row conversions
  * continue to work transparently for selection sync.
+ * <p>
+ * Coverage against the active tracing (whether a seed already has a nearby
+ * traced path node) is not tracked here: it is a point-in-time snapshot, not
+ * a live table column, and is computed on demand by the panel's "Select by
+ * Coverage" action, which selects the matching seeds directly on the overlay.
  *
  * @author Tiago Ferreira
  * @see SeedOverlay
@@ -65,46 +60,12 @@ public class SeedTableModel extends AbstractTableModel {
     public static final int COL_RADIUS = 4;
     public static final int COL_TYPE = 5;
     public static final int COL_SOURCE = 6;
-    /**
-     * Coverage status (derived). Only present when the model was built with
-     * an {@link SNT} instance; otherwise {@code getColumnCount()} returns 7.
-     */
-    public static final int COL_STATUS = 7;
 
-    private static final String[] COLUMN_NAMES_NO_STATUS = {
+    private static final String[] COLUMN_NAMES = {
             "X", "Y", "Z", "Conf", "Radius", "Type", "Source"};
-    private static final String[] COLUMN_NAMES_WITH_STATUS = {
-            "X", "Y", "Z", "Conf", "Radius", "Type", "Source", "Status"};
-
-    /**
-     * Cell value when a seed has a path node within tolerance.
-     */
-    public static final String STATUS_COVERED = "covered";
-    /**
-     * Cell value when no path node lies within tolerance.
-     */
-    public static final String STATUS_UNCOVERED = "uncovered";
-    /**
-     * Cell value when there's no tracing context to compute against.
-     */
-    public static final String STATUS_UNKNOWN = "-";
 
     private final SeedOverlay overlay;
-    /**
-     * Optional, for Status compute. {@code null} → no Status column.
-     */
-    private final SNT snt;
     private final SeedOverlay.SeedOverlayListener listener;
-    private final boolean includeStatus;
-
-    /**
-     * Cached coverage state, parallel to {@link SeedOverlay#list()}. Built
-     * lazily; invalidated whenever the overlay fires (any add/remove/clear/
-     * threshold change). Path-only changes don't trigger invalidation: user
-     * actions on the seed table will see a slightly stale Status until the
-     * overlay listener fires again.
-     */
-    private String[] cachedStatuses;
 
     /**
      * Row count observed at the previous listener fire. Used to decide whether
@@ -113,21 +74,8 @@ public class SeedTableModel extends AbstractTableModel {
      */
     private int lastKnownRowCount = -1;
 
-    /**
-     * Builds a model without the Status column.
-     */
     public SeedTableModel(final SeedOverlay overlay) {
-        this(overlay, null);
-    }
-
-    /**
-     * Builds a model with an optional Status column. {@code snt == null}
-     * suppresses the column (matches the simpler constructor's behavior).
-     */
-    public SeedTableModel(final SeedOverlay overlay, final SNT snt) {
         this.overlay = overlay;
-        this.snt = snt;
-        this.includeStatus = (snt != null);
         this.listener = source -> SwingUtilities.invokeLater(this::onOverlayChanged);
         overlay.addListener(listener);
     }
@@ -138,7 +86,6 @@ public class SeedTableModel extends AbstractTableModel {
      * when the row count actually changes.
      */
     private void onOverlayChanged() {
-        cachedStatuses = null;
         final int newCount = getRowCount();
         if (newCount != lastKnownRowCount) {
             lastKnownRowCount = newCount;
@@ -149,28 +96,13 @@ public class SeedTableModel extends AbstractTableModel {
     }
 
     /**
-     * Recomputes the coverage cache and fires a status-column update. Callers
-     * (e.g. the panel) can invoke this after tracer runs that change paths
-     * without going through the SeedOverlay listener.
-     */
-    public void recomputeStatuses() {
-        SwingUtilities.invokeLater(() -> {
-            cachedStatuses = null;
-            if (includeStatus && getRowCount() > 0) {
-                fireTableRowsUpdated(0, getRowCount() - 1);
-            }
-        });
-    }
-
-    /**
-     * Unregisters the overlay listener and clears the status-cache reference.
-     * Must be called when this model is no longer used: the listener holds
-     * a strong reference back to this model, so failing to call {@code dispose()}
-     * pins the model (and its enclosing UI) for as long as the overlay lives.
+     * Unregisters the overlay listener. Must be called when this model is no
+     * longer used: the listener holds a strong reference back to this model,
+     * so failing to call {@code dispose()} pins the model (and its enclosing
+     * UI) for as long as the overlay lives.
      */
     public void dispose() {
         overlay.removeListener(listener);
-        cachedStatuses = null;
     }
 
     @Override
@@ -180,20 +112,19 @@ public class SeedTableModel extends AbstractTableModel {
 
     @Override
     public int getColumnCount() {
-        return includeStatus ? COLUMN_NAMES_WITH_STATUS.length : COLUMN_NAMES_NO_STATUS.length;
+        return COLUMN_NAMES.length;
     }
 
     @Override
     public String getColumnName(final int col) {
-        final String[] names = includeStatus ? COLUMN_NAMES_WITH_STATUS : COLUMN_NAMES_NO_STATUS;
-        return (col >= 0 && col < names.length) ? names[col] : "";
+        return (col >= 0 && col < COLUMN_NAMES.length) ? COLUMN_NAMES[col] : "";
     }
 
     @Override
     public Class<?> getColumnClass(final int col) {
         return switch (col) {
             case COL_X, COL_Y, COL_Z, COL_CONFIDENCE, COL_RADIUS -> Double.class;
-            case COL_TYPE, COL_SOURCE, COL_STATUS -> String.class;
+            case COL_TYPE, COL_SOURCE -> String.class;
             default -> Object.class;
         };
     }
@@ -210,90 +141,8 @@ public class SeedTableModel extends AbstractTableModel {
             case COL_RADIUS -> s.radius;
             case COL_TYPE -> s.type;
             case COL_SOURCE -> s.source;
-            case COL_STATUS -> includeStatus ? statusForRow(row) : null;
             default -> null;
         };
-    }
-
-    /**
-     * Coverage status of the seed at row {@code row}: {@code covered} if any
-     * node of any path in the active {@link PathAndFillManager} lies within a
-     * physical-distance tolerance derived from the seed's radius and the
-     * image spacing. Otherwise {@code uncovered}. Returns {@code "-"} when no
-     * SNT context is available.
-     * <p>
-     * Indexed by row rather than by {@code overlay.indexOf(seed)} because the
-     * cache is parallel to {@link SeedOverlay#list()} and JTable repaints can
-     * call {@link #getValueAt} thousands of times.
-     */
-    private String statusForRow(final int row) {
-        if (snt == null) return STATUS_UNKNOWN;
-        ensureStatusCache();
-        if (cachedStatuses == null || row < 0 || row >= cachedStatuses.length) return STATUS_UNKNOWN;
-        return cachedStatuses[row];
-    }
-
-    /**
-     * Builds {@link #cachedStatuses} from scratch. O(N · log M) where N is the
-     * number of seeds and M is the total number of path nodes (KD-tree query
-     * per seed). Cheap enough for the smooth-handle target (≤50k seeds, ≤10k
-     * nodes).
-     */
-    private void ensureStatusCache() {
-        if (cachedStatuses != null) return;
-        final int n = overlay.size();
-        cachedStatuses = new String[n];
-        if (n == 0) return;
-        final KDTree<Object> pathTree = buildPathTree();
-        if (pathTree == null) {
-            // No paths yet → everything is uncovered.
-            for (int i = 0; i < n; i++) cachedStatuses[i] = STATUS_UNCOVERED;
-            return;
-        }
-        for (int i = 0; i < n; i++) {
-            final SeedPoint seed = overlay.get(i);
-            final double tolerance = coverageToleranceFor(seed);
-            final Neighbor<double[], Object> hit = pathTree.nearest(
-                    new double[]{seed.x, seed.y, seed.z});
-            cachedStatuses[i] = (hit != null && hit.distance() <= tolerance)
-                    ? STATUS_COVERED : STATUS_UNCOVERED;
-        }
-    }
-
-    /**
-     * Builds a Smile {@link KDTree} indexing every node of every path in
-     * {@code snt}'s {@link PathAndFillManager}. Returns {@code null} if there
-     * are no paths or no nodes. The value type is {@code Object} (we only
-     * need the spatial query; we don't read the value back).
-     */
-    private KDTree<Object> buildPathTree() {
-        final PathAndFillManager pafm = snt.getPathAndFillManager();
-        if (pafm == null || pafm.size() == 0) return null;
-        final List<double[]> coords = new ArrayList<>(1024);
-        final List<Object> values = new ArrayList<>(1024);
-        for (int i = 0; i < pafm.size(); i++) {
-            final Path p = pafm.getPath(i);
-            if (p == null) continue;
-            final int sz = p.size();
-            for (int j = 0; j < sz; j++) {
-                coords.add(new double[]{p.getNode(j).x, p.getNode(j).y, p.getNode(j).z});
-                values.add(Boolean.TRUE); // placeholder
-            }
-        }
-        if (coords.isEmpty()) return null;
-        final double[][] coordsArr = coords.toArray(new double[0][]);
-        final Object[] valuesArr = values.toArray();
-        return new KDTree<>(coordsArr, valuesArr);
-    }
-
-    /**
-     * Physical-distance tolerance for declaring a seed "covered". Generous by
-     * design: {@code max(seed.radius × 1.5, 3 × in-plane voxel size)}.
-     */
-    private double coverageToleranceFor(final SeedPoint seed) {
-        final double seedScale = seed.radius * 1.5;
-        final double voxelScale = 3.0 * Math.max(snt.getPixelWidth(), snt.getPixelHeight());
-        return Math.max(seedScale, voxelScale);
     }
 
     /**

@@ -45,6 +45,7 @@ import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import net.imglib2.realtransform.AffineTransform3D;
+import sc.fiji.snt.seed.SeedConfidence;
 
 import java.awt.*;
 import java.util.ArrayList;
@@ -147,7 +148,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
     private double minSomaDistance = 0;
 
     @Parameter(label = "Expected no. of somata", min = "0", required = false,
-            description = "<HTML><b>[Experimental]</b> Expected number of cell bodies.<br>" +
+            description = "<HTML><b>Experimental</b>: Expected number of cell bodies.<br>" +
                     "When &gt; 0, keeps only the top-N detections ranked by<br>" +
                     "EDT thickness. May not work well for images with large<br>" +
                     "connected bright regions. <i>Min. inter-soma distance</i><br>" +
@@ -155,6 +156,17 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
                     "Only applies when detecting <b>" + SCOPE_ALL + "</b>.<br>" +
                     "0 = no count-based filtering (default)")
     private int nSomas = 0;
+
+    @Parameter(label = "Percentile clip (%)", min = "0", max = "45", required = false,
+            description = "<HTML>Robustness clip for the per-soma confidence assigned when exporting as <b>" +
+                    OUTPUT_SEEDS + "</b>.<br>" +
+                    "Each detection's integrated density of fluorescence (summed intensity within its<br>" +
+                    "mask) is linearly mapped so the <i>N</i>th/(100-<i>N</i>)th percentiles of density<br>" +
+                    "across the current batch land on confidence <i>N</i>/100 and 1-<i>N</i>/100; detections<br>" +
+                    "beyond those percentiles extrapolate past that sub-range but are curbed (clamped) to<br>" +
+                    "[0,1]. This minimizes the contribution of dim/bright outliers.<br>" +
+                    "Only meaningful when detecting <b>" + SCOPE_ALL + "</b> with more than one soma<br>")
+    private double percentileClip = 10.0;
 
     private ImagePlus imp;
     private ImgPlus<?> img;
@@ -191,6 +203,8 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             resolveInput("zPos");
         }
         getInfo().setLabel(String.format("Detect Soma(s) [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix()));
+        resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
+        percentileClip = 10d;
     }
 
     private String zLabelSuffix() {
@@ -303,7 +317,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             status("Soma added as marker", true);
             if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
         } else if (OUTPUT_SEEDS.equals(outputChoice)) {
-            snt.getSeedOverlay().add(toSeedPoint(result, spacing));
+            snt.getSeedOverlay().add(toSeedPoint(result, spacing, 1.0));
             status("Soma added as seed", true);
             if (ui != null) ui.selectTab("Seeds");
         } else {
@@ -381,8 +395,14 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             status(results.size() + " soma(s) added as markers", true);
         } else if (OUTPUT_SEEDS.equals(outputChoice)) {
             final SeedOverlay overlay = snt.getSeedOverlay();
-            for (final SomaUtils.SomaResult result : results) {
-                overlay.add(toSeedPoint(result, spacing));
+            // Per-soma confidence: robust (percentile-clipped) normalization of integrated density
+            // of fluorescence (summed intensity within each soma's mask) across this batch. See
+            // SeedConfidence#percentileClipNormalize and #toSeedPoint javadoc.
+            final double[] densities = new double[results.size()];
+            for (int i = 0; i < results.size(); i++) densities[i] = results.get(i).integratedDensity();
+            final double[] confidences = SeedConfidence.percentileClipNormalize(densities, percentileClip);
+            for (int i = 0; i < results.size(); i++) {
+                overlay.add(toSeedPoint(results.get(i), spacing, confidences[i]));
             }
             if (ui != null) ui.selectTab("Seeds");
             status(results.size() + " soma(s) added as seeds", true);
@@ -432,10 +452,16 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
      * world-origin offset (see {@code SNT#getWorldOriginOffset()}) must be added back in Stream mode for
      * the seed to land at the correct world position (a {@link SeedOverlay} always stores true-world
      * coordinates, same convention as {@link sc.fiji.snt.seed.SeedRois}/{@code ImportSeedPointsCmd}).
-     * Detected somata carry no natural per-soma confidence score, so confidence is set to {@code 1.0}
-     * (maximum), same as a user-placed/imported seed with no stated confidence.
+     *
+     * @param result     the detected soma
+     * @param spacing    the image's [x, y, z] spacing
+     * @param confidence confidence to assign the seed, in {@code [0, 1]}. {@link #outputMultipleSomaResults}
+     *                   derives this by percentile-clipped-normalizing {@link SomaUtils.SomaResult#integratedDensity()}
+     *                   across the current batch (clip width set by {@link #percentileClip}); a lone
+     *                   detection (see {@link #outputSingleSomaResult}) has nothing to normalize against
+     *                   and passes {@code 1.0}, same as a user-placed/imported seed with no stated confidence.
      */
-    private SeedPoint toSeedPoint(final SomaUtils.SomaResult result, final double[] spacing) {
+    private SeedPoint toSeedPoint(final SomaUtils.SomaResult result, final double[] spacing, final double confidence) {
         final Path.PathNode centroid = result.toNode(spacing);
         double x = centroid.x;
         double y = centroid.y;
@@ -446,7 +472,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             y += offset[1];
             z += offset[2];
         }
-        return new SeedPoint(x, y, z, 1.0, centroid.radius, snt.getChannel(), snt.getFrame(), "soma",
+        return new SeedPoint(x, y, z, confidence, centroid.radius, snt.getChannel(), snt.getFrame(), "soma",
                 "soma-detector");
     }
 

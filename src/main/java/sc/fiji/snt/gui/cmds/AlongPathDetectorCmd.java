@@ -36,6 +36,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.detection.AlongPathDetector;
 import sc.fiji.snt.analysis.detection.Detection;
+import sc.fiji.snt.seed.SeedConfidence;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.util.BoundingBox;
@@ -92,6 +93,13 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
             description = "<HTML>Exclude nodes near branch points and path tips from detection.<br>"
                     + "These locations may have naturally enlarged radii and may produce false positives.")
     private boolean excludeJunctions = true;
+
+    @Parameter(label = "Percentile clip (%)", min = "0", max = "45", required = false,
+            description = "<HTML>Robustness margin for seed confidence normalization. The Nth/(100-N)th<br>"
+                    + "percentile of detection scores are mapped to confidence N/100 and (1-N/100),<br>"
+                    + "with outliers beyond that range clamped to [0,1]. Set to 0 for plain min-max<br>"
+                    + "normalization. Ignored unless Output is set to \"" + OUTPUT_SEEDS + "\".")
+    private double percentileClip = 10.0;
 
     private static final String OUTPUT_BOOKMARKS = "Bookmarked locations";
     private static final String OUTPUT_ROIS = "ROIs";
@@ -153,6 +161,8 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
         // neither a canvas nor an image (radius-only detection works without one)
         if (snt.getImagePlus() == null)
             outputChoiceItem.setChoices(List.of(OUTPUT_BOOKMARKS, OUTPUT_SEEDS));
+        resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
+        percentileClip = 10d;
     }
 
     private boolean noPathsError() {
@@ -333,18 +343,14 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
                 // real-world coordinates carried over from the source Path's own nodes, so no
                 // canvasOffset/world-origin correction is needed here (contrast SomaDetectorCmd#toSeedPoint,
                 // whose SomaUtils.SomaResult starts from a raw voxel index instead)
-                double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
-                for (final Detection d : results) {
-                    if (Double.isNaN(d.score)) continue;
-                    if (d.score < min) min = d.score;
-                    if (d.score > max) max = d.score;
-                }
-                final double range = (max > min) ? max - min : 1;
+                final double[] scores = new double[results.size()];
+                for (int i = 0; i < results.size(); i++) scores[i] = results.get(i).score;
+                final double[] confidences = SeedConfidence.percentileClipNormalize(scores, percentileClip);
                 final SeedOverlay overlay = snt.getSeedOverlay();
-                for (final Detection d : results) {
-                    final double confidence = Double.isNaN(d.score) ? 1.0 : (d.score - min) / range;
+                for (int i = 0; i < results.size(); i++) {
+                    final Detection d = results.get(i);
                     final double radius = d.path.getNodeRadius(d.nodeIndex);
-                    overlay.add(new SeedPoint(d.x, d.y, d.z, confidence, radius,
+                    overlay.add(new SeedPoint(d.x, d.y, d.z, confidences[i], radius,
                             d.path.getChannel(), d.path.getFrame(), "swelling", "along-path-detector"));
                 }
                 resetUI();

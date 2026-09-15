@@ -401,6 +401,66 @@ public class SeedOverlay {
     }
 
     /**
+     * Multiplies the confidence of {@code seeds} by {@code factor}, clamping
+     * each result to {@code [0, 1]}. A {@link SeedPoint#confidence} of
+     * {@code NaN} ("no basis to judge", see {@code SeedConfidence}) is left
+     * as {@code NaN} since it fails both clamp comparisons. Seeds not present
+     * in the data list (e.g. selected then removed elsewhere) are silently
+     * skipped. Fires listeners once via {@link #replaceAllAt(Map)}.
+     *
+     * @param seeds  seeds to rescale, typically a table selection
+     * @param factor confidence multiplier, e.g. {@code 0.9} to decrease by
+     *               10%, {@code 1.1} to increase by 10%
+     * @return the number of seeds actually rescaled
+     */
+    public int scaleConfidence(final Collection<SeedPoint> seeds, final double factor) {
+        return applyToPresent(seeds, s -> {
+            double conf = s.confidence * factor;
+            if (conf < 0) conf = 0;
+            else if (conf > 1) conf = 1;
+            return new SeedPoint(s.x, s.y, s.z, conf, s.radius,
+                    s.channel, s.frame, s.type, s.source);
+        });
+    }
+
+    /**
+     * Multiplies the physical radius of {@code seeds} by {@code factor},
+     * clamping each result to {@code >= 0} (radius has no upper bound, unlike
+     * confidence). Seeds not present in the data list are silently skipped.
+     * Fires listeners once via {@link #replaceAllAt(Map)}.
+     *
+     * @param seeds  seeds to rescale, typically a table selection
+     * @param factor radius multiplier, e.g. {@code 0.9} to decrease by 10%,
+     *               {@code 1.1} to increase by 10%
+     * @return the number of seeds actually rescaled
+     */
+    public int scaleRadius(final Collection<SeedPoint> seeds, final double factor) {
+        return applyToPresent(seeds, s -> new SeedPoint(s.x, s.y, s.z, s.confidence,
+                Math.max(0, s.radius * factor), s.channel, s.frame, s.type, s.source));
+    }
+
+    /**
+     * Shared plumbing for {@link #scaleConfidence(Collection, double)} and
+     * {@link #scaleRadius(Collection, double)}: resolves each of {@code seeds}
+     * to its current position, applies {@code transform} to build its
+     * replacement, and commits everything through a single
+     * {@link #replaceAllAt(Map)} call.
+     */
+    private int applyToPresent(final Collection<SeedPoint> seeds,
+                                final java.util.function.UnaryOperator<SeedPoint> transform) {
+        if (seeds == null || seeds.isEmpty()) return 0;
+        final Map<SeedPoint, Integer> positions = new HashMap<>(this.seeds.size() * 2);
+        for (int i = 0; i < this.seeds.size(); i++) positions.put(this.seeds.get(i), i);
+        final Map<Integer, SeedPoint> replacements = new HashMap<>(seeds.size() * 2);
+        for (final SeedPoint s : seeds) {
+            final Integer idx = positions.get(s);
+            if (idx == null) continue;
+            replacements.put(idx, transform.apply(s));
+        }
+        return replaceAllAt(replacements);
+    }
+
+    /**
      * @return an unmodifiable, insertion-ordered view of the currently selected
      * seeds. The result is a snapshot (independent collection).
      */
