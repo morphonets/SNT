@@ -2316,6 +2316,7 @@ public class SNT extends MultiDThreePanes implements
 			disableEventsAllPanes(true);
 			setDrawCrosshairsAllPanes(false);
 			setCanvasLabelAllPanes(InteractiveTracerCanvas.SNT_PAUSED_LABEL);
+			if (ui != null) ui.setBigViewersLockedByPause(true); // Bvv/Bdv counterpart; see that method's javadoc
 			if (hideSideViewsOnPause) {
 				setSideViewsVisible(false);
 				getPrefs().setTemp("restoreviews", true);
@@ -2356,6 +2357,7 @@ public class SNT extends MultiDThreePanes implements
 			changeUIState(SNTUI.TRACING_PAUSED);
 			setDrawCrosshairsAllPanes(false);
 			setCanvasLabelAllPanes(InteractiveTracerCanvas.TRACING_PAUSED_LABEL);
+			if (ui != null) ui.setBigViewersLockedByPause(true); // Bvv/Bdv counterpart; see that method's javadoc
 			enableSnapCursor(snapCursor && accessToValidImageData());
 		}
 		else {
@@ -2363,6 +2365,7 @@ public class SNT extends MultiDThreePanes implements
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			setDrawCrosshairsAllPanes(true);
 			setCanvasLabelAllPanes(null);
+			if (ui != null) ui.setBigViewersLockedByPause(false); // Bvv/Bdv counterpart; see that method's javadoc
 		}
 	}
 
@@ -5015,6 +5018,12 @@ public class SNT extends MultiDThreePanes implements
 		return isolatedTreeID != -1;
 	}
 
+	/** @return whether tracing functions are currently allowed */
+	public boolean isTracingActive() {
+		return !tracingHalted &&
+				((getTracingCanvas() == null) || (getTracingCanvas() != null && !getTracingCanvas().isEventsDisabled()));
+	}
+
 	/**
 	 * Gets the Image associated with a view pane.
 	 *
@@ -5791,11 +5800,28 @@ public class SNT extends MultiDThreePanes implements
 	 * legitimate callers are {@link #startUIOnEDT(boolean)} (before constructing {@link SNTUI}) and
 	 * {@link SNTUI}'s own constructor (covering direct {@code new SNTUI(plugin, bigDataMode)}
 	 * construction that bypasses {@link #startUI(boolean)}).
+	 * <p>
+	 * Also the single point that corrects {@link #tracingHalted}'s headless-safe constructor default
+	 * ({@code true}, see {@link #SNT(Context, PathAndFillManager)}) for a stream-mode session: unlike
+	 * the traditional (ImagePlus-first) workflow, entering stream mode never runs
+	 * {@link #initialize(ImagePlus)} - the only other place that clears that default, via
+	 * {@link #accessToValidImageData()} - because there is no ImagePlus yet to initialize with (not
+	 * until/unless a crop is later materialized, which does route through {@code initialize(ImagePlus)}
+	 * itself). Left uncleared, tracing looks permanently "paused" from the very first frame even though
+	 * nothing was ever actually paused - e.g. {@link #isTracingActive()} reports {@code false} and
+	 * {@code SNTUI}'s Quick Toggles "Pause Tracing" item shows checked - purely because this flag's
+	 * default predates stream mode's no-resident-image sessions. Called exactly once per session (both
+	 * callers are constructor-time setup, before any pause could have been legitimately requested), so
+	 * unconditionally clearing it here is safe.
+	 * </p>
 	 *
 	 * @param bigDataMode the new stream-mode flag
 	 */
 	void setBigDataMode(final boolean bigDataMode) {
 		this.bigDataMode = bigDataMode;
+		if (bigDataMode) {
+			tracingHalted = false;
+		}
 	}
 
 	/* (non-Javadoc)

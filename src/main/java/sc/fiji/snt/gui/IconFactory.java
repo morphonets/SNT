@@ -371,6 +371,8 @@ public class IconFactory {
     }
 
     public static Icon doubleIcon(final GLYPH entry1, final GLYPH entry2, final float scalingFactor, final Color color) {
+        if (entry2 == null) // plain single-glyph icon, no companion glyph to composite
+            return cachedIcon(entry1.id, scalingFactor * FADerivedIcon.defSize(), color, entry1.solid);
         final Icon rightIcon = cachedIcon(entry2.id, scalingFactor * FADerivedIcon.defSize(), color, entry2.solid);
         return dropdownIcon(entry1, scalingFactor, color, rightIcon);
     }
@@ -539,6 +541,34 @@ public class IconFactory {
     public static void assignIcon(final JMenuItem item, final char symbol, final boolean solid, final Color color) {
         item.setIcon(menuIcon(symbol, solid, color));
         item.setDisabledIcon(menuIcon(symbol, solid, disabledColor()));
+    }
+
+    public static void assignDoubleIcon(final JMenuItem menuItem, final GLYPH defaultIcon, final GLYPH selectedIcon, final GLYPH secondaryIcon) {
+        final Icon icon = doubleIcon(defaultIcon, secondaryIcon, .9f, defaultColor());
+        final Icon disabledIcon = doubleIcon(defaultIcon, secondaryIcon, .9f, disabledColor());
+        if (selectedIcon == null) {
+            menuItem.setIcon(icon);
+            menuItem.setDisabledIcon(disabledIcon);
+            return;
+        }
+        final Icon rawSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, selectedColor());
+        final Icon rawDisabledSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f,
+                SNTColor.average(List.of(disabledColor(), selectedColor())));
+        // defaultIcon/selectedIcon glyphs (e.g., EYE vs EYE_SLASH) rarely share the same font-metrics
+        final int refWidth = Math.max(icon.getIconWidth(), rawSelectedIcon.getIconWidth());
+        final Icon fixedIcon = fixedWidthIcon(icon, refWidth);
+        final Icon fixedDisabledIcon = fixedWidthIcon(disabledIcon, refWidth);
+        final Icon fixedSelectedIcon = fixedWidthIcon(rawSelectedIcon, refWidth);
+        final Icon fixedDisabledSelectedIcon = fixedWidthIcon(rawDisabledSelectedIcon, refWidth);
+
+        menuItem.setIcon(fixedIcon);
+        menuItem.setDisabledIcon(fixedDisabledIcon);
+        menuItem.setSelectedIcon(fixedSelectedIcon);
+        menuItem.setDisabledSelectedIcon(fixedDisabledSelectedIcon);
+        menuItem.setPressedIcon(fixedIcon);
+        menuItem.setRolloverEnabled(true);
+        menuItem.setRolloverIcon(fixedIcon);
+        menuItem.setRolloverSelectedIcon(fixedSelectedIcon);
     }
 
     /**

@@ -45,8 +45,8 @@ import java.util.List;
  *       seeds in the batch after a confirmation.
  * </ul>
  * <p>
- * Entry points: {@link #editAt(Component, SeedOverlay, int)} for single mode,
- * {@link #editBulk(Component, SeedOverlay, List)} for bulk mode. Both
+ * Entry points: {@link #editAt(Window, SeedOverlay, int)} for single mode,
+ * {@link #editBulk(Window, SeedOverlay, List)} for bulk mode. Both
  * defensively re-resolve each seed by reference (via
  * {@link SeedOverlay#indexOf(SeedPoint)}) before mutation, in case the list
  * has shifted while the modal was open.
@@ -87,13 +87,14 @@ public class SeedPointEditDialog {
      */
     private final Map<JTextField, String> initialTexts = new HashMap<>();
 
-    private SeedPointEditDialog(final Component parent, final SeedOverlay overlay, final List<Integer> indices) {
+    private SeedPointEditDialog(final Window parent, final SeedOverlay overlay, final List<Integer> indices) {
         this.overlay = overlay;
         this.bulk = indices.size() != 1;
         this.originals = new ArrayList<>(indices.size());
         for (final int i : indices) originals.add(overlay.get(i));
 
-        final Window owner = (parent == null) ? null : SwingUtilities.getWindowAncestor(parent);
+        final Window owner = (parent == null) ? GuiUtils.getActiveWindow() : parent;
+
         final String title = bulk
                 ? "Edit " + originals.size() + " Seed Points"
                 : "Edit Seed Point #" + (indices.getFirst() + 1);
@@ -165,7 +166,7 @@ public class SeedPointEditDialog {
      * Opens a single-seed edit dialog for the seed at the given model-row
      * index of {@code overlay}. No-op if the index is out of range.
      */
-    public static void editAt(final Component parent, final SeedOverlay overlay, final int index) {
+    public static void editAt(final Window parent, final SeedOverlay overlay, final int index) {
         if (overlay == null || index < 0 || index >= overlay.size()) return;
         new SeedPointEditDialog(parent, overlay, List.of(index)).show();
     }
@@ -175,7 +176,7 @@ public class SeedPointEditDialog {
      * {@code indices.size() == 1}, behaves like {@link #editAt}. No-op if no
      * valid indices remain after bounds-checking.
      */
-    public static void editBulk(final Component parent, final SeedOverlay overlay, final List<Integer> indices) {
+    public static void editBulk(final Window parent, final SeedOverlay overlay, final List<Integer> indices) {
         if (overlay == null || indices == null || indices.isEmpty()) return;
         final List<Integer> valid = new ArrayList<>(indices.size());
         for (final int i : indices) {

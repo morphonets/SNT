@@ -193,6 +193,21 @@ public class SNTUI extends JDialog {
     }
 
     /**
+     * Bvv/Bdv counterpart of {@link sc.fiji.snt.SNT#setCanvasLabelAllPanes(String)}'s "Tracing
+     * Paused"/"SNT Paused" canvas label: locks/unlocks whichever of {@link #bvvSNT}/{@link #bdvSNT}
+     * is currently attached out of tracing-by-click, in response to a global SNT_PAUSED/TRACING_PAUSED
+     * transition (see {@code SNT#pause(boolean, boolean)}/{@code SNT#pauseTracing(boolean, boolean)},
+     * which call this right alongside their own {@code setCanvasLabelAllPanes} calls). No-op for
+     * whichever of the two is null (at most one is ever attached at a time).
+     *
+     * @param locked whether a global pause is currently in effect
+     */
+    void setBigViewersLockedByPause(final boolean locked) {
+        if (bvvSNT != null) bvvSNT.setTracingLockedByPause(locked);
+        if (bdvSNT != null) bdvSNT.setTracingLockedByPause(locked);
+    }
+
+    /**
      * Swaps the "Bookmarks" tab's content between this UI's own {@link BookmarkManager} panel
      * (Standard mode, or Stream mode with no active viewer) and the active {@link AbstractBigViewer}'s
      * own marker-manager panel (Stream mode, once a viewer has attached). Called whenever the active
@@ -240,7 +255,10 @@ public class SNTUI extends JDialog {
     public static final int WAITING_FOR_SIGMA_POINT_I = 9;
     //static final int WAITING_FOR_SIGMA_POINT_II = 10;
     static final int WAITING_FOR_SIGMA_CHOICE = 11;
-    static final int SAVING = 12;
+    /**
+     * Flag specifying UI is currently waiting for a save operation to conclude.
+     */
+    public static final int SAVING = 12;
     /** Flag specifying UI is currently waiting for I/0 operations to conclude */
     public static final int LOADING = 13;
     /** Flag specifying UI is currently waiting for fitting operations to conclude */
@@ -1505,8 +1523,14 @@ public class SNTUI extends JDialog {
         if (newState == currentState || plugin == null) return; // plugin may be null when exiting
 
         // Special case: If we are using a BVV as main tracing canvas without accessing any in RAM image, then the
-        // default READY state is BVV_TRACING state .
-        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED) && plugin.isStreamMode())
+        // default READY state is BVV_TRACING state. A materialized crop, however, behaves like traditional
+        // mode from here on (isMaterializedCrop() true even though isStreamMode() stays true - see
+        // SNT#isMaterializedCrop()): it has a real resident image, so READY/TRACING_PAUSED must be allowed
+        // through as-is rather than masked as STREAMING, or the paused state becomes unobservable to
+        // anything checking getState() (e.g. AbstractBigViewer.AbstractTracer#handleClick()), even though
+        // the canvas label still (correctly) says "Tracing Paused"/"SNT Paused"
+        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED)
+                        && plugin.isStreamMode() && !plugin.isMaterializedCrop())
                         ? STREAMING : newState;
 
         // Call exit() on current state
@@ -5209,7 +5233,12 @@ public class SNTUI extends JDialog {
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 null);
         diameters.setEnabled(diametersCheckBox.isEnabled());
-        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), diameters, GLYPH.DOTCIRCLE);
+        if (plugin.isStreamMode()) {
+            IconFactory.assignDoubleIcon(diameters, GLYPH.CIRCLE, GLYPH.DOTCIRCLE, GLYPH.CROP);
+            diameters.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+        } else {
+            IconFactory.assignDoubleIcon(diameters, GLYPH.CIRCLE, GLYPH.DOTCIRCLE, null);
+        }
         menu.add(diameters);
 
         GuiUtils.addSeparator(menu, "Tracing:");
@@ -5253,18 +5282,30 @@ public class SNTUI extends JDialog {
                     ((JCheckBoxMenuItem) e.getSource()).setSelected(plugin.tracingHalted); // re-sync
                 },
                 KeyStroke.getKeyStroke("shift P"));
-        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), pauseTracing, GLYPH.PAUSE2);
+        // Not materialized-crop-dependent (see the popupMenuWillBecomeVisible listener below for why),
+        // so - unlike the items above it - this does NOT use applyStreamModeCompositeIcon's "materialized
+        // crop only" badge/tooltip: that claim would now be wrong.
+        IconFactory.assignDoubleIcon(pauseTracing, GLYPH.PAUSE2, GLYPH.PLAY, null);
+        pauseTracing.setToolTipText("Pauses tracing-by-click, including in a live Bvv/Bdv scene");
         menu.add(pauseTracing);
         menu.addSeparator();
         final JCheckBoxMenuItem stopSNT = GuiUtils.MenuItems.checkboxMenuItem("Pause SNT",
                 currentState == SNT_PAUSED,
                 e -> {
                     plugin.pause(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
-                    // isEventsDisabled, not currentState: valid even without a materialized crop
-                    ((JCheckBoxMenuItem) e.getSource()).setSelected(plugin.getTracingCanvas().isEventsDisabled()); // re-sync
+                    // currentState, not getTracingCanvas().isEventsDisabled(): the canvas is null without
+                    // a materialized crop (pure streaming), which would NPE here; currentState is set by
+                    // the same plugin.pause() call above and (unlike TRACING_PAUSED/READY) SNT_PAUSED is
+                    // never redirected to STREAMING by SNTUI#changeState, so it is a reliable, canvas-
+                    // independent read of the state that call just produced.
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(currentState == SNT_PAUSED); // re-sync
                 },
                 null);
-        InternalUtils.applyStreamModeCompositeIcon(plugin.isStreamMode(), stopSNT, GLYPH.STOP);
+        // Not materialized-crop-dependent (see the popupMenuWillBecomeVisible listener below for why),
+        // so - unlike the items above it - this does NOT use applyStreamModeCompositeIcon's "materialized
+        // crop only" badge/tooltip: that claim would now be wrong.
+        IconFactory.assignDoubleIcon(stopSNT, GLYPH.STOP, GLYPH.PLAY, null);
+        stopSNT.setToolTipText("Pauses SNT entirely, including a live Bvv/Bdv scene");
         menu.add(stopSNT);
 
         menu.addPopupMenuListener(new PopupMenuListener() {
@@ -5294,12 +5335,20 @@ public class SNTUI extends JDialog {
                 secLayer.setSelected(secLayerActivateCheckbox.isSelected());
                 secLayer.setEnabled(secLayerActivateCheckbox.isEnabled() && currentState != SNT_PAUSED);
 
-                // aligned with InteractiveTracerCanvas#uiReadyForModeChange: no accessToTracingCanvas check
-                final boolean traditionalMode = !plugin.isStreamMode() || plugin.isMaterializedCrop();
+                // Pause Tracing/Pause SNT are NOT materialized-crop-dependent, unlike every other item
+                // above: SNT#uiReadyForModeChange() already treats STREAMING (pure live Bvv/Bdv browsing,
+                // no crop) as ready, and SNT#pause()/pauseTracing()'s own AllPanes calls null-guard when
+                // there is no classic canvas at all - so both are perfectly safe to invoke, and now (see
+                // AbstractTracer#setLockedByPause) both give real feedback in Bvv/Bdv too, without a crop.
+                // Gating them behind materialization here (as a former "traditionalMode" check did) was
+                // stricter than either the backend or the comment above ever required.
                 pauseTracing.setSelected(plugin.tracingHalted);
-                pauseTracing.setEnabled(traditionalMode && currentState != SNT_PAUSED);
-                stopSNT.setEnabled(traditionalMode);
-                stopSNT.setSelected(traditionalMode && plugin.getTracingCanvas().isEventsDisabled());
+                pauseTracing.setEnabled(currentState != SNT_PAUSED);
+                stopSNT.setEnabled(true);
+                // currentState, not getTracingCanvas().isEventsDisabled(): SNT_PAUSED (unlike TRACING_PAUSED/
+                // READY) is never redirected to STREAMING by SNTUI#changeState, so it stays a reliable,
+                // canvas-independent test - mirroring pauseTracing.setSelected()'s use of tracingHalted above.
+                stopSNT.setSelected(currentState == SNT_PAUSED);
             }
 
             @Override

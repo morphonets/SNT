@@ -347,12 +347,18 @@ public class AlongPathDetectorCmd extends CommonDynamicCmd {
                 for (int i = 0; i < results.size(); i++) scores[i] = results.get(i).score;
                 final double[] confidences = SeedConfidence.percentileClipNormalize(scores, percentileClip);
                 final SeedOverlay overlay = snt.getSeedOverlay();
+                // addAll() fires SeedOverlay's listeners once, not once per swelling: add() in
+                // a loop let this background command thread keep mutating overlay's seed list
+                // while SeedManager's EDT-deferred refresh iterated it, occasionally throwing a
+                // ConcurrentModificationException (see PeripathDetectorCmd's identical fix)
+                final List<SeedPoint> newSeeds = new ArrayList<>(results.size());
                 for (int i = 0; i < results.size(); i++) {
                     final Detection d = results.get(i);
                     final double radius = d.path.getNodeRadius(d.nodeIndex);
-                    overlay.add(new SeedPoint(d.x, d.y, d.z, confidences[i], radius,
+                    newSeeds.add(new SeedPoint(d.x, d.y, d.z, confidences[i], radius,
                             d.path.getChannel(), d.path.getFrame(), "swelling", "along-path-detector"));
                 }
+                overlay.addAll(newSeeds);
                 resetUI();
                 if (ui != null) {
                     ui.selectTab("Seeds");

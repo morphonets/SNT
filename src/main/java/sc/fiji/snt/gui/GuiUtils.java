@@ -142,7 +142,11 @@ public class GuiUtils {
 	}
 
 	public void setParentToActiveWindow() {
-		setParent(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+		setParent(getActiveWindow());
+	}
+
+	public static Window getActiveWindow() {
+		return KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
 	}
 
 	public void setParent(final Component parent) {

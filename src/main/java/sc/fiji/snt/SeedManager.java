@@ -204,14 +204,13 @@ public class SeedManager extends JPanel {
     }
 
     private String panelHeading() {
-        return String.format(
-                """
-                        Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
-                        used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
-                        (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
-                        
-                        Double-click a row to navigate to its location; %s Alt+click on the canvas (while tracing is paused) \
-                        to edit the nearest seed.""", (snt.isStreamMode()) ? "With materialized crops," : "");
+        return """
+                Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
+                used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
+                (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
+                
+                Double-click a row to navigate to its location; Alt+click on the canvas (while tracing is paused) \
+                to edit the nearest seed.""";
     }
 
     private JToolBar buildDisplayRow() {
@@ -1684,7 +1683,7 @@ public class SeedManager extends JPanel {
         if (sel.size() == 1) {
             final SeedPoint seed = sel.iterator().next();
             final int idx = overlay.indexOf(seed);
-            if (idx >= 0) SeedPointEditDialog.editAt(this, overlay, idx);
+            if (idx >= 0) SeedPointEditDialog.editAt(sntui, overlay, idx);
             return;
         }
         final List<Integer> indices = new ArrayList<>();
@@ -1711,7 +1710,7 @@ public class SeedManager extends JPanel {
         if (indices.isEmpty()) {
             return;
         }
-        SeedPointEditDialog.editBulk(this, overlay, indices);
+        SeedPointEditDialog.editBulk(sntui, overlay, indices);
     }
 
     private JMenu getScaleConfidenceMenu() {

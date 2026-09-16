@@ -259,8 +259,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private void showPopupMenu(final int x, final int y) {
         final Path activePath = tracerPlugin.getSingleSelectedPath();
-        final boolean be = uiReadyForModeChange(SNTUI.EDITING);
-        final boolean bp = uiReadyForModeChange(SNTUI.SNT_PAUSED);
+        final boolean be = canvasReadyForModeChange(SNTUI.EDITING);
+        final boolean bp = canvasReadyForModeChange(SNTUI.SNT_PAUSED);
         final boolean tracingActive = !editMode && !tracerPlugin.tracingHalted;
 
         extendPathMenuItem.setText(
@@ -743,9 +743,32 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         this.currentPath = path;
     }
 
-    private boolean uiReadyForModeChange(final int mode) {
+    /**
+     * Canvas-local readiness test for this popup menu's own mode-changing commands (Edit Mode, Pause
+     * SNT, Extend Path, Fork Nearest, ...) - NOT the same as, and not related to, {@link SNT#uiReadyForModeChange()}
+     * (no-arg, on {@code tracerPlugin}): that one is the generic guard used by {@code SNT#pause}/
+     * {@code SNT#pauseTracing}'s own validation and by {@code SNT#editModeAllowed}; this one is specific
+     * to what this classic canvas's own context menu should currently allow, and additionally requires a
+     * real, materialized canvas to exist at all (see {@code nonStreamedCanvasExists} below) - the two are
+     * easy to conflate by name alone, so read carefully if working on either.
+     * <p>
+     * {@code tracingHalted ||} is a deliberate escape hatch, not dead weight: once tracing is halted,
+     * Edit Mode and Pause SNT should stay freely reachable regardless of the nominal {@code state} - e.g.
+     * {@code SNT_PAUSED} can be entered on top of an already-{@code TRACING_PAUSED} session (see
+     * {@code SNT#pause}'s resume path, which restores tracingHalted's pre-pause value via
+     * {@code pauseTracing(tracingHalted, false)}), and a paused user should still be able to edit existing
+     * paths. It is, however, inert at the two call sites in this class that already check
+     * {@code tracerPlugin.tracingHalted} and return earlier when it is true ({@link AListener#handleExtendPath()},
+     * {@link AListener#handleForkNearest()}) - by the time either reaches this method, tracingHalted is
+     * always false there, so only {@code state == WAITING_TO_START_PATH} can make it true.
+     *
+     * @param mode the target {@code SNTUI} state the caller wants to confirm is reachable right now
+     */
+    private boolean canvasReadyForModeChange(final int mode) {
         if (!tracerPlugin.isUIready()) return false;
         final int state = tracerPlugin.getUIState();
+        // This popup only applies to a real, paintable canvas: traditional mode, or a materialized crop
+        // while streaming - never a live Bvv/Bdv-only scene, which has no classic canvas to right-click
         final boolean nonStreamedCanvasExists = !tracerPlugin.isStreamMode() || tracerPlugin.isMaterializedCrop();
         return nonStreamedCanvasExists &&
                 (tracerPlugin.tracingHalted || state == SNTUI.WAITING_TO_START_PATH || state == mode);
@@ -1835,7 +1858,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 canvasWarning("There are no finished paths to extend");
                 return;
             }
-            if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
+            if (!canvasReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
                 canvasWarning("Please finish current operation before extending path");
                 return;
             }
@@ -1909,7 +1932,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 canvasWarning("Tracing functions currently disabled");
                 return true; // handled, just failed
             }
-            if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
+            if (!canvasReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
                 canvasWarning("Please finish current operation before creating branch");
                 return true;
             }

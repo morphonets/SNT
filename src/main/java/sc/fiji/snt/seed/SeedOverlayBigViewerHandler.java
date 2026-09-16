@@ -24,7 +24,6 @@ package sc.fiji.snt.seed;
 
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SeedOverlayRenderer;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.AbstractBigViewer;
@@ -37,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -49,8 +49,22 @@ import java.util.TreeSet;
  * big-viewer overlay.
  * </p>
  * <p>
- * Alt+Click on a rendered seed (while tracing is paused, or when no SNT instance is attached) opens the same
- * {@link SeedPointEditDialog} used by the canvas handler.
+ * Alt+Click on a rendered seed (while the SNT UI is idle - see {@code SNTUI#isReady()} - or when no SNT
+ * instance is attached) opens the same {@link SeedPointEditDialog} used by the canvas handler.
+ * </p>
+ * <p>
+ * Alt is also {@code AbstractBigViewer.AbstractTracer}'s fork-a-path modifier: whenever the viewer's own
+ * Start/Stop Tracing toggle is on, {@code AbstractTracer} reacts to every click - Alt or not - in
+ * {@code mouseReleased}, which AWT always dispatches before this handler's {@code mouseClicked}. So by the
+ * time {@link #onAltClick} would run, a fork/trace attempt from the very same click may already have fired
+ * (at best a spurious "No Fork Point Found" dialog; at worst a real node inserted into a path, or a segment
+ * traced) - {@code e.consume()} here cannot undo that. {@link #onAltClick} therefore additionally requires
+ * {@link AbstractBigViewer#isTracingEnabled()} to be {@code false} for that viewer, so seed-editing via
+ * Alt+Click and fork-via-Alt+Click never both act on one click; toggle tracing off in that viewer to edit
+ * a seed by Alt+Click. {@link #onPlainClick} shares the same underlying hazard - a plain click also drives
+ * {@code AbstractTracer} in {@code mouseReleased} (starting/extending a path), fork or not - so it requires
+ * {@link AbstractBigViewer#isTracingEnabled()} to be {@code false} too, unlike {@code BookmarkManager}'s
+ * plain-click-to-select, which does not gate on it.
  * </p>
  *
  * @author Tiago Ferreira
@@ -70,6 +84,16 @@ public final class SeedOverlayBigViewerHandler {
     private List<SeedPoint> pushed = List.of();
 
     /**
+     * Seeds (among {@link #pushed}) whose highlight was last reflected onto the viewer's shared
+     * {@code AnnotationOverlay#setSelectedIndex} slot. Tracked so {@link #syncHighlight} only
+     * touches that slot when this handler's own selection actually changed, rather than on every
+     * unrelated overlay refresh (new/removed seeds, confidence-range changes, etc.) - the slot is
+     * shared across owners (e.g. {@link sc.fiji.snt.BookmarkManager}), so an unconditional write on
+     * every refresh could silently clear another owner's active highlight.
+     */
+    private Set<SeedPoint> lastHighlighted = Set.of();
+
+    /**
      * Attaches a handler to {@code viewer}, bridging {@code overlay} into its
      * annotation overlay. No-op (beyond bookkeeping) if the viewer has no
      * annotation support.
@@ -85,15 +109,20 @@ public final class SeedOverlayBigViewerHandler {
     private SeedOverlayBigViewerHandler(final AbstractBigViewer viewer, final SeedOverlay overlay) {
         this.viewer = viewer;
         this.overlay = overlay;
-        // NB: viewer.annotations() is not cached - Bdv/Bvv initialize their AnnotationOverlay
-        // lazily (on attach()), so it may still be null when this handler is installed (see
-        // SNTUI#setBdvOnEDT/#setBvvOnEDT). Fetch it fresh on every use instead, mirroring
-        // BookmarkManager's pattern
+        // NB: viewer.annotations() is not cached - Bdv/Bvv initialize their AnnotationOverlay lazily (on attach()), so
+        // it may still be null when this handler is installed (see SNTUI#setBdvOnEDT/#setBvvOnEDT). Fetch it fresh on
+        // every use instead, mirroring BookmarkManager's pattern
         viewer.addMouseListenerToDisplay(new MouseAdapter() {
             @Override
             public void mouseClicked(final MouseEvent e) {
-                if (e.getClickCount() != 1 || e.getButton() != MouseEvent.BUTTON1 || !e.isAltDown()) return;
-                onAltClick(e);
+                if (e.getClickCount() != 1 || e.getButton() != MouseEvent.BUTTON1) {
+                    return;
+                }
+                if (e.isAltDown()) {
+                    onAltClick(e);
+                } else {
+                    onPlainClick(e);
+                }
             }
         });
         overlay.addListener(listener);
@@ -104,25 +133,74 @@ public final class SeedOverlayBigViewerHandler {
     public void dispose() {
         overlay.removeListener(listener);
         final AbstractBigViewer.AnnotationOverlay annotations = viewer.annotations();
-        if (annotations != null) annotations.clear(SeedOverlayBigViewerHandler.class);
+        if (annotations != null) {
+            annotations.clear(SeedOverlayBigViewerHandler.class);
+            clearHighlightIfOwned(annotations);
+        }
     }
 
     private void onAltClick(final MouseEvent e) {
         final AbstractBigViewer.AnnotationOverlay annotations = viewer.annotations();
-        if (annotations == null) return;
+        if (annotations == null) {
+            return;
+        }
         final SNT snt = viewer.getSNT();
-        if (snt != null && snt.getUI() != null && snt.getUI().getState() != SNTUI.TRACING_PAUSED) return;
+        // NB: TRACING_PAUSED alone is not a valid "idle" test: in stream mode without a materialized crop, the UI sits
+        // in STREAMING and does not go to TRACING_PAUSED. SNTUI#isReady() is the shared "UI is idle enough to
+        // trace/edit/analyze" test (covers READY/TRACING_PAUSED/SNT_PAUSED/STREAMING)
+        final boolean uiReady = (snt == null) || (snt.getUI() == null) || snt.getUI().isReady();
+        if (!uiReady) {
+            return;
+        }
+        // Alt is also the fork-a-path modifier for AbstractTracer#handleClick, which already ran (in mouseReleased) by
+        // the time this mouseClicked-based listener sees the event. Back off entirely while this viewer's own
+        // tracing-by-click is enabled, rather than risk silently editing a seed on the same click that just
+        // forked/extended a path.
+        if (viewer.isTracingEnabled()) {
+            return;
+        }
         // Owner-scoped: restricts the hit-test to this handler's own layer and returns an index local to it
         // (matching pushed's indexing), so a click on e.g. a bookmark marker sharing
         // the same overlay is not mistaken for a seed hit
         final int idx = annotations.hitTest(SeedOverlayBigViewerHandler.class, e.getX(), e.getY());
-        if (idx < 0 || idx >= pushed.size()) return;
+        if (idx < 0 || idx >= pushed.size()) {
+            return;
+        }
         e.consume();
         final SeedPoint hit = pushed.get(idx);
         SwingUtilities.invokeLater(() -> {
             final int overlayIdx = overlay.indexOf(hit);
             if (overlayIdx >= 0) SeedPointEditDialog.editAt(viewer.getViewerFrame(), overlay, overlayIdx);
         });
+    }
+
+    /**
+     * Plain left-click on a rendered seed selects it, mirroring {@link sc.fiji.snt.BookmarkManager}'s
+     * click-to-select behavior: the click flows through {@link SeedOverlay#setSelectedSeeds} so the Seed Manager table
+     * selection and the classic 2D canvas highlight (see {@code SeedOverlayRenderer}) stay in sync; {@link #syncOnEdt}
+     * then reflects the new selection as the viewer's highlighted annotation. Misses (no seed under the click) are
+     * ignored, exactly like {@code BookmarkManager}, so plain clicks used to pan/rotate/recenter the viewer are not
+     * hijacked into clearing the selection.
+     * <p>
+     * Unlike {@code BookmarkManager}, this also requires {@link AbstractBigViewer#isTracingEnabled()}
+     * to be {@code false}, see its {@link #onAltClick}'s identical rationale.
+     * </p>
+     */
+    private void onPlainClick(final MouseEvent e) {
+        final AbstractBigViewer.AnnotationOverlay annotations = viewer.annotations();
+        if (annotations == null) {
+            return;
+        }
+        // Mirrors onAltClick()'s gate: a plain click also drives AbstractTracer#handleClick in
+        // mouseReleased (which always runs before this mouseClicked-based listener), so selecting a
+        // seed here could otherwise coincide with starting/extending/forking a path on the same click.
+        if (viewer.isTracingEnabled())
+            return;
+        // Owner-scoped: see onAltClick()'s identical rationale
+        final int idx = annotations.hitTest(SeedOverlayBigViewerHandler.class, e.getX(), e.getY());
+        if (idx < 0 || idx >= pushed.size()) return;
+        e.consume();
+        overlay.setSelectedSeeds(List.of(pushed.get(idx)));
     }
 
     /**
@@ -147,6 +225,7 @@ public final class SeedOverlayBigViewerHandler {
         if (source.isEmpty() || !source.isVisible() || source.getTransparency() <= 0) {
             pushed = List.of();
             annotations.clear(SeedOverlayBigViewerHandler.class);
+            clearHighlightIfOwned(annotations);
             return;
         }
         List<SeedPoint> seeds = source.filtered();
@@ -176,6 +255,33 @@ public final class SeedOverlayBigViewerHandler {
                     transparency, seedIndexMap, categoryOrdinals));
         }
         annotations.replaceAll(SeedOverlayBigViewerHandler.class, points, sizes, colors);
+        syncHighlight(annotations, source);
+    }
+
+    /**
+     * Reflects {@code source}'s current selection onto the viewer's shared highlight slot
+     * ({@code AnnotationOverlay#setSelectedIndex}), but only when this handler's own selection has actually changed
+     * since the last call
+     * @see #lastHighlighted
+     */
+    private void syncHighlight(final AbstractBigViewer.AnnotationOverlay annotations, final SeedOverlay source) {
+        final Set<SeedPoint> selected = new java.util.LinkedHashSet<>(source.getSelectedSeeds());
+        selected.retainAll(pushed);
+        if (selected.equals(lastHighlighted)) return;
+        lastHighlighted = selected;
+        int idx = -1;
+        if (!selected.isEmpty()) {
+            for (int i = 0; i < pushed.size(); i++) {
+                if (selected.contains(pushed.get(i))) { idx = i; break; }
+            }
+        }
+        annotations.setSelectedIndex(SeedOverlayBigViewerHandler.class, idx);
+    }
+
+    private void clearHighlightIfOwned(final AbstractBigViewer.AnnotationOverlay annotations) {
+        if (lastHighlighted.isEmpty()) return;
+        lastHighlighted = Set.of();
+        annotations.setSelectedIndex(SeedOverlayBigViewerHandler.class, -1);
     }
 
     private static Map<SeedPoint, Integer> indexMap(final List<SeedPoint> all) {

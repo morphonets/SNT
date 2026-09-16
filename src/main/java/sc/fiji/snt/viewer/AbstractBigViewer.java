@@ -26,16 +26,13 @@ import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.util.Prefs;
 import bdv.viewer.SourceAndConverter;
-import com.formdev.flatlaf.FlatClientProperties;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
-import org.scijava.command.CommandService;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
-import sc.fiji.snt.gui.cmds.BdvRenderingOptionsCmd;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
@@ -86,6 +83,17 @@ public abstract class AbstractBigViewer {
 
     /** @return SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     public SNT getSNT() { return snt; }
+
+    /**
+     * @return whether this viewer's own Start/Stop Tracing toggle is on, i.e. whether
+     *         {@link AbstractTracer#handleClick(MouseEvent)} will act on the next click (start/extend/fork
+     *         a path) rather than ignoring it outright. Exposed so other click-consuming features sharing
+     *         this viewer's display component (e.g. {@code SeedOverlayBigViewerHandler}'s Alt+Click, which
+     *         collides with Alt+Click-to-fork below) can back off while tracing-by-click is live, since
+     *         {@code AbstractTracer} reacts in {@code mouseReleased} - always dispatched before
+     *         {@code mouseClicked} - so a later listener's {@code MouseEvent#consume()} cannot undo it.
+     */
+    public boolean isTracingEnabled() { return tracingEnabled; }
 
     // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
     // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a
@@ -852,13 +860,11 @@ public abstract class AbstractBigViewer {
     }
 
     /**
-     * Returns a snapshot of the currently rendered trees (insertion order). Deliberately an
-     * independent copy, not a live view over {@link #renderedTrees} - see {@link #renderedTreesLock}'s
-     * javadoc: a live view (the previous behavior) is vulnerable to a {@link
-     * java.util.ConcurrentModificationException} if another thread mutates {@link #renderedTrees}
-     * while this collection is being iterated, which for a caller like {@code
-     * Bvv.OverlayRenderer#updatePaths(Collection)} (iterating well after this method returns) is a
-     * real, previously-observed race during active interactive tracing.
+     * Returns a snapshot of the currently rendered trees (insertion order). Deliberately an independent copy, not a
+     * live view over {@link #renderedTrees} - see {@link #renderedTreesLock}': a live view (the previous behavior) is
+     * vulnerable to a {@link java.util.ConcurrentModificationException} if another thread mutates {@link #renderedTrees}
+     * while this collection is being iterated, which for a caller like {@code Bvv.OverlayRenderer#updatePaths(Collection)}
+     * (iterating well after this method returns) is a real, previously-observed race during active interactive tracing.
      *
      * @return collection of rendered trees (insertion order)
      */
@@ -1325,7 +1331,7 @@ public abstract class AbstractBigViewer {
         }
 
         Action toggleVisibilityAction(final JComponent... componentsToDisableWhenHidden) {
-            return new AbstractAction("Show/hide All Annotations") {
+            return new AbstractAction("Show/Hide All Annotations") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final boolean hasContent = !getRenderedTrees().isEmpty()
@@ -1336,6 +1342,9 @@ public abstract class AbstractBigViewer {
                         showViewerMessage("No annotations exist");
                         return;
                     }
+                    // btn's selected state IS the hide flag: EYE/EYE_SLASH swap is handled by the
+                    // default/selected icon pair assigned by the caller (see IconFactory#assignDoubleIcon),
+                    // so this listener only needs to drive the underlying model
                     final boolean hide = (btn != null) ? btn.isSelected() : isPathRenderingEnabled();
                     setPathRenderingEnabled(!hide);
                     if (annotations() != null) annotations().setVisible(!hide);
@@ -1345,6 +1354,105 @@ public abstract class AbstractBigViewer {
                     showViewerMessage(hide ? "Annotations hidden" : "Annotations visible");
                 }
             };
+        }
+
+        /**
+         * Builds the "Options" dropdown for the annotations/paths toolbar group: lets paths, seed
+         * annotations and marker annotations be hidden independently of one another and of the combined
+         * {@link #toggleVisibilityAction} eye button. Each item's checkbox/icon is resynced from the live
+         * model right before the popup opens, since any of these layers can also change visibility from
+         * elsewhere.
+         */
+        GuiUtils.Buttons.OptionsButton visibilityOptionsButton(final JCheckBoxMenuItem allAnnotationsMenuItem) {
+            // Selected == hidden for every item here, matching allAnnotationsMenuItem's own convention
+            // (see #toggleVisibilityAction), so the EYE/EYE_SLASH pair assigned below always lines up
+            // with what the checkbox means, and the label spells out the action a click will take
+            final JCheckBoxMenuItem pathsItem = new JCheckBoxMenuItem("Hide Paths");
+            IconFactory.assignDoubleIcon(pathsItem, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, IconFactory.GLYPH.ROUTE);
+            pathsItem.addItemListener(e -> {
+                if (getRenderedTrees().isEmpty()) {
+                    pathsItem.setSelected(false);
+                    showViewerMessage("No paths exist");
+                } else {
+                    setPathRenderingEnabled(!pathsItem.isSelected());
+                }
+                pathsItem.setText(pathsItem.isSelected() ? "Show Paths" : "Hide Paths");
+            });
+            final JCheckBoxMenuItem seedsItem = new JCheckBoxMenuItem("Hide Seeds");
+            IconFactory.assignDoubleIcon(seedsItem, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, IconFactory.GLYPH.SEEDLING);
+            seedsItem.addItemListener(e -> {
+                if (snt != null && !snt.getSeedOverlay().isEmpty()) {
+                    snt.getSeedOverlay().setVisible(!seedsItem.isSelected());
+                } else {
+                    seedsItem.setSelected(false);
+                    showViewerMessage("Seed overlay not available");
+                }
+                seedsItem.setText(seedsItem.isSelected() ? "Show Seeds" : "Hide Seeds");
+            });
+            final JCheckBoxMenuItem markersItem = new JCheckBoxMenuItem("Hide Markers");
+            IconFactory.assignDoubleIcon(markersItem, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, IconFactory.GLYPH.MARKER);
+            markersItem.addItemListener(e -> {
+                if (hasMarkerManager()) {
+                    getMarkerManager().setVisible(!markersItem.isSelected());
+                } else {
+                    markersItem.setSelected(false);
+                    showViewerMessage("Bookmark Manager not available");
+                }
+                markersItem.setText(markersItem.isSelected() ? "Show Markers" : "Hide Markers");
+            });
+
+            final JPopupMenu menu = new JPopupMenu();
+            menu.add(allAnnotationsMenuItem);
+            GuiUtils.addSeparator(menu, "Show/Hide Independently:");
+            menu.add(pathsItem);
+            menu.add(seedsItem);
+            menu.add(markersItem);
+
+            final GuiUtils.Buttons.OptionsButton optionsButton =
+                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EYE, 1f, menu);
+
+            // EYE and EYE_SLASH rarely share the same font-metrics width, so swapping the button's icon
+            // between them (below) would otherwise nudge the whole toolbar by a pixel or two on every
+            // toggle; pad both to whichever is wider so the button's footprint never changes
+            final Icon eyeIcon = IconFactory.dropdownMenuIcon(IconFactory.GLYPH.EYE, 1f, IconFactory.defaultColor());
+            final Icon eyeSlashIcon = IconFactory.dropdownMenuIcon(IconFactory.GLYPH.EYE_SLASH, 1f, IconFactory.defaultColor());
+            final int eyeIconRefWidth = Math.max(eyeIcon.getIconWidth(), eyeSlashIcon.getIconWidth());
+            final Icon fixedEyeIcon = IconFactory.fixedWidthIcon(eyeIcon, eyeIconRefWidth);
+            final Icon fixedEyeSlashIcon = IconFactory.fixedWidthIcon(eyeSlashIcon, eyeIconRefWidth);
+
+            // Single source of truth for this popup's state, called both eagerly (whenever
+            // allAnnotationsMenuItem's own selection changes, e.g. from the toolbar) and defensively
+            // right before the popup opens, so the items are never left stale (holding 'H' is the one
+            // exception: that transient hide bypasses these checkboxes entirely by design)
+            final Runnable resyncMenu = () -> {
+                final boolean hideAll = allAnnotationsMenuItem.isSelected();
+                optionsButton.setIcon(hideAll ? fixedEyeSlashIcon : fixedEyeIcon);
+
+                final boolean pathsExist = !getRenderedTrees().isEmpty();
+                pathsItem.setSelected(pathsExist && !isPathRenderingEnabled());
+                pathsItem.setEnabled(pathsExist && !hideAll);
+
+                final boolean seedsExist = snt != null && !snt.getSeedOverlay().isEmpty();
+                seedsItem.setSelected(seedsExist && !snt.getSeedOverlay().isVisible());
+                seedsItem.setEnabled(seedsExist && !hideAll);
+
+                final boolean markersExist = hasMarkerManager() && getMarkerManager().getCount() > 0;
+                markersItem.setSelected(markersExist && !getMarkerManager().isVisible());
+                markersItem.setEnabled(markersExist && !hideAll);
+            };
+            allAnnotationsMenuItem.addItemListener(e -> resyncMenu.run());
+            menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+                @Override
+                public void popupMenuWillBecomeVisible(final javax.swing.event.PopupMenuEvent e) {
+                    resyncMenu.run();
+                }
+                @Override
+                public void popupMenuWillBecomeInvisible(final javax.swing.event.PopupMenuEvent e) {}
+                @Override
+                public void popupMenuCanceled(final javax.swing.event.PopupMenuEvent e) {}
+            });
+            resyncMenu.run();
+            return optionsButton;
         }
 
         Action togglePersistentAnnotationsAction() {
@@ -1932,6 +2040,19 @@ public abstract class AbstractBigViewer {
         // the in-flight segment lands, instead of silently dropping the finish request.
         private volatile boolean pendingFinish;
         private boolean manualTrace; // true: purely manual trace; false: A* search
+
+        // The viewer's own "No tracing" / manual / interactive toolbar buttons (see
+        // #installTracingModeButtons), kept here so #setLockedByPause can drive their selected/enabled
+        // state directly, regardless of whether a change originates from a click or from a global
+        // SNT_PAUSED/TRACING_PAUSED transition (see SNT#pause/SNT#pauseTracing).
+        private JToggleButton noTracingButton, manualTracingButton, interactiveTracingButton;
+
+        // Whether a global SNT_PAUSED/TRACING_PAUSED state is currently forcing "No tracing" here (see
+        // #setLockedByPause). While true, manualTracingButton/interactiveTracingButton are disabled
+        // outright - not just deselected - so the toolbar can't show tracing as active while every click
+        // is actually a no-op (see #handleClick's own busy/paused early-return, which bails on the same
+        // two states).
+        private boolean lockedByPause;
         // The Future for the A* search currently active (if any), so a Cancel button (if the viewer has
         // one; see Bvv#tracingStatusRow()) can stop it. Null when idle, or during manual tracing
         private volatile Future<?> currentSearchFuture;
@@ -1981,6 +2102,18 @@ public abstract class AbstractBigViewer {
         private void handleClick(final MouseEvent e) {
             if (!tracingEnabled) {
                 return;
+            }
+            // tracingEnabled only reflects whether *this* viewer's own Start/Stop tracing toggle is on -
+            // it knows nothing about SNT's global pause/busy state (Pause Tracing, Pause SNT, an I/O
+            // op in flight, etc.), so without this check a paused/busy SNTUI was silently ignored and
+            // clicks kept advancing the path underneath the "Tracing Paused"/"SNT Paused" canvas label.
+            // Mirrors the busy/paused cases of InteractiveTracerCanvas#handleCanvasClick's switch.
+            if (snt != null && snt.getUI() != null) {
+                final int state = snt.getUI().getState();
+                if (state == SNTUI.LOADING || state == SNTUI.SAVING
+                        || state == SNTUI.TRACING_PAUSED || state == SNTUI.SNT_PAUSED) {
+                    return;
+                }
             }
 
             // AWT's click count keeps incrementing for any click that lands within the platform's multi-click
@@ -2529,13 +2662,21 @@ public abstract class AbstractBigViewer {
             clearPathOverlayPreview(); // get rid of temp path
         }
 
+        /**
+         * @return the action for the manual/interactive tracing-mode buttons ("No tracing" has its own
+         *         {@link #getDisableTracingAction()}). With the three buttons now in a real, mutually-
+         *         exclusive {@link ButtonGroup} (see {@link #installTracingModeButtons}), this action only
+         *         ever fires when {@code manualTraceFlag}'s button is newly selected - a radio button that
+         *         is already selected does not re-fire on click - so unlike the old none-selected-allowed
+         *         group, there is no "turn off" branch to handle here any more.
+         */
         protected AbstractAction getToggleAction(final boolean manualTraceFlag) {
             return new AbstractAction("Start/Stop tracing") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
 
                     final AbstractButton button = (e.getSource() instanceof AbstractButton) ? (AbstractButton) e.getSource() : null;
-                    tracingEnabled = (button == null) ? tracingEnabled : button.isSelected();
+                    tracingEnabled = true;
                     AbstractTracer.this.manualTrace = manualTraceFlag;
 
                     onManualTraceModeChanged(manualTraceFlag);
@@ -2544,25 +2685,43 @@ public abstract class AbstractBigViewer {
                     final boolean tracingPossible = manualTraceFlag || (sntAware && snt.accessToValidImageData());
                     final String tracingDescription = (manualTraceFlag) ? "Manual tracing" : "Semi-automated tracing";
 
-                    if (!tracingPossible && tracingEnabled) {
+                    if (!tracingPossible) {
                         new GuiUtils(getViewerFrame()).error(tracingDescription + " is not available.");
                         tracingEnabled = false;
                         AbstractTracer.this.manualTrace = true;
-                        if (button != null) {
-                            button.setSelected(false);
-                            button.setEnabled(false);
-                        }
-                    } else if (tracingEnabled) {
-                        showViewerMessage(tracingDescription + " enabled");
+                        if (button != null) button.setEnabled(false);
+                        if (noTracingButton != null) noTracingButton.setSelected(true);
                     } else {
-                        final boolean exited = exitedWithConfirmationPrompt();
-                        if (!exited && button != null) button.setSelected(true);
+                        showViewerMessage(tracingDescription + " enabled");
                     }
                 }
             };
         }
 
-        private boolean exitedWithConfirmationPrompt() {
+        /** @return the action for the "No tracing" button; see {@link #disableTracing()}. */
+        protected AbstractAction getDisableTracingAction() {
+            return new AbstractAction("No tracing") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (snt != null && !snt.isTracingActive()) {
+                        new GuiUtils(getViewerFrame()).error(
+                                "<HTML>SNT is currently paused.<br>" +
+                                        "Use the <i>Quick Toggles</i> drop-down menu to resume tracing functions.");
+                    }
+                    disableTracing();
+                }
+            };
+        }
+
+        /**
+         * Turns tracing-by-click off: prompts to finish/discard an unfinished path (if any), then runs
+         * {@link #exit()}'s bookkeeping. No-op if tracing is already off. Shared by
+         * {@link #getDisableTracingAction} and {@link #setLockedByPause}, so a global pause disables
+         * tracing exactly the same way clicking "No tracing" would.
+         */
+        private void disableTracing() {
+            if (!tracingEnabled) return;
+            tracingEnabled = false;
             final boolean promptUser = tempPath != null && tempPath.size() > 0;
             if (promptUser) {
                 final int ans = new GuiUtils(getViewerFrame())
@@ -2576,7 +2735,53 @@ public abstract class AbstractBigViewer {
             }
             exit();
             showViewerMessage("Tracing disabled");
-            return true;
+        }
+
+        /**
+         * Wires the three mutually-exclusive tracing-mode buttons built by the viewer's own toolbar code
+         * (e.g. {@code Bvv#sntToolbar}/{@code Bdv#sntAnnotationsCard}) into this tracer, so
+         * {@link #setLockedByPause} can drive their selected/enabled state directly. Call once, right
+         * after adding the buttons to their {@link ButtonGroup}.
+         *
+         * @param noTracing   the "No tracing" button; selected whenever {@code tracingEnabled} is false
+         * @param manual      the manual-tracing button (see {@link #getToggleAction(boolean)} with {@code true})
+         * @param interactive the interactive/auto-tracing button (see {@link #getToggleAction(boolean)} with {@code false})
+         */
+        protected void installTracingModeButtons(final JToggleButton noTracing, final JToggleButton manual,
+                                                   final JToggleButton interactive) {
+            this.noTracingButton = noTracing;
+            this.manualTracingButton = manual;
+            this.interactiveTracingButton = interactive;
+        }
+
+        /**
+         * Locks/unlocks this viewer's tracing-mode buttons to "No tracing", in response to a global
+         * SNT_PAUSED/TRACING_PAUSED transition (see {@code SNT#pause(boolean, boolean)}/
+         * {@code SNT#pauseTracing(boolean, boolean)}) - the Bvv/Bdv counterpart of
+         * {@code SNT#setCanvasLabelAllPanes}'s "Tracing Paused"/"SNT Paused" canvas label for the classic
+         * canvas. While locked: tracing is turned off exactly as {@link #getDisableTracingAction} would
+         * (prompting to finish/discard an unfinished path first), and the manual/interactive buttons are
+         * disabled outright - not just deselected - so the user can't click straight back into a state the
+         * toolbar would then be lying about (every click is a no-op while paused; see #handleClick's own
+         * busy/paused early-return, which bails on these same two states). Unlocking re-enables the
+         * buttons but leaves "No tracing" selected by design: whichever mode was active before the pause
+         * is <b>not</b> auto-restored - the user re-picks it explicitly.
+         *
+         * @param locked whether a global pause is currently in effect
+         */
+        protected void setLockedByPause(final boolean locked) {
+            if (locked == lockedByPause) return;
+            lockedByPause = locked;
+            if (locked) {
+                disableTracing(); // no-op if already off; otherwise same prompt+exit as the button itself
+                if (noTracingButton != null) noTracingButton.setSelected(true);
+                if (manualTracingButton != null) manualTracingButton.setEnabled(false);
+                if (interactiveTracingButton != null) interactiveTracingButton.setEnabled(false);
+            } else {
+                if (manualTracingButton != null) manualTracingButton.setEnabled(true);
+                if (interactiveTracingButton != null) interactiveTracingButton.setEnabled(true);
+                // "No tracing" stays selected here: no auto-restore of the pre-pause mode
+            }
         }
 
     }

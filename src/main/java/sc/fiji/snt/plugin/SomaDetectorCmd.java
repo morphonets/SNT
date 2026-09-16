@@ -401,9 +401,15 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             final double[] densities = new double[results.size()];
             for (int i = 0; i < results.size(); i++) densities[i] = results.get(i).integratedDensity();
             final double[] confidences = SeedConfidence.percentileClipNormalize(densities, percentileClip);
+            // addAll() fires SeedOverlay's listeners once, not once per soma: add() in a loop
+            // let this background command thread keep mutating overlay's seed list while
+            // SeedManager's EDT-deferred refresh iterated it, occasionally throwing a
+            // ConcurrentModificationException (see PeripathDetectorCmd's identical fix)
+            final List<SeedPoint> newSeeds = new ArrayList<>(results.size());
             for (int i = 0; i < results.size(); i++) {
-                overlay.add(toSeedPoint(results.get(i), spacing, confidences[i]));
+                newSeeds.add(toSeedPoint(results.get(i), spacing, confidences[i]));
             }
+            overlay.addAll(newSeeds);
             if (ui != null) ui.selectTab("Seeds");
             status(results.size() + " soma(s) added as seeds", true);
         } else if (imp != null) {

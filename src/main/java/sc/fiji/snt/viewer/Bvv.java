@@ -1770,15 +1770,24 @@ public class Bvv extends AbstractBigViewer {
     private JComponent sntToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
         final float SCALING_FACTOR = 1.1f;
-        // group 1: tracing controls (auto/manual)
+        // group 1: tracing controls (none/auto/manual). A real ButtonGroup (rather than the old
+        // none-selected-allowed hack): b0 ("No tracing") is the explicit off-state, always selected
+        // whenever tracingEnabled is false, including when AbstractTracer#setLockedByPause forces it
+        // during a global SNT_PAUSED/TRACING_PAUSED pause - see that method's javadoc.
         if (tracer != null) {
-            final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
+            final ButtonGroup bg1 = new ButtonGroup();
+            final JToggleButton b0 = scaledToggleButton(tracer.getDisableTracingAction(),
+                    IconFactory.GLYPH.HAND, "No tracing");
             final JToggleButton b1 = scaledToggleButton(tracer.getToggleAction(true),
-                    IconFactory.GLYPH.PEN, "Start/stop manual tracing");
+                    IconFactory.GLYPH.PEN, "Start manual tracing");
             final JToggleButton b2 = scaledToggleButton(tracer.getToggleAction(false),
-                    IconFactory.GLYPH.ROUTE, "Start/stop interactive tracing");
+                    IconFactory.GLYPH.ROUTE, "Start interactive tracing");
+            bg1.add(b0);
             bg1.add(b1);
             bg1.add(b2);
+            b0.setSelected(true); // matches tracingEnabled's initial false
+            tracer.installTracingModeButtons(b0, b1, b2);
+            toolbar.add(b0);
             toolbar.add(b1);
             toolbar.add(b2);
 
@@ -1793,6 +1802,8 @@ public class Bvv extends AbstractBigViewer {
                 mi.addItemListener(e -> renderingOptions.strategy = strategy);
                 popupMenu.add(mi);
             }
+            toolbar.addSeparator();
+            toolbar.add(Box.createHorizontalGlue());
             toolbar.addSeparator();
             final GuiUtils.Buttons.OptionsButton optionsButton =
                     GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LOCATION_CROSSHAIR, SCALING_FACTOR, popupMenu);
@@ -1812,14 +1823,12 @@ public class Bvv extends AbstractBigViewer {
         final JToggleButton offsetActivate = scaledToggleButton(actions.setCanvasOffsetAction(),
                 IconFactory.GLYPH.MOVE, "Translate annotations from original signal");
         offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.Colors.disabledComponentColor(), 1f));
-        final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(
-                        toggleAroundCursor, offsetActivate),
-                "<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.",
-                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
-        // rescale assigned icons to SCALING_FACTOR
-        IconFactory.assignIcon(toggleVisibility, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, SCALING_FACTOR);
 
-        toolbar.add(toggleVisibility);
+        final JCheckBoxMenuItem toggleVisibility = new JCheckBoxMenuItem(actions.toggleVisibilityAction(toggleAroundCursor, offsetActivate));
+        toggleVisibility.setToolTipText("<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.");
+        toggleVisibility.setToolTipText("Show/Hide All Annotations");
+        IconFactory.assignDoubleIcon(toggleVisibility, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, IconFactory.GLYPH.CHECK_DOUBLE);
+        toolbar.add(actions.visibilityOptionsButton(toggleVisibility));
         toolbar.add(toggleAroundCursor);
         toolbar.add(offsetActivate);
 
@@ -2041,9 +2050,8 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Resets the viewer to a fit-to-viewport transform, centering the loaded
-     * volume in the canvas. Equivalent to the Reset button in Camera Controls.
-     * No-op if no volume has been loaded.
+     * Resets the viewer to a fit-to-viewport transform, centering the loaded volume in the canvas. Equivalent to the
+     * Reset button in Camera Controls. Does nothing if no volume has been loaded.
      */
     @Override
     public void resetView() {
@@ -2360,6 +2368,17 @@ public class Bvv extends AbstractBigViewer {
     @Override
     public void showViewerMessage(final String msg) {
         if (currentBvv != null) currentBvv.getViewer().showMessage(msg);
+    }
+
+    /**
+     * Locks/unlocks this viewer's tracing-mode toolbar buttons to "No tracing" as per
+     * {@code AbstractTracer#setLockedByPause}. Does nothing if this viewer has no tracer (e.g. a standalone
+     * viewer with no attached SNT instance, or the toolbar has not been built yet).
+     *
+     * @param locked whether a global SNT_PAUSED/TRACING_PAUSED pause is currently in effect
+     */
+    public void setTracingLockedByPause(final boolean locked) {
+        if (tracer != null) tracer.setLockedByPause(locked);
     }
 
     @Override
@@ -3888,10 +3907,10 @@ public class Bvv extends AbstractBigViewer {
         }
 
         /**
-         * Restricts {@code trees} to the single tree isolated via {@link SNT#setIsolatedTreeID(int)}
-         * (e.g. {@code PathManagerUI}'s "Hide others" toolbar button), if any; a no-op passthrough
-         * otherwise. Shared by both {@code updatePaths()} overloads above, and - since {@code Bdv}
-         * reuses this same {@code PathOverlay} class (see its class javadoc) - covers both viewers.
+         * Restricts {@code trees} to the single tree isolated via {@link SNT#setIsolatedTreeID(int)} (e.g.
+         * {@code PathManagerUI}'s "Hide others" toolbar button), if any; a no-op passthrough otherwise. Shared by both
+         * {@code updatePaths()} overloads above, and since {@code Bdv} reuses this same {@code PathOverlay} class, it
+         * covers both viewers.
          */
         private Collection<Tree> filterIsolated(final Collection<Tree> trees) {
             final SNT snt = sntViewer.getSNT();

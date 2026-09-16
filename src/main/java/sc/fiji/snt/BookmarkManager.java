@@ -73,6 +73,8 @@ public class BookmarkManager {
     private final GuiUtils guiUtils;
     private final BookmarkModel model;
     private final BookmarkTable table;
+    /** Whether markers are currently shown in the big-viewer's shared AnnotationOverlay; see {@link #isVisible()} */
+    private boolean visible = true;
     /** Preferred zoom level applied when double-clicking a bookmark to visit it. */
     private final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
     private JDialog viewerFrame; // floating dialog for viewer mode (non-modal, owned by viewer frame)
@@ -174,6 +176,11 @@ public class BookmarkManager {
     /** In viewer mode: pushes all markers to the annotation overlay. */
     private void syncViewerOverlay() {
         if (viewer == null || viewer.annotations() == null) return;
+        if (!visible) {
+            // Owner-scoped: clears only this manager's layer, leaving paths/seed annotations untouched
+            viewer.annotations().clear(BookmarkManager.class);
+            return;
+        }
         final List<SNTPoint> points = new ArrayList<>();
         final List<Float> sizes = new ArrayList<>();
         final List<Color> colors = new ArrayList<>();
@@ -188,6 +195,30 @@ public class BookmarkManager {
             colors.add(c);
         }
         viewer.annotations().replaceAll(BookmarkManager.class, points, sizes, colors);
+    }
+
+    /**
+     * Returns whether this manager's markers are currently rendered in the big-viewer's shared
+     * {@link AbstractBigViewer.AnnotationOverlay}, independently of the paths and seed-annotation layers.
+     *
+     * @return true if markers are shown, false if hidden
+     */
+    public boolean isVisible() {
+        return visible;
+    }
+
+    /**
+     * Shows or hides this manager's markers in the big-viewer overlay without touching the model itself
+     * (bookmarks are neither added nor removed), leaving every other owner's layer (paths, seed
+     * annotations) untouched. Mirrors {@link sc.fiji.snt.seed.SeedOverlay#isVisible()}'s role for
+     * {@link sc.fiji.snt.seed.SeedOverlayBigViewerHandler}.
+     *
+     * @param visible true to show, false to hide
+     */
+    public void setVisible(final boolean visible) {
+        if (this.visible == visible) return;
+        this.visible = visible;
+        syncViewerOverlay();
     }
 
     /** Returns the floating dialog for viewer mode, creating it on first call. */

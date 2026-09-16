@@ -508,6 +508,17 @@ public class Bdv extends AbstractBigViewer {
         if (viewerPanel != null) viewerPanel.showMessage(msg);
     }
 
+    /**
+     * Locks/unlocks this viewer's tracing-mode toolbar buttons to "No tracing" - see
+     * {@code AbstractTracer#setLockedByPause}. No-op if this viewer has no tracer (e.g. a standalone
+     * viewer with no attached SNT instance, or the toolbar has not been built yet).
+     *
+     * @param locked whether a global SNT_PAUSED/TRACING_PAUSED pause is currently in effect
+     */
+    public void setTracingLockedByPause(final boolean locked) {
+        if (tracer != null) tracer.setLockedByPause(locked);
+    }
+
     @Override
     public void getGlobalMouseCoordinates(final RealPoint pos) {
         if (viewerPanel != null) viewerPanel.getGlobalMouseCoordinates(pos);
@@ -929,16 +940,22 @@ public class Bdv extends AbstractBigViewer {
         final JToolBar bar = createToolbar(); // shared with Bvv's own SNT Annotations toolbar
         bar.setFloatable(false);
 
-        // group 1: tracing controls (auto/manual). Unlike Bvv, there is no "Center on Click" strategy
-        // to expose here: (see Tracer#resolveClickWorldPosition), so there is nothing to recenter
+        // group 1: tracing controls (none/auto/manual). Unlike Bvv, there is no "Center on Click" strategy to expose
+        // here (see Tracer#resolveClickWorldPosition), so there is nothing to recenter
         if (tracer != null) {
-            final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
+            final ButtonGroup bg1 = new ButtonGroup();
+            final JToggleButton b0 = GuiUtils.Buttons.toolbarToggleButton(tracer.getDisableTracingAction(),
+                    "No tracing", IconFactory.GLYPH.HAND, IconFactory.GLYPH.HAND);
             final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
-                    "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
+                    "Start manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
             final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
-                    "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
+                    "Start interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
+            bg1.add(b0);
             bg1.add(b1);
             bg1.add(b2);
+            b0.setSelected(true); // matches tracingEnabled's initial false
+            tracer.installTracingModeButtons(b0, b1, b2);
+            bar.add(b0);
             bar.add(b1);
             bar.add(b2);
             bar.addSeparator();
@@ -954,10 +971,12 @@ public class Bdv extends AbstractBigViewer {
                 "Change annotations offset",
                 IconFactory.GLYPH.MOVE, IconFactory.GLYPH.MOVE);
         offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.Colors.disabledComponentColor(), 1f));
-        final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(toggleAroundCursor, offsetActivate),
-                "Show/hide annotations",
-                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
-        bar.add(toggleVisibility);
+
+        final JCheckBoxMenuItem toggleVisibility = new JCheckBoxMenuItem(actions.toggleVisibilityAction(toggleAroundCursor, offsetActivate));
+        toggleVisibility.setToolTipText("<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.");
+        toggleVisibility.setToolTipText("Show/Hide All Annotations");
+        IconFactory.assignDoubleIcon(toggleVisibility, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, IconFactory.GLYPH.CHECK_DOUBLE);
+        bar.add(actions.visibilityOptionsButton(toggleVisibility));
         bar.add(toggleAroundCursor);
         bar.add(offsetActivate);
 
@@ -1084,7 +1103,6 @@ public class Bdv extends AbstractBigViewer {
         @Override
         protected void disposeTracingOverlay() {
             // no-op: the shared annotationOverlay is owned/disposed by Bdv itself (see #initializeOverlays()),
-            // not by this stub Tracer
         }
 
         /** Mirrors Bvv's counterpart, adapted to BDV's own {@link ViewerPanel}. */
