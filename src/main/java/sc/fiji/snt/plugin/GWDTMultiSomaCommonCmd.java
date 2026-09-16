@@ -59,9 +59,9 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
 
     @Parameter(label = "Min. inter-soma distance", min = "0", style = "format:#.00",
             description = "<HTML>Minimum distance between soma centers in <b>spatially calibrated</b> units.<br>" +
-                    "When &gt; 0, non-maximum suppression removes detections<br>" +
-                    "that are too close together, keeping only the strongest.<br>" +
-                    "0 = no distance-based filtering (default)")
+                    "Non-maximum suppression removes detections that are<br>" +
+                    "too close together, keeping only the strongest.<br>" +
+                    "0 = auto (2x Min. soma radius, when set) otherwise no filtering")
     private double minSomaDistance = 0;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)

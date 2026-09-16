@@ -158,7 +158,7 @@ public final class SeedPoint implements SNTPoint {
      * {@code sqrt}; pass the result to {@link Math#sqrt(double)} when an
      * actual distance is needed.
      */
-    public double distanceSqTo(final SeedPoint other) {
+    public double distanceSquaredTo(final SeedPoint other) {
         final double dx = x - other.x;
         final double dy = y - other.y;
         final double dz = z - other.z;

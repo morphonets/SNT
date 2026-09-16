@@ -454,7 +454,12 @@ public class BookmarkManager {
                 () -> recordCmd("clearSelection()"))); // recordCmd only records clear, not select all
         pMenu.addSeparator();
 
-        JMenuItem mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
+        JMenuItem mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
+        mi.addActionListener(e -> mergeBookmarks());
+        pMenu.add(mi);
+
+        mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final int[] rows = table.getSelectedRows();
@@ -528,11 +533,6 @@ public class BookmarkManager {
             mi.addActionListener(e -> colocalizeBookmarks());
             pMenu.add(mi);
         }
-
-        mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
-        mi.addActionListener(e -> mergeBookmarks());
-        pMenu.add(mi);
         mi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
         mi.addActionListener(e -> showNNDistribution());
         pMenu.add(mi);

@@ -510,6 +510,10 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Edit selected seed(s)");
         jmi.addActionListener(e -> editSelected());
         menu.add(jmi);
+        jmi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        jmi.setToolTipText("Merges nearby seeds, replacing them with centroids");
+        jmi.addActionListener(e -> mergeSeeds());
+        menu.add(jmi);
         menu.add(getScaleConfidenceMenu());
         menu.add(getScaleRadiusMenu());
         menu.addSeparator();
@@ -953,7 +957,6 @@ public class SeedManager extends JPanel {
         }
         viewer.showViewerMessage("Flying to seed");
     }
-
 
     // Bidirectional selection sync
     private void pushTableSelectionToOverlay() {
@@ -1444,9 +1447,7 @@ public class SeedManager extends JPanel {
 
     private void saveToROIs() {
         if (noSeedsError()) return;
-        Collection<SeedPoint> sel = overlay.getSelectedSeeds();
-        if (sel.isEmpty())
-            sel = overlay.list();
+        final List<SeedPoint> sel = getSelectedSeedsOrAllVisibleIfNoneSelected();
         final List<Roi> rois;
         try {
             rois = SeedRois.toRois(sel, snt.getImagePlus(), snt.getWorldOriginOffset());
@@ -1472,6 +1473,66 @@ public class SeedManager extends JPanel {
     private void loadFromLabelsImage() {
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(LoadSeedsFromLabelsImageCmd.class, true);
+    }
+
+    /** mirrors {@code BookmarkManager#mergeBookmarks()}) */
+    private void mergeSeeds() {
+        if (noSeedsError()) return;
+        final List<SeedPoint> candidates = getSelectedSeedsOrAllVisibleIfNoneSelected();
+        if (candidates.size() < 2) {
+            sntui.error("At least 2 seeds are required for merging.");
+            return;
+        }
+        final Double threshold = sntui.guiUtils.getDouble(
+                "<HTML>Max. distance between seeds to be merged (physical units):",
+                "Merge Locations", 5.0);
+        if (threshold == null || threshold <= 0) return;
+        final double thresholdSq = threshold * threshold;
+        final Map<Integer, List<SeedPoint>> byChannel = new LinkedHashMap<>();
+        for (final SeedPoint s : candidates)
+            byChannel.computeIfAbsent(s.channel, k -> new ArrayList<>()).add(s);
+        final Set<SeedPoint> allConsumed = new HashSet<>();
+        final List<SeedPoint> allMerged = new ArrayList<>();
+        for (final List<SeedPoint> chSeeds : byChannel.values()) {
+            if (chSeeds.size() < 2) continue;
+            final Set<SeedPoint> consumed = new HashSet<>();
+            for (final SeedPoint seed : chSeeds) {
+                if (consumed.contains(seed)) continue;
+                final List<SeedPoint> group = new ArrayList<>();
+                group.add(seed);
+                for (final SeedPoint other : chSeeds) {
+                    if (other == seed || consumed.contains(other) || other.frame != seed.frame) continue;
+                    if (seed.distanceSquaredTo(other) <= thresholdSq)
+                        group.add(other);
+                }
+                if (group.size() >= 2) {
+                    consumed.addAll(group);
+                    final double cx = group.stream().mapToDouble(s2 -> s2.x).average().orElse(seed.x);
+                    final double cy = group.stream().mapToDouble(s2 -> s2.y).average().orElse(seed.y);
+                    final double cz = group.stream().mapToDouble(s2 -> s2.z).average().orElse(seed.z);
+                    final double cc = group.stream().mapToDouble(s2 -> s2.confidence).average().orElse(seed.confidence);
+                    final double cr = group.stream().mapToDouble(s2 -> s2.radius).average().orElse(seed.radius);
+                    final SeedPoint merged = new SeedPoint(cx, cy, cz, cc, cr,
+                            seed.channel, seed.frame, seed.type, "merged");
+                    allMerged.add(merged);
+                    allConsumed.addAll(consumed);
+                }
+            }
+        }
+        if (allMerged.isEmpty()) {
+            sntui.error("No seeds could be merged within the specified distance.");
+            return;
+        }
+        final String suffix = (allMerged.size() == 1) ? " entry" : " entries";
+        if (!sntui.guiUtils.getConfirmation(
+                allConsumed.size() + " seeds will be replaced by " + allMerged.size()
+                        + " merged" + suffix + ". Proceed?", "Merge Seeds")) {
+            return;
+        }
+        overlay.removeAll(allConsumed);
+        overlay.addAll(allMerged);
+        sntui.showStatus(allMerged.size() + " merged seed(s) created", true);
+        recordComment("Seed Manager: merge(" + threshold + ")");
     }
 
     private void detectTufts() {
@@ -1669,7 +1730,7 @@ public class SeedManager extends JPanel {
 
     private void scaleSelectedConfidence(final boolean increase) {
         if (noSeedsError()) return;
-        final List<SeedPoint> targets = resolveTargetSeeds();
+        final List<SeedPoint> targets = getSelectedSeedsOrAllVisibleIfNoneSelected();
         if (targets.isEmpty()) {
             sntui.error("No seeds selected.");
             return;
@@ -1698,7 +1759,7 @@ public class SeedManager extends JPanel {
 
     private void scaleSelectedRadius(final boolean increase) {
         if (noSeedsError()) return;
-        final List<SeedPoint> targets = resolveTargetSeeds();
+        final List<SeedPoint> targets = getSelectedSeedsOrAllVisibleIfNoneSelected();
         if (targets.isEmpty()) {
             sntui.error("No seeds selected.");
             return;
@@ -1711,12 +1772,8 @@ public class SeedManager extends JPanel {
         overlay.scaleRadius(targets, factor);
     }
 
-    /**
-     * Resolves the seeds targeted by the table: the current selection, or -
-     * if nothing is selected - every row currently visible (mirrors the
-     * "no selection" branch of {@link #editSelected()}).
-     */
-    private List<SeedPoint> resolveTargetSeeds() {
+
+    private List<SeedPoint> getSelectedSeedsOrAllVisibleIfNoneSelected() {
         final Set<SeedPoint> sel = overlay.getSelectedSeeds();
         if (!sel.isEmpty()) return new ArrayList<>(sel);
         return visibleSeeds();

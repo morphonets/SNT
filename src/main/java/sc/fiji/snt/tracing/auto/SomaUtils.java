@@ -454,19 +454,18 @@ public class SomaUtils {
     /**
      * Detects all somas in a 2D image using EDT + local maxima + NMS.
      * <p>
-     * Pipeline: threshold → binary mask → EDT → local maxima (with minRadius
-     * filter) → non-maximum suppression (with minSomaDistance) → flood fill
-     * for each maximum → SomaResult.
+     * Pipeline: threshold → binary mask → EDT → local maxima (with minRadius filter) → non-maximum suppression
+     * (with minSomaDistance) → flood fill for each maximum → SomaResult.
      * </p>
      *
-     * @param source           input image (2D)
-     * @param threshold        intensity threshold. Use -1 for Otsu, NaN for mean.
-     * @param minRadius        minimum soma radius in voxels to include
-     * @param minSomaDistance   minimum distance (in voxels) between soma centers.
-     *                         If &gt; 0, non-maximum suppression is applied to
-     *                         eliminate clusters of spurious detections. Should
-     *                         reflect the minimum known distance between real
-     *                         somas in the image.
+     * @param source          input image (2D)
+     * @param threshold       intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param minRadius       minimum soma radius in voxels to include
+     * @param minSomaDistance minimum distance (in voxels) between soma centers. If &gt; 0, non-maximum suppression is
+     *                        applied to eliminate clusters of spurious detections. If &le; 0 and minRadius &gt; 0,
+     *                        defaults to 2 * minRadius (adjacent somas can't be closer than the sum of their radii),
+     *                        so callers don't need to set this to avoid duplicate hits from EDT ridge noise. Pass 0
+     *                        with a 0 minRadius for no distance filtering at all.
      * @return list of SomaResult, sorted by radius (largest first); empty list if none found
      */
     public static List<SomaResult> detectAllSomas(
@@ -483,9 +482,15 @@ public class SomaUtils {
 
         final long width = source.dimension(0);
         final long height = source.dimension(1);
+
+        // Default separation to 2x minRadius (touching-soma distance) so NMS runs by default instead of requiring a
+        // second, decoupled knob
+        final double effectiveMinSomaDistance = (minSomaDistance <= 0 && minRadius > 0)
+                ? 2 * minRadius : minSomaDistance;
+
         SNTUtils.log(String.format("detectAllSomas: %dx%d image, threshold=%s, minRadius=%.1f, minSomaDistance=%.1f",
                 width, height, (threshold < 0 ? "auto" : String.format("%.1f", threshold)),
-                minRadius, minSomaDistance));
+                minRadius, effectiveMinSomaDistance));
 
         // 1. Compute threshold
         SNTUtils.log("  Computing threshold...");
@@ -518,7 +523,7 @@ public class SomaUtils {
 
         // 4. Find local maxima in EDT with minimum value filter and NMS
         SNTUtils.log("  Finding EDT local maxima...");
-        final List<long[]> somaCenters = findEDTLocalMaxima(edt, minRadius, minSomaDistance);
+        final List<long[]> somaCenters = findEDTLocalMaxima(edt, minRadius, effectiveMinSomaDistance);
         SNTUtils.log("  Found " + somaCenters.size() + " local maxima");
 
         // 5. Build SomaResult for each local maximum (flood fill per soma)
