@@ -23,6 +23,8 @@
 package sc.fiji.snt.seed;
 
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.util.ColorMaps;
 
 import java.awt.Color;
@@ -48,7 +50,9 @@ import java.util.stream.Collectors;
  * <b>Lifecycle:</b> not persisted with the {@code .traces} file. Cleared
  * when the active image changes (see {@link sc.fiji.snt.SNT#initialize(ij.ImagePlus)}).
  * Users may import additional CSVs (with {@link sc.fiji.snt.gui.cmds.ImportSeedPointsCmd}
- * "Import Seed Points (CSV)…" or another command) at any time.
+ * "Import Seed Points (CSV)…" or another command) at any time. Headless/CLI callers
+ * that do not need unit conversion or import guardrails can instead read a CSV
+ * directly via {@link #loadCsv(File, boolean)}.
  * <p>
  * <b>Threading:</b> intended to be accessed from the Swing EDT (panel UI,
  * canvas paint). Bulk loaders should use {@link #addAll(Collection)} to
@@ -785,6 +789,171 @@ public class SeedOverlay {
                 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0;
         if (!needsQuoting) return s;
         return '"' + s.replace("\"", "\"\"") + '"';
+    }
+
+    /**
+     * Required CSV column names, in canonical order
+     */
+    private static final String[] REQUIRED_HEADERS = {"x", "y", "z", "confidence", "radius"};
+
+    /**
+     * Optional CSV columns read when present; defaults applied when absent
+     */
+    private static final String[] OPTIONAL_HEADERS = {"channel", "frame", "type", "source"};
+
+    /**
+     * Result of {@link #parseCsv(File)}: valid seeds plus a count of rows
+     * skipped due to parse errors (missing/non-finite coordinates, etc)
+     *
+     * @param seeds   parsed seeds, in file order
+     * @param skipped number of rows skipped due to parse errors
+     */
+    public record CsvImportResult(List<SeedPoint> seeds, int skipped) {
+    }
+
+    /**
+     * Thrown by {@link #parseCsv(File)} when the CSV header is missing a
+     * required column
+     */
+    public static final class CsvHeaderException extends Exception {
+        CsvHeaderException(final String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Parses a seed CSV with header {@code x,y,z,confidence,radius} (plus
+     * optional {@code channel,frame,type,source}), assuming coordinates are
+     * already in physical (image-calibrated) units. Callers needing voxel to
+     * physical conversion (e.g. {@code ImportSeedPointsCmd}) should convert
+     * the returned seeds themselves before calling {@link #addAll(Collection)}
+     * or {@link #replaceAll(Collection)}. Use {@link #loadCsv(File, boolean)}
+     * for the common case of physical-unit CSVs
+     *
+     * @param file the CSV file to read
+     * @return the parsed seeds and the number of skipped rows
+     * @throws IOException        if the file cannot be read
+     * @throws CsvHeaderException if a required column is missing
+     * @see #saveAs(File)
+     */
+    public static CsvImportResult parseCsv(final File file) throws IOException, CsvHeaderException {
+        Objects.requireNonNull(file, "file");
+        return parseCsv(file.getAbsolutePath());
+    }
+
+    /**
+     * String/URL counterpart of {@link #parseCsv(File)}, for script-friendly
+     * callers and remote CSVs. Local paths and remote URLs (e.g.
+     * {@code https://.../seeds.csv}) are both accepted; a remote URL is
+     * downloaded to a temporary local file first (see
+     * {@link sc.fiji.snt.SNTUtils#downloadToTempFile(String)})
+     *
+     * @param filePathOrURL local path or remote URL to a seed CSV
+     * @return the parsed seeds and the number of skipped rows
+     * @throws IOException        if the file/URL cannot be read
+     * @throws CsvHeaderException if a required column is missing
+     */
+    public static CsvImportResult parseCsv(final String filePathOrURL) throws IOException, CsvHeaderException {
+        Objects.requireNonNull(filePathOrURL, "filePathOrURL");
+        final SNTTable table = SNTTable.fromFile(filePathOrURL);
+        if (table == null) throw new IOException("Could not read " + filePathOrURL);
+        // findColumnIndex() is the same case-/whitespace-insensitive lookup used by BookmarkManager,
+        // so a seed CSV's header is matched the same way as every other CSV read by SNT
+        final int colX = table.findColumnIndex(REQUIRED_HEADERS[0]);
+        final int colY = table.findColumnIndex(REQUIRED_HEADERS[1]);
+        final int colZ = table.findColumnIndex(REQUIRED_HEADERS[2]);
+        final int colConf = table.findColumnIndex(REQUIRED_HEADERS[3]);
+        final int colRad = table.findColumnIndex(REQUIRED_HEADERS[4]);
+        final List<String> missing = new ArrayList<>();
+        final int[] requiredCols = {colX, colY, colZ, colConf, colRad};
+        for (int i = 0; i < REQUIRED_HEADERS.length; i++) {
+            if (requiredCols[i] < 0) missing.add(REQUIRED_HEADERS[i]);
+        }
+        if (!missing.isEmpty()) {
+            throw new CsvHeaderException("CSV header is missing required column(s): " +
+                    String.join(", ", missing) + ". Expected header: " +
+                    String.join(",", REQUIRED_HEADERS));
+        }
+        final int colC = table.findColumnIndex(OPTIONAL_HEADERS[0]);
+        final int colT = table.findColumnIndex(OPTIONAL_HEADERS[1]);
+        final int colType = table.findColumnIndex(OPTIONAL_HEADERS[2]);
+        final int colSrc = table.findColumnIndex(OPTIONAL_HEADERS[3]);
+        final int rows = table.getRowCount();
+        final List<SeedPoint> seeds = new ArrayList<>(rows);
+        int skipped = 0;
+        for (int r = 0; r < rows; r++) {
+            final SeedPoint seed = parseRow(table, r, colX, colY, colZ, colConf, colRad, colC, colT, colType, colSrc);
+            if (seed == null) skipped++;
+            else seeds.add(seed);
+        }
+        return new CsvImportResult(seeds, skipped);
+    }
+
+    private static SeedPoint parseRow(final SNTTable t, final int row,
+                                       final int cX, final int cY, final int cZ,
+                                       final int cConf, final int cRad,
+                                       final int cChannel, final int cFrame,
+                                       final int cType, final int cSource) {
+        try {
+            final double x = SNTTable.asDouble(t.get(cX, row));
+            final double y = SNTTable.asDouble(t.get(cY, row));
+            final double z = SNTTable.asDouble(t.get(cZ, row));
+            // Reject non-finite coordinates outright: they'd produce nonsense canvas positions
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+                SNTUtils.log("Row " + (row + 1) + ": non-finite coordinate; skipped");
+                return null;
+            }
+            double conf = SNTTable.asDouble(t.get(cConf, row));
+            double radius = SNTTable.asDouble(t.get(cRad, row));
+            if (Double.isNaN(conf)) conf = 1.0;
+            if (Double.isNaN(radius) || !Double.isFinite(radius)) radius = 0.0;
+            if (conf < 0) conf = 0;
+            else if (conf > 1) conf = 1;
+            if (radius < 0) radius = 0;
+            final int channel = (cChannel < 0) ? SeedPoint.CT_UNSET : SNTTable.asInt(t.get(cChannel, row), SeedPoint.CT_UNSET);
+            final int frame = (cFrame < 0) ? SeedPoint.CT_UNSET : SNTTable.asInt(t.get(cFrame, row), SeedPoint.CT_UNSET);
+            final String type = (cType < 0) ? SeedPoint.TAG_UNSET : SNTTable.asString(t.get(cType, row), SeedPoint.TAG_UNSET);
+            final String source = (cSource < 0) ? SeedPoint.TAG_UNSET : SNTTable.asString(t.get(cSource, row), SeedPoint.TAG_UNSET);
+            return new SeedPoint(x, y, z, conf, radius, channel, frame, type, source);
+        } catch (final RuntimeException ex) {
+            SNTUtils.log("Row " + (row + 1) + ": " + ex.getMessage() + "; skipped");
+            return null;
+        }
+    }
+
+    /**
+     * Parses {@code file} via {@link #parseCsv(File)} and inserts the result
+     * into this overlay. Coordinates are assumed to already be in physical
+     * units; voxel-indexed CSVs need unit conversion first, so parse them
+     * with {@link #parseCsv(File)} and insert the (converted) seeds via
+     * {@link #addAll(Collection)}/{@link #replaceAll(Collection)} instead
+     *
+     * @param file    the CSV file to read
+     * @param replace if true, replaces the current seeds; if false, appends
+     * @return the parse result (seeds inserted, plus skipped-row count)
+     * @throws IOException        if the file cannot be read
+     * @throws CsvHeaderException if a required column is missing
+     */
+    public CsvImportResult loadCsv(final File file, final boolean replace) throws IOException, CsvHeaderException {
+        final CsvImportResult parsed = parseCsv(file);
+        if (!parsed.seeds().isEmpty()) {
+            if (replace) replaceAll(parsed.seeds());
+            else addAll(parsed.seeds());
+        }
+        return parsed;
+    }
+
+    /**
+     * @see #loadCsv(File, boolean)
+     * @see #parseCsv(String)
+     */
+    public CsvImportResult loadCsv(final String filePathOrURL, final boolean replace) throws IOException, CsvHeaderException {
+        final CsvImportResult parsed = parseCsv(filePathOrURL);
+        if (!parsed.seeds().isEmpty()) {
+            if (replace) replaceAll(parsed.seeds());
+            else addAll(parsed.seeds());
+        }
+        return parsed;
     }
 
     /**

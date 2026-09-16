@@ -46,6 +46,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImgUtils;
@@ -57,6 +58,7 @@ import sc.fiji.snt.viewer.BvvUtils;
 
 import javax.swing.*;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -125,6 +127,12 @@ public class BigDataLoaderCmd extends ContextCommand {
             description = "Optional.\nA CSV file containing bookmarked locations.")
     File markerFile;
 
+    @Parameter(required = false, label = "Seeds", persist = false,
+            description = "<HTML>Optional.<br>A CSV file containing candidate tracing seeds "
+                    + "(header: x,y,z,confidence,radius).<br>Requires <i>Enable tracing (SNT Stream)</i> "
+                    + "to be checked.")
+    File seedFile;
+
     @Parameter
     private PrefService prefService;
 
@@ -132,6 +140,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     private static final String IMG2_KEY = "img2File";
     private static final String REC_KEY = "recFiles";
     private static final String MARKER_KEY = "markerFile";
+    private static final String SEED_KEY = "seedFile";
 
     @Parameter(label = "Viewer type", description = "The type of viewer.",
             choices = {"Big Data Viewer (BDV): Interactive reslicing", "Big Volume Viewer (BVV): 3D rendering"})
@@ -189,6 +198,8 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (lastRec != null) recFiles = new File(lastRec);
         final String lastMarker = prefService.get(BigDataLoaderCmd.class, MARKER_KEY);
         if (lastMarker != null) markerFile = new File(lastMarker);
+        final String lastSeed = prefService.get(BigDataLoaderCmd.class, SEED_KEY);
+        if (lastSeed != null) seedFile = new File(lastSeed);
     }
 
     /** Persists the four File fields as their repaired (toPathString()) string form. */
@@ -197,6 +208,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         putOrRemove(IMG2_KEY, img2File);
         putOrRemove(REC_KEY, recFiles);
         putOrRemove(MARKER_KEY, markerFile);
+        putOrRemove(SEED_KEY, seedFile);
     }
 
     private void putOrRemove(final String key, final File file) {
@@ -287,6 +299,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (filePaths.length > 1) byLabel.put("Secondary volume", filePaths[1]);
         if (recFiles != null) byLabel.put("Reconstruction(s)", toPathString(recFiles));
         if (markerFile != null) byLabel.put("Markers", toPathString(markerFile));
+        if (seedFile != null) byLabel.put("Seeds", toPathString(seedFile));
         final List<String> unreachable = new ArrayList<>();
         for (final Map.Entry<String, String> entry : byLabel.entrySet()) {
             final String path = entry.getValue();
@@ -370,6 +383,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
         loadMarkers(bvv);
+        loadSeeds(bvv);
         return bvv;
     }
 
@@ -398,6 +412,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
         loadMarkers(bvv);
+        loadSeeds(bvv);
         return bvv;
     }
 
@@ -677,6 +692,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             datasetDialog(path, bdv);
         loadReconstructions(bdv);
         loadMarkers(bdv);
+        loadSeeds(bdv);
         return bdv;
     }
 
@@ -715,6 +731,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             datasetDialog(path, bdv);
         loadReconstructions(bdv);
         loadMarkers(bdv);
+        loadSeeds(bdv);
         return bdv;
     }
 
@@ -737,6 +754,36 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
         if (standalone) viewer.getMarkerManager().showPanel();
         viewer.getMarkerManager().load(markerFile); // error if invalid file
+    }
+
+    /**
+     * Counterpart to {@link #loadMarkers(AbstractBigViewer)} for candidate tracing seeds.
+     * <p>
+     * Unlike bookmarks, {@link SeedOverlay} is owned by the {@link sc.fiji.snt.SNT} instance, not
+     * the viewer (one overlay per SNT, shared across BVV/BDV), so there is nothing to load into
+     * unless tracing is enabled. When it is, {@code SNTUI} has already wired the viewer's own
+     * seed-rendering bridge by the time this runs (see {@code SNTUI#setBvv}/{@code #setBdv}),
+     * so a plain overlay insert here is all that's needed for seeds to show up on screen too.
+     */
+    private void loadSeeds(final AbstractBigViewer viewer) {
+        if (seedFile == null) return;
+        final SNT viewerSnt = viewer.getSNT();
+        if (viewerSnt == null) {
+            error("Loading seeds requires \"Enable tracing (SNT Stream)\" to be checked.");
+            return;
+        }
+        final String path = toPathString(seedFile);
+        if (!SpimDataUtils.isRemoteUrl(path) && !SNTUtils.fileAvailable(seedFile)) {
+            error(String.format("%s does not exist or is not available.", seedFile.getName()));
+            return;
+        }
+        try {
+            final SeedOverlay.CsvImportResult result = viewerSnt.getSeedOverlay().loadCsv(path, false);
+            SNTUtils.log(String.format("Loaded %,d seed(s) (%,d row(s) skipped) from %s.",
+                    result.seeds().size(), result.skipped(), seedFile.getName()));
+        } catch (final IOException | SeedOverlay.CsvHeaderException ex) {
+            error(String.format("Could not load seeds from %s: %s", seedFile.getName(), ex.getMessage()));
+        }
     }
 
     /**

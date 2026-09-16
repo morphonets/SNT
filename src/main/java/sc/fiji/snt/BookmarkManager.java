@@ -2255,16 +2255,27 @@ class BookmarkModel extends AbstractTableModel {
                     } catch (final IllegalArgumentException ignored) {}
                 }
             }
-            final String label = (lIdx != -1) ? ((String) table.get(lIdx, i)) : String.format("Marker%03d", i+1);
-            // C may be "-" (dash placeholder written for viewer-mode exports) rather than numeric,
-            // so only trust it when it is actually a Number, same as the existing Size handling below
-            final Bookmark b = new Bookmark(label,
-                    (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i),
-                    (cIdx != -1 && table.get(cIdx, i) instanceof Number cNum) ? cNum.intValue() : 1,
-                    (tIdx != -1 && table.get(tIdx, i) instanceof Number tNum) ? tNum.intValue() : 1,
+            // X/Y/Z cells are typed Double/Long/String depending on how the CSV was parsed;
+            // SNTTable.asDouble() coerces any of those instead of an unguarded (double) cast
+            final double x = SNTTable.asDouble(table.get(xIdx, i));
+            final double y = SNTTable.asDouble(table.get(yIdx, i));
+            final double z = SNTTable.asDouble(table.get(zIdx, i));
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+                SNTUtils.log("Row " + (i + 1) + ": non-finite coordinate; skipped");
+                continue;
+            }
+            final String label = SNTTable.asString((lIdx != -1) ? table.get(lIdx, i) : null,
+                    String.format("Marker%03d", i + 1));
+            // C/T may be "-" (dash placeholder written for viewer-mode exports) rather than numeric;
+            // asInt() falls back to 1 for that case, same as the previous Number-only check
+            final Bookmark b = new Bookmark(label, x, y, z,
+                    (cIdx != -1) ? SNTTable.asInt(table.get(cIdx, i), 1) : 1,
+                    (tIdx != -1) ? SNTTable.asInt(table.get(tIdx, i), 1) : 1,
                     category);
-            if (sizeIdx != -1 && table.get(sizeIdx, i) instanceof Number n)
-                b.size = n.floatValue();
+            if (sizeIdx != -1) {
+                final double size = SNTTable.asDouble(table.get(sizeIdx, i));
+                if (!Double.isNaN(size)) b.size = (float) size;
+            }
             dataList.add(b);
         }
         setDataList(dataList);

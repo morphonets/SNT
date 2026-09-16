@@ -28,13 +28,15 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 
 import java.io.File;
-import java.util.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Imports candidate seed points from a CSV file into SNT's {@link SeedOverlay}.
@@ -45,6 +47,11 @@ import java.util.*;
  * be given in voxel indices or physical (calibrated) units; voxel-indexed
  * inputs are converted to physical at import time using the active image's
  * spacing.
+ * <p>
+ * Parsing itself is delegated to {@link SeedOverlay#parseCsv(File)}; this
+ * command adds the interactive parts that need a live image/UI: voxel to
+ * physical conversion and the large-import guardrail. Headless callers that
+ * don't need either can use {@link SeedOverlay#loadCsv(File, boolean)} directly.
  *
  * @author Tiago Ferreira
  * @see SeedPoint
@@ -55,15 +62,6 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
 
     public static final String UNITS_PHYSICAL = "Physical (image-calibrated)";
     static final String UNITS_VOXEL = "Voxel indices";
-
-    /**
-     * Required CSV column names, in canonical order.
-     */
-    private static final String[] REQUIRED_HEADERS = {"x", "y", "z", "confidence", "radius"};
-    /**
-     * Optional CSV columns read when present; defaults applied when absent.
-     */
-    private static final String[] OPTIONAL_HEADERS = {"channel", "frame", "type", "source"};
 
     /**
      * Seed counts above this threshold trigger an interactive guardrail
@@ -105,29 +103,24 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
         }
 
         status("Importing seed points...", false);
-        // SNTTable.fromFile returns null on I/O failure (and logs); also catch
-        // header-validation problems thrown by parseTable below
-        final SNTTable table = SNTTable.fromFile(csvFile.getAbsolutePath());
-        if (table == null) {
+        final SeedOverlay.CsvImportResult parsed;
+        try {
+            parsed = SeedOverlay.parseCsv(csvFile);
+        } catch (final IOException ex) {
             error("Could not read " + csvFile.getName() + " (see Console for details).");
             return;
-        }
-
-        final ParseResult parsed;
-        try {
-            parsed = parseTable(table);
-        } catch (final ImportException ex) {
+        } catch (final SeedOverlay.CsvHeaderException ex) {
             error(ex.getMessage());
             return;
         }
-        if (parsed.seeds.isEmpty()) {
+        if (parsed.seeds().isEmpty()) {
             error("No valid seed points were found in " + csvFile.getName() + ".");
             return;
         }
 
         List<SeedPoint> finalSeeds = (UNITS_VOXEL.equals(unitsChoice))
-                ? convertVoxelToPhysical(parsed.seeds)
-                : parsed.seeds;
+                ? convertVoxelToPhysical(parsed.seeds())
+                : parsed.seeds();
 
         // Guardrail: large seed sets risk degrading UI responsiveness. When a UI is present,
         // prompt the user to choose. Without a UI (headless scripts), we silently import everything
@@ -170,137 +163,13 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
 
         final String summary = (truncated > 0)
                 ? String.format("Imported top %,d seeds by confidence (%,d skipped due to size, %,d row%s skipped due to parse errors) from %s.",
-                finalSeeds.size(), truncated, parsed.skipped, parsed.skipped == 1 ? "" : "s", csvFile.getName())
+                finalSeeds.size(), truncated, parsed.skipped(), parsed.skipped() == 1 ? "" : "s", csvFile.getName())
                 : String.format("Imported %,d seed%s (%,d row%s skipped) from %s.",
                 finalSeeds.size(), finalSeeds.size() == 1 ? "" : "s",
-                parsed.skipped, parsed.skipped == 1 ? "" : "s", csvFile.getName());
+                parsed.skipped(), parsed.skipped() == 1 ? "" : "s", csvFile.getName());
         SNTUtils.log(summary);
         status(summary, true);
         resetUI();
-    }
-
-    /**
-     * Walks {@code table}, validates the required columns are present, and
-     * builds one {@link SeedPoint} per row. Cell values are coerced via
-     * {@link #asDouble}, {@link #asInt}, and {@link #asString} so the
-     * downstream code doesn't care whether {@link SNTTable} parsed a column
-     * as {@code Double}, {@code Long}, or {@code String}.
-     *
-     * @throws ImportException if a required column is missing from the header.
-     */
-    private static ParseResult parseTable(final SNTTable table) throws ImportException {
-        // Build canonical header index (lowercase, trimmed) -> column index.
-        final Map<String, Integer> headerIndex = new HashMap<>(table.getColumnCount() * 2);
-        for (int c = 0; c < table.getColumnCount(); c++) {
-            final String h = table.getColumnHeader(c);
-            if (h == null) continue;
-            final String key = h.trim().toLowerCase(Locale.ROOT);
-            if (!key.isEmpty()) headerIndex.putIfAbsent(key, c);
-        }
-        // Validate required columns.
-        final List<String> missing = new ArrayList<>();
-        for (final String req : REQUIRED_HEADERS) {
-            if (!headerIndex.containsKey(req)) missing.add(req);
-        }
-        if (!missing.isEmpty()) {
-            throw new ImportException("CSV header is missing required column(s): " +
-                    String.join(", ", missing) + ". Expected header: " +
-                    String.join(",", REQUIRED_HEADERS));
-        }
-        // Required column positions
-        final int colX = headerIndex.get("x");
-        final int colY = headerIndex.get("y");
-        final int colZ = headerIndex.get("z");
-        final int colConf = headerIndex.get("confidence");
-        final int colRad = headerIndex.get("radius");
-        // Optional column positions (-1 when absent)
-        final int colC = headerIndex.getOrDefault(OPTIONAL_HEADERS[0], -1);
-        final int colT = headerIndex.getOrDefault(OPTIONAL_HEADERS[1], -1);
-        final int colType = headerIndex.getOrDefault(OPTIONAL_HEADERS[2], -1);
-        final int colSrc = headerIndex.getOrDefault(OPTIONAL_HEADERS[3], -1);
-
-        final int rows = table.getRowCount();
-        final List<SeedPoint> seeds = new ArrayList<>(rows);
-        int skipped = 0;
-        for (int r = 0; r < rows; r++) {
-            final SeedPoint seed = parseRow(table, r, colX, colY, colZ, colConf, colRad,
-                    colC, colT, colType, colSrc);
-            if (seed == null) {
-                skipped++;
-            } else {
-                seeds.add(seed);
-            }
-        }
-        return new ParseResult(seeds, skipped);
-    }
-
-    private static SeedPoint parseRow(final SNTTable t, final int row,
-                                      final int cX, final int cY, final int cZ,
-                                      final int cConf, final int cRad,
-                                      final int cChannel, final int cFrame,
-                                      final int cType, final int cSource) {
-        try {
-            final double x = asDouble(t.get(cX, row));
-            final double y = asDouble(t.get(cY, row));
-            final double z = asDouble(t.get(cZ, row));
-            // Reject non-finite coordinates outright: they'd produce nonsense canvas positions
-            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
-                SNTUtils.log("Row " + (row + 1) + ": non-finite coordinate; skipped.");
-                return null;
-            }
-            double conf = asDouble(t.get(cConf, row));
-            double radius = asDouble(t.get(cRad, row));
-            if (Double.isNaN(conf)) conf = 1.0;
-            if (Double.isNaN(radius) || !Double.isFinite(radius)) radius = 0.0;
-            // Clamp confidence and radius to sane ranges
-            if (conf < 0) conf = 0;
-            else if (conf > 1) conf = 1;
-            if (radius < 0) radius = 0;
-            final int channel = (cChannel < 0) ? SeedPoint.CT_UNSET : asInt(t.get(cChannel, row), SeedPoint.CT_UNSET);
-            final int frame = (cFrame < 0) ? SeedPoint.CT_UNSET : asInt(t.get(cFrame, row), SeedPoint.CT_UNSET);
-            final String type = (cType < 0) ? SeedPoint.TAG_UNSET : asString(t.get(cType, row), SeedPoint.TAG_UNSET);
-            final String source = (cSource < 0) ? SeedPoint.TAG_UNSET : asString(t.get(cSource, row), SeedPoint.TAG_UNSET);
-            return new SeedPoint(x, y, z, conf, radius, channel, frame, type, source);
-        } catch (final RuntimeException ex) {
-            SNTUtils.log("Row " + (row + 1) + ": " + ex.getMessage() + "; skipped.");
-            return null;
-        }
-    }
-
-    // SNTTable cells are typed Object
-    private static double asDouble(final Object cell) {
-        if (cell == null) return Double.NaN;
-        if (cell instanceof Number n) return n.doubleValue();
-        final String s = cell.toString().trim();
-        if (s.isEmpty()) return Double.NaN;
-        try {
-            return Double.parseDouble(s);
-        } catch (final NumberFormatException ex) {
-            return Double.NaN;
-        }
-    }
-
-    private static int asInt(final Object cell, final int fallback) {
-        if (cell == null) return fallback;
-        if (cell instanceof Number n) return n.intValue();
-        final String s = cell.toString().trim();
-        if (s.isEmpty()) return fallback;
-        try {
-            return Integer.parseInt(s);
-        } catch (final NumberFormatException ex) {
-            // Tolerate a Double-shaped integer ("1.0" -> 1)
-            try {
-                return (int) Double.parseDouble(s);
-            } catch (final NumberFormatException ex2) {
-                return fallback;
-            }
-        }
-    }
-
-    private static String asString(final Object cell, final String fallback) {
-        if (cell == null) return fallback;
-        final String s = cell.toString().trim();
-        return s.isEmpty() ? fallback : s;
     }
 
     private List<SeedPoint> convertVoxelToPhysical(final List<SeedPoint> voxelSeeds) {
@@ -320,17 +189,5 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
                     v.confidence, v.radius * sr, v.channel, v.frame, v.type, v.source));
         }
         return out;
-    }
-
-    private record ParseResult(List<SeedPoint> seeds, int skipped) {
-    }
-
-    /**
-     * Indicates a fatal parsing problem (missing required header, etc.).
-     */
-    private static final class ImportException extends Exception {
-        ImportException(final String message) {
-            super(message);
-        }
     }
 }

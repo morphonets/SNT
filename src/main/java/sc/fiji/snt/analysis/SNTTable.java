@@ -44,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 
@@ -252,7 +253,8 @@ public class SNTTable extends DefaultGenericTable {
 			if (columnHeadersPattern != null && !getColumnHeader(col).contains(columnHeadersPattern))
 				continue;
 			for (int row = 0; row < getRowCount(); ++row) {
-				if (get(col, row) instanceof Number && ((Number) get(col, row)).doubleValue() == originalValue) {
+				// NB: also matches a numeric-looking String cell (e.g. "5.0"), not just a Number cell
+				if (asDouble(get(col, row)) == originalValue) {
 					set(col, row, replacementValue);
 				}
 			}
@@ -264,9 +266,12 @@ public class SNTTable extends DefaultGenericTable {
 		if (columnHeader == null) return -1;
 		final int direct = getColumnIndex(columnHeader);
 		if (direct >= 0) return direct;
-		final String target = columnHeader.toLowerCase().trim();
-		for (int i = 0; i < getColumnCount(); i++)
-			if (target.equals(getColumnHeader(i).toLowerCase().trim())) return i;
+		final String target = columnHeader.toLowerCase(Locale.ROOT).trim();
+		for (int i = 0; i < getColumnCount(); i++) {
+			final String header = getColumnHeader(i);
+			// A malformed/generated CSV (e.g. a trailing comma) can produce an unnamed column
+			if (header != null && target.equals(header.toLowerCase(Locale.ROOT).trim())) return i;
+		}
 		return -1;
 	}
 
@@ -467,19 +472,8 @@ public class SNTTable extends DefaultGenericTable {
 	}
 
 	private void addValueToStats(final int col, final int row, final SummaryStatistics stats) {
-		try {
-			final double value = ((Number) get(col, row)).doubleValue();
-			if (!Double.isNaN(value)) stats.addValue(value);
-		} catch (final NullPointerException ignored) {
-			// do nothing. Empty cell!?
-		} catch (final ClassCastException ignored) {
-			try {
-				final double value = Double.parseDouble(get(col, row).toString().trim());
-				if (!Double.isNaN(value)) stats.addValue(value);
-			} catch (final NumberFormatException ignored2) {
-				// genuinely non-numeric
-			}
-		}
+		final double value = asDouble(get(col, row));
+		if (!Double.isNaN(value)) stats.addValue(value);
 	}
 
 	public void summarize() {
@@ -645,6 +639,63 @@ public class SNTTable extends DefaultGenericTable {
 			return false;
 		}
     }
+
+	/**
+	 * Coerces a table cell to a {@code double}. Cells may be typed {@code Double}, {@code Long}, or {@code String}
+	 * depending on how the table was parsed (e.g. CSV column-type inference); this accepts any of those, with a String
+	 * parse fallback for a numeric-looking value stored in a non-numeric column
+	 *
+	 * @param cell a cell value, e.g. from {@link #get(int, int)}
+	 * @return the coerced value, or {@link Double#NaN} if {@code cell} is null,  empty, or not parseable as a number
+	 */
+	public static double asDouble(final Object cell) {
+		if (cell == null) return Double.NaN;
+		if (cell instanceof Number n) return n.doubleValue();
+		final String s = cell.toString().trim();
+		if (s.isEmpty()) return Double.NaN;
+		try {
+			return Double.parseDouble(s);
+		} catch (final NumberFormatException ex) {
+			return Double.NaN;
+		}
+	}
+
+	/**
+	 * Coerces a table cell to an {@code int}. Tolerates a Double-shaped integer string (e.g. {@code "1.0"} -&gt;
+	 * {@code 1})
+	 *
+	 * @param cell     a cell value, e.g. from {@link #get(int, int)}
+	 * @param fallback value returned if {@code cell} is null, empty, or not parseable as a number
+	 * @return the coerced value, or {@code fallback}
+	 */
+	public static int asInt(final Object cell, final int fallback) {
+		if (cell == null) return fallback;
+		if (cell instanceof Number n) return n.intValue();
+		final String s = cell.toString().trim();
+		if (s.isEmpty()) return fallback;
+		try {
+			return Integer.parseInt(s);
+		} catch (final NumberFormatException ex) {
+			try {
+				return (int) Double.parseDouble(s);
+			} catch (final NumberFormatException ex2) {
+				return fallback;
+			}
+		}
+	}
+
+	/**
+	 * Coerces a table cell to a trimmed {@code String}
+	 *
+	 * @param cell     a cell value, e.g. from {@link #get(int, int)}
+	 * @param fallback value returned if {@code cell} is null or empty
+	 * @return the coerced value, or {@code fallback}
+	 */
+	public static String asString(final Object cell, final String fallback) {
+		if (cell == null) return fallback;
+		final String s = cell.toString().trim();
+		return s.isEmpty() ? fallback : s;
+	}
 
 	public static String toString(final GenericTable table) {
 		return toString(table, 0, table.getRowCount() - 1);
