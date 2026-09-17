@@ -7362,21 +7362,31 @@ public class SNTUI extends JDialog {
     }
 
     /**
-     * Warns (once, with a permanent opt-out) if one or more paths about to be saved are
-     * "orphaned" fitted paths (see {@link PathAndFillManager#getOrphanedFittedPaths()}): fitted
-     * versions whose un-fitted original was never registered in this session, typically because
-     * the data was loaded through a route that substitutes the fitted flavor in place of the raw
-     * one before registration. Saving such a path writes a {@code fittedversionof} reference to
-     * a path ID that is not present anywhere in the saved file -- its pre-fit geometry cannot be
-     * recovered by reloading it.
+     * Repairs any "phantom" fitted paths (see {@link PathAndFillManager#repairPhantomFittedPaths()})
+     * and warns (once, with a permanent opt-out) if one or more of the remaining paths about to be
+     * saved are "orphaned" fitted paths (see {@link PathAndFillManager#getOrphanedFittedPaths()}):
+     * fitted versions whose un-fitted original was never registered in this session, typically
+     * because the data was loaded through a route that substitutes the fitted flavor in place of
+     * the raw one before registration. Saving such a path writes a {@code fittedversionof}
+     * reference to a path ID that is not present anywhere in the saved file -- its pre-fit
+     * geometry cannot be recovered by reloading it.
      */
     private void warnOnOrphanedFittedPaths() {
+        final int repaired = pathAndFillManager.repairPhantomFittedPaths();
+        if (repaired > 0) {
+            guiUtils.centeredMsg(String.format(
+                    "%d path(s) loaded from a previous session were fitted versions whose "
+                    + "raw/unfitted original could not be found (likely from a corrupted or "
+                    + "hand-edited traces file). They have been converted into ordinary, "
+                    + "standalone paths so the file can be saved normally.", repaired),
+                    "Corrupted Fitted Path(s) Repaired");
+        }
         final boolean nag = plugin.getPrefs().getTemp("orphanedFitted-nag", true);
         if (!nag) return;
         final int n = pathAndFillManager.getOrphanedFittedPaths().size();
         if (n == 0) return;
         final Boolean prompt = guiUtils.getPersistentWarning(String.format(
-                "Reminder: %d fitted path(s) being saved have no un-fitted original registered in "
+                        "Reminder: %d fitted path(s) being saved have no un-fitted original registered in "
                         + "this session (their pre-fit geometry is not available). The saved file will "
                         + "reference that missing original by ID, and will not fully restore the fitted "
                         + "relationship if reloaded.<br>Re-import from the source file instead if the raw, "

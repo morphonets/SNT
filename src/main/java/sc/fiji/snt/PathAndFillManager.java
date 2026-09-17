@@ -3355,6 +3355,40 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     /**
+     * Returns "phantom" fitted paths: registered paths that look like ordinary, standalone paths but are
+     * actually the fitted flavor of an original that no longer exists in any form -- neither registered here
+     * nor resolvable from a {@code fittedversionof} reference. This happens when a traces file is loaded whose
+     * {@code fittedversionof} attribute points to a path ID absent from the file itself (e.g. the raw/unfitted
+     * original was deleted before saving), which leaves {@link Path#fittedVersionOf} {@code null} rather than
+     * merely unregistered. Such paths pass loading validation silently and are indistinguishable from a normal
+     * path except for their negative ID (see {@link Path#setFitted(Path)}).
+     *
+     * @return the phantom fitted paths, or an empty list if none
+     * @see #repairPhantomFittedPaths()
+     */
+    public synchronized List<Path> getPhantomFittedPaths() {
+        return allPaths.stream()
+                .filter(p -> p.getID() < 0 && !p.isFittedVersionOfAnotherPath() && p.getFitted() == null)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Repairs the paths returned by {@link #getPhantomFittedPaths()} into ordinary, standalone paths: assigns
+     * each a fresh, valid (positive, collision-free) ID and a default name, since the fit-time name/ID are
+     * meaningless once the original they were fitted from is gone.
+     *
+     * @return the number of paths repaired
+     */
+    public synchronized int repairPhantomFittedPaths() {
+        final List<Path> phantoms = getPhantomFittedPaths();
+        for (final Path p : phantoms) {
+            p.setIDs(++maxUsedPathID, p.getTreeID());
+            p.setName(getDefaultName(p));
+        }
+        return phantoms.size();
+    }
+
+    /**
      * Returns the 'de facto' Paths (excluding null or fitted versions). he returned list is a snapshot safe for
      * iteration even if paths are concurrently added or removed.
      * <p>

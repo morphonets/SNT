@@ -199,12 +199,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 "averaged origin, or the centroid of a ROI-defining soma");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.menuIcon('\uf247', true));
+        jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CUBES));
         jmi.setToolTipText("<HTML>Merges selected paths into one (<b>without spatial ordering</b>).<br>" +
                 "Children are reparented.");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.TAPE));
+        jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.LINK));
         jmi.setToolTipText("<HTML>Joins paths <b>end-to-end</b> in spatial order.<br>" +
                 "Order and orientation are auto-detected from endpoint proximity.<br>Children are reparented.");
         jmi.addActionListener(multiPathListener);
@@ -232,7 +232,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(jmi);
         editMenu.addSeparator();
 
-        jmi = new JMenuItem(MultiPathActionListener.Z_CORRECTION_CMD, IconFactory.menuIcon(IconFactory.GLYPH.RULER_VERTICAL));
+        jmi = new JMenuItem(MultiPathActionListener.Z_CORRECTION_CMD, IconFactory.menuIcon('\ue4b8', true));
         jmi.setToolTipText("Corrects Z-axis shrinkage from tissue processing (e.g., cut/mounted thickness ratio)");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
@@ -322,11 +322,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setToolTipText("Displays fitting details for single paths");
         jmi.addActionListener(singlePathListener);
         fitMenu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.RESET_FITS, IconFactory.menuIcon(
-                IconFactory.GLYPH.BROOM));
+        fitMenu.addSeparator();
+        jmi = new JMenuItem(MultiPathActionListener.RESET_FITS, IconFactory.menuIcon(IconFactory.GLYPH.BROOM));
         jmi.setToolTipText("Resets fits for selected path(s)");
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.FLATTEN_FITS, IconFactory.menuIcon('\uf06d', true));
+        jmi.setToolTipText("Makes the fitted geometry permanent (discarding the raw/unfitted flavor");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
+        fitMenu.addSeparator();
         jmi = new JMenuItem("Parameters...", IconFactory.menuIcon(IconFactory.GLYPH.SLIDERS));
         jmi.setToolTipText("Options for fitting operations");
         jmi.addActionListener(e -> {
@@ -3144,6 +3149,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String REMOVE_TAGS_CMD = "Remove Tags...";
         private static final String FILL_OUT_CMD = "Fill Out...";
         private static final String RESET_FITS = "Discard Fit(s)...";
+        private static final String FLATTEN_FITS = "Flatten Fit(s)...";
         private static final String SPECIFY_CT_POSITION_CMD = "Specify Channel/Frame...";
         private static final String SPECIFY_RADIUS_CMD = "Specify Constant Radius...";
         private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
@@ -3270,6 +3276,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(SPECIFY_COUNTS_CMD, new SpecifyCountsCommand());
             commands.put(INTERPOLATE_MISSING_RADII, new InterpolateMissingRadiiCommand());
             commands.put(RESET_FITS, new ResetFitsCommand());
+            commands.put(FLATTEN_FITS, new FlattenFitsCommand());
             commands.put(MULTI_SPECTRAL_REFINE_CMD, new MultiSpectralRefineCommand());
             commands.put(A_STAR_REFINE_CMD, new AStarRefineCommand());
 
@@ -5032,6 +5039,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         sb.append("<li>").append(analysis.disconnectedChildren)
                                 .append(" child path(s) not in parent's children list</li>");
                     }
+                    if (analysis.phantomFittedPaths > 0) {
+                        sb.append("<li>").append(analysis.phantomFittedPaths)
+                                .append(" phantom fitted path(s) (will be converted to standalone paths)</li>");
+                    }
                     sb.append("</ul>");
 
                     // Add orientation warning if present
@@ -5232,6 +5243,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // pre-fit geometry no longer exists in this session
             final int orphanedFittedPaths = pathAndFillManager.getOrphanedFittedPaths().size();
 
+            // See PathAndFillManager#getPhantomFittedPaths(): fitted-version paths masquerading
+            // as ordinary paths because their un-fitted original could not even be resolved on
+            // load (e.g. a corrupted/hand-edited traces file). Unlike orphanedFittedPaths, these
+            // are fixable, so rebuilding repairs them (see #rebuildRelationShips())
+            final int phantomFittedPaths = pathAndFillManager.getPhantomFittedPaths().size();
+
             return new RelationshipAnalysis(
                     totalPaths,
                     treeCount,
@@ -5242,7 +5259,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     misorientedPaths,
                     inconsistentCalibrations,
                     inconsistentCanvasOffsets,
-                    orphanedFittedPaths
+                    orphanedFittedPaths,
+                    phantomFittedPaths
             );
         }
 
@@ -5259,7 +5277,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 int misorientedPaths,
                 int inconsistentCalibrations,
                 int inconsistentCanvasOffsets,
-                int orphanedFittedPaths) {
+                int orphanedFittedPaths,
+                int phantomFittedPaths) {
 
             boolean hasIssues() {
                 return totalIssues() > 0;
@@ -5284,10 +5303,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return orphanedFittedPaths > 0;
             }
 
+            boolean hasPhantomFittedPathWarnings() {
+                return phantomFittedPaths > 0;
+            }
+
             int totalIssues() {
-                return orphanedPaths + inconsistentTreeIds + inconsistentOrders + disconnectedChildren;
+                return orphanedPaths + inconsistentTreeIds + inconsistentOrders + disconnectedChildren
+                        + phantomFittedPaths;
                 // NB: misorientedPaths, spatial warnings, and orphaned fitted paths are warnings,
-                // not counted as rebuild issues (rebuilding relationships cannot fix any of them)
+                // not counted as rebuild issues (rebuilding relationships cannot fix those)
             }
 
         }
@@ -5378,6 +5402,62 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             @Override
             public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        /**
+         * Converges fitted/unfitted flavors into a single "ground truth": copies each path's fitted
+         * node data onto itself in place ({@link Path#replaceNodesWithFittedVersion()}) and discards
+         * the now-redundant fitted counterpart, so nothing is left that a later save/reload cycle
+         * could orphan (see {@code SNTUI#warnOnOrphanedFittedPaths()})
+         */
+        private class FlattenFitsCommand implements PathCommand {
+            @Override
+            public void execute(final List<Path> selectedPaths, final String cmd) {
+                final List<Path> active = selectedPaths.stream().filter(Path::getUseFitted).toList();
+                final List<Path> inactive = selectedPaths.stream()
+                        .filter(p -> p.getFitted() != null && !p.getUseFitted()).toList();
+                if (active.isEmpty() && inactive.isEmpty()) {
+                    // A fitted flavor's ID is set to -originalID (see Path#setFitted(Path)); a
+                    // negative ID with no live fittedVersionOf back-link means the raw original
+                    // this flavor belongs to is gone -- a "phantom" fit rather than something to
+                    // flatten (see PathAndFillManager#getPhantomFittedPaths())
+                    final int repaired = pathAndFillManager.repairPhantomFittedPaths();
+                    if (repaired > 0) {
+                        refreshManager(true, false, null);
+                        displayTmpMsg(repaired + " phantom fitted path(s) converted to standalone "
+                                + "paths (their raw/unfitted original was missing)");
+                    } else {
+                        guiUtils.error("None of the selected path(s) have fitted data to flatten.");
+                    }
+                    return;
+                }
+                final List<Path> toFlatten = new ArrayList<>(active);
+                if (inactive.isEmpty()) {
+                    if (!guiUtils.getConfirmation("Flatten " + active.size() + " fitted path(s)? The "
+                            + "raw (unfitted) node data will be permanently discarded.",
+                            "Flatten Fit(s)?")) return;
+                } else if (active.isEmpty()) {
+                    if (!guiUtils.getConfirmation("None of the " + inactive.size() + " selected "
+                            + "path(s) are currently displaying their fit. Flatten anyway, switching "
+                            + "them to the fitted geometry?", "Flatten Fit(s)?")) return;
+                    toFlatten.addAll(inactive);
+                } else {
+                    final boolean[] result = guiUtils.getConfirmationAndOption(
+                            "Flatten " + active.size() + " fitted path(s)? The raw (unfitted) node "
+                                    + "data will be permanently discarded.", "Flatten Fit(s)?",
+                            "Also flatten " + inactive.size() + " path(s) with an inactive fit "
+                                    + "(currently displaying raw/unfitted geometry)", false);
+                    if (!result[0]) return;
+                    if (result[1]) toFlatten.addAll(inactive);
+                }
+                toFlatten.forEach(Path::replaceNodesWithFittedVersion);
+                refreshManager(true, false, toFlatten);
+            }
+
+            @Override
+            public boolean canExecute(final List<Path> selectedPaths) {
                 return !selectedPaths.isEmpty();
             }
         }
@@ -5720,6 +5800,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         final List<String> activeTags = guessTagsCurrentlyActive();
         if (navToolbar != null) navToolbar.restoreFullModelState();
         tree.clearSelection(); // existing selections could change after the rebuild
+        pathAndFillManager.repairPhantomFittedPaths();
         pathAndFillManager.rebuildRelationships();
         activeTags.forEach( tag -> removeOrReapplyDefaultTag(pathAndFillManager.getPaths(), tag, true, false));
         refreshManager(true, true, null);
