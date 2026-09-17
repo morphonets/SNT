@@ -262,11 +262,13 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
 
             SNTUtils.log("Detected " + results.size() + " proximity contacts");
 
-            // Group results by path+label, resolving fitted paths back to unfitted originals
+            // Group results by path+label, resolving fitted paths back to unfitted originals --
+            // but only when that original is still registered (see
+            // PathAndFillManager#isDeFactoPath(Path)); otherwise d.path is itself the de facto path
             final Map<String, List<Detection>> resultsByPathAndLabel = results.stream()
                     .collect(Collectors.groupingBy(d -> {
-                        final Path p = d.path.isFittedVersionOfAnotherPath()
-                                ? d.path.getUnfitted() : d.path;
+                        final Path p = snt.getPathAndFillManager().isDeFactoPath(d.path)
+                                ? d.path : d.path.getUnfitted();
                         return p.getName() + (d.labelValue >= 0 ? " [Label " + d.labelValue + "]" : "");
                     }, LinkedHashMap::new, Collectors.toList()));
 

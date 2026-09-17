@@ -319,12 +319,14 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
 
             SNTUtils.log("Detected " + results.size() + " maxima");
 
-            // Group results by path, resolving fitted paths back to their
-            // unfitted originals so that labels and counts match PathManagerUI
+            // Group results by path, resolving fitted paths back to their unfitted originals so
+            // that labels and counts match PathManagerUI -- but only when that original is still
+            // registered (see PathAndFillManager#isDeFactoPath(Path)); otherwise v.path is itself
+            // the de facto path and redirecting would update a count nobody displays
             final Map<Path, List<Detection>> resultsByPath = results.stream()
                     .collect(Collectors.groupingBy(v ->
-                        v.path.isFittedVersionOfAnotherPath()
-                                ? v.path.getUnfitted() : v.path
+                        snt.getPathAndFillManager().isDeFactoPath(v.path)
+                                ? v.path : v.path.getUnfitted()
                     ));
 
             // Update spine/varicosity counts on paths

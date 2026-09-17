@@ -413,11 +413,13 @@ public class PathAndFillManager extends DefaultHandler implements
         selectedPathsSet.clear();
         if (selectedPaths != null) {
             selectedPaths.forEach(p -> {
-                // Always store the main (unfitted) path in the selection set.
-                // Code that checks isSelected() uses the main path reference
-                // (e.g., TracerCanvas rendering, impossibleEdit guard).
-                final Path pathToSelect = p.isFittedVersionOfAnotherPath()
-                        ? p.fittedVersionOf : p;
+                // Always store the main (unfitted) path in the selection set, UNLESS p is itself
+                // the de facto path (see #isDeFactoPath(Path)): a fitted-flavor path whose raw
+                // original isn't registered here (e.g. paths imported via BigDataLoaderCmd, where
+                // Tree#listFromFile() substitutes the fitted flavor and the raw original is never
+                // added). Redirecting those to fittedVersionOf would select an object this manager
+                // never iterates, so every path silently ends up deselected instead
+                final Path pathToSelect = isDeFactoPath(p) ? p : p.fittedVersionOf;
                 selectedPathsSet.add(pathToSelect);
             });
         }
@@ -1970,7 +1972,10 @@ public class PathAndFillManager extends DefaultHandler implements
     private void addImportedPathsTo3DViewer() {
         if (plugin != null && plugin.use3DViewer) {
             for (final Path p : allPaths) {
-                if (p.isFittedVersionOfAnotherPath() || p.size() < 2)
+                // Skip only when p is redundant with a registered original (see #isDeFactoPath(Path));
+                // a fitted-flavor path added standalone (e.g. via addTree(), whose raw original was
+                // never registered) is itself the de facto path and must still be added
+                if (!isDeFactoPath(p) || p.size() < 2)
                     continue;
                 Path pathToAdd;
                 if (p.getUseFitted()) pathToAdd = p.getFitted();
