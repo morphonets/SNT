@@ -79,14 +79,20 @@ class FADerivedIcon implements Icon {
     }
 
     @Override
-    public void paintIcon(final Component ignored, final Graphics g, final int x, final int y) {
+    public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
         final Graphics2D graphics = (Graphics2D) g;
         GuiUtils.setRenderingHints(graphics);
         final Font previousFont = graphics.getFont();
+        final Paint previousPaint = graphics.getPaint();
         graphics.setFont(font);
-        graphics.setPaint(color);
+        // Graphics2D#setPaint(null) is a documented no-op: it would otherwise silently keep whatever Paint the caller
+        // last set, e.g. a selection/hover background fill painted immediately before this icon
+        // (see BasicMenuItemUI/FlatLaf), making a null-colored glyph disappear into it. Fall back to the component's
+        // own foreground, which is the conventional meaning of a null icon color
+        graphics.setPaint((color != null) ? color : (c != null) ? c.getForeground() : IconFactory.defaultColor());
         graphics.drawString(symbol, x, y + ascent);
         graphics.setFont(previousFont);
+        graphics.setPaint(previousPaint);
     }
 
     protected ImageIcon asImage() {

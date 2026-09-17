@@ -217,7 +217,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         jmi = new JMenuItem(MultiPathActionListener.SPECIFY_CT_POSITION_CMD);
         jmi.setToolTipText("Changes CT position of selected path(s)");
-        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.LAYERS));
+        IconFactory.assignDoubleLetterIcon(jmi, 'C', 'T', true);
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.SPECIFY_RADIUS_CMD);

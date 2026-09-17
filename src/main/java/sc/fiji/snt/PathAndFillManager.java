@@ -3833,7 +3833,7 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     /**
-     * Downsamples alls path using Ramerâ€“Douglasâ€“Peucker simplification.
+     * Downsamples alls path using Ramer-Douglas-Peucker simplification.
      * Downsampling occurs only between branch points and terminal points.
      *
      * @param maximumPermittedDistance the maximum permitted distance between

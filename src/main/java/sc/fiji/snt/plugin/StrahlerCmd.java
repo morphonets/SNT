@@ -206,11 +206,11 @@ public class StrahlerCmd extends ContextCommand {
 		series.setValues(sd.analyzer.getAvgFragmentations());
 		series.setStyle(plotService.newSeriesStyle(colors[4], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
-		series.setLabel("Avg. ext. angle (Â°)");
+		series.setLabel("Avg. ext. angle (°)");
 		series.setValues(sd.analyzer.getAvgExtensionAngles(false));
 		series.setStyle(plotService.newSeriesStyle(colors[5], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
-		series.setLabel("Avg. ext.angle (Rel.) (Â°)");
+		series.setLabel("Avg. ext.angle (Rel.) (°)");
 		series.setValues(sd.analyzer.getAvgExtensionAngles(true));
 		series.setStyle(plotService.newSeriesStyle(colors[6], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		return chart;
@@ -493,7 +493,7 @@ public class StrahlerCmd extends ContextCommand {
 		else if (metric.contains("contract"))
 			return "Avg. contraction";
 		else if (metric.contains("extension") || metric.contains("angle"))
-			return "Avg. relative extension angle (Â°)";
+			return "Avg. relative extension angle (°)";
 		else
 			throw new IllegalArgumentException("Unrecognized metric");
 	}

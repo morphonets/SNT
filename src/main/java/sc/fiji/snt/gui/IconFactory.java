@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -378,8 +378,55 @@ public class IconFactory {
     }
 
     /**
+     * Creates a two-letter icon (e.g., "CT"), analogous to {@link #doubleIcon(GLYPH, GLYPH, float, Color)} but
+     * built from two plain characters rather than {@link GLYPH} entries. Useful for {@link JMenuItem} icons that
+     * combine single-letter tags, such as the "C"(hannel)/"T"(frame) Path Manager tags.
+     *
+     * @param letter1 the first (left) letter, e.g., 'C'
+     * @param letter2 the second (right) letter, e.g., 'T'
+     * @param solid whether the letters are rendered using the solid (vs. regular) weight font
+     * @param scalingFactor the icon's scaling factor relative to the default size
+     * @param color the icon's color
+     * @return the icon
+     */
+    public static Icon doubleLetterIcon(final char letter1, final char letter2, final boolean solid,
+                                        final float scalingFactor, final Color color) {
+        final float size = scalingFactor * FADerivedIcon.defSize();
+        final Icon leftIcon = cachedIcon(letter1, size, color, solid);
+        final Icon rightIcon = cachedIcon(letter2, size, color, solid);
+        return new DropdownIcon(leftIcon, rightIcon);
+    }
+
+    /**
+     * Convenience method for {@link #doubleLetterIcon(char, char, boolean, float, Color)} using a scaling
+     * factor of 1f and solid font weight.
+     *
+     * @param letter1 the first (left) letter, e.g., 'C'
+     * @param letter2 the second (right) letter, e.g., 'T'
+     * @param color the icon's color
+     * @return the icon
+     */
+    public static Icon doubleLetterIcon(final char letter1, final char letter2, final Color color) {
+        return doubleLetterIcon(letter1, letter2, true, 1f, color);
+    }
+
+    /**
+     * Assigns a two-letter icon (see {@link #doubleLetterIcon(char, char, Color)}) to a menu item, including
+     * its disabled state.
+     *
+     * @param item the menu item to be assigned an icon
+     * @param letter1 the first (left) letter, e.g., 'C'
+     * @param letter2 the second (right) letter, e.g., 'T'
+     * @param solid whether the letters are rendered using the solid (vs. regular) weight font
+     */
+    public static void assignDoubleLetterIcon(final JMenuItem item, final char letter1, final char letter2, final boolean solid) {
+        item.setIcon(doubleLetterIcon(letter1, letter2, solid, .75f, defaultColor()));
+        item.setDisabledIcon(doubleLetterIcon(letter1, letter2, solid, .75f, disabledColor()));
+    }
+
+    /**
      * Overlays a small notification dot on an icon's upper right corner within the icon's own  bounds
-     * (the icon's reported size is unchanged). 
+     * (the icon's reported size is unchanged).
      *
      * @param icon the source icon
      * @param dotColor the dot's fill color
@@ -425,39 +472,37 @@ public class IconFactory {
     }
 
     private static Icon dropdownIcon(final GLYPH entry, final float scalingFactor, final Color color, final Icon rightIcon) {
-        class DropdownIcon implements Icon {
+        return new DropdownIcon(entry, scalingFactor, rightIcon, color);
+    }
 
-            static final int ICON_GAP = 2;
-            final Icon leftIcon;
-            final Icon rightIcon;
+    private record DropdownIcon(Icon leftIcon, Icon rightIcon) implements Icon {
 
-            DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon) {
-                leftIcon = cachedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid);
-                this.rightIcon = rightIcon;
-            }
+        static final int ICON_GAP = 2;
 
-            @Override
-            public void paintIcon(final Component c, final Graphics g, int x, int y) {
-                final Graphics2D g2 = (Graphics2D) g;
-                GuiUtils.setRenderingHints(g2);
-                final int mid = getIconHeight() / 2;
-                final int y1 = y + mid - leftIcon.getIconHeight() / 2;
-                final int y2 = y + mid - rightIcon.getIconHeight() / 2;
-                leftIcon.paintIcon(c, g2, x, y1);
-                rightIcon.paintIcon(c, g2, x + leftIcon.getIconWidth() + ICON_GAP, y2);
-            }
-
-            @Override
-            public int getIconWidth() {
-                return leftIcon.getIconWidth() + rightIcon.getIconWidth() + ICON_GAP;
-            }
-
-            @Override
-            public int getIconHeight() {
-                return Math.max(leftIcon.getIconHeight(), rightIcon.getIconHeight());
-            }
+        DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon, final Color color) {
+            this(cachedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid), rightIcon);
         }
-        return new DropdownIcon(entry, scalingFactor, rightIcon);
+
+        @Override
+        public void paintIcon(final Component c, final Graphics g, int x, int y) {
+            final Graphics2D g2 = (Graphics2D) g;
+            GuiUtils.setRenderingHints(g2);
+            final int mid = getIconHeight() / 2;
+            final int y1 = y + mid - leftIcon.getIconHeight() / 2;
+            final int y2 = y + mid - rightIcon.getIconHeight() / 2;
+            leftIcon.paintIcon(c, g2, x, y1);
+            rightIcon.paintIcon(c, g2, x + leftIcon.getIconWidth() + ICON_GAP, y2);
+        }
+
+        @Override
+        public int getIconWidth() {
+            return leftIcon.getIconWidth() + rightIcon.getIconWidth() + ICON_GAP;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return Math.max(leftIcon.getIconHeight(), rightIcon.getIconHeight());
+        }
     }
 
     // Returns an icon whose pixels are the average of src's pixels and tint, achieved by overlaying tint at 50%
@@ -551,9 +596,13 @@ public class IconFactory {
             menuItem.setDisabledIcon(disabledIcon);
             return;
         }
-        final Icon rawSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, selectedColor());
-        final Icon rawDisabledSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f,
-                SNTColor.average(List.of(disabledColor(), selectedColor())));
+        // NB: FlatLaf swaps to getSelectedIcon() whenever the item is armed (highlighted by the cursor), not only when
+        // a JCheckBoxMenuItem is actually checked, and paints it right after filling the hover highlight.
+        // selectedColor() is a background swatch (List.selectionBackground); using it here would color the glyph the
+        // same as that highlight, making it disappear on hover. Keep the same foreground colors as the  default/disabled
+        // icons so the swapped glyph stays legible while armed
+        final Icon rawSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, defaultColor());
+        final Icon rawDisabledSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, disabledColor());
         // defaultIcon/selectedIcon glyphs (e.g., EYE vs EYE_SLASH) rarely share the same font-metrics
         final int refWidth = Math.max(icon.getIconWidth(), rawSelectedIcon.getIconWidth());
         final Icon fixedIcon = fixedWidthIcon(icon, refWidth);
@@ -577,7 +626,7 @@ public class IconFactory {
      *
      * @param button the button to decorate
      * @param dotColor the dot's fill color (e.g., Color.RED)
-     * @see #notificationIcon(Icon, Color, Color) 
+     * @see #notificationIcon(Icon, Color, Color)
      */
     public static void assignNotification(final AbstractButton button, final Color dotColor) {
         final Color bkgColor = button.getBackground();

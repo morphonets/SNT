@@ -527,7 +527,7 @@ public class PathFitter implements Callable<Path> {
 
             if (Math.abs(scale_a - scale_b) / scale_iso > 0.1) {
                 SNTUtils.log(String.format(
-                        "  Node %d: Anisotropic tangent plane (%.3f vs %.3f Âµm). Using %.3f Âµm.",
+                        "  Node %d: Anisotropic tangent plane (%.3f vs %.3f µm). Using %.3f µm.",
                         i, scale_a, scale_b, scale_iso
                 ));
             }

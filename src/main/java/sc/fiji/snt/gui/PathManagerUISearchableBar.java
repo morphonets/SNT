@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.gui;
 
+import org.apache.commons.lang.WordUtils;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
@@ -97,20 +98,20 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final JMenu imgFilteringMenu = new JMenu("Select by Image Property");
 		imgFilteringMenu.setIcon(IconFactory.menuIcon(
 			IconFactory.GLYPH.IMAGE));
-		JMenuItem mi1 = new JMenuItem("Traced channel...");
-		mi1.addActionListener(e -> doImageFiltering("Traced channel"));
+		JMenuItem mi1 = new JMenuItem("Traced Channel...");
+		mi1.addActionListener(e -> doImageFiltering("traced channel"));
 		mi1.setIcon(IconFactory.menuIcon('C', false));
 		imgFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("Traced frame...");
-		mi1.addActionListener(e -> doImageFiltering("Traced frame"));
+		mi1 = new JMenuItem("Traced Frame...");
+		mi1.addActionListener(e -> doImageFiltering("traced frame"));
 		mi1.setIcon(IconFactory.menuIcon('T', false));
 		imgFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("Z-slice of first node...");
-		mi1.addActionListener(e -> doImageFiltering("Z-slice of first node"));
+		mi1 = new JMenuItem("Z-slice Of First Node...");
+		mi1.addActionListener(e -> doImageFiltering("z-slice of first node"));
 		mi1.setIcon(IconFactory.menuIcon('Z', false));
 		imgFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("Z-slice of last node...");
-		mi1.addActionListener(e -> doImageFiltering("Z-slice of last node"));
+		mi1 = new JMenuItem("Z-slice Of Last Node...");
+		mi1.addActionListener(e -> doImageFiltering("z-slice of last node"));
 		mi1.setIcon(IconFactory.menuIcon('Z', true));
 		imgFilteringMenu.add(mi1);
 		return imgFilteringMenu;
@@ -182,7 +183,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private JMenuItem morphoFilterMenuItem(final String pathAnalyzerMetric, final String unit) {
-		final JMenuItem mi = new JMenuItem(pathAnalyzerMetric + "...");
+		final JMenuItem mi = new JMenuItem(WordUtils.capitalizeFully(pathAnalyzerMetric, new char[]{'/', ' '}) + "...");
 		mi.addActionListener(e -> doMorphoFiltering(pathAnalyzerMetric, unit));
 		switch (pathAnalyzerMetric) {
 			case PathStatistics.N_CHILDREN:
