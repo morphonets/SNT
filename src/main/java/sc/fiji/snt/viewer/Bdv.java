@@ -965,6 +965,11 @@ public class Bdv extends AbstractBigViewer {
             bar.add(b0);
             bar.add(b1);
             bar.add(b2);
+            final JToggleButton extendButton = GuiUtils.Buttons.toolbarToggleButton(
+                    tracer.getExtendSelectedPathAction(), "Continue extending the selected path",
+                    IconFactory.GLYPH.TAPE, IconFactory.GLYPH.TAPE);
+            bar.add(extendButton);
+            tracer.installExtendPathButton(extendButton);
             bar.addSeparator();
             bar.add(Box.createHorizontalGlue());
             bar.addSeparator();

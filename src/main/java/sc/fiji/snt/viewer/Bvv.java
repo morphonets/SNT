@@ -1798,6 +1798,10 @@ public class Bvv extends AbstractBigViewer {
             toolbar.add(b0);
             toolbar.add(b1);
             toolbar.add(b2);
+            final JToggleButton extendButton = scaledToggleButton(tracer.getExtendSelectedPathAction(),
+                    IconFactory.GLYPH.TAPE, "Continue extending the selected path");
+            toolbar.add(extendButton);
+            tracer.installExtendPathButton(extendButton);
 
             // "Center scene strategy on click" options button (see AbstractBigViewer.RecenterStrategy)
             final JPopupMenu popupMenu = new JPopupMenu();

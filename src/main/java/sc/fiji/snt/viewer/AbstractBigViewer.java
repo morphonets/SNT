@@ -2026,6 +2026,11 @@ public abstract class AbstractBigViewer {
         private Path.PathNode previousNode;
         private PointInImage previousForkPoint;
 
+        // Set by getExtendSelectedPathAction(): the already-registered path that the next
+        // finished segment should be appended onto (see #finishPath/#combineWithPendingPath),
+        // instead of being registered as a new, independent path
+        private Path toBeCombinedPath;
+
         // Undo mechanism, ported from SNT#confirmedSegmentSizes/SNT#undoLastSegment: each traced
         // segment auto-confirms into tempPath (there is no separate temporary/confirm step here, as
         // in the classic 2D canvas), so the "confirmed" node count of each segment is pushed here as
@@ -2046,6 +2051,10 @@ public abstract class AbstractBigViewer {
         // state directly, regardless of whether a change originates from a click or from a global
         // SNT_PAUSED/TRACING_PAUSED transition (see SNT#pause/SNT#pauseTracing).
         private JToggleButton noTracingButton, manualTracingButton, interactiveTracingButton;
+        // Mirrors whether a "Continue Extending" is currently pending (see #toBeCombinedPath);
+        // kept selected for the duration and disabled outright whenever tracing is off, set via
+        // #installExtendPathButton
+        private JToggleButton extendPathButton;
 
         // Whether a global SNT_PAUSED/TRACING_PAUSED state is currently forcing "No tracing" here (see
         // #setLockedByPause). While true, manualTracingButton/interactiveTracingButton are disabled
@@ -2443,16 +2452,52 @@ public abstract class AbstractBigViewer {
             // of how many segments/clicks it took, or whether materialization changed state in between
             tempPath.setCanvasOffset(snt.getActiveCanvasPixelOffset());
 
-            // Add path to path manager and reset
-            snt.getPathAndFillManager().addPath(tempPath);
-            if (renderingOptions.activateFinishedPath) snt.selectPath(tempPath, false);
+            // Add path to path manager and reset, or fold onto a pending "Continue Extending" path
+            if (toBeCombinedPath != null) {
+                combineWithPendingPath(tempPath);
+            } else {
+                snt.getPathAndFillManager().addPath(tempPath);
+                if (renderingOptions.activateFinishedPath) snt.selectPath(tempPath, false);
+                showViewerMessage("Path finished");
+            }
             clearTracingOverlayContents();
             syncPathManagerList();
             tempPath = null;
             previousNode = null;
             confirmedSegmentSizes.clear();
             updateUndoButtonState();
-            showViewerMessage("Path finished");
+        }
+
+        /**
+         * Appends {@code newSegment} directly onto {@link #toBeCombinedPath}'s last node instead of
+         * registering it as an independent path, then clears {@link #toBeCombinedPath}. Mirrors
+         * InteractiveTracerCanvas's "Continue Extending Path", restricted to the strict last-node case:
+         * if the two don't meet there within {@link #FORK_POINT_PICK_RADIUS_SCREEN_PX} of each other
+         * (the same pick tolerance the Alt+Click fork gesture already uses), nothing is merged and
+         * {@code newSegment} is registered as an ordinary standalone path instead, leaving the pending
+         * path untouched either way
+         *
+         * @see #getExtendSelectedPathAction()
+         */
+        private void combineWithPendingPath(final Path newSegment) {
+            final Path base = toBeCombinedPath;
+            setToBeCombinedPath(null);
+            final double dist = (newSegment.size() == 0) ? Double.MAX_VALUE
+                    : base.lastNode().distanceTo(newSegment.getNode(0));
+            final double tolerance = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
+            if (newSegment.size() < 2 || dist > tolerance) {
+                snt.getPathAndFillManager().addPath(newSegment);
+                if (renderingOptions.activateFinishedPath) snt.selectPath(newSegment, false);
+                new GuiUtils(getViewerFrame()).error((newSegment.size() < 2)
+                        ? "Nothing traced to extend " + base.getName() + " with; kept as a separate path"
+                        : String.format("Too far from %s's end (%.2f%s); kept as a separate path",
+                                base.getName(), dist, calUnit));
+                return;
+            }
+            base.add(newSegment);
+            snt.getPathAndFillManager().resetListeners(base);
+            snt.selectPath(base, false);
+            showViewerMessage(base.getName() + " extended");
         }
 
         /**
@@ -2500,6 +2545,7 @@ public abstract class AbstractBigViewer {
             if (!tracingEnabled) return;
             final boolean hadSomethingToDiscard = previousNode != null || (tempPath != null && tempPath.size() > 0);
             cancelCurrentSearch(); // no-op if idle; stops an in-flight A* search rather than orphaning it
+            setToBeCombinedPath(null); // discard a pending "Continue Extending" request too, if any
             previousNode = null;
             tempPath = null;
             pendingFinish = false;
@@ -2565,6 +2611,9 @@ public abstract class AbstractBigViewer {
                                     ? "Search cancelled" : "Segment could not be traced (out of bounds?)");
                         } else if (tempPath == null) {
                             tempPath = result;
+                            // Renders in the same selectedColor as toBeCombinedPath (see recolor()),
+                            // so the in-progress segment visually pairs with the path it will extend
+                            if (toBeCombinedPath != null) tempPath.setSelected(true);
                             pushConfirmedSegmentSize(result.size());
                         } else {
                             final int sizeBefore = tempPath.size();
@@ -2671,6 +2720,45 @@ public abstract class AbstractBigViewer {
             };
         }
 
+        /**
+         * Builds the "Continue Extending Path" action: marks the currently selected path as {@link #toBeCombinedPath},
+         * so the next finished segment is appended onto its last node instead of being registered as a new path (see
+         * #combineWithPendingPath). Mirrors InteractiveTracerCanvas's menu item of the same name
+         */
+        protected AbstractAction getExtendSelectedPathAction() {
+            return new AbstractAction("Continue Extending Path") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (snt == null || !snt.isTracingActive()) {
+                        new GuiUtils(getViewerFrame()).error("Tracing functions currently disabled.");
+                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        return;
+                    }
+                    if (!tracingEnabled) {
+                        new GuiUtils(getViewerFrame()).error("Enable tracing (manual or interactive) first.");
+                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        return;
+                    }
+                    if (previousNode != null || computing) {
+                        new GuiUtils(getViewerFrame()).error("Please finish or discard the current path first.");
+                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        return;
+                    }
+                    final Collection<Path> selected = snt.getSelectedPaths();
+                    final Path activePath = (selected != null && selected.size() == 1)
+                            ? selected.iterator().next() : null;
+                    if (activePath == null) {
+                        new GuiUtils(getViewerFrame()).error(
+                                "No path selected. Please select a single path to be extended.");
+                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        return;
+                    }
+                    setToBeCombinedPath(activePath);
+                    showViewerMessage(activePath.getName() + ": click to extend, Enter to finish");
+                }
+            };
+        }
+
         private void highlightClickedLocation(final Path.PathNode node, final boolean highlightAsForkPoint) {
             ensureTracingOverlay().addAnnotation(node,
                     (highlightAsForkPoint) ? getDefaultMarkerSize() * 2 : getDefaultMarkerSize(),
@@ -2686,6 +2774,7 @@ public abstract class AbstractBigViewer {
 
         protected void exit() {
             cancelCurrentSearch(); // stops active A* search if any
+            setToBeCombinedPath(null);
             previousNode = null;
             tempPath = null;
             computing = false;
@@ -2726,8 +2815,10 @@ public abstract class AbstractBigViewer {
                         AbstractTracer.this.manualTrace = true;
                         if (button != null) button.setEnabled(false);
                         if (noTracingButton != null) noTracingButton.setSelected(true);
+                        if (extendPathButton != null) extendPathButton.setEnabled(false);
                     } else {
                         showViewerMessage(tracingDescription + " enabled");
+                        if (extendPathButton != null) extendPathButton.setEnabled(true);
                     }
                 }
             };
@@ -2757,6 +2848,7 @@ public abstract class AbstractBigViewer {
         private void disableTracing() {
             if (!tracingEnabled) return;
             tracingEnabled = false;
+            if (extendPathButton != null) extendPathButton.setEnabled(false);
             final boolean promptUser = tempPath != null && tempPath.size() > 0;
             if (promptUser) {
                 final int ans = new GuiUtils(getViewerFrame())
@@ -2790,6 +2882,30 @@ public abstract class AbstractBigViewer {
         }
 
         /**
+         * Wires the "Continue Extending Path" toggle button built by the viewer's own toolbar code into
+         * this tracer: kept selected for as long as {@link #toBeCombinedPath} is set, and disabled
+         * outright while tracing is off (mirrors {@link #installTracingModeButtons}). Call once, right
+         * after adding the button to the toolbar
+         *
+         * @param button the "Continue Extending Path" toggle button
+         * @see #setToBeCombinedPath(Path)
+         */
+        protected void installExtendPathButton(final JToggleButton button) {
+            this.extendPathButton = button;
+            if (button != null) button.setEnabled(tracingEnabled);
+        }
+
+        /**
+         * Sets (or clears) {@link #toBeCombinedPath}, keeping {@link #extendPathButton} (if installed)
+         * in sync: selected while a combine is pending, deselected the moment it is consumed or
+         * cancelled (successful combine, fallback to a standalone path, or discard)
+         */
+        private void setToBeCombinedPath(final Path path) {
+            toBeCombinedPath = path;
+            if (extendPathButton != null) extendPathButton.setSelected(path != null);
+        }
+
+        /**
          * Locks/unlocks this viewer's tracing-mode buttons to "No tracing", in response to a global
          * SNT_PAUSED/TRACING_PAUSED transition (see {@code SNT#pause(boolean, boolean)}/
          * {@code SNT#pauseTracing(boolean, boolean)}) - the Bvv/Bdv counterpart of
@@ -2812,6 +2928,7 @@ public abstract class AbstractBigViewer {
                 if (noTracingButton != null) noTracingButton.setSelected(true);
                 if (manualTracingButton != null) manualTracingButton.setEnabled(false);
                 if (interactiveTracingButton != null) interactiveTracingButton.setEnabled(false);
+                if (extendPathButton != null) extendPathButton.setEnabled(false);
             } else {
                 if (manualTracingButton != null) manualTracingButton.setEnabled(true);
                 if (interactiveTracingButton != null) interactiveTracingButton.setEnabled(true);

@@ -183,7 +183,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         editMenu.addSeparator();
 
-        jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+        jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.MAGIC));
         jmi.setToolTipText("<HTML>Connects 2 paths (parent-child) at an inferred fork point.<br>" +
                 "Suggests parent based on path properties.");
         jmi.addActionListener(multiPathListener);
