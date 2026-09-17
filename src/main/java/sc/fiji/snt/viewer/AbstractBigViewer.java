@@ -2334,7 +2334,7 @@ public abstract class AbstractBigViewer {
          * @return the nearest rendered path, or {@code null} if nothing is currently rendered
          * @see #handleClick(MouseEvent) Mirrors {@code InteractiveTracerCanvas#selectNearestPathToMousePointer},
          */
-        private Path findNearestRenderedPath(final double[] worldPos) {
+        protected Path findNearestRenderedPath(final double[] worldPos) {
             Path nearest = null;
             final PointInImage wPos = SNTPoint.of(worldPos[0], worldPos[1], worldPos[2]);
             double nearestDistSq = Double.MAX_VALUE;
@@ -2351,6 +2351,41 @@ public abstract class AbstractBigViewer {
                 }
             }
             return nearest;
+        }
+
+        /**
+         * Builds the G/Shift+G action: selects the rendered path nearest the current cursor position,
+         * mirroring {@code InteractiveTracerCanvas#selectNearestPathToMousePointer} on the classic
+         * canvas. No click is required, {@link #resolveClickWorldPosition} is called with a null event
+         * since both viewer overrides resolve the live cursor position rather than one carried by a
+         * {@link MouseEvent}
+         *
+         * @param addToExistingSelection {@code true} for Shift+G (add to selection), {@code false} for
+         *        G (replace selection)
+         * @see #findNearestRenderedPath(double[])
+         */
+        protected AbstractAction getSelectNearestPathAction(final boolean addToExistingSelection) {
+            return new AbstractAction((addToExistingSelection) ? "Add Nearest Path to Selection" : "Grab Nearest Path") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (snt == null || snt.getPathAndFillManager().size() == 0) {
+                        showViewerMessage("Nothing to select: There are no traced paths");
+                        return;
+                    }
+                    final double[] worldPos = resolveClickWorldPosition(null);
+                    if (worldPos == null) {
+                        showViewerMessage("Could not resolve cursor position");
+                        return;
+                    }
+                    final Path nearest = findNearestRenderedPath(worldPos);
+                    if (nearest == null) {
+                        showViewerMessage("No rendered paths near cursor");
+                        return;
+                    }
+                    snt.selectPath(nearest, addToExistingSelection);
+                    showViewerMessage(nearest.getName() + " selected");
+                }
+            };
         }
 
         /**

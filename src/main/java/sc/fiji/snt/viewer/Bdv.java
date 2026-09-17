@@ -896,6 +896,13 @@ public class Bdv extends AbstractBigViewer {
             sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0), "snt-pick-sigma-point");
             sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
             if (tracer != null) {
+                // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
+                // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
+                // NB: this intentionally shadows BDV/BVV's own native "toggle grouping" (plain G)
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, 0), "snt-select-nearest-path");
+                sntAMap.put("snt-select-nearest-path", tracer.getSelectNearestPathAction(false));
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-append-nearest-path");
+                sntAMap.put("snt-append-nearest-path", tracer.getSelectNearestPathAction(true));
                 // Finish/discard the in-progress tracing path without a canvas click (see Bvv's identical
                 // wiring for why Enter/Esc are used instead of a double click to finish)
                 sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "snt-finish-path");

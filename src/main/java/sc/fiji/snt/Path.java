@@ -3897,6 +3897,13 @@ public class Path implements Comparable<Path>, Cloneable {
 
 	public void setSelected(final boolean newSelectedStatus) {
 		selected = newSelectedStatus;
+		// Keep the fitted/unfitted counterpart in sync (mirrors the pattern used by moveNode() etc.):
+		// PathAndFillManager#setSelected() only ever flags the unfitted original (see its own
+		// isFittedVersionOfAnotherPath() redirect), while PathAndFillManager#getTrees() renders
+		// whichever version getUseFitted() currently points to. Without this, isSelected() reads as
+		// false forever on whichever copy actually gets drawn
+		final Path counterpart = isFittedVersionOfAnotherPath() ? fittedVersionOf : getFitted();
+		if (counterpart != null) counterpart.selected = newSelectedStatus;
 	}
 
 	public boolean isSelected() {

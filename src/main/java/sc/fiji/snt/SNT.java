@@ -5113,7 +5113,11 @@ public class SNT extends MultiDThreePanes implements
 		repaintAllPanes();
 		if (getUI() != null && getUI().bvvSNT != null) {
 			if (selectionOnly) {
-				new Thread(() -> getUI().bvvSNT.updateSelection()).start();
+				// Bvv#updateSelection() only patches cached color/thickness arrays and calls
+				// requestRepaint() -- cheap enough to run directly on the EDT. Dispatching it on a bare background
+				// thread leaves the BVV canvas's repaint request queued but unflushed until a native paint event
+				// happens to occur, so the highlight never appears until the user interacted with the viewer
+				SwingUtilities.invokeLater(() -> getUI().bvvSNT.updateSelection());
 			} else {
 				new Thread(() -> getUI().bvvSNT.syncPathManagerList()).start();
 			}

@@ -1418,6 +1418,14 @@ public class Bvv extends AbstractBigViewer {
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_P, 0), "snt-pick-sigma-point");
             sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
             if (tracer != null) {
+                // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
+                // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
+                // NB: this intentionally shadows BDV/BVV's own native "toggle grouping" (plain G)
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G, 0), "snt-select-nearest-path");
+                sntAMap.put("snt-select-nearest-path", tracer.getSelectNearestPathAction(false));
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G,
+                        java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-append-nearest-path");
+                sntAMap.put("snt-append-nearest-path", tracer.getSelectNearestPathAction(true));
                 // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is itself a
                 // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so
                 // it lands a spurious node right next to the previous. Enter/Esc avoids this since neither is a MouseEvent
@@ -3932,7 +3940,8 @@ public class Bvv extends AbstractBigViewer {
             // Snapshot first: getRenderedTrees() is a live view over renderedTrees, and iterating it
             // directly is vulnerable to a concurrent syncPathManagerList()/addTree() call mutating the
             // underlying map mid-loop (see OverlayRenderer#updatePaths for the same fix)
-            for (final Tree tree : new ArrayList<>(sntViewer.getRenderedTrees())) {
+            final java.util.Collection<Tree> snapshot = new ArrayList<>(sntViewer.getRenderedTrees());
+            for (final Tree tree : snapshot) {
                 if (overlayRenderer.recolor(tree)) changed = true;
             }
             if (changed) viewerPanel.requestRepaint();
