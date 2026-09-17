@@ -4574,6 +4574,44 @@ public class Bvv extends AbstractBigViewer {
          * @return true if a cached entry was found and patched; false if this tree isn't cached yet
          *         (nothing to do: the next full sync computes it from scratch anyway)
          */
+        /** Extra screen-space radius (px) added around a selected path for the outline halo. */
+        private static final double SELECTION_HALO_MARGIN_PX = 2.5;
+
+        /**
+         * (Re)builds {@code data.haloSegments}: an enlarged, flat-colored copy of every segment
+         * (and branch connector) belonging to a currently-selected path. Drawn before the path's
+         * own batch so the normal color/radius shows through the middle, leaving a visible rim.
+         * Unlike {@code selectedBoost}, the margin is additive and not clamped by
+         * {@link PathRenderingOptions#getMaxThickness()}, so selection stays visible even for
+         * custom-colored paths (no color swap) or paths already at the thickness cap.
+         */
+        private void rebuildHaloSegments(final TreeScreenData data) {
+            data.haloSegments.clear();
+            final Color haloColor = renderingOptions.selectedColor;
+            for (final Map.Entry<Path, PathScreenData> entry : data.byPath.entrySet()) {
+                if (!entry.getKey().isSelected()) continue;
+                final PathScreenData pathData = entry.getValue();
+                for (final SegmentData seg : pathData.segments) {
+                    if (seg == null) continue;
+                    data.haloSegments.add(haloCopy(seg, haloColor));
+                }
+                if (pathData.branchConnector != null) {
+                    data.haloSegments.add(haloCopy(pathData.branchConnector, haloColor));
+                }
+            }
+        }
+
+        private SegmentData haloCopy(final SegmentData seg, final Color haloColor) {
+            final SegmentData halo = new SegmentData();
+            halo.x1 = seg.x1; halo.y1 = seg.y1; halo.x2 = seg.x2; halo.y2 = seg.y2;
+            halo.r1 = seg.r1 + SELECTION_HALO_MARGIN_PX;
+            halo.r2 = seg.r2 + SELECTION_HALO_MARGIN_PX;
+            halo.worldZ1 = seg.worldZ1; halo.worldZ2 = seg.worldZ2;
+            halo.viewerZ1 = seg.viewerZ1; halo.viewerZ2 = seg.viewerZ2;
+            halo.color1 = haloColor; halo.color2 = haloColor;
+            return halo;
+        }
+
         boolean recolor(final Tree tree) {
             final TreeScreenData data = screenDataCache.get(tree.getLabel());
             if (data == null) return false;
@@ -4621,6 +4659,7 @@ public class Bvv extends AbstractBigViewer {
                 }
             }
             data.buildBatches(); // colors changed: segments need regrouping by color
+            rebuildHaloSegments(data);
             return true;
         }
 
@@ -4774,6 +4813,12 @@ public class Bvv extends AbstractBigViewer {
             final boolean doClip = clipPos != null;
             final float clipDist = renderingOptions.clippingDistance;
 
+            // Outline halo for selected path(s), drawn first so the normal-colored fill sits on
+            // top of it, leaving a visible rim (see #rebuildHaloSegments)
+            if (!screenData.haloSegments.isEmpty()) {
+                drawBatch(g2d, renderingOptions.selectedColor, screenData.haloSegments, doClip, clipPos, clipDist);
+            }
+
             for (final Map.Entry<Color, List<SegmentData>> entry : screenData.batches.entrySet()) {
                 drawBatch(g2d, entry.getKey(), entry.getValue(), doClip, clipPos, clipDist);
             }
@@ -4901,6 +4946,7 @@ public class Bvv extends AbstractBigViewer {
             }
 
             data.buildBatches();
+            rebuildHaloSegments(data);
             return data;
         }
 
@@ -5125,6 +5171,9 @@ public class Bvv extends AbstractBigViewer {
             final Map<Path, PathScreenData> byPath = new IdentityHashMap<>();
             /** Pre-batched segments keyed by color. Populated by buildBatches(). */
             final Map<Color, List<SegmentData>> batches = new LinkedHashMap<>();
+            /** Outline segments for selected path(s), drawn before {@link #batches}; see
+             *  {@link OverlayRenderer#rebuildHaloSegments(TreeScreenData)}. */
+            final List<SegmentData> haloSegments = new ArrayList<>();
             boolean batchesBuilt = false;
             /** Cached screen-space visibility: avoids re-projecting 8 bbox corners on cache-hit frames. */
             boolean visible = true;
