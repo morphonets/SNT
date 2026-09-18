@@ -1135,31 +1135,38 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final Set<Path> selectedPathsBefore = tree.getSelectedPaths();
             final Set<Path> expandedPathsBefore = tree.getExpandedPaths();
 
-            /* Always rebuild from the PathAndFillManager's own live state */
-            final HelpfulTreeModel model = new HelpfulTreeModel();
-            final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
-            // See PathAndFillManager#isDeFactoPath(Path): a primary path that is itself a fitted
-            // version of another path is normally skipped, since its un-fitted counterpart is
-            // expected to be registered here and displayed in its place instead. Only true skip
-            // it when that counterpart is actually present -- otherwise this path is the only
-            // remaining representative of its root and must still be shown
-            for (final Path primaryPath : primaryPaths) {
-                if (pathAndFillManager.isDeFactoPath(primaryPath))
-                    model.addNode(model.root(), primaryPath);
-            }
-            tree.setModel(fullTreeModel = model);
-            if (navToolbar != null) navToolbar.initFromFullModel();
+            // see the same fix/rationale in NavigationToolbar#applyHideOthers
+            final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+            try {
+                /* Always rebuild from the PathAndFillManager's own live state */
+                final HelpfulTreeModel model = new HelpfulTreeModel();
+                final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
+                // See PathAndFillManager#isDeFactoPath(Path): a primary path that is itself a fitted
+                // version of another path is normally skipped, since its un-fitted counterpart is
+                // expected to be registered here and displayed in its place instead. Only true skip
+                // it when that counterpart is actually present -- otherwise this path is the only
+                // remaining representative of its root and must still be shown
+                for (final Path primaryPath : primaryPaths) {
+                    if (pathAndFillManager.isDeFactoPath(primaryPath))
+                        model.addNode(model.root(), primaryPath);
+                }
+                tree.setModel(fullTreeModel = model);
+                if (navToolbar != null) navToolbar.initFromFullModel();
 
-            // Set back the expanded state:
-            if (expandAll)
-                GuiUtils.Trees.expandAllNodes(tree);
-            else {
-                expandedPathsBefore.add(justAdded);
-                tree.setExpandedPaths(expandedPathsBefore);
-            }
+                // Set back the expanded state:
+                if (expandAll)
+                    GuiUtils.Trees.expandAllNodes(tree);
+                else {
+                    expandedPathsBefore.add(justAdded);
+                    tree.setExpandedPaths(expandedPathsBefore);
+                }
 
-            // Set back the selection state
-            tree.setSelectedPaths(selectedPathsBefore);
+                // Set back the selection state
+                tree.setSelectedPaths(selectedPathsBefore);
+            } finally {
+                pathAndFillManager.enableUIupdates = existingEnableUIupdates;
+            }
         });
     }
 
@@ -1863,9 +1870,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // snapshot it first and reapply it after, so callers of PathManagerUI#update()/#reload() do not silently
             // lose the current Path Manager selection (see restoreFullModelState())
             final Set<Path> selectedPathsBefore = getSelectedPaths();
-            ((DefaultTreeModel)getModel()).reload();
-            for (final TreePath path : expanded) expandPath(path);
-            setSelectedPaths(selectedPathsBefore);
+            // see the same fix/rationale in NavigationToolbar#applyHideOthers
+            final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+            try {
+                ((DefaultTreeModel) getModel()).reload();
+                for (final TreePath path : expanded) expandPath(path);
+                setSelectedPaths(selectedPathsBefore);
+            } finally {
+                pathAndFillManager.enableUIupdates = existingEnableUIupdates;
+            }
         }
 
         int getNumberOfNodes() {
@@ -6421,13 +6435,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
             final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
             final DefaultMutableTreeNode jTreeRoot = ((DefaultMutableTreeNode) model.getRoot());
-            jTreeRoot.removeAllChildren();
-            // See PathAndFillManager#isDeFactoPath(Path)
-            for (final Path primaryPath : primaryPaths) {
-                if (pathAndFillManager.isDeFactoPath(primaryPath))
-                    model.addNode(jTreeRoot, primaryPath);
+            final List<Path> selectedPathsBefore = getSelectedPaths(false);
+            final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+            try {
+                jTreeRoot.removeAllChildren();
+                // See PathAndFillManager#isDeFactoPath(Path)
+                for (final Path primaryPath : primaryPaths) {
+                    if (pathAndFillManager.isDeFactoPath(primaryPath))
+                        model.addNode(jTreeRoot, primaryPath);
+                }
+                model.reload();
+                if (selectedPathsBefore != null && !selectedPathsBefore.isEmpty()) {
+                    tree.setSelectedPaths(selectedPathsBefore);
+                }
+            } finally {
+                pathAndFillManager.enableUIupdates = existingEnableUIupdates;
             }
-            model.reload();
         }
 
         private boolean canExecuteZoomOperation(final Collection<Path> paths) {
@@ -6506,14 +6530,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // Swapping the model clears the JTree's selection as a side effect: snapshot it first and reapply it after,
             // so that operations relying on the current Path Manager selection are not silently broken by this
             final Set<Path> selectedPathsBefore = tree.getSelectedPaths();
-            tree.setModel(fullTreeModel);
-            tree.setSelectedPaths(selectedPathsBefore);
-            hideOthersButton.setSelected(false);
-            plugin.clearIsolatedTreeID(); // undo any active canvas/Bdv/Bvv isolation from applyHideOthers(true)
-            // Re-enable sorting now that the full (multi-arbor) model is restored:  applyHideOthers(true) disables it
-            // while a single arbor is isolated, and this path (e.g. the "show all structures" button) must undo that
-            sortArborsButton.setEnabled(getAllTreeLabels().size() > 1);
-            GuiUtils.Trees.expandAllNodes(tree);
+            // see the same fix/rationale in NavigationToolbar#applyHideOthers
+            final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+            try {
+                tree.setModel(fullTreeModel);
+                tree.setSelectedPaths(selectedPathsBefore);
+                hideOthersButton.setSelected(false);
+                plugin.clearIsolatedTreeID(); // undo any active canvas/Bdv/Bvv isolation from applyHideOthers(true)
+                // Re-enable sorting now that the full (multi-arbor) model is restored:  applyHideOthers(true) disables it
+                // while a single arbor is isolated, and this path (e.g. the "show all structures" button) must undo that
+                sortArborsButton.setEnabled(getAllTreeLabels().size() > 1);
+                GuiUtils.Trees.expandAllNodes(tree);
+            } finally {
+                pathAndFillManager.enableUIupdates = existingEnableUIupdates;
+            }
         }
 
         /** After the model is rebuilt, ensure the filter state matches what's available. */
@@ -6542,17 +6573,41 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // would silently drop, making a same-arbor pick look like an out-of-arbor one
             final Set<String> labels = selectedPaths.stream().map(Path::getTreeLabel)
                     .filter(Objects::nonNull).collect(Collectors.toSet());
-            if (labels.contains(arborChoice)) return; // selection stayed within the isolated arbor
-            // Selection moved outside the isolated arbor. If isolation is active and the new
-            // selection stays within a single arbor, follow it there instead of dropping the
-            // filter and flashing every arbor back into view; otherwise (no isolation active, or
-            // a selection spanning multiple arbors) fall back to showing everything
+            // NB: must be the *whole* current selection collapsing into the isolated arbor, not
+            // merely containing it - a Shift+click/Shift+G add that grows the selection into a
+            // second arbor must fall through below even though the isolated arbor is still part
+            // of it, since staying isolated would hide the very path the user just added
+            if (labels.size() == 1 && labels.contains(arborChoice)) return;
+            // Selection moved outside the isolated arbor. If isolation is active and the *entire*
+            // new selection collapsed into a single (different) arbor, follow it there instead of
+            // dropping the filter and flashing every arbor back into view; otherwise (no isolation
+            // active, or a selection now spanning multiple arbors, e.g. a cross-arbor Shift+G) fall
+            // back to showing everything, so the full selection stays visible
             if (hideOthersButton.isSelected() && labels.size() == 1) {
-                selectArborInTop(labels.iterator().next());
-                applyHideOthers(true);
+                final String newLabel = labels.iterator().next();
+                selectArborInTop(newLabel);
+                // Only reframe when the new arbor isn't already on screen: for a boundary pick
+                // between adjacent structures the neighbor is typically already in view, so
+                // recentering would just be disruptive (see zoomToBoundingBox); but for a distant
+                // arbor, skipping it entirely leaves the newly isolated structure invisible
+                final boolean alreadyInView = isTreeInCurrentView(pathAndFillManager.getTree(newLabel));
+                applyHideOthers(true, !alreadyInView);
             } else {
                 restoreFullModelState();  // subsequent selection of path will update combobox
             }
+        }
+
+        /**
+         * Whether any part of {@code tree}'s XY bounding box already falls within the classic
+         * canvas's current visible area (so isolating it without re-centering would still leave it
+         * on screen). Conservatively returns {@code true} (i.e. "don't bother reframing") when there
+         * is no classic canvas to check against, e.g. only a Bdv/Bvv viewer is open
+         */
+        private boolean isTreeInCurrentView(final Tree tree) {
+            final ImagePlus imp = plugin.getImagePlus();
+            if (imp == null || imp.getCanvas() == null || tree == null || tree.isEmpty()) return true;
+            final Rectangle bbox = RoiConverter.get2DBoundingBox(tree.list(), RoiConverter.XY_PLANE).getBounds();
+            return bbox.intersects(imp.getCanvas().getSrcRect());
         }
 
         void initFromFullModel() {
@@ -6622,39 +6677,62 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
          * list/display.
          */
         private void applyHideOthers(final boolean hide) {
+            applyHideOthers(hide, true);
+        }
+
+        /**
+         * @param zoom whether to fly/zoom the active viewers to the isolated arbor's bounding box.
+         *        {@code false} for an implicit retarget (e.g. following a keystroke pick into a
+         *        neighboring arbor) where reframing the view would fight the user's own panning
+         */
+        private void applyHideOthers(final boolean hide, final boolean zoom) {
             if (fullTreeModel == null || arborChoice == null) return;
 
             // 1) Remember the current selection so we can restore it after swapping models
             final List<Path> prevSelection = getSelectedPaths(false);
-            // 2) Apply model
-            if (hide) {
-                final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
-                tree.setModel(new HelpfulTreeModel(primaryPaths, arborChoice));
-                sortArborsButton.setEnabled(false);
-                // Mirror the JTree's own filtering in the tracing viewers: getTree(String) returns
-                // null if arborChoice no longer matches any tree (e.g. deleted between UI updates),
-                // in which case clearing isolation is the safer fallback over isolating a stale ID
-                final Tree isolatedTree = pathAndFillManager.getTree(arborChoice);
-                plugin.setIsolatedTreeID((isolatedTree != null) ? isolatedTree.getTreeID() : -1);
-                if (isolatedTree != null) zoomToBoundingBox(isolatedTree.list()); // zoom to selected choice
-            } else {
-                hideOthersButton.setSelected(false); // ensure sync
-                tree.setModel(fullTreeModel); // will call reload
-                sortArborsButton.setEnabled(true);
-                plugin.clearIsolatedTreeID();
-            }
-            GuiUtils.Trees.expandAllNodes(tree);
-            // 3) Restore selection if that exists in the new model
-            if (prevSelection != null && !prevSelection.isEmpty()) {
-                final List<Path> toRestore = hide
-                        ? prevSelection.stream()
-                        .filter(p -> arborChoice.equals(p.getTreeLabel()))
-                        .collect(Collectors.toList())
-                        : prevSelection;
-
-                if (!toRestore.isEmpty()) {
-                    tree.setSelectedPaths(toRestore);
+            // Swapping the JTree's model below clears its selection as a side effect and fires a synchronous
+            // TreeSelectionEvent - which would otherwise reentrantly run valueChanged() -> selectionModelChanged() ->
+            // pathAndFillManager.setSelected() with a transient empty selection, *before* isolatedTreeID has even been
+            // updated a few lines down. That stray broadcast is harmless on its own (selectionModelChanged() just
+            // re-pins arborChoice), but it is wasted work that can interleave with an in-flight caller (e.g. a
+            // G/Shift+G  pick already mid-dispatch via PathManagerUI#setSelectedPaths) in ways that are hard to  reason
+            // about. Suppress it for the duration of this swap, matching the enableUIupdates convention this class and
+            // PathAndFillManager already use around bulk model mutations
+            final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+            try {
+                // 2) Apply model
+                if (hide) {
+                    final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
+                    tree.setModel(new HelpfulTreeModel(primaryPaths, arborChoice));
+                    sortArborsButton.setEnabled(false);
+                    // Mirror the JTree's own filtering in the tracing viewers: getTree(String) returns
+                    // null if arborChoice no longer matches any tree (e.g. deleted between UI updates),
+                    // in which case clearing isolation is the safer fallback over isolating a stale ID
+                    final Tree isolatedTree = pathAndFillManager.getTree(arborChoice);
+                    plugin.setIsolatedTreeID((isolatedTree != null) ? isolatedTree.getTreeID() : -1);
+                    if (zoom && isolatedTree != null) zoomToBoundingBox(isolatedTree.list()); // zoom to selected choice
+                } else {
+                    hideOthersButton.setSelected(false); // ensure sync
+                    tree.setModel(fullTreeModel); // will call reload
+                    sortArborsButton.setEnabled(true);
+                    plugin.clearIsolatedTreeID();
                 }
+                GuiUtils.Trees.expandAllNodes(tree);
+                // 3) Restore selection if that exists in the new model
+                if (prevSelection != null && !prevSelection.isEmpty()) {
+                    final List<Path> toRestore = hide
+                            ? prevSelection.stream()
+                            .filter(p -> arborChoice.equals(p.getTreeLabel()))
+                            .collect(Collectors.toList())
+                            : prevSelection;
+
+                    if (!toRestore.isEmpty()) {
+                        tree.setSelectedPaths(toRestore);
+                    }
+                }
+            } finally {
+                pathAndFillManager.enableUIupdates = existingEnableUIupdates;
             }
         }
 

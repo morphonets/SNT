@@ -2369,28 +2369,45 @@ public abstract class AbstractBigViewer {
          * in this viewer's scene ({@link #getRenderedTrees()}) rather than every path in the whole
          * project. Used to auto-select the path a fork click is most likely aimed at, before running the
          * precise fork-point search scoped to just that one path.
+         * <p>
+         * When tree isolation is active ({@link SNT#isTreeIsolationActive()}), the isolated arbor is
+         * favored: a path in another arbor only wins if it is closer by more than
+         * {@link SNTPrefs#NEAREST_PATH_ISOLATION_BIAS}, so a pick that just grazes a neighboring structure
+         * still resolves to the arbor already in focus
          *
          * @param worldPos calibrated (x,y,z) position to search from
          * @return the nearest rendered path, or {@code null} if nothing is currently rendered
          * @see #handleClick(MouseEvent) Mirrors {@code InteractiveTracerCanvas#selectNearestPathToMousePointer},
          */
         protected Path findNearestRenderedPath(final double[] worldPos) {
-            Path nearest = null;
             final PointInImage wPos = SNTPoint.of(worldPos[0], worldPos[1], worldPos[2]);
-            double nearestDistSq = Double.MAX_VALUE;
+            final boolean isolated = snt != null && snt.isTreeIsolationActive();
+            final int isolatedID = isolated ? snt.getIsolatedTreeID() : -1;
+
+            Path nearestOverall = null;
+            double nearestOverallDistSq = Double.MAX_VALUE;
+            Path nearestIsolated = null;
+            double nearestIsolatedDistSq = Double.MAX_VALUE;
             for (final Tree tree : getRenderedTrees()) {
+                final boolean inIsolatedTree = isolated && tree.getTreeID() == isolatedID;
                 for (final Path path : tree.list()) {
                     for (int i = 0; i < path.size(); i++) {
                         final Path.PathNode node = path.getNode(i);
                         final double distSq = node.distanceSquaredTo(wPos);
-                        if (distSq < nearestDistSq) {
-                            nearestDistSq = distSq;
-                            nearest = path;
+                        if (distSq < nearestOverallDistSq) {
+                            nearestOverallDistSq = distSq;
+                            nearestOverall = path;
+                        }
+                        if (inIsolatedTree && distSq < nearestIsolatedDistSq) {
+                            nearestIsolatedDistSq = distSq;
+                            nearestIsolated = path;
                         }
                     }
                 }
             }
-            return nearest;
+            if (!isolated || nearestIsolated == null) return nearestOverall;
+            final double biasSq = SNTPrefs.NEAREST_PATH_ISOLATION_BIAS * SNTPrefs.NEAREST_PATH_ISOLATION_BIAS;
+            return (nearestOverallDistSq * biasSq < nearestIsolatedDistSq) ? nearestOverall : nearestIsolated;
         }
 
         /**

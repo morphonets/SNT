@@ -931,17 +931,33 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise, last_y_in_pane_precise, plane, p);
         final PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
 
-        final NearPointInCanvas<PointInCanvas> nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
-        if (nearPoint == null) {
+        final NearPointInCanvas<PointInCanvas> nearPointOverall = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
+        if (nearPointOverall == null) {
             canvasWarning("No selectable paths in view");
             return null;
         }
-        else {
-            final Path selectedPath = nearPoint.getPath();
-            tracerPlugin.selectPath(selectedPath, addToExistingSelection);
-            canvasInfo(getShortName(selectedPath) + " selected");
-            return selectedPath;
+        // If a single arbor is isolated, favor it: a node in another arbor only wins if it is closer by more than
+        // NEAREST_PATH_ISOLATION_BIAS, so a pick that just grazes a neighboring structure still resolves to the arbor
+        // already in focus (mirrors AbstractBigViewer#findNearestRenderedPath, used by the Bdv/Bvv G/Shift+G shortcuts)
+        NearPointInCanvas<PointInCanvas> nearPoint = nearPointOverall;
+        if (tracerPlugin.isTreeIsolationActive()) {
+            final int isolatedID = tracerPlugin.getIsolatedTreeID();
+            final List<PointInCanvas> isolatedNodes = new ArrayList<>();
+            for (final PointInCanvas node : nodes) {
+                if (node.onPath.getTreeID() == isolatedID) isolatedNodes.add(node);
+            }
+            final NearPointInCanvas<PointInCanvas> nearPointIsolated = isolatedNodes.isEmpty() ? null
+                    : NearPointInCanvas.nearestPointInCanvas(isolatedNodes, cursor);
+            if (nearPointIsolated != null) {
+                final double biasSq = SNTPrefs.NEAREST_PATH_ISOLATION_BIAS * SNTPrefs.NEAREST_PATH_ISOLATION_BIAS;
+                nearPoint = (nearPointOverall.getDistanceSquared() * biasSq < nearPointIsolated.getDistanceSquared())
+                        ? nearPointOverall : nearPointIsolated;
+            }
         }
+        final Path selectedPath = nearPoint.getPath();
+        tracerPlugin.selectPath(selectedPath, addToExistingSelection);
+        canvasInfo(getShortName(selectedPath) + " selected");
+        return selectedPath;
     }
 
     private NearPoint getNearPointToMousePointer() {

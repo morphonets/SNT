@@ -52,6 +52,14 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
+
+	/*
+	 * How much closer (linear distance) a node outside the isolated arbor must be, relative to the best hit inside it,
+	 * before it is allowed to win in selectNearestPathToMousePointer().  Only applied while tree isolation is active;
+	 * see that method's isolation-bias comment
+	 */
+	public static final double NEAREST_PATH_ISOLATION_BIAS = 1.5;
+
 	/* Colors */
 	public static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
 	public static final Color DEFAULT_DESELECTED_COLOR = Color.MAGENTA;
