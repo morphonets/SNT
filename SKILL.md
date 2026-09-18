@@ -4,8 +4,8 @@ description: Script SNT (the Fiji framework for neuroanatomy - tracing, reconstr
 compatibility: Designed for any agentic AI assistant with file system, bash, and internet browsing skill. Requires a local Fiji installation with SNT (Neuroanatomy update site enabled).
 metadata:
   author: morphonets
-  version: "0.1"
-  last_updated: "2026-06-02"
+  version: "0.2"
+  last_updated: "2026-09-18"
   homepage: https://imagej.net/plugins/snt
   source: https://github.com/morphonets/SNT
 ---
@@ -21,12 +21,22 @@ You are helping a researcher write or debug scripts against **SNT** (https://ima
   - User guide: https://imagej.net/plugins/snt/
   - pySNT notebooks: https://pysnt.readthedocs.io/en/latest/notebooks/index.html
   - Latest version API: https://morphonets.github.io/SNT/
-3. **Use the modern API.** The package is `sc.fiji.snt.*`. The legacy `tracing.*` / `SimpleNeuriteTracer` classes are deprecated: do not use them, do not invent method names from memory
+3. **Use the modern API.** The package is `sc.fiji.snt.*`. The legacy `tracing.*` / `SimpleNeuriteTracer` classes are deprecated: do not use them, do not invent method names from memory. Also watch for classes that are *real but retired* — these are more dangerous than outright hallucinations because they compile against old jars and show up constantly in older forum posts/tutorials, so you'll reach for them with full (mistaken) confidence. See the **Renamed/Moved APIs** table below and check it before writing any autotracing/skeletonization code
 4. **Use `SNTService`** for headless / scripted entry. Do not instantiate `SNT` directly unless you have a specific reason. `SNTService` is a SciJava `@Service`: inject it, don't instantiate it
 5. **Prefer ImgLib2 over legacy IJ.** `Img<T>`, `RandomAccessibleInterval`, `Dataset`, are preferable over `ImagePlus`, `ImageStack`, `ImageProcessor`. SNT Provides `sc.fiji.snt.util.ImpUtils` and `sc.fiji.snt.util.ImgUtils` for handling and converting image data structures
 6. **Look inside the jar before writing from scratch.** SNT ships dozens of template scripts under `script_templates/Neuroanatomy/` inside `SNT-*.jar`. Find a template that matches the task and adapt it. These are also part of the [source code](https://github.com/morphonets/SNT/tree/main/src/main/resources/script_templates/Neuroanatomy)
 7. **No hard-coded paths.** Resolve the Fiji install at runtime (see Phase 0)
-8. **Prefer SciJava parameters.** Scripts should declare `#@` parameters at the top
+8. **Prefer SciJava parameters.** Scripts should declare `#@` parameters at the top instead of `OpenDialog`/manual file pickers — this isn't just style, it's what lets a script run headlessly (see Phase 3's "Headless batch processing"). See the Anti-patterns table for the specific substitution
+9. **Re-running a script against the same session is not a fresh start.** `SNTService`, `PathAndFillManager`, and the active `SNT` instance can persist across repeated runs inside one Fiji session (e.g. iterating on a script in the Script Editor). If a script's job is to (re)populate paths/trees, clear stale state first (`pathAndFillManager.clear()`) or results from a previous run will silently accumulate alongside the new ones and look like an unrelated bug in whatever logic runs next
+
+### Renamed/Moved APIs
+
+Classes that still exist under the names below in a lot of tutorials/forum threads/training data, but have moved. This list grows as agents (and humans) hit more of them — add to it rather than assuming it's exhaustive:
+
+| Old (real, but retired)                   | New                                     | Notes                                                                                          |
+|-------------------------------------------|-----------------------------------------|------------------------------------------------------------------------------------------------|
+| `sc.fiji.snt.analysis.SkeletonConverter`  | `sc.fiji.snt.tracing.auto.BinaryTracer` | Same method names (`setRootRoi`, `ROI_CENTROID_WEIGHTED`, `getSingleTree`, `getTrees`, etc.) — only the package (and constructor context) changed. See "Autotracing: rooting strategies" below for the parts of this API that are easy to misuse even once you're on the right class |
+| `tracing.SimpleNeuriteTracer`             | `sc.fiji.snt.SNTService` (inject it)    | Not a rename so much as a full redesign; don't try to map methods 1:1                          |
 
 ---
 
@@ -127,7 +137,7 @@ unzip -l "$FIJI_HOME"/jars/SNT-*.jar | grep script_templates/Neuroanatomy
 unzip -p "$FIJI_HOME"/jars/SNT-*.jar script_templates/Neuroanatomy/Analysis/Get_Branch_Points.groovy
 ```
 
-Templates are grouped: `Analysis/`, `Batch/`, `Big_Data/`, `Misc/`, `Render/`, `Skeletons_and_ROIs/`, `Time-lapses/`, `Tracing/`. 
+Templates are grouped: `Analysis/`, `Batch/`, `Big_Data/`, `Misc/`, `Render/`, `Skeletons_and_ROIs/`, `Time-lapses/`, `Tracing/`.
 Their headers also serve as canonical examples of `#@` parameters and `SNTService` use.
 
 ---
@@ -168,6 +178,7 @@ Key rules embodied above:
 - **`Tree` is the central type** for a reconstruction. A `Tree` is a collection of `Path`s. Don't pass raw SWC lists around
 - **Analyzers are stateful wrappers** around a `Tree`: `TreeStatistics`, `ShollAnalyzer`, `StrahlerAnalyzer`, `PersistenceAnalyzer`, `MultiTreeStatistics`, `GroupedTreeStatistics`. Pick the most specific one
 - **`SNTChart`** is the unified plotting surface: use it instead of `Plot`/ charts. For tables use `SNTTable` not `ResultsTable`
+- **Idempotency:** if the script writes into `PathAndFillManager` (adds paths/trees) and might be run more than once in the same session, clear it first — see Hard Rule 9
 
 ---
 
@@ -193,14 +204,30 @@ Use `MultiTreeStatistics` over a list of `Tree`s rather than looping `TreeStatis
 For cell groups use `GroupedTreeStatistics`
 
 ### Skeletonize a binary image > Tree
-Use `sc.fiji.snt.tracing.auto.BinaryTracer`
+Use `sc.fiji.snt.tracing.auto.BinaryTracer` — but the output shape depends entirely on the *rooting strategy* you pass to `setRootRoi(Roi, int)`, so pick deliberately rather than defaulting to whatever a tutorial used:
+
+| Strategy                | Behavior                                                               | Output                   |
+|-------------------------|------------------------------------------------------------------------|--------------------------|
+| `ROI_UNSET`             | Ignore the ROI; root at an algorithm-specific point                    | Depends on graph shape   |
+| `ROI_EDGE`              | One tree **per neurite** exiting the soma; interior-ROI nodes dropped  | `List<Tree>` — can be >1 |
+| `ROI_CENTROID`          | Collapse all branches onto the ROI's geometric centroid                | Single `Tree`            |
+| `ROI_CENTROID_WEIGHTED` | Collapse onto a weighted centroid of soma nodes                        | Single `Tree`            |
+| `ROI_CONTAINED`         | Root on nodes inside the ROI (skeleton-based only)                     | Depends on graph shape   |
+
+**Gotcha:** `getSingleTree()`/`getSingleGraph()` throw `IllegalArgumentException` ("Combining multiple graphs requires ROI_CENTROID or ROI_CENTROID_WEIGHTED strategy") the moment there's more than one component — which `ROI_EDGE` produces by design whenever a soma has more than one neurite. If you set `ROI_EDGE`, call `getTrees()` (plural) and handle a list, not `getSingleTree()`.
+
+**Gotcha (time-lapse / per-frame use):** `new BinaryTracer(imagePlus, frame)` extracts a single-slice sub-image internally (`ImpUtils.getFrame`) — the tracer never sees the full stack. `setRootRoi()` separately reads `roi.getZPosition()` to decide which stack slice(s) to blank under the ROI. If your `Roi` objects were loaded from a RoiManager `.zip` that was drawn against a *different* stack (e.g. a longer original movie, or a reduced test subset), they carry a stale position number that won't match the 1-slice per-frame image, and `ImageStack.getProcessor()` throws "Stack argument out of range." Clear it first: `roi.setPosition(0)` before passing the ROI to `setRootRoi()`, so it's treated as applying to "no particular slice" (i.e. the sub-image's only slice).
+
+**Gotcha (pruning):** `setPruneByLength(true)` + `setLengthThreshold(um)` only discards **entire disconnected components** below that length — it has no effect on short spurs/branches still attached to the main tree, no matter how small the threshold. For trimming terminal spurs on an otherwise-connected structure, use `setPruneEnds(true)` instead (delegates to `AnalyzeSkeleton_`'s own end-pruning; it's a blunt on/off switch, no adjustable length). These are two different features with confusingly similar names — don't assume one substitutes for the other.
+
+**Gotcha (batch tagging):** `PathAndFillManager.addTrees(Collection<Tree>, commonTag)` applies **one shared tag** to every tree in that call — it does not distinguish trees within the batch. If you need each tree individually named/tagged (e.g. per-neurite), loop `addTree(tree, tag)` per tree instead of batching with `addTrees`.
 
 ### Autotracing
 Use the `sc.fiji.snt.tracing.auto` package. `AutoTracer` is the interface contract; the concrete implementations are:
 - `GWDTTracer` — default in-memory backend
 - `DiskBackedGWDTTracer` — for stacks larger than RAM
 - `SparseGWDTTracer` — for very sparse signal
-- `BinaryTracer` — for already-binarised inputs (`implements AutoTracer`)
+- `BinaryTracer` — for already-binarised inputs (`implements AutoTracer`) — see the rooting-strategy table and gotchas above; they apply here too
 
 All `GWDT*Tracer` classes extend `AbstractGWDTTracer<T extends RealType<T>>`, so the configuration API (`setSeed`, `setTips`, `setWaypoints`, `trace`) is uniform.
 
@@ -265,20 +292,24 @@ SNT has dedicated, format-aware save methods on its result types. Don't hand-rol
 
 ## Phase 4: Anti-patterns (Things Agents Do Wrong)
 
-| Don't                                | Do instead                                                    |
-|--------------------------------------|---------------------------------------------------------------|
-| `import tracing.SimpleNeuriteTracer`         | `import sc.fiji.snt.SNTService` (inject it)                                |
-| `new SNT(...)` from a script                 | `@SNTService snt; snt.initialize(true)`                                    |
-| Iterate pixels via `ImageProcessor`          | Iterate via `Cursor<T>` on a `RandomAccessibleInterval`                    |
-| Parse SWC manually                           | `new Tree(path)`                                                           |
-| Call `IJ.run("3D Viewer", ...)`              | `new Viewer3D()`                                                           |
-| `ResultsTable` for SNT outputs               | `SNTTable` (subclass with persistence helpers)                             |
-| Mix length units silently                    | Always work in calibrated units; check `tree.getProperties()`              |
-| `ChartUtilities.saveChartAsPNG(...)`         | `chart.saveAsPNG(path)` on `SNTChart`                                      |
-| `double[] xyz` (or three loose doubles)      | `PointInImage` (world coords) / `PointInCanvas` (display coords)           |
-| Walk `Path.getStartJoins()` parents manually | `tree.getGraph()` then use JGraphT's iterators / BFS / DFS                 |
-| Share one `SNT` instance across threads      | Treat `SNT` as single-threaded; spawn one per worker, or use `SNTService`  |
-| `ImageProcessor` → ad-hoc pixel arrays       | `ImpUtils.toRAI(imp)` / `ImageJFunctions.wrap(imp)` to get a `RAI`/`Img`   |
+| Don't                                             | Do instead                                                                      |
+|---------------------------------------------------|---------------------------------------------------------------------------------|
+| `import tracing.SimpleNeuriteTracer`              | `import sc.fiji.snt.SNTService` (inject it)                                     |
+| `import sc.fiji.snt.analysis.SkeletonConverter`   | `import sc.fiji.snt.tracing.auto.BinaryTracer` (same API, new package)          |
+| `new SNT(...)` from a script                      | `@SNTService snt; snt.initialize(true)`                                         |
+| `OpenDialog`/manual file picker for inputs        | `#@ File` (or `#@ String`, etc.) SciJava parameter — required for headless runs |
+| Iterate pixels via `ImageProcessor`               | Iterate via `Cursor<T>` on a `RandomAccessibleInterval`                         |
+| Parse SWC manually                                | `new Tree(path)`                                                                |
+| Call `IJ.run("3D Viewer", ...)`                   | `new Viewer3D()`                                                                |
+| `ResultsTable` for SNT outputs                    | `SNTTable` (subclass with persistence helpers)                                  |
+| Mix length units silently                         | Always work in calibrated units; check `tree.getProperties()`                   |
+| `ChartUtilities.saveChartAsPNG(...)`              | `chart.saveAsPNG(path)` on `SNTChart`                                           |
+| `double[] xyz` (or three loose doubles)           | `PointInImage` (world coords) / `PointInCanvas` (display coords)                |
+| Walk `Path.getStartJoins()` parents manually      | `tree.getGraph()` then use JGraphT's iterators / BFS / DFS                      |
+| Share one `SNT` instance across threads           | Treat `SNT` as single-threaded; spawn one per worker, or use `SNTService`       |
+| `ImageProcessor` → ad-hoc pixel arrays            | `ImpUtils.toRAI(imp)` / `ImageJFunctions.wrap(imp)` to get a `RAI`/`Img`        |
+| Assume `getSingleTree()` works with `ROI_EDGE`    | Use `getTrees()` (plural) — `ROI_EDGE` can yield more than one component        |
+| Re-run a populating script without clearing state | `pathAndFillManager.clear()` at the top if the script may run more than once per session |
 
 ---
 
