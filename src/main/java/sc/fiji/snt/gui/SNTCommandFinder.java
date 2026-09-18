@@ -29,6 +29,7 @@ import org.apache.commons.text.WordUtils;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.TracerCanvas;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -399,13 +400,14 @@ public class SNTCommandFinder {
 
     private void executeCmd(final CmdAction cmd) {
         if (cmd.hasButton()) {
+            if (isUnavailableTracerCanvasCmd(cmd)) {
+                final boolean streamMode = SNTUtils.getInstance() != null && SNTUtils.getInstance().isStreamMode();
+                displayBlockingMsg((String.format("Command requires a %s.", (streamMode) ? "materialized crop" : "tracing canvas")));
+                return;
+            }
             if (cmd.hasButton() && (!cmd.button.isEnabled()
                     || (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
-                final boolean autoHideState = autoHide;
-                autoHide = false;
-                setVisible(true);
-                displayTempMsg("Command is currently disabled. Cannot be executed.", true);
-                autoHide = autoHideState;
+                displayBlockingMsg("Command is currently disabled. Cannot be executed.");
                 return;
             }
             if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
@@ -416,6 +418,26 @@ public class SNTCommandFinder {
             if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
             cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
         }
+    }
+
+    // Forces msg to stay visible even if a stale autoHide trigger fires while it is showing
+    private void displayBlockingMsg(final String msg) {
+        final boolean autoHideState = autoHide;
+        autoHide = false;
+        setVisible(true);
+        displayTempMsg(msg, true);
+        autoHide = autoHideState;
+    }
+
+    // True for a CmdAction scraped from the Image Contextual Menu (TracerCanvas's own popup, tagged "tracerCanvasMenu"
+    // in CmdScrapper#getComponents()) whose canvas is not currently a real, paintable surface (e.g. stream mode without
+    // materialized crop)
+    private boolean isUnavailableTracerCanvasCmd(final CmdAction cmd) {
+        if (!(cmd.button.getParent() instanceof JPopupMenu popup)
+                || !Boolean.TRUE.equals(popup.getClientProperty("tracerCanvasMenu")))
+            return false;
+        final TracerCanvas canvas = (sntui == null) ? null : sntui.getTracingCanvas();
+        return canvas == null || !canvas.isDisplayable();
     }
 
     private void revealCmd(final CmdAction cmd) {
