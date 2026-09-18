@@ -10,3 +10,4 @@ Use BVV's slab controls to restrict path visibility to a Z-slab around the curre
 Take a BVV snapshot with Shift+S
 BVV can subtract (un-mix) channels for cleaner multi-channel visualization
 When a dataset exceeds the GPU's max texture size, BVV will offer automatic N5 conversion
+Press Space to toggle between tracing and navigation. Hold it down to temporarily switch to navigation, then release to resume tracing

@@ -911,6 +911,16 @@ public class Bdv extends AbstractBigViewer {
                 sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
                 sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, 0), "snt-undo-segment"); // see Tracer#undoLastSegment
                 sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
+                // Space: a quick tap flips tracing on/off permanently (like clicking No tracing/  Manual/Interactive);
+                // holding it past a threshold instead changes to "No tracing" for as long as it's held and snaps back
+                // on release (mirrors InteractiveTracerCanvas#mousePressed hold-Space-to-pan convention). See
+                // AbstractTracer#getToggleTracingHoldPressAction/ReleaseAction for the tap/hold logic. Like G above,
+                // this intentionally shadows BDV's own native Space binding, if any, since both maps share this same
+                // "snt" input map
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "snt-toggle-tracing-hold-press");
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, true), "snt-toggle-tracing-hold-release");
+                sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
+                sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
             }
             // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BDV
             // window can be opened in classic mode too, and its own keybindings layer needs this regardless
@@ -960,16 +970,17 @@ public class Bdv extends AbstractBigViewer {
             bg1.add(b0);
             bg1.add(b1);
             bg1.add(b2);
+            // Non-focusable: Space is also the native Swing "activate the focused button" key, so a toggle button left
+            // focused after being clicked would double-fire alongside the hold-to-toggle-tracing Space binding above
+            // (see getToggleTracingHoldPressAction/ReleaseAction) instead of leaving Space to that binding alone.
+            b0.setFocusable(false);
+            b1.setFocusable(false);
+            b2.setFocusable(false);
             b0.setSelected(true); // matches tracingEnabled's initial false
             tracer.installTracingModeButtons(b0, b1, b2);
             bar.add(b0);
             bar.add(b1);
             bar.add(b2);
-            final JToggleButton extendButton = GuiUtils.Buttons.toolbarToggleButton(
-                    tracer.getExtendSelectedPathAction(), "Continue extending the selected path",
-                    IconFactory.GLYPH.TAPE, IconFactory.GLYPH.TAPE);
-            bar.add(extendButton);
-            tracer.installExtendPathButton(extendButton);
             bar.addSeparator();
             bar.add(Box.createHorizontalGlue());
             bar.addSeparator();

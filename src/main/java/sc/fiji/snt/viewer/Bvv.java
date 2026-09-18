@@ -1435,6 +1435,11 @@ public class Bvv extends AbstractBigViewer {
                 sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
                 sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, 0), "snt-undo-segment"); //See Tracer#undoLastSegment
                 sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
+                // Space: a quick tap flips tracing on/off permanently: see comments on mirrored code in Bdv
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, 0, false), "snt-toggle-tracing-hold-press");
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, 0, true), "snt-toggle-tracing-hold-release");
+                sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
+                sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
             }
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, 0), "snt-capture-keyframe");
             sntAMap.put("snt-capture-keyframe", new AbstractAction() {
@@ -1793,15 +1798,15 @@ public class Bvv extends AbstractBigViewer {
             bg1.add(b0);
             bg1.add(b1);
             bg1.add(b2);
+            // Non-focusable: See comments on mirrored code in Bdv
+            b0.setFocusable(false);
+            b1.setFocusable(false);
+            b2.setFocusable(false);
             b0.setSelected(true); // matches tracingEnabled's initial false
             tracer.installTracingModeButtons(b0, b1, b2);
             toolbar.add(b0);
             toolbar.add(b1);
             toolbar.add(b2);
-            final JToggleButton extendButton = scaledToggleButton(tracer.getExtendSelectedPathAction(),
-                    IconFactory.GLYPH.TAPE, "Continue extending the selected path");
-            toolbar.add(extendButton);
-            tracer.installExtendPathButton(extendButton);
 
             // "Center scene strategy on click" options button (see AbstractBigViewer.RecenterStrategy)
             final JPopupMenu popupMenu = new JPopupMenu();
@@ -1901,13 +1906,16 @@ public class Bvv extends AbstractBigViewer {
     }
 
     private JToggleButton scaledToggleButton(final Action action, final IconFactory.GLYPH glyph, final String tooltipText) {
-        final JToggleButton button = new JToggleButton(action);
-        button.setText(null);
-        IconFactory.assignIcon(button, glyph, (Color) null, 1.1f);
-        button.setToolTipText(tooltipText);
-        return button;
+        return scaledToggleButton(action, glyph, null, tooltipText);
     }
 
+    private JToggleButton scaledToggleButton(final Action action, final IconFactory.GLYPH glyph, final Color color, final String tooltipText) {
+        final JToggleButton button = new JToggleButton(action);
+        button.setText(null);
+        IconFactory.assignIcon(button, glyph, color, 1.1f);
+        button.setToolTipText(tooltipText);
+        return button;
+}
 
     /**
      * Script friendly method to add a supported object ({@link Tree},

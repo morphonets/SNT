@@ -154,6 +154,7 @@ public abstract class AbstractBigViewer {
     protected JProgressBar tracingStatusBar;
     protected JButton tracingCancelButton;
     protected JButton tracingUndoButton;
+    protected JToggleButton tracingExtendButton;
     protected JToggleButton secondaryLayerIndicator; // Persistent indicator of SNT#isTracingOnSecondaryImageActive()
 
     protected AbstractBigViewer() {
@@ -1058,6 +1059,14 @@ public abstract class AbstractBigViewer {
         IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
         tracingUndoButton.setToolTipText("<HTML>Tracing: Undo last segment (or press Z)");
         tracer.updateUndoButtonState();
+        tracingExtendButton = new JToggleButton(tracer.getExtendSelectedPathAction());
+        tracingExtendButton.setText(null);
+        IconFactory.assignIcon(tracingExtendButton, IconFactory.GLYPH.CIRCLE_CHEVRON_RIGHT, IconFactory.GLYPH.CIRCLE_CHEVRON_RIGHT);
+        tracingExtendButton.setToolTipText("Continue extending the selected path");
+        // Same reasoning as b0/b1/b2 in Bvv#sntToolbar/Bdv#sntAnnotationsCard: non-focusable so
+        // Space (hold-to-toggle-tracing) isn't also captured as this button's own activation key
+        tracingExtendButton.setFocusable(false);
+        tracer.installExtendPathButton(tracingExtendButton);
         secondaryLayerIndicator = new JToggleButton();
         secondaryLayerIndicator.setEnabled(snt != null);
         secondaryLayerIndicator.setSelected(snt != null && snt.isTracingOnSecondaryImageActive());
@@ -1067,6 +1076,8 @@ public abstract class AbstractBigViewer {
         final JToolBar row = new JToolBar();
         row.setFloatable(false);
         row.add(tracingUndoButton);
+        row.addSeparator();
+        row.add(tracingExtendButton);
         row.addSeparator();
         row.add(secondaryLayerIndicator);
         row.addSeparator();
@@ -2056,12 +2067,31 @@ public abstract class AbstractBigViewer {
         // #installExtendPathButton
         private JToggleButton extendPathButton;
 
-        // Whether a global SNT_PAUSED/TRACING_PAUSED state is currently forcing "No tracing" here (see
-        // #setLockedByPause). While true, manualTracingButton/interactiveTracingButton are disabled
-        // outright - not just deselected - so the toolbar can't show tracing as active while every click
-        // is actually a no-op (see #handleClick's own busy/paused early-return, which bails on the same
-        // two states).
+        // Whether a global SNT_PAUSED/TRACING_PAUSED state is currently forcing "No tracing" here (see #setLockedByPause).
+        // While true, manualTracingButton/interactiveTracingButton are disabled - not just deselected - so the toolbar
+        // can't show tracing as active while every click is actually a no-op (see #handleClick's busy/paused early-return,
+        // which bails on the same two states)
         private boolean lockedByPause;
+        // Space key tap-vs-hold state (see #getToggleTracingHoldPressAction()/ #getToggleTracingHoldReleaseAction()): a
+        // quick press+release commits a permanent flip of tracingEnabled (like clicking the button); a press held past
+        // SPACE_HOLD_THRESHOLD_MS previews "No tracing" for as long as it's held and snaps back on release. All 4 fields
+        // below are only ever touched on the EDT, so no synchronization is needed despite the Timer involved
+        private static final int SPACE_HOLD_THRESHOLD_MS = 200;
+        // True from the first "pressed" KeyStroke event until the matching "released" one is processed. Guards against
+        // OS key-repeat re-firing the press handler while the key stays down, and against a stray release (e.g. focus
+        // lost mid-press) being processed twice
+        private boolean spaceKeyDown;
+        // Set once SPACE_HOLD_THRESHOLD_MS has elapsed while the key is still down: distinguishes a genuine hold from a
+        // quick tap at release time, regardless of whether the hold actually changed anything (see #spaceHoldEngaged)
+        private boolean spaceHoldThresholdReached;
+        // Set only if the hold threshold was reached AND tracing was actually on at that point (so the preview actually
+        // suspended it). Holding while already "No tracing" reaches the threshold but never sets this, matching the
+        // pre-tap/hold behavior of that combination being a no-op either way (tap or hold)
+        private boolean spaceHoldEngaged;
+        // tracingEnabled's value at the moment the hold threshold was reached, so release can restore it exactly once
+        // the preview ends
+        private boolean tracingEnabledBeforeHold;
+        private javax.swing.Timer spaceHoldThresholdTimer;
         // The Future for the A* search currently active (if any), so a Cancel button (if the viewer has
         // one; see Bvv#tracingStatusRow()) can stop it. Null when idle, or during manual tracing
         private volatile Future<?> currentSearchFuture;
@@ -2159,6 +2189,7 @@ public abstract class AbstractBigViewer {
                 // its workers are reading this SNT instance's shared image-data fields concurrently.
                 // Refuse to start a new path on a *different* channel/frame than the batch is using.
                 // That would trigger the resync below and race with it
+                assert snt != null;
                 final int[] batchLock = snt.getBatchRetraceChannelFrame();
                 if (batchLock != null) {
                     final int[] candidate = peekActiveChannelFrame();
@@ -2862,6 +2893,110 @@ public abstract class AbstractBigViewer {
             }
             exit();
             showViewerMessage("Tracing disabled");
+        }
+
+        /**
+         * @return the action bound to Space's key-down in Bdv/Bvv. Doesn't act immediately: starts a
+         *         {@value #SPACE_HOLD_THRESHOLD_MS}ms timer to tell a quick tap from a genuine hold
+         *         (decided at key-up by {@link #getToggleTracingHoldReleaseAction()}) - a tap commits
+         *         a permanent flip of {@code tracingEnabled} (like clicking the button), a hold past
+         *         the threshold previews "No tracing" for as long as it's held (mirrors the classic
+         *         canvas's own hold-Space-to-pan convention, see {@code
+         *         InteractiveTracerCanvas#mousePressed}) and snaps back on release. No-op (repeated
+         *         OS key-repeat "pressed" events while already down are ignored) if a press is
+         *         already in progress.
+         */
+        protected AbstractAction getToggleTracingHoldPressAction() {
+            return new AbstractAction("Toggle/suspend tracing (Space)") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (spaceKeyDown) return; // OS key-repeat while already held; ignore
+                    spaceKeyDown = true;
+                    spaceHoldThresholdReached = false;
+                    spaceHoldEngaged = false;
+                    SNTUtils.log("Space pressed (tracingEnabled=" + tracingEnabled + ")");
+                    spaceHoldThresholdTimer = new javax.swing.Timer(SPACE_HOLD_THRESHOLD_MS, ev -> {
+                        spaceHoldThresholdReached = true;
+                        SNTUtils.log("Space hold threshold reached (tracingEnabled=" + tracingEnabled + ")");
+                        if (tracingEnabled) {
+                            // Only a hold starting from a tracing mode has anything to preview; a
+                            // hold starting from "No tracing" is left a no-op, same as before tap
+                            // detection existed
+                            spaceHoldEngaged = true;
+                            tracingEnabledBeforeHold = true;
+                            setTracingActiveForHold(false);
+                        }
+                    });
+                    spaceHoldThresholdTimer.setRepeats(false);
+                    spaceHoldThresholdTimer.start();
+                }
+            };
+        }
+
+        /**
+         * @return the action bound to Space's key-up. Stops the pending threshold timer (see {@link
+         *         #getToggleTracingHoldPressAction()}) and either restores the pre-hold state (if the
+         *         threshold was reached and actually engaged a preview), does nothing (threshold
+         *         reached but nothing was previewed - a hold that started from "No tracing"), or, for
+         *         a quick tap (threshold never reached), commits a permanent flip of {@code
+         *         tracingEnabled}. The permanent-flip branch is a no-op (with a status message,
+         *         instead of {@link #getToggleAction(boolean)}'s blocking error dialog) if turning
+         *         tracing on isn't currently possible. No-op overall if no press was seen (e.g. focus
+         *         was lost mid-press, so this release has no matching press).
+         */
+        protected AbstractAction getToggleTracingHoldReleaseAction() {
+            return new AbstractAction("Commit/resume tracing state (Space)") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!spaceKeyDown) return;
+                    spaceKeyDown = false;
+                    if (spaceHoldThresholdTimer != null) {
+                        spaceHoldThresholdTimer.stop();
+                        spaceHoldThresholdTimer = null;
+                    }
+                    if (spaceHoldThresholdReached) {
+                        SNTUtils.log("Space released after a hold (engaged=" + spaceHoldEngaged + ")");
+                        if (spaceHoldEngaged) {
+                            spaceHoldEngaged = false;
+                            setTracingActiveForHold(tracingEnabledBeforeHold);
+                        }
+                        // else: was held while already "No tracing" - stays a no-op
+                        return;
+                    }
+                    // Quick tap: commit a permanent flip
+                    SNTUtils.log("Space released as a tap (tracingEnabled=" + tracingEnabled + " -> " + !tracingEnabled + ")");
+                    if (!tracingEnabled) {
+                        final boolean sntAware = snt != null && snt.getPathAndFillManager() != null;
+                        final boolean tracingPossible = manualTrace || (sntAware && snt.accessToValidImageData());
+                        if (!tracingPossible) {
+                            showViewerMessage("Tracing not available");
+                            return;
+                        }
+                    }
+                    setTracingActiveForHold(!tracingEnabled);
+                }
+            };
+        }
+
+        /**
+         * Shared by {@link #getToggleTracingHoldPressAction()}/{@link
+         * #getToggleTracingHoldReleaseAction()}: applies {@code active} to {@link #tracingEnabled}
+         * ({@code AbstractTracer}'s own field, not the button-driven flow), the extend-path button,
+         * the tracing-mode {@link ButtonGroup}'s selection, and a status message - without any of
+         * {@link #getToggleAction(boolean)}/{@link #disableTracing()}'s prompting or {@link #exit()}
+         * bookkeeping, since both the tap and the hold-preview paths bypass that heavier flow.
+         */
+        private void setTracingActiveForHold(final boolean active) {
+            tracingEnabled = active;
+            if (extendPathButton != null) extendPathButton.setEnabled(active);
+            if (active) {
+                final JToggleButton modeButton = (manualTrace) ? manualTracingButton : interactiveTracingButton;
+                if (modeButton != null) modeButton.setSelected(true);
+                showViewerMessage("Tracing mode active");
+            } else {
+                if (noTracingButton != null) noTracingButton.setSelected(true);
+                showViewerMessage("Panning mode active");
+            }
         }
 
         /**
