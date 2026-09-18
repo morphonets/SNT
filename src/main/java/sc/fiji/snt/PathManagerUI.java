@@ -144,7 +144,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         pathAndFillManager.addPathAndFillListener(this);
 
         tree = new HelpfulJTree();
-        tree.setRootVisible(false);
         tree.setVisibleRowCount(30);
         tree.setDoubleBuffered(true);
         tree.addTreeSelectionListener(this);
@@ -1733,6 +1732,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
             setExpandsSelectedPaths(true);
             setScrollsOnExpand(true);
+            setRootVisible(false);
+            setShowsRootHandles(true);
             // Native double-click toggle is replaced by our own handler below, so that in
             // stream mode double-click can zoom to the path instead of expanding/collapsing
             setToggleClickCount(0);
@@ -6535,8 +6536,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         void selectedPathsChangedElsewhere(final Collection<Path> selectedPaths) {
-            if (!getTreeLabels(selectedPaths).contains(arborChoice)) {
-                // paths were selected outside PathManagerUI (e.g., via keystroke): we need to clear any filters
+            // NB: use getTreeLabel() directly on every path, not the isPrimary()-filtered
+            // getTreeLabels() helper: a keystroke-driven pick (e.g. G/Shift+G in a tracing
+            // viewer) typically lands on a non-primary (branch) path, which getTreeLabels()
+            // would silently drop, making a same-arbor pick look like an out-of-arbor one
+            final Set<String> labels = selectedPaths.stream().map(Path::getTreeLabel)
+                    .filter(Objects::nonNull).collect(Collectors.toSet());
+            if (labels.contains(arborChoice)) return; // selection stayed within the isolated arbor
+            // Selection moved outside the isolated arbor. If isolation is active and the new
+            // selection stays within a single arbor, follow it there instead of dropping the
+            // filter and flashing every arbor back into view; otherwise (no isolation active, or
+            // a selection spanning multiple arbors) fall back to showing everything
+            if (hideOthersButton.isSelected() && labels.size() == 1) {
+                selectArborInTop(labels.iterator().next());
+                applyHideOthers(true);
+            } else {
                 restoreFullModelState();  // subsequent selection of path will update combobox
             }
         }

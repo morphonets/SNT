@@ -2914,10 +2914,8 @@ public abstract class AbstractBigViewer {
                     spaceKeyDown = true;
                     spaceHoldThresholdReached = false;
                     spaceHoldEngaged = false;
-                    SNTUtils.log("Space pressed (tracingEnabled=" + tracingEnabled + ")");
                     spaceHoldThresholdTimer = new javax.swing.Timer(SPACE_HOLD_THRESHOLD_MS, ev -> {
                         spaceHoldThresholdReached = true;
-                        SNTUtils.log("Space hold threshold reached (tracingEnabled=" + tracingEnabled + ")");
                         if (tracingEnabled) {
                             // Only a hold starting from a tracing mode has anything to preview; a
                             // hold starting from "No tracing" is left a no-op, same as before tap
@@ -2955,7 +2953,6 @@ public abstract class AbstractBigViewer {
                         spaceHoldThresholdTimer = null;
                     }
                     if (spaceHoldThresholdReached) {
-                        SNTUtils.log("Space released after a hold (engaged=" + spaceHoldEngaged + ")");
                         if (spaceHoldEngaged) {
                             spaceHoldEngaged = false;
                             setTracingActiveForHold(tracingEnabledBeforeHold);
@@ -2964,7 +2961,6 @@ public abstract class AbstractBigViewer {
                         return;
                     }
                     // Quick tap: commit a permanent flip
-                    SNTUtils.log("Space released as a tap (tracingEnabled=" + tracingEnabled + " -> " + !tracingEnabled + ")");
                     if (!tracingEnabled) {
                         final boolean sntAware = snt != null && snt.getPathAndFillManager() != null;
                         final boolean tracingPossible = manualTrace || (sntAware && snt.accessToValidImageData());
