@@ -37,7 +37,6 @@ import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.PointInCanvas;
 
 /**
@@ -48,6 +47,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 
 	private static final long serialVersionUID = 1L;
 	private static final double SCALE_FACTOR = GuiUtils.uiScale();
+	private static final Color LABEL_BACKGROUND = new Color(128, 128, 128, 128); // constant mid-gray band
 
 	protected PaneOwner owner;
 	protected int plane;
@@ -55,7 +55,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	private boolean draw_crosshairs = true; // render crosshairs by default
 	private String cursorText; // text to be rendered near cursor
 	private String canvasText; // text to be rendered NW corner of canvas
-	private Color canvasTextBackground; // null = default gray
+	private Color labelForegroundColor; // null = default (getAnnotationsColor())
 	private Color annotationsColor;
 	private boolean waveInteractionsToIJ;
 	protected boolean waitingForRoiDrawing;
@@ -196,11 +196,10 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 			fm = getFontMetrics(font);
 		}
 		final double h = fm.getHeight() + edge;
-		final boolean customBg = canvasTextBackground != null;
-		g.setColor(customBg ? canvasTextBackground : new Color(120, 120, 120, 100));
+		g.setColor(LABEL_BACKGROUND);
 		g.fill(new Rectangle2D.Double(0, 0, canvasWidth, h));
 		g.setFont(font);
-		g.setColor(customBg ? SNTColor.contrastColor(canvasTextBackground) : getAnnotationsColor());
+		g.setColor((labelForegroundColor == null) ? getAnnotationsColor() : labelForegroundColor);
 		g.drawString(text, edge / 2, edge / 2 + fm.getAscent());
 	}
 
@@ -356,14 +355,24 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	/**
-	 * Sets the background color for the canvas label. When non-null, the label
-	 * is drawn with dark text on the specified background (useful for warnings).
-	 * When null, the default semi-transparent gray background is used.
+	 * Sets the foreground color used to render the canvas label. When null,
+	 * the label falls back to {@link #getAnnotationsColor()}. The label
+	 * background is always a constant translucent gray band.
 	 *
-	 * @param color the background color, or null to reset to default
+	 * @param color the label text color, or null to reset to default
 	 */
-	public void setCanvasLabelBackground(final Color color) {
-		canvasTextBackground = color;
+	public void setLabelForegroundColor(final Color color) {
+		labelForegroundColor = color;
+	}
+
+	/**
+	 * Returns the foreground color explicitly set via
+	 * {@link #setLabelForegroundColor(Color)}, or null if none is set
+	 *
+	 * @return the label text color override, or null
+	 */
+	public Color getLabelForegroundColor() {
+		return labelForegroundColor;
 	}
 
 	/**

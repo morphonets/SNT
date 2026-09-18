@@ -28,6 +28,7 @@ import org.scijava.util.ColorRGB;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -399,6 +400,73 @@ public class SNTColor {
 		return lum > 0.179;
 	}
 
+	// Okabe-Ito colorblind-safe palette
+	private static final Color OKABE_ITO_ORANGE_COLOR = new Color(230, 159, 0);   // #E69F00
+	private static final Color OKABE_ITO_BLUE_COLOR = new Color(86, 180, 233);    // #56B4E9
+	private static final Color OKABE_ITO_GREEN_COLOR = new Color(0, 158, 115);    // #009E73
+	private static final Color OKABE_ITO_YELLOW_COLOR = new Color(240, 228, 66);  // #F0E442
+	private static final Color OKABE_ITO_VERMILLION_COLOR = new Color(213, 94, 0); // #D55E00
+	private static final Color OKABE_ITO_PINK_COLOR = new Color(204, 121, 167); // #CC79A7
+
+	/**
+	 * Returns the 6-color Okabe-Ito colorblind-safe palette
+	 *
+	 * @return the 6 Okabe-Ito colors
+	 */
+	public static List<Color> okabeIto6Colors() {
+		return List.of(OKABE_ITO_ORANGE_COLOR, OKABE_ITO_BLUE_COLOR, OKABE_ITO_GREEN_COLOR,
+				OKABE_ITO_YELLOW_COLOR, OKABE_ITO_VERMILLION_COLOR, OKABE_ITO_PINK_COLOR);
+	}
+
+	/**
+	 * Returns a 4-color subset of the Okabe-Ito colorblind-safe palette
+	 *
+	 * @return the 4 Okabe-Ito colors
+	 */
+	public static List<Color> okabeIto4Colors() {
+		return List.of(OKABE_ITO_ORANGE_COLOR, OKABE_ITO_BLUE_COLOR, OKABE_ITO_GREEN_COLOR, OKABE_ITO_VERMILLION_COLOR);
+	}
+
+	/**
+	 * Returns the blue of the Okabe-Ito palette, safe against the most common
+	 * forms of color blindness
+	 *
+	 * @return the colorblind-safe blue
+	 */
+	public static Color colorBlindSafeBlue() {
+		return OKABE_ITO_BLUE_COLOR;
+	}
+
+	/**
+	 * Returns the yellow of the Okabe-Ito palette, safe against the most common
+	 * forms of color blindness
+	 *
+	 * @return the colorblind-safe yellow
+	 */
+	public static Color colorBlindSafeYellow() {
+		return OKABE_ITO_YELLOW_COLOR;
+	}
+
+	/**
+	 * Tiles a color palette to the requested length, cycling through the
+	 * palette (in doubling blocks) once {@code nColors} exceeds its size
+	 *
+	 * @param palette the source palette
+	 * @param nColors the number of colors to be retrieved
+	 * @return an array of length {@code nColors}, cycling through palette
+	 */
+	private static <T> T[] tile(final T[] palette, final int nColors) {
+		if (nColors <= palette.length) {
+			return Arrays.copyOfRange(palette, 0, nColors);
+		}
+		final T[] colors = Arrays.copyOf(palette, nColors);
+		for (int last = palette.length; last != 0 && last < nColors; last <<= 1) {
+			System.arraycopy(colors, 0, colors, last, Math.min(last << 1, nColors) -
+				last);
+		}
+		return colors;
+	}
+
 	/**
 	 * Returns distinct colors based on Kenneth Kelly's 22 colors of maximum
 	 * contrast (black and white excluded). More details on this
@@ -408,17 +476,7 @@ public class SNTColor {
 	 * @return the maximum contrast colors
 	 */
 	public static ColorRGB[] getDistinctColors(final int nColors) {
-		if (nColors < KELLY_COLORS.length) {
-			return Arrays.copyOfRange(KELLY_COLORS, 0, nColors);
-		}
-		final ColorRGB[] colors = Arrays.copyOf(KELLY_COLORS, nColors);
-		for (int last = KELLY_COLORS.length; last != 0 && last < nColors; last <<=
-			1)
-		{
-			System.arraycopy(colors, 0, colors, last, Math.min(last << 1, nColors) -
-				last);
-		}
-		return colors;
+		return tile(KELLY_COLORS, nColors);
 	}
 
 	/**
@@ -431,19 +489,41 @@ public class SNTColor {
 	 * @return the maximum contrast colors
 	 */
 	public static ColorRGB[] getDistinctColors(final int nColors, final String excludedHue) {
-		ColorRGB[] kColors = switch (excludedHue.toLowerCase()) {
+		final ColorRGB[] kColors = switch (excludedHue.toLowerCase()) {
             case "red" -> KELLY_COLORS_NO_RED;
             case "green" -> KELLY_COLORS_NO_GREEN;
             case "blue" -> KELLY_COLORS_NO_BLUE;
             case "dim" -> KELLY_COLORS_NO_DIM;
             default -> KELLY_COLORS;
         };
-        final ColorRGB[] colors = Arrays.copyOf(kColors, nColors);
-		for (int last = kColors.length; last != 0 && last < nColors; last <<= 1) {
-			System.arraycopy(colors, 0, colors, last, Math.min(last << 1, nColors) -
-					last);
+		return tile(kColors, nColors);
+	}
+
+	/**
+	 * Returns distinct colors from the Okabe-Ito colorblind-safe palette,
+	 * cycling through its 6 hues once {@code nColors} exceeds that count
+	 *
+	 * @param nColors the number of colors to be retrieved
+	 * @return the colorblind-safe colors
+	 */
+	public static ColorRGB[] getDistinctColorsColorblindSafe(final int nColors) {
+		final List<Color> okabeIto = okabeIto6Colors();
+		final ColorRGB[] palette = new ColorRGB[okabeIto.size()];
+		for (int i = 0; i < palette.length; i++) {
+			final Color c = okabeIto.get(i);
+			palette[i] = new ColorRGB(c.getRed(), c.getGreen(), c.getBlue());
 		}
-		return colors;
+		return tile(palette, nColors);
+	}
+
+	/**
+	 * AWT variant of {@link #getDistinctColorsColorblindSafe(int)}
+	 *
+	 * @param nColors the number of colors to be retrieved
+	 * @return the colorblind-safe colors, as AWT colors
+	 */
+	public static Color[] getDistinctColorsColorblindSafeAWT(final int nColors) {
+		return tile(okabeIto6Colors().toArray(new Color[0]), nColors);
 	}
 
     /**

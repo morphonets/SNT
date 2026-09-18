@@ -5521,10 +5521,10 @@ public class SNT extends MultiDThreePanes implements
 	 * given duration. Callers that need to clear earlier can pass {@code null}.
 	 *
 	 * @param msg        the message text, or {@code null} to clear immediately
-	 * @param background the background color for the banner
+	 * @param foreground the text color for the banner
 	 * @param durationMs how long the label stays visible (milliseconds)
 	 */
-	private void showCanvasMessage(final String msg, final Color background, final int durationMs) {
+	private void showCanvasMessage(final String msg, final Color foreground, final int durationMs) {
 		if (canvasMessageTimer != null) canvasMessageTimer.stop();
 		if (msg == null) {
 			clearCanvasMessage();
@@ -5538,7 +5538,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		activeCanvasMessage = msg;
-		setCanvasLabelBackgroundAllPanes(background);
+		setLabelForegroundColorAllPanes(foreground);
 		setCanvasLabelAllPanes(activeCanvasMessage);
 		canvasMessageTimer = new javax.swing.Timer(durationMs, e -> clearCanvasMessage());
 		canvasMessageTimer.setRepeats(false);
@@ -5546,7 +5546,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
-	 * Displays a timed warning (amber background) on the canvas banner.
+	 * Displays a timed warning on the canvas banner.
 	 *
 	 * @param msg        the warning text, or {@code null} to clear immediately
 	 * @param durationMs how long the label stays visible (milliseconds)
@@ -5561,20 +5561,34 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
-	 * Displays a timed informational message (blue background) on the canvas
-	 * banner. Use for confirmations, status updates, and non-critical feedback.
+	 * Displays a timed informational message on the canvas banner. Use for
+	 * confirmations, status updates, and non-critical feedback.
 	 *
 	 * @param msg        the info text, or {@code null} to clear immediately
 	 * @param durationMs how long the label stays visible (milliseconds)
 	 */
 	protected void showCanvasInfo(final String msg, final int durationMs) {
-		final Color base = GuiUtils.Colors.linkColor();
-		showCanvasMessage(msg, new Color(base.getRed(), base.getGreen(), base.getBlue(), 100), durationMs);
+		showCanvasMessage(msg, GuiUtils.Colors.infoColor(), durationMs);
 	}
 
 	/** @see #showCanvasInfo(String, int) */
 	protected void showCanvasInfo(final String msg) {
 		showCanvasInfo(msg, CANVAS_MSG_DURATION);
+	}
+
+	/**
+	 * Displays a timed error message on the canvas banner.
+	 *
+	 * @param msg        the error text, or {@code null} to clear immediately
+	 * @param durationMs how long the label stays visible (milliseconds)
+	 */
+	protected void showCanvasError(final String msg, final int durationMs) {
+		showCanvasMessage(msg, GuiUtils.Colors.errorColor(), durationMs);
+	}
+
+	/** @see #showCanvasError(String, int) */
+	protected void showCanvasError(final String msg) {
+		showCanvasError(msg, CANVAS_MSG_DURATION);
 	}
 
 	private void clearCanvasMessage() {
@@ -5589,7 +5603,7 @@ public class SNT extends MultiDThreePanes implements
 			// Restore the mode label if still in a labeled mode
 			setCanvasLabelAllPanes(getModeLabel());
 		}
-		setCanvasLabelBackgroundAllPanes(null);
+		setLabelForegroundColorAllPanes(null);
 		activeCanvasMessage = null;
 	}
 

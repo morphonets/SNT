@@ -560,14 +560,11 @@ public class SNTChart extends ChartPanel {
 	 */
 	public void setColors(final String... colors) {
 		final Plot plot = getChart().getPlot();
-		if (plot instanceof CategoryPlot) {
-			final CategoryItemRenderer renderer = ((CategoryPlot) plot).getRenderer();
-			final int nSeries = ((CategoryPlot) plot).getDataset().getRowCount();
-			setDatasetColors(renderer, nSeries, getColors(nSeries, colors));
-		} else if (plot instanceof XYPlot) {
-			final XYItemRenderer renderer = ((XYPlot) plot).getRenderer();
-			final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
-			setDatasetColors(renderer, nSeries, getColors(nSeries, colors));
+		final int nSeries = countSeries();
+		if (plot instanceof CategoryPlot catPlot) {
+			setDatasetColors(catPlot.getRenderer(), nSeries, getColors(nSeries, colors));
+		} else if (plot instanceof XYPlot xyPlot) {
+			setDatasetColors(xyPlot.getRenderer(), nSeries, getColors(nSeries, colors));
 		}
 	}
 
@@ -578,15 +575,43 @@ public class SNTChart extends ChartPanel {
 	 */
 	public void setColors(final ColorTable colorTable) {
 		final Plot plot = getChart().getPlot();
-		if (plot instanceof CategoryPlot) {
-			final CategoryItemRenderer renderer = ((CategoryPlot) plot).getRenderer();
-			final int nSeries = ((CategoryPlot) plot).getDataset().getRowCount();
-			setDatasetColors(renderer, nSeries, getColors(nSeries, colorTable));
-		} else if (plot instanceof XYPlot) {
-			final XYItemRenderer renderer = ((XYPlot) plot).getRenderer();
-			final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
-			setDatasetColors(renderer, nSeries, getColors(nSeries, colorTable));
+		final int nSeries = countSeries();
+		if (plot instanceof CategoryPlot catPlot) {
+			setDatasetColors(catPlot.getRenderer(), nSeries, getColors(nSeries, colorTable));
+		} else if (plot instanceof XYPlot xyPlot) {
+			setDatasetColors(xyPlot.getRenderer(), nSeries, getColors(nSeries, colorTable));
 		}
+	}
+
+	/**
+	 * (Re)colors existing dataset series. Unlike {@link #setColors(String...)}, only the
+	 * series fill is touched: outline/item-label paint is left alone, since e.g. histogram
+	 * bars rely on a fixed black/white outline (set independently of series color, see
+	 * {@code AnalysisUtils}) for the margin between adjacent bars
+	 *
+	 * @param colors the series colors, one per series (extra series, if any, are left unchanged)
+	 */
+	public void setColors(final Color... colors) {
+		final Plot plot = getChart().getPlot();
+		if (plot instanceof CategoryPlot catPlot) {
+			setSeriesFillPaint(catPlot.getRenderer(), Math.min(colors.length, catPlot.getDataset().getRowCount()), colors);
+		} else if (plot instanceof XYPlot xyPlot) {
+			setSeriesFillPaint(xyPlot.getRenderer(), Math.min(colors.length, xyPlot.getDataset().getSeriesCount()), colors);
+		} else if (plot instanceof PolarPlot polarPlot) {
+			final int nSeries = Math.min(colors.length, polarSeriesCount(polarPlot));
+			final XYDataset dataset = polarPlot.getDataset();
+			// grouped polar histograms flatten nBins per series into one dataset (see
+			// polarSeriesCount); recover nBins so every bin of a group gets the same color
+			final int nBins = (nSeries == 0 || dataset == null) ? 0 : dataset.getSeriesCount() / nSeries;
+			final DefaultPolarItemRenderer renderer = (DefaultPolarItemRenderer) polarPlot.getRenderer();
+			for (int series = 0; series < nSeries; series++)
+				for (int bin = 0; bin < nBins; bin++)
+					renderer.setSeriesPaint(series * nBins + bin, colors[series]);
+			// the renderer paints above do not touch the plot's fixed legend (PolarPlot
+			// legends are a static snapshot, not derived from the renderer at draw-time)
+			recolorPolarFixedLegend(polarPlot, colors, nSeries);
+		}
+		getChart().fireChartChanged();
 	}
 
 	/**
@@ -639,6 +664,67 @@ public class SNTChart extends ChartPanel {
 			renderer.setSeriesOutlinePaint(series, colors[series]);
 			renderer.setSeriesItemLabelPaint(series, colors[series]);
 		}
+	}
+
+	private void setSeriesFillPaint(final CategoryItemRenderer renderer, final int nSeries, final Color[] colors) {
+		for (int series = 0; series < nSeries; series++)
+			renderer.setSeriesPaint(series, colors[series]);
+	}
+
+	private void setSeriesFillPaint(final XYItemRenderer renderer, final int nSeries, final Color[] colors) {
+		for (int series = 0; series < nSeries; series++)
+			renderer.setSeriesPaint(series, colors[series]);
+	}
+
+	/* Number of series/rows of the current plot's primary dataset, or 0 if not applicable */
+	private int countSeries() {
+		final Plot plot = getChart().getPlot();
+		if (plot instanceof CategoryPlot catPlot)
+			return catPlot.getDataset().getRowCount();
+		if (plot instanceof XYPlot xyPlot)
+			return xyPlot.getDataset().getSeriesCount();
+		if (plot instanceof PolarPlot polarPlot)
+			return polarSeriesCount(polarPlot);
+		return 0;
+	}
+
+	/*
+	 * Polar histograms (see AnalysisUtils#createPolarHistogram) flatten each group into
+	 * nBins consecutive dataset series (one triangle per bin), all sharing a single dataset,
+	 * so getDatasetCount()/getSeriesCount() do not reflect the number of groups a user would
+	 * call "series". The fixed legend (one item per group) is the only reliable source for
+	 * that count when present; fall back to the raw series count for non-histogram polar plots
+	 */
+	private int polarSeriesCount(final PolarPlot polarPlot) {
+		final LegendItemCollection legend = polarPlot.getFixedLegendItems();
+		if (legend != null && legend.getItemCount() > 0)
+			return legend.getItemCount();
+		final XYDataset dataset = polarPlot.getDataset();
+		return (dataset == null) ? 0 : dataset.getSeriesCount();
+	}
+
+	/* Rebuilds polarPlot's fixed legend (if any) with colors[0..nSeries-1], keeping labels/shapes as-is */
+	private void recolorPolarFixedLegend(final PolarPlot polarPlot, final Color[] colors, final int nSeries) {
+		final LegendItemCollection legend = polarPlot.getFixedLegendItems();
+		if (legend == null)
+			return;
+		final int nRecolored = Math.min(nSeries, legend.getItemCount());
+		final LegendItemCollection updated = new LegendItemCollection();
+		for (int i = 0; i < legend.getItemCount(); i++) {
+			final LegendItem old = legend.get(i);
+			updated.add((i < nRecolored)
+					? new LegendItem(old.getLabel(), null, null, null, old.getShape(), colors[i])
+					: old);
+		}
+		polarPlot.setFixedLegendItems(updated);
+	}
+
+	/* No-op unless there are 2-6 series (Okabe-Ito palette has only 6 hues) */
+	private void applyColorblindSafeColors() {
+		final int nSeries = countSeries();
+		if (nSeries < 2 || nSeries > 6)
+			return;
+		setColors(SNTColor.getDistinctColorsColorblindSafeAWT(nSeries));
 	}
 
 	private Color[] getColors(final int n, final String... colors) {
@@ -1683,6 +1769,26 @@ public class SNTChart extends ChartPanel {
         final JCheckBoxMenuItem outline = new JCheckBoxMenuItem("Outline", isOutlineVisible());
         outline.addItemListener( e -> setOutlineVisible(outline.isSelected()));
         cMenu.add(outline);
+        final JMenuItem colorblindSafe = new JMenuItem("Apply Colorblind-Safe Colors");
+        colorblindSafe.addActionListener(e -> applyColorblindSafeColors());
+        cMenu.add(colorblindSafe);
+        popup.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                final int nSeries = countSeries();
+                colorblindSafe.setEnabled(nSeries >= 2 && nSeries <= 6);
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                // do nothing
+            }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                // do nothing
+            }
+        });
         GuiUtils.addSeparator(cMenu, "Histograms:");
         final JCheckBoxMenuItem fit1 = new JCheckBoxMenuItem("Gaussian");
 		fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
@@ -1741,6 +1847,7 @@ public class SNTChart extends ChartPanel {
         cMenu.add(fit3);
         GuiUtils.addSeparator(cMenu, "Polar Plots:");
         JMenuItem jmi = new JMenuItem("Clockwise/Counterclockwise");
+        jmi.setEnabled(getChart().getPlot() instanceof PolarPlot);
         jmi.addActionListener( e -> {
             if (getChart().getPlot() instanceof PolarPlot) {
                 ((PolarPlot) getChart().getPlot()).setCounterClockwise(!((PolarPlot) getChart().getPlot()).isCounterClockwise());

@@ -97,7 +97,7 @@ public class ColorMenu extends JMenu {
 			defaultPanel.add(colorPane);
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
-		addSeparator("Default Hues");
+		addSeparator("Default");
 
 		add(defaultPanel);
 
@@ -116,7 +116,7 @@ public class ColorMenu extends JMenu {
 
 		// Add Kelly distinct colors
 		addSeparator();
-		addSeparator("Contrast Hues");
+		addSeparator("Contrast");
 		final JPanel kellyPanel = getGridPanel(3, 7);
 		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(21);
 		kellyColors[20] = null; // add the null color to the end of the row
@@ -126,6 +126,19 @@ public class ColorMenu extends JMenu {
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
 		add(kellyPanel);
+
+		// Add Okabe-Ito Palette
+		addSeparator();
+		addSeparator("Colorblind-Safe (CVD)");
+		final JPanel okabeItoPanel = getGridPanel(1, 7);
+		final List<Color> okabeItoColors = new ArrayList<>(SNTColor.okabeIto6Colors());
+		okabeItoColors.add(null);// add the null color to the end of the row
+		for (final Color color : okabeItoColors) {
+			final ColorPane colorPane = new ColorPane(new SNTColor(color), false);
+			okabeItoPanel.add(colorPane);
+			_colorPanes.put(new SNTColor(color), colorPane);
+		}
+		add(okabeItoPanel);
 
 		// mouseExited does not fire when the popup is dismissed by Escape or an
 		// outside click, leaving isHovered=true on the last-hovered pane. Reset all

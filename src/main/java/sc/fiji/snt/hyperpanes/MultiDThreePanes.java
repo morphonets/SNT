@@ -246,11 +246,11 @@ public class MultiDThreePanes implements PaneOwner {
 		}
 	}
 
-	protected void setCanvasLabelBackgroundAllPanes(final Color color) {
-		if (xy_canvas != null) xy_canvas.setCanvasLabelBackground(color);
+	protected void setLabelForegroundColorAllPanes(final Color color) {
+		if (xy_canvas != null) xy_canvas.setLabelForegroundColor(color);
 		if (!single_pane) {
-			xz_canvas.setCanvasLabelBackground(color);
-			zy_canvas.setCanvasLabelBackground(color);
+			xz_canvas.setLabelForegroundColor(color);
+			zy_canvas.setLabelForegroundColor(color);
 		}
 	}
 

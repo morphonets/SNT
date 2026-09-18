@@ -42,6 +42,7 @@ import ij.io.FileInfo;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.SNTColor;
 
 /**
  * Class handling SNT preferences.
@@ -68,8 +69,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	// Okabe-Ito yellow/sky-blue: safe alternative to the green/magenta defaults above for red-green color vision
 	// deficiencies. These are high-luminance, so they should stay legible against the dark background of fluorescent
 	// images
-	public static final Color COLORBLIND_SAFE_SELECTED_COLOR = new Color(240, 228, 66);
-	public static final Color COLORBLIND_SAFE_DESELECTED_COLOR = new Color(86, 180, 233);
+	public static final Color COLORBLIND_SAFE_SELECTED_COLOR = SNTColor.colorBlindSafeYellow();
+	public static final Color COLORBLIND_SAFE_DESELECTED_COLOR = SNTColor.colorBlindSafeBlue();
 	/** Default state of the "Enforce default colors over Path Manager tags" option */
 	public static final boolean DEFAULT_ENFORCE_DEFAULT_PATH_COLORS = false;
 	private static Color selectedColor = DEFAULT_SELECTED_COLOR;

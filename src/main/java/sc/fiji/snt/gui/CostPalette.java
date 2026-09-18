@@ -39,6 +39,7 @@ import sc.fiji.snt.tracing.heuristic.Heuristic;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTColor;
 
 import java.awt.*;
 import java.awt.event.WindowEvent;
@@ -65,12 +66,11 @@ public class CostPalette extends Thread {
     /**
      * Per-CostType overlay color. Index follows {@code CostType.values()}.
      */
-    private static final Color[] COLORS = {
-            new Color(0, 255, 255), // RECIPROCAL   : cyan
-            new Color(255, 200, 0),   // DIFFERENCE   : amber
-            new Color(255, 0, 200), // DIFF_SQUARED : magenta
-            new Color(0, 255, 0),  // PROBABILITY  : green
-    };
+    private static final Color[] COLORS = SNTColor.okabeIto4Colors().toArray(new Color[0]);
+    // OKABE_ITO_ORANGE_COLOR: RECIPROCAL
+    // KABE_ITO_BLUE_COLOR: DIFFERENCE
+    // OKABE_ITO_GREEN_COLOR: DIFF_SQUARED
+    // OKABE_ITO_VERMILLION_COLOR: PROBABILITY
 
     /**
      * Result of one A* probe run

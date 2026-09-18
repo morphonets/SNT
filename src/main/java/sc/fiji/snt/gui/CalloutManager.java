@@ -1344,14 +1344,6 @@ public class CalloutManager {
      */
     private static class TipPanel extends Balloon {
 
-        // Distinct from CalloutPanel's FLATLAF_HINT_* colors: a tip is not an onboarding-chain step, so it gets
-        // its own palette rather than reusing the chain's yellow. Derived from a preferred mint/seafoam hue
-        // (~154 deg, as in #a0e3c6) by matching FLATLAF_HINT_LIGHT/DARK's exact saturation (100%) and lightness
-        // (95.7% / 15.7%, i.e. the same "L minus 80 points" dark transform) instead of diluting that hue toward
-        // white, so both tints sit at the same visual "weight" as the callout's yellow, just a different hue
-        private static final Color FLATLAF_TIP_LIGHT = new Color(0xe9fff5);
-        private static final Color FLATLAF_TIP_DARK = new Color(0x00502d);
-
         // a tip wraps onto multiple lines instead of growing into a single, very wide one beyond this width;
         // left unconstrained below it, so a short tip stays compact (like an actual tooltip) rather than being
         // padded out to a fixed box
@@ -1406,10 +1398,8 @@ public class CalloutManager {
         }
 
         private static Color tipBackground() {
-            final boolean isFlatLaf = UIManager.getLookAndFeel() instanceof FlatLaf;
             return Stream.of(
                             UIManager.getColor("Tip.background"), // lets a custom LAF/theme override just this class
-                            isFlatLaf ? (FlatLaf.isLafDark() ? FLATLAF_TIP_DARK : FLATLAF_TIP_LIGHT) : null,
                             UIManager.getColor("Popup.background"),
                             UIManager.getColor("Panel.background")
                     )

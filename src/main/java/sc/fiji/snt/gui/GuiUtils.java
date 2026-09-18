@@ -2180,7 +2180,7 @@ public class GuiUtils {
 	private static void reportTempMsgOnButtonLabel(final AbstractButton button, final String msg, final boolean error) {
 		final Color color = button.getForeground();
 		final String text = button.getText();
-		button.setForeground((error) ? Colors.errorColor() : Colors.linkColor());
+		button.setForeground((error) ? Colors.errorColor() : Colors.infoColor());
 		button.setText(msg);
 		new Timer(1500, e2 -> {
 			button.setForeground(color);
@@ -5089,7 +5089,7 @@ public class GuiUtils {
 			switch (notice.logLevel()) {
 				case LogLevel.ERROR -> label.setIcon(IconFactory.accentIcon(Colors.errorColor(), true));
 				case LogLevel.WARN -> label.setIcon(IconFactory.accentIcon(Colors.warningColor(), true));
-				default -> label.setIcon(IconFactory.accentIcon(Colors.linkColor(), true));
+				default -> label.setIcon(IconFactory.accentIcon(Colors.infoColor(), true));
 			}
 			return label;
 		}
@@ -5579,7 +5579,7 @@ public class GuiUtils {
 			return WARNING_COLOR;
 		}
 
-		public static Color linkColor() {
+		public static Color infoColor() {
 			return LINK_COLOR;
 		}
 

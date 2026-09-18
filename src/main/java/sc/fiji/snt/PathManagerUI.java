@@ -263,9 +263,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
         jmi.addActionListener(multiPathListener);
         colorMenu.add(jmi);
-        //colorMenu.addSeparator();
+        colorMenu.addSeparator();
         jmi = new JMenuItem(MultiPathActionListener.ASSIGN_DISTINCT_COLORS);
         jmi.setToolTipText("Tags selected paths with distinct colors");
+        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
+        jmi.addActionListener(multiPathListener);
+        colorMenu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.ASSIGN_DISTINCT_COLORS_CB);
+        jmi.setToolTipText("Tags selected paths with distinct colors safe for color vision deficiency (CVD)");
+        jmi.putClientProperty("cmdFinder-keywords", "colorblind");
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
         jmi.addActionListener(multiPathListener);
         colorMenu.add(jmi);
@@ -1033,6 +1039,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     private void assignDistinctColors(final List<Path> paths) {
         final ColorRGB[] colors = SNTColor.getDistinctColors(paths.size());
+        int idx = 0;
+        for (final Path p : paths)
+            p.setColor(colors[idx++]);
+        refreshManager(true, true, paths);
+        plugin.setUnsavedChanges(true);
+    }
+
+    private void assignDistinctColorsColorblindSafe(final List<Path> paths) {
+        final Color[] colors = SNTColor.getDistinctColorsColorblindSafeAWT(paths.size());
         int idx = 0;
         for (final Path p : paths)
             p.setColor(colors[idx++]);
@@ -2513,6 +2528,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         } else if (MultiPathActionListener.ASSIGN_DISTINCT_COLORS.equals(cmd)) {
             assignDistinctColors(getSelectedPaths(true));
             return true;
+        } else if (MultiPathActionListener.ASSIGN_DISTINCT_COLORS_CB.equals(cmd)) {
+            assignDistinctColorsColorblindSafe(getSelectedPaths(true));
+            return true;
         }
         return false;
     }
@@ -3136,6 +3154,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String APPEND_ALL_CHILDREN_CMD = "Append All Children To Selection";
         private static final String APPEND_DIRECT_CHILDREN_CMD = "Append Direct Children To Selection";
         private static final String ASSIGN_DISTINCT_COLORS = "Distinct Colors";
+        private static final String ASSIGN_DISTINCT_COLORS_CB = "Distinct Colors (CVD)";
         private static final String ASSIGN_CUSTOM_COLOR = "Other... "; // must be unique: space to differentiate CUSTOM_TAG_CMD
         private static final String COLORS_MENU = "Color";
         private static final String DELETE_CMD = "Delete...";
@@ -3230,6 +3249,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             // Color commands
             commands.put(ASSIGN_DISTINCT_COLORS, new AssignDistinctColorsCommand());
+            commands.put(ASSIGN_DISTINCT_COLORS_CB, new AssignDistinctColorsColorblindSafeCommand());
             commands.put(ASSIGN_CUSTOM_COLOR, new AssignCustomColorCommand());
             commands.put(COLORS_MENU, new ColorMenuCommand());
             commands.put(COLORIZE_TREES_CMD, new ColorizeTreesCommand());
@@ -3376,6 +3396,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             public void execute(List<Path> selectedPaths, String cmd) {
                 removeColorNodesPrompt(selectedPaths);
                 assignDistinctColors(selectedPaths);
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class AssignDistinctColorsColorblindSafeCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                removeColorNodesPrompt(selectedPaths);
+                assignDistinctColorsColorblindSafe(selectedPaths);
             }
 
             @Override

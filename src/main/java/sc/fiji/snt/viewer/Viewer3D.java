@@ -5721,10 +5721,11 @@ public class Viewer3D {
             }
         }
 
-        private void assignUniqueColorsToSelectedTreesAction() {
+        private void assignUniqueColorsToSelectedTreesAction(final boolean colorsafe) {
             final List<String> keys = getSelectedTreeLabels();
             if (keys == null || !okToApplyColor(keys)) return;
-            final ColorRGB[] colors = SNTColor.getDistinctColors(keys.size());
+            final ColorRGB[] colors = (colorsafe)
+                    ? SNTColor.getDistinctColorsColorblindSafe(keys.size()) : SNTColor.getDistinctColors(keys.size());
             final int[] counter = new int[] { 0 };
             plottedTrees.forEach((k, shapeTree) -> {
                 shapeTree.setArborColor(colors[counter[0]], ShapeTree.ANY);
@@ -5819,8 +5820,10 @@ public class Viewer3D {
             ccMenu.add(new JMenuItem("Remove Existing Color Mapping(s)")).addActionListener(
                     e -> removeSelectedTreeColorMappingsAction());
             ccMenu.addSeparator();
-            ccMenu.add(new JMenuItem("Color Each Cell Uniquely")).addActionListener(
-                    e -> assignUniqueColorsToSelectedTreesAction());
+            ccMenu.add(menuItem("Color Each Cell Uniquely", GLYPH.SHUFFLE,
+                    e -> assignUniqueColorsToSelectedTreesAction(false)));
+            ccMenu.add(menuItem("Color Each Cell Uniquely (Colorblind-Safe)", GLYPH.SHUFFLE,
+                    e -> assignUniqueColorsToSelectedTreesAction(true)));
             menu.add(menuItem("Thickness...", GLYPH.DOTCIRCLE, e -> setSelectedTreeThicknessAction()));
             menu.add(menuItem("Soma radius...", GLYPH.CIRCLE, e -> setSelectedSomaRadiusAction()));
         }
