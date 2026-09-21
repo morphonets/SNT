@@ -34,11 +34,8 @@ import org.scijava.Context;
 import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.analysis.ColorMapper;
-import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 
-import java.io.IOException;
-import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -156,32 +153,6 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
     public static List<String> getMetrics() {
 
         return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
-    }
-
-    /**
-     * Gets the available LUTs.
-     *
-     * @return the set of keys, corresponding to the set of LUTs available
-     */
-    public Set<String> getAvailableLuts() {
-        initLuts();
-        return luts.keySet();
-    }
-
-    public ColorTable getColorTable(final String lut) {
-        final ColorTable cMap = ColorMaps.get(lut);
-        if (cMap != null) return cMap;
-        initLuts();
-        for (final Map.Entry<String, URL> entry : luts.entrySet()) {
-            if (entry.getKey().contains(lut)) {
-                try {
-                    return lutService.loadLUT(entry.getValue());
-                } catch (final IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return null;
     }
 
     public int map(SNTGraph<V, E> graph, final String measurement, final String lut) {

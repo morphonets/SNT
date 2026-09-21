@@ -82,7 +82,7 @@ public class BookmarkManager {
     private JPanel panel; // cached panel built by getPanel()
     private JScrollPane tableScroll; // single scroll pane wrapping `table` (created in assembleTable)
     private GridBagConstraints tableScrollGbc; // captured constraints for re-docking
-
+    private GuiUtils.Tables.DetachableTable tableDetacher;
 
     /**
      * SNT constructor: implements the <i>Bookmark Manager</i> pane embedded in SNT's UI.
@@ -378,7 +378,7 @@ public class BookmarkManager {
         // Detach/Dock toggle, placed right after Resize/Reset Columns so the
         // table-management actions stay grouped. The Searchable items are
         // appended last so they remain at the bottom of the popup.
-        final GuiUtils.Tables.DetachableTable tableDetacher = new GuiUtils.Tables.DetachableTable(
+        tableDetacher = new GuiUtils.Tables.DetachableTable(
                 tableScroll, "Bookmarks", this::redockTableScroll);
         tableDetacher.installMenuItem(pMenu);
         GuiUtils.Tables.assignSearchable(table, element -> {
@@ -1845,6 +1845,15 @@ public class BookmarkManager {
             rois.add(b.toRoi(worldToPixel(b)));
         }
         return rois;
+    }
+
+    /**
+     * Should be called when the  panel is removed from the UI.
+     */
+    public void dispose() {
+        if (tableDetacher != null && tableDetacher.isDetached()) {
+            tableDetacher.dock(); // ensure the floating dialog is closed
+        }
     }
 
     /**

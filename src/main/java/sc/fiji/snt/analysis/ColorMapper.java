@@ -23,14 +23,17 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
+import java.io.IOException;
 import java.net.URL;
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.util.ColorMaps;
 
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
@@ -157,6 +160,69 @@ public class ColorMapper {
 	}
 
 	/**
+	 * Sets the LUT mapping bounds to a percentile-clipped range of {@code values}, curbing the influence of
+	 * long-tailed outliers on the color scale. Plain min-max bounds let a single extreme value (e.g. one path
+	 * length far outside the rest of the arbor) stretch the whole range, crushing every other mapped value
+	 * into a narrow, near-indistinguishable band. This clips both ends to a percentile window instead: values
+	 * beyond it still render as the coldest/hottest color (clamped, not discarded -- see {@link #getColor(double)})
+	 * but no longer decide where that window sits. Same convention as
+	 * {@code sc.fiji.snt.seed.SeedConfidence#percentileClipNormalize(double[], double)}, used throughout SNT's
+	 * seed detectors for the identical long-tail problem.
+	 *
+	 * @param values      the raw values driving this mapping (e.g., a metric read across every mapped node/path).
+	 *                    {@code NaN} entries are ignored; {@code null} or all-NaN leaves the current bounds
+	 *                    unchanged.
+	 * @param clipPercent percentile clip width, clamped to {@code [0, 45]} ({@code 0} recovers plain min-max)
+	 */
+	public void setMinMaxPercentileClipped(final double[] values, final double clipPercent) {
+		final double[] valid = nonNaN(values);
+		if (valid == null) return;
+		final double clip = Math.clamp(clipPercent, 0.0, 45.0);
+		final Percentile percentile = new Percentile();
+		setMinMax(percentile.evaluate(valid, clip), percentile.evaluate(valid, 100.0 - clip));
+	}
+
+	/**
+	 * One-sided companion to {@link #setMinMaxPercentileClipped(double[], double)}: sets only the lower bound,
+	 * to the {@code clipPercent}th percentile of {@code values}, leaving the upper bound untouched. Useful when
+	 * only one end of the scale should adapt to the data -- e.g. pairing this with a fixed, caller-chosen upper
+	 * bound (or {@link #setMaxPercentileClipped} for the other combination). Unlike {@link #setMinMax(double,
+	 * double)}, this does not validate against the current upper bound, since that bound may not have been set
+	 * yet -- callers combining both ends should finish with a plain {@link #setMinMax(double, double)} (or
+	 * {@link #getMinMax()}-checked call) once both are known.
+	 *
+	 * @param values      as {@link #setMinMaxPercentileClipped(double[], double)}
+	 * @param clipPercent percentile clip width, clamped to {@code [0, 45]} ({@code 0} = the plain minimum)
+	 */
+	public void setMinPercentileClipped(final double[] values, final double clipPercent) {
+		final double[] valid = nonNaN(values);
+		if (valid == null) return;
+		this.min = new Percentile().evaluate(valid, Math.clamp(clipPercent, 0.0, 45.0));
+	}
+
+	/**
+	 * One-sided companion to {@link #setMinMaxPercentileClipped(double[], double)}: sets only the upper bound,
+	 * to the {@code (100-clipPercent)}th percentile of {@code values}, leaving the lower bound untouched. See
+	 * {@link #setMinPercentileClipped} for the other combination and the caveat about validating the final
+	 * range once both bounds are known.
+	 *
+	 * @param values      as {@link #setMinMaxPercentileClipped(double[], double)}
+	 * @param clipPercent percentile clip width, clamped to {@code [0, 45]} ({@code 0} = the plain maximum)
+	 */
+	public void setMaxPercentileClipped(final double[] values, final double clipPercent) {
+		final double[] valid = nonNaN(values);
+		if (valid == null) return;
+		this.max = new Percentile().evaluate(valid, 100.0 - Math.clamp(clipPercent, 0.0, 45.0));
+	}
+
+	/** @return {@code values} with NaN entries dropped, or {@code null} if nothing valid remains */
+	private static double[] nonNaN(final double[] values) {
+		if (values == null || values.length == 0) return null;
+		final double[] valid = Arrays.stream(values).filter(v -> !Double.isNaN(v)).toArray();
+		return (valid.length == 0) ? null : valid;
+	}
+
+	/**
 	 * Checks if the color mapping uses an integer scale.
 	 * <p>
 	 * Returns true if the mapping is configured to use discrete integer
@@ -197,6 +263,73 @@ public class ColorMapper {
 				SNTUtils.getContext().inject(this);
 			luts = lutService.findLUTs();
 		}
+	}
+
+	/**
+	 * Gets the available LUTs, as recognized by {@link #getColorTable(String)}: every LUT bundled with
+	 * Fiji (via {@link LUTService}), in addition to the handful of "core" names {@link ColorMaps#get(String)}
+	 * resolves directly (e.g. "viridis", "fire", "ice") without needing the LUTService lookup.
+	 *
+	 * @return the set of keys, corresponding to the set of LUTs available
+	 */
+	public Set<String> getAvailableLuts() {
+		initLuts();
+		return luts.keySet();
+	}
+
+	private static final Set<String> HEATMAP_LUT_HINTS = Set.of(
+			"cividis", "cool", "fire", "glow", "green fire blue", "ice", "inferno",
+			"magma", "magenta hot", "orange hot", "physics", "plasma", "red hot",
+			"royal", "smart", "spectrum", "thermal", "viridis");
+
+
+	/**
+	 * Gets the subset of {@link #getAvailableLuts()} recognized as heatmap
+	 * LUTs, matched case-insensitively and loosely against a curated list of
+	 * known heatmap names. Absent LUTs are simply not returned, since
+	 * availability depends on the running Fiji install
+	 *
+	 * @return the heatmap subset of {@link #getAvailableLuts()}
+	 */
+	public Set<String> getAvailableHeatmapLuts() {
+		initLuts();
+		return luts.keySet().stream()
+				.filter(ColorMapper::looksLikeHeatmapLut)
+				.collect(Collectors.toCollection(TreeSet::new));
+	}
+
+	private static boolean looksLikeHeatmapLut(final String lutKey) {
+		final String base = lutKey.replace('\\', '/');
+		final String name = base.substring(base.lastIndexOf('/') + 1)
+				.replaceFirst("(?i)\\.lut$", "")
+				.toLowerCase();
+		return HEATMAP_LUT_HINTS.stream().anyMatch(name::contains);
+	}
+
+	/**
+	 * Resolves a LUT (color table) by name. Tries the small set of "core" names known to
+	 * {@link ColorMaps#get(String)} first (e.g. "viridis", "fire", "ice" -- no LUTService round-trip needed),
+	 * then falls back to a substring match against every LUT bundled with Fiji, as reported by
+	 * {@link #getAvailableLuts()}.
+	 *
+	 * @param lut the LUT name, or a substring of one of {@link #getAvailableLuts()}'s entries
+	 *            (e.g. "mpl-viridis.lut")
+	 * @return the matching color table, or null if no match was found
+	 */
+	public ColorTable getColorTable(final String lut) {
+		final ColorTable cMap = ColorMaps.get(lut);
+		if (cMap != null) return cMap;
+		initLuts();
+		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
+			if (entry.getKey().contains(lut)) {
+				try {
+					return lutService.loadLUT(entry.getValue());
+				} catch (final IOException e) {
+					SNTUtils.log("Could not load LUT '" + lut + "': " + e.getMessage());
+				}
+			}
+		}
+		return null;
 	}
 
 	/**

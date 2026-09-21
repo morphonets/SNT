@@ -62,6 +62,19 @@ class FADerivedIcon implements Icon {
         ascent = (int) Math.ceil(font.getLineMetrics(symbol, FRC).getAscent());
     }
 
+    /**
+     * Variant rendering the glyph as a horizontal gradient between two colors.
+     */
+    FADerivedIcon(final char iconID, final float size, final Color from, final Color to, final boolean solid) {
+        font = getFont(solid, size);
+        symbol = String.valueOf(iconID);
+        width = (int) Math.ceil(font.getStringBounds(symbol, FRC).getWidth());
+        ascent = (int) Math.ceil(font.getLineMetrics(symbol, FRC).getAscent());
+        // Defined in *local* icon space (0,0) -> (width,0): paintIcon() translates the graphics to (x,y)
+        // before drawing, so this lines up correctly wherever this (uncached, per-instance) icon is painted
+        color = new GradientPaint(0, 0, from, width, 0, to);
+    }
+
     private static Font loadFont(final String fontName) {
         Font font;
         try {
@@ -80,19 +93,23 @@ class FADerivedIcon implements Icon {
 
     @Override
     public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
-        final Graphics2D graphics = (Graphics2D) g;
-        GuiUtils.setRenderingHints(graphics);
-        final Font previousFont = graphics.getFont();
-        final Paint previousPaint = graphics.getPaint();
-        graphics.setFont(font);
-        // Graphics2D#setPaint(null) is a documented no-op: it would otherwise silently keep whatever Paint the caller
-        // last set, e.g. a selection/hover background fill painted immediately before this icon
-        // (see BasicMenuItemUI/FlatLaf), making a null-colored glyph disappear into it. Fall back to the component's
-        // own foreground, which is the conventional meaning of a null icon color
-        graphics.setPaint((color != null) ? color : (c != null) ? c.getForeground() : IconFactory.defaultColor());
-        graphics.drawString(symbol, x, y + ascent);
-        graphics.setFont(previousFont);
-        graphics.setPaint(previousPaint);
+        // A disposable copy, translated to (x,y): lets drawString() use local icon-space coordinates
+        // (0, ascent), which is what a gradient Paint (see the two-color constructor) is defined in --
+        // a plain Color fill is unaffected by the translation, so this is safe for every existing caller too
+        final Graphics2D graphics = (Graphics2D) g.create();
+        try {
+            GuiUtils.setRenderingHints(graphics);
+            graphics.setFont(font);
+            graphics.translate(x, y);
+            // Graphics2D#setPaint(null) is a documented no-op: it would otherwise silently keep whatever Paint the caller
+            // last set, e.g. a selection/hover background fill painted immediately before this icon
+            // (see BasicMenuItemUI/FlatLaf), making a null-colored glyph disappear into it. Fall back to the component's
+            // own foreground, which is the conventional meaning of a null icon color
+            graphics.setPaint((color != null) ? color : (c != null) ? c.getForeground() : IconFactory.defaultColor());
+            graphics.drawString(symbol, 0, ascent);
+        } finally {
+            graphics.dispose();
+        }
     }
 
     protected ImageIcon asImage() {

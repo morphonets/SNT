@@ -26,16 +26,17 @@ import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
 import ij.ImagePlus;
 import net.imglib2.RandomAccessibleInterval;
-import sc.fiji.snt.analysis.curation.CurationHistograms;
-import sc.fiji.snt.analysis.curation.CurationTags;
-import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
-import sc.fiji.snt.analysis.curation.PlausibilityCheck;
-import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
+import net.imglib2.display.ColorTable;
+import sc.fiji.snt.analysis.AnalysisUtils;
+import sc.fiji.snt.analysis.ColorMapper;
+import sc.fiji.snt.analysis.SNTChart;
+import sc.fiji.snt.analysis.curation.*;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
@@ -44,6 +45,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.List;
 
@@ -83,6 +85,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private final WarningTableModel tableModel;
     private final JTable warningsTable;
     private JPanel panel;
+
+    /* Heatmap related fields */
+    private SNTChart issueSummaryChart;
+    private JFrame heatMapLegend;
+    private String heatmapLutName; // Last color map picked in promptForLut()
+    private JFrame issueHeatmapFrame; // Heatmap window from summarizeIssuesAsHeatmap()
+
     // Section header tri-state checkboxes (select all / none / mixed)
     private FlatTriStateCheckBox liveHeaderCheckbox;
     private FlatTriStateCheckBox onDemandHeaderCheckbox;
@@ -104,6 +113,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     // Checkbox groups for section-level toggling
     private List<JCheckBox> liveCheckboxes;
     private List<JCheckBox> onDemandCheckboxes;
+    // Maps a check's name (Warning#checkName()) to the checkbox that enables/disables it, populated by
+    // wireCheckbox(). Used to keep the parameters panel in sync in "Discard All Issues of This Type"
+    private final Map<String, JCheckBox> checkboxByCheckName = new HashMap<>();
     // Parameter spinners
     private JSpinner radiusSpinner;
     private JSpinner directionSpinner;
@@ -156,6 +168,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         if (tableDetacher != null && tableDetacher.isDetached()) {
             tableDetacher.dock(); // ensure the floating dialog is closed
         }
+        if (issueSummaryChart != null) issueSummaryChart.dispose();
+        if (issueHeatmapFrame != null) issueHeatmapFrame.dispose();
+        if (heatMapLegend != null) heatMapLegend.dispose();
     }
 
     private void configureTable() {
@@ -248,6 +263,22 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private JPopupMenu buildTablePopupMenu() {
         final JPopupMenu popup = new JPopupMenu();
+        popup.add(GuiUtils.Tables.deselectSelectAllMenuItem(warningsTable, null));
+        popup.addSeparator();
+
+        // Go to Location: same as double-click, exposed for discoverability
+        final JMenuItem goToLocationItem = new JMenuItem("Go to Location", IconFactory.menuIcon(IconFactory.GLYPH.CROSSHAIR));
+        goToLocationItem.addActionListener(e -> {
+            final List<PlausibilityCheck.Warning> selected = tableModel.getSelectedWarnings(warningsTable, false);
+            if (selected.size() != 1) {
+                sntui.error("Please re-run after selecting a single issue.");
+                return;
+            }
+            navigateToWarning(selected.getFirst());
+        });
+        popup.add(goToLocationItem);
+        popup.addSeparator();
+
         final JMenuItem copyItem = new JMenuItem("Copy Issue Description", IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
         copyItem.addActionListener(e -> {
             final List<PlausibilityCheck.Warning> toCopy = tableModel.getSelectedWarnings(warningsTable, true);
@@ -273,12 +304,43 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         popup.add(copyItem);
 
+        final JMenuItem deleteSelectedItem = new JMenuItem("Delete Selected", IconFactory.menuIcon(IconFactory.GLYPH.DELETE));
+        deleteSelectedItem.addActionListener(e -> {
+            final List<PlausibilityCheck.Warning> toDelete = tableModel.getSelectedWarnings(warningsTable, false);
+            if (toDelete.isEmpty()) {
+                sntui.error("No issue selected.");
+                return;
+            }
+            tableModel.removeWarnings(toDelete);
+            refreshTableHeader();
+        });
+        popup.add(deleteSelectedItem);
+
+        final JMenuItem discardTypeItem = new JMenuItem("Discard All Issues of This Type",
+                IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE_XMARK));
+        discardTypeItem.addActionListener(e -> {
+            final List<PlausibilityCheck.Warning> selected = tableModel.getSelectedWarnings(warningsTable, false);
+            if (selected.isEmpty()) {
+                sntui.error("No issue selected.");
+                return;
+            }
+            final Set<String> checkNames = new LinkedHashSet<>();
+            for (final PlausibilityCheck.Warning w : selected) checkNames.add(w.checkName());
+            final List<PlausibilityCheck.Warning> toDiscard = tableModel.getWarningsOfType(checkNames);
+            tableModel.removeWarnings(toDiscard);
+            for (final String checkName : checkNames) {
+                final JCheckBox cb = checkboxByCheckName.get(checkName);
+                if (cb != null && cb.isSelected()) cb.doClick(); // fires wireCheckbox's listener, disabling the check
+            }
+            refreshTableHeader();
+        });
+        popup.add(discardTypeItem);
         // Explain issue: open documentation page anchored to the relevant check
         final JMenuItem explainItem = new JMenuItem("Help on Issue...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
         explainItem.addActionListener(e -> {
             final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
             if (warnings.size() != 1) {
-                sntui.error("No issue selected. Please re-run after selecting a single issue.");
+                sntui.error("Please re-run after selecting a single issue.");
                 return;
             }
             final String anchor = getDocAnchor(warnings.getFirst().checkName());
@@ -313,11 +375,138 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         panel.repaint();
     }
 
+    /**
+     * same {@code checkName x severity} weighted totals of {@link #summarizeIssuesAsDonutChart()}, rendered as a heatmap
+     * instead of a ring plot. Rows are labeled by check name, columns by severity.
+     */
+    private void summarizeIssuesAsHeatmap() {
+        final List<PlausibilityCheck.Warning> warnings = tableModel.getVisibleWarnings();
+        if (warnings.isEmpty()) {
+            sntui.error("No issues to summarize.");
+            return;
+        }
+        final Map<PlausibilityCheck.Severity, Map<String, Double>> bySeverity =
+                new EnumMap<>(PlausibilityCheck.Severity.class);
+        for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values())
+            bySeverity.put(sev, new LinkedHashMap<>());
+        final LinkedHashMap<String, Integer> rowIndex = new LinkedHashMap<>(); // check name -> row #, first-seen order
+        for (final PlausibilityCheck.Warning w : warnings) {
+            final double weight = severityWeight(w.severity()) * (Double.isNaN(w.impact()) ? 1.0 : w.impact());
+            bySeverity.get(w.severity()).merge(w.checkName(), weight, Double::sum);
+            rowIndex.putIfAbsent(w.checkName(), rowIndex.size());
+        }
+        if (rowIndex.size() < 2) {
+            sntui.error("Not enough distinct issue types for a heatmap (need at least 2).");
+            return; // showHeatmap() requires a >= 2x2 matrix
+        }
+
+        final PlausibilityCheck.Severity[] severities = PlausibilityCheck.Severity.values();
+        final double[][] data = new double[rowIndex.size()][severities.length];
+        for (int col = 0; col < severities.length; col++) {
+            for (final Map.Entry<String, Double> entry : bySeverity.get(severities[col]).entrySet()) {
+                data[rowIndex.get(entry.getKey())][col] = entry.getValue();
+            }
+        }
+
+        // Retrieve LUT
+        final String lutName = promptForLut();
+        if (lutName == null) return; // user canceled
+        final ColorTable colorTable = new ColorMapper().getColorTable(lutName);
+        final ColorTable finalColorTable = (colorTable == null) ? ColorMaps.VIRIDIS : colorTable;
+
+        final String title = String.format("Issue Heatmap (%d Issue(s))", warnings.size());
+        final String[] rowLabels = rowIndex.keySet().toArray(new String[0]); // check names, same order as data's rows
+        final String[] columnLabels = Arrays.stream(severities).map(CurationManager::severityLabel).toArray(String[]::new);
+        if (issueHeatmapFrame != null && issueHeatmapFrame.isDisplayable()) issueHeatmapFrame.dispose();
+        // SNTChart#showHeatmap() (Smile's Figure#show()) calls SwingUtilities.invokeAndWait() internally, which throws
+        // if already called from the EDT. This method is called from a JMenuItem's, so the call has to happen from a
+        // background thread instead
+        new Thread(() -> {
+            try {
+                issueHeatmapFrame = SNTChart.showHeatmap(title, rowLabels, columnLabels, data, finalColorTable);
+            } catch (final InterruptedException | InvocationTargetException e) {
+                SNTUtils.error("Could not display issue heatmap", e);
+            }
+        }, "SNT-IssueHeatmap").start();
+    }
+
+    /**
+     * Summarizes the currently-visible issues in a donut chart, weighted using a {@code severityWeight(severity) * impact}
+     * formula, so that a handful of high-impact errors show up bigger than a pile of low-impact advisory notes, not
+     * just "most frequent".
+     * Each severity keeps its usual {@link #severityColor(PlausibilityCheck.Severity)}, sub-divided by issue
+     * (check) type as shades of that same color, and severities render as contiguous arcs (INFO, WARNING, then
+     * ERROR) rather than being scattered by value. Reuses the chart window while it stays open, rather than piling up
+     * a new one per click.
+     */
+    private void summarizeIssuesAsDonutChart() {
+        final List<PlausibilityCheck.Warning> warnings = tableModel.getVisibleWarnings();
+        if (warnings.isEmpty()) {
+            sntui.error("No issues to summarize.");
+            return;
+        }
+        // Weighted totals per (severity, check name), grouped by severity and, within each group, by first
+        // appearance: same checkName can in principle recur under different severities (severity is computed
+        // per-warning, not fixed per check), so group first, then aggregate
+        final Map<PlausibilityCheck.Severity, Map<String, Double>> bySeverity =
+                new EnumMap<>(PlausibilityCheck.Severity.class);
+        for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values())
+            bySeverity.put(sev, new LinkedHashMap<>());
+        for (final PlausibilityCheck.Warning w : warnings) {
+            final double weight = severityWeight(w.severity()) * (Double.isNaN(w.impact()) ? 1.0 : w.impact());
+            bySeverity.get(w.severity()).merge(w.checkName(), weight, Double::sum);
+        }
+
+        final LinkedHashMap<String, Double> dataset = new LinkedHashMap<>();
+        final Map<String, Color> colors = new LinkedHashMap<>();
+        final Set<String> usedLabels = new HashSet<>();
+        for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
+            final Map<String, Double> checks = bySeverity.get(sev);
+            if (checks.isEmpty()) continue;
+            final Color[] shades = AnalysisUtils.shadesOf(severityColor(sev), checks.size());
+            int i = 0;
+            for (final Map.Entry<String, Double> entry : checks.entrySet()) {
+                String label = entry.getKey();
+                if (!usedLabels.add(label)) label += " (" + severityLabel(sev) + ")"; // disambiguate a name clash
+                dataset.put(label, entry.getValue());
+                colors.put(label, shades[i++]);
+            }
+        }
+        final String title = String.format("Issue Summary (%d Issue(s))", warnings.size());
+        final SNTChart chart = AnalysisUtils.ringPlot(title, dataset, colors, false);
+        hotSwapChart(issueSummaryChart, chart, title);
+        issueSummaryChart = chart;
+    }
+
+    /**
+     * Moves the table selection to the next/previous visible issue (wrapping around) and navigates to it, so
+     * users can walk the worst-first list without re-clicking each row before "Go to Location".
+     *
+     * @param direction +1 for next, -1 for previous
+     */
+    private void stepToIssue(final int direction) {
+        final int rowCount = warningsTable.getRowCount();
+        if (rowCount == 0) {
+            sntui.error("No issues to step through.");
+            return;
+        }
+        final int currentView = warningsTable.getSelectedRow();
+        final int nextView = (currentView < 0) ? (direction > 0 ? 0 : rowCount - 1)
+                : Math.floorMod(currentView + direction, rowCount);
+        warningsTable.setRowSelectionInterval(nextView, nextView);
+        warningsTable.scrollRectToVisible(warningsTable.getCellRect(nextView, 0, true));
+        final int modelRow = warningsTable.convertRowIndexToModel(nextView);
+        if (modelRow >= 0 && modelRow < tableModel.warnings.size()) {
+            navigateToWarning(tableModel.warnings.get(modelRow));
+        }
+    }
+
     private void navigateToWarning(final PlausibilityCheck.Warning warning) {
         // Select affected paths so they render in selectedColor in all viewers
         final List<Path> affected = warning.affectedPaths();
-        if (!affected.isEmpty()) {
-            sntui.getPathManager().setSelectedPaths(new java.util.HashSet<>(affected), this);
+        final PathManagerUI pmUI = sntui.getPathManager();
+        if (!affected.isEmpty() && pmUI != null) {
+            pmUI.setSelectedPaths(new java.util.HashSet<>(affected), this);
         }
         final ImagePlus imp = sntui.plugin.getImagePlus();
         if (imp != null) {
@@ -939,59 +1128,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JToolBar buildToolbar() {
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
-        tb.add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/curation"));
-        tb.add(Box.createHorizontalGlue());
-        tb.addSeparator();
 
-        // Live monitoring toggle
-        liveToggle = new JToggleButton();
-        liveToggle.setSelected(monitor.isEnabled());
-        IconFactory.assignIcon(liveToggle, IconFactory.GLYPH.HEART_CIRCLE_BOLT, IconFactory.GLYPH.HEART_PULSE, 1.1f);
-        liveToggle.setToolTipText("Enable live monitoring");
-        liveToggle.addActionListener(e -> {
-            if (noParametersSelected(liveCheckboxes, "live parameter")) {
-                liveToggle.setSelected(false);
-                return;
-            }
-            if (sntui.plugin.isStreamMode() && !sntui.plugin.isMaterializedCrop()) {
-                sntui.error("Currently, live monitoring is only available on paths traced on materialized crops.");
-                liveToggle.setSelected(false);
-                return;
-            }
-            final boolean on = liveToggle.isSelected();
-            if (on && !monitor.getCurrentWarnings().isEmpty()) {
-                final boolean clear = sntui.guiUtils.getConfirmation(
-                        "Enabling live monitoring will clear the current list of issues. Continue?",
-                        "Enable Live Monitoring?");
-                if (!clear) {
-                    liveToggle.setSelected(false); // revert toggle
-                    return;
-                }
-            }
-            monitor.setEnabled(on);
-        });
-        tb.add(liveToggle);
-        tb.addSeparator();
-        // Run Full Scan button
-        onDemandButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.STETHOSCOPE, 1.1f));
-        onDemandButton.setToolTipText("Run full scan.\nScans all paths using both live and on-demand parameters");
-        onDemandButton.addActionListener(e -> runOnDemandAsync());
-        tb.add(onDemandButton);
-        tb.addSeparator();
-        tb.add(Box.createHorizontalGlue());
-
-        // Filter button: restrict table by severity
-        final JButton filterButton = GuiUtils.Buttons.OptionsButton(
-                IconFactory.GLYPH.EYE, 1.1f, getFilterVisibilityMenu());
-        filterButton.setToolTipText("Filter warnings by severity");
-        tb.add(filterButton);
-        tb.addSeparator();
-        // Tools button
-        final JButton toolsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOLBOX, 1f, getToolsMenu());
-        toolsButton.setToolTipText("Actions & utilities");
-        tb.add(toolsButton);
-        tb.addSeparator();
-        // Calibration button
+        // Section 1: Utilities and Calibration
+        // 1.1. Calibration button
         calibrationMenu = new JPopupMenu();
         GuiUtils.addSeparator(calibrationMenu, "Auto-tuning:");
         final JMenuItem calibrateItem = new JMenuItem("Calibrate Thresholds from Traced Cells...");
@@ -1032,6 +1171,77 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         optionsButton.setToolTipText("Auto-tuning and calibration options");
         tb.add(optionsButton);
 
+        // 1.2 Tools button
+        final JButton toolsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOLBOX, 1f, getToolsMenu());
+        toolsButton.setToolTipText("Actions & utilities");
+        tb.add(toolsButton);
+
+        // Filter button: restrict table by severity
+        final JButton filterButton = GuiUtils.Buttons.OptionsButton(
+                IconFactory.GLYPH.EYE, 1.1f, getFilterVisibilityMenu());
+        filterButton.setToolTipText("Filter warnings by severity");
+        tb.add(filterButton);
+
+        tb.addSeparator();
+        tb.add(Box.createHorizontalGlue());
+
+        // 2 Issue steppers
+        final JButton prevIssueButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.PREVIOUS,
+                IconFactory.secondaryColor(), 1.1f));
+        prevIssueButton.setToolTipText("Go to previous issue");
+        prevIssueButton.addActionListener(e -> stepToIssue(-1));
+        tb.add(prevIssueButton);
+        final JButton nextIssueButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.NEXT,
+                IconFactory.secondaryColor(), 1.1f));
+        nextIssueButton.setToolTipText("Go to next issue");
+        nextIssueButton.addActionListener(e -> stepToIssue(1));
+        tb.add(nextIssueButton);
+
+        tb.add(Box.createHorizontalGlue());
+        tb.addSeparator();
+
+        // Section 3: "Commit to new data"
+        // 3.1 Live monitoring toggle
+        liveToggle = new JToggleButton("Live");
+        liveToggle.setSelected(monitor.isEnabled());
+        IconFactory.assignIcon(liveToggle, IconFactory.GLYPH.HEART_CIRCLE_BOLT, IconFactory.GLYPH.HEART_PULSE, 1.1f);
+        liveToggle.setToolTipText("Enable live monitoring");
+        liveToggle.addActionListener(e -> {
+            if (noParametersSelected(liveCheckboxes, "live parameter")) {
+                liveToggle.setSelected(false);
+                liveToggle.setForeground(IconFactory.secondaryColor());
+                return;
+            }
+            if (sntui.plugin.isStreamMode() && !sntui.plugin.isMaterializedCrop()) {
+                sntui.error("Currently, live monitoring is only available on paths traced on materialized crops.");
+                liveToggle.setSelected(false);
+                liveToggle.setForeground(IconFactory.secondaryColor());
+                return;
+            }
+            final boolean on = liveToggle.isSelected();
+            if (on && !monitor.getCurrentWarnings().isEmpty()) {
+                final boolean clear = sntui.guiUtils.getConfirmation(
+                        "Enabling live monitoring will clear the current list of issues. Continue?",
+                        "Enable Live Monitoring?");
+                if (!clear) {
+                    liveToggle.setSelected(false); // revert toggle
+                    liveToggle.setForeground(IconFactory.secondaryColor());
+                    return;
+                }
+            }
+            liveToggle.setForeground((on) ? IconFactory.selectedColor() : IconFactory.secondaryColor());
+            monitor.setEnabled(on);
+        });
+        tb.add(liveToggle);
+        tb.addSeparator();
+        // 3.2 Run Full Scan button
+        onDemandButton = new JButton("Scan");
+        IconFactory.assignIcon(onDemandButton, IconFactory.GLYPH.STETHOSCOPE, IconFactory.defaultColor(),
+                IconFactory.disabledColor(), 1.1f);
+        onDemandButton.setToolTipText("Run full scan.\nScans all paths using both live and on-demand parameters");
+        onDemandButton.addActionListener(e -> runOnDemandAsync());
+        tb.add(onDemandButton);
+
         return tb;
     }
 
@@ -1040,11 +1250,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         GuiUtils.addSeparator(filterMenu, "Show:");
         for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
             final Color sevColor = severityColor(sev);
-            final String sevLabel = switch (sev) {
-                case ERROR -> "Errors";
-                case WARNING -> "Warnings";
-                case INFO -> "Advisory Notes";
-            };
+            final String sevLabel = severityLabel(sev);
             final JCheckBoxMenuItem item = new JCheckBoxMenuItem(sevLabel,
                     IconFactory.accentIcon(sevColor, true), tableModel.isSeverityVisible(sev));
             item.addActionListener(e -> {
@@ -1088,9 +1294,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JMenu zMenu = visitingZoom.zoomControls("Visiting Zoom Level", "issues");
         zMenu.setEnabled(sntui != null && !sntui.plugin.isStreamMode());
         popup.add(zMenu);
-        GuiUtils.addSeparator(popup, "Path Tagging:");
+        GuiUtils.addSeparator(popup, "Color Coding:");
         final JMenuItem colorMenuItem = new JMenuItem("Color Affected Paths by Issue Severity");
-        colorMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.DANGER));
+        colorMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
         popup.add(colorMenuItem);
         colorMenuItem.addActionListener(e -> {
             assert sntui != null;
@@ -1104,8 +1310,33 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             }
             sntui.plugin.updateAllViewers();
         });
-        GuiUtils.addSeparator(popup, "Seed Reviews:");
 
+        final JMenuItem heatmapItem = new JMenuItem("Issue Heatmap...",
+                IconFactory.menuIcon(IconFactory.GLYPH.COLOR2, IconFactory.selectedColor(), IconFactory.secondaryColor()));
+        heatmapItem.setToolTipText("<html>Colors every node by the combined severity &amp; impact of every issue at that<br>" +
+                " node. Nodes hit by more/worse issues are rendered with warmer colors.<br>" +
+                "Unlike <i>Color Affected Paths by Issue Severity</i>, this recolors every path (not<br>" +
+                "just flagged ones) and sums overlapping issues.<br>Use <i>Remove Color Coding</i> to undo.");
+        heatmapItem.addActionListener(e -> showIssueHeatmap());
+        popup.add(heatmapItem);
+
+        final JMenuItem clearHeatmapItem = new JMenuItem("Remove Color Coding", IconFactory.menuIcon(IconFactory.GLYPH.BROOM));
+        clearHeatmapItem.setToolTipText("Restores every path's default coloring, undoing both 'Show Issue Heatmap' " +
+                "and 'Color Affected Paths by Issue Severity'.");
+        clearHeatmapItem.addActionListener(e -> clearIssueHeatmap());
+        popup.add(clearHeatmapItem);
+
+        GuiUtils.addSeparator(popup, "Summaries & Reports:");
+        final JMenuItem donutItem = new JMenuItem("Frequency Chart", IconFactory.menuIcon(IconFactory.GLYPH.CHART_PIE));
+        donutItem.setToolTipText("Summarizes current issues (severity x impact) in a donut chart");
+        donutItem.addActionListener(e -> summarizeIssuesAsDonutChart());
+        final JMenuItem matrixItem = new JMenuItem("Heatmap Matrix...", IconFactory.menuIcon('\uf00a', true));
+        matrixItem.setToolTipText("Summarizes current issues in a matrix heatmap");
+        matrixItem.addActionListener(e -> summarizeIssuesAsHeatmap());
+        popup.add(donutItem);
+        popup.add(matrixItem);
+
+        GuiUtils.addSeparator(popup, "Seed Reviews:");
         // Review-tag actions: mark the affected paths of the selected warning(s) as + / - training examples
         final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As");
         reviewMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEEDLING));
@@ -1191,7 +1422,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // so "no issues found" after a Full Scan can otherwise look like a clean bill of health for the whole
         // reconstruction when only the crop's own paths were actually assessable. Count them here (off the EDT,
         // below) so done() can surface it in the status message
-        final boolean anyImageDependentCheckEnabled = java.util.stream.Stream.<PlausibilityCheck.DeepCheck>of(
+        final boolean anyImageDependentCheckEnabled = java.util.stream.Stream.of(
                 sq,
                 monitor.getDeepCheck(PlausibilityCheck.UncertainTerminal.class),
                 monitor.getDeepCheck(PlausibilityCheck.IntensityValley.class),
@@ -1276,9 +1507,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                         sntui.showStatus(String.format("Full scan completed: %d issue(s) found", warnings.size())
                                 + outOfCropNote, true);
                         // A full scan can run for a while (network/disk-bound image checks) and, when
-                        // triggered via calibrateFromTrees() after autotracing, without any direct click
-                        GuiUtils.Notices.queueNotice(String.format("<HTML><b>Full scan completed: %d issue(s) found.</b><br>" +
-                                        "Click here to review them.", warnings.size()),
+                        // triggered via calibrateFromTrees() after autotracing, without any direct click. The
+                        // notice can sit unread for a while, so it is timestamped: by the time it is clicked,
+                        // paths may have changed and the Assistant table may no longer match this count
+                        GuiUtils.Notices.queueNotice(String.format("<HTML><b>Full scan completed: %d issue(s) found</b> (%s).<br>" +
+                                        "Click here to review them.", warnings.size(), GuiUtils.getTimeStamp()),
                                 null, () -> sntui.selectTab("Assistant"));
                     }
                 } catch (final Exception ex) {
@@ -1852,6 +2085,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             spinner.setEnabled(cb.isSelected());
             enableLiveCommit(spinner);
         }
+        // Register by check name so the table's popup menu can toggle this
+        // checkbox off (via doClick()) when discarding issues of this type
+        if (check instanceof PlausibilityCheck.LiveCheck lc) checkboxByCheckName.put(lc.getName(), cb);
+        else if (check instanceof PlausibilityCheck.DeepCheck dc) checkboxByCheckName.put(dc.getName(), cb);
         cb.addActionListener(e -> {
             final boolean sel = cb.isSelected();
             if (check instanceof PlausibilityCheck.LiveCheck lc) lc.setEnabled(sel);
@@ -1910,6 +2147,171 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             case WARNING -> SEVERITY_WARNING;
             case INFO -> SEVERITY_INFO;
         };
+    }
+
+    /** @return the human-readable label for a severity level (filter menu, issue summary chart) */
+    private static String severityLabel(final PlausibilityCheck.Severity severity) {
+        return switch (severity) {
+            case ERROR -> "Errors";
+            case WARNING -> "Warnings";
+            case INFO -> "Advisory Notes";
+        };
+    }
+
+    /** Relative weight of a severity level in the issue heatmap: higher severities dominate the color scale */
+    private static double severityWeight(final PlausibilityCheck.Severity severity) {
+        return switch (severity) {
+            case ERROR -> 4;
+            case WARNING -> 2;
+            case INFO -> 1;
+        };
+    }
+
+    private String promptForLut() {
+        final List<String> choices = new ArrayList<>(new ColorMapper().getAvailableHeatmapLuts());
+        if (choices.isEmpty()) {
+            sntui.error("No heatmap LUTs are available in this Fiji install.");
+            return null;
+        }
+        choices.sort(String.CASE_INSENSITIVE_ORDER);
+        if (heatmapLutName == null) {
+            // first run: default to whichever catalog entry matches "viridis", not the literal string
+            heatmapLutName = choices.stream().filter(n -> n.toLowerCase().contains("viridis"))
+                    .findFirst().orElse(choices.getFirst());
+        }
+        final String choice = sntui.guiUtils.getChoice("LUT/color ramp:", "Issue Heatmap",
+                choices.toArray(new String[0]), heatmapLutName);
+        if (choice != null) heatmapLutName = choice;
+        return choice;
+    }
+
+    /**
+     * Colors every live path's nodes by the combined severity &amp; impact of every currently-listed issue at that node.
+     * Unlike {@code colorMenuItem}'s "Color Affected Paths by Issue Severity", this sums the weight of every warning at
+     * a node, so overlapping issues compound into a hotter reading, and every path gets recolored (down to a possibly-
+     * zero/coldest value), giving a continuous "landscape". One shared min/max scale across every path keeps severities
+     * comparable across  multiple traced cells in the same session, e.g. spotting which cell is the problematic one.
+     * <p>
+     * Recolors the live paths directly (via {@link Path#setNodeColors(Color[])} without setting {@code setNodeValues()}.
+     * 'Reversible' with {@link #clearIssueHeatmap()}.
+     */
+    private void showIssueHeatmap() {
+        final List<PlausibilityCheck.Warning> warnings = tableModel.getVisibleWarnings();
+        if (warnings.isEmpty()) {
+            sntui.error("No issues exist.");
+            return;
+        }
+        final Collection<Path> livePaths = currentPaths();
+        if (livePaths.isEmpty()) {
+            sntui.error("No paths exist.");
+            return;
+        }
+        final String lutName = promptForLut();
+        if (lutName == null) return; // user canceled
+
+        // Per-path score arrays, indexed like each live Path's own nodes. Keyed by identity (not e.g. getID()):
+        // nothing here needs to survive a clone anymore, so the live Path itself is the natural key
+        final Map<Path, double[]> scoresByPath = new IdentityHashMap<>();
+        for (final Path p : livePaths) scoresByPath.put(p, new double[p.size()]);
+        for (final PlausibilityCheck.Warning w : warnings) {
+            final double weight = severityWeight(w.severity()) * (Double.isNaN(w.impact()) ? 1.0 : w.impact());
+            for (final Path p : w.affectedPaths()) {
+                final double[] scores = scoresByPath.get(p);
+                if (scores == null || scores.length == 0) continue; // stale reference: path since deleted
+                final sc.fiji.snt.util.PointInImage loc = w.location();
+                if (loc != null) {
+                    // Node-specific issue (e.g. a fork): attribute the weight to the nearest node
+                    final int idx = p.indexNearestTo(loc.x, loc.y, loc.z, Double.MAX_VALUE);
+                    if (idx >= 0) scores[idx] += weight;
+                } else {
+                    // Path-wide issue (e.g. Constant radii): no finer locus, so spread evenly across all its nodes
+                    for (int i = 0; i < scores.length; i++) scores[i] += weight / scores.length;
+                }
+            }
+        }
+
+        // Color scale upper bound: 90th percentile of the *nonzero* (i.e. actually flagged) scores, not the raw max --
+        // a plain 0-to-max scale lets a single node hit by several overlapping/severe issues define the whole range,
+        // crushing every other node into a near-identical cold shade (see ColorMapper#setMinMaxPercentileClipped for
+        // the general rationale). The lower bound stays a hard 0 (not percentile-clipped), so a genuinely clean node
+        // always maps to the true "no issues" color. A single shared mapper for every live path (no per-arbor split
+        // needed anymore) keeps severities comparable across multiple traced cells in the same session
+        final List<Double> nonZero = new ArrayList<>();
+        for (final double[] scores : scoresByPath.values())
+            for (final double v : scores) if (v > 0) nonZero.add(v);
+        final double[] nonZeroArr = nonZero.stream().mapToDouble(Double::doubleValue).toArray();
+
+        final ColorMapper mapper = new ColorMapper();
+        final ColorTable colorTable = mapper.getColorTable(lutName);
+        // base ColorMapper: just sets the LUT, nothing Tree-specific; fall back if resolution somehow failed
+        mapper.map("Issue heatmap", (colorTable != null) ? colorTable : ColorMaps.VIRIDIS);
+        if (nonZeroArr.length == 0) {
+            mapper.setMinMax(0, 1); // degenerate case: no warning could be attributed to a live path
+        } else {
+            mapper.setMaxPercentileClipped(nonZeroArr, 10);
+            mapper.setMinMax(0, mapper.getMinMax()[1]);
+        }
+
+        // No color-bar legend with this approach (see this method's own javadoc for why paths are recolored
+        // in place); for a legend and more presentation options, run "Create Figure..." on a snapshot afterward
+        for (final Map.Entry<Path, double[]> entry : scoresByPath.entrySet()) {
+            final double[] scores = entry.getValue();
+            final Color[] colors = new Color[scores.length];
+            for (int i = 0; i < scores.length; i++) colors[i] = mapper.getColor(scores[i]);
+            entry.getKey().setNodeColors(colors);
+        }
+        displayLegend(mapper, colorTable);
+        sntui.plugin.updateAllViewers();
+        sntui.showStatus(String.format("Issue heatmap applied (range 0-%.2f, P90-clipped).",
+                 mapper.getMinMax()[1]), true);
+    }
+
+    /** Companion to {@link #showIssueHeatmap()}: restores every live path's default (non-heatmap) coloring. */
+    private void clearIssueHeatmap() {
+        final Collection<Path> livePaths = currentPaths();
+        if (livePaths.isEmpty()) {
+            sntui.error("No paths exist.");
+            return;
+        }
+        ColorMapper.unMap(livePaths); // remove both heatmap and issue mapping: node colors/path colors
+        if (heatMapLegend != null) {
+            heatMapLegend.dispose();
+            heatMapLegend = null; // no live heatmap left for it to describe
+        }
+        sntui.plugin.updateAllViewers();
+        sntui.showStatus("Issue-related color mappings removed.", true);
+    }
+
+    private void hotSwapChart(final SNTChart oldChart, final SNTChart newChart, final String newTitle) {
+        if (oldChart != null && oldChart.getFrame().isDisplayable()) {
+            oldChart.replace(newChart);
+            oldChart.show(newTitle);
+        } else {
+            newChart.getFrame().setLocationRelativeTo(panel);
+            newChart.show();
+        }
+    }
+
+    private void displayLegend(final ColorMapper mapper, final ColorTable colorTable) {
+        final JFrame newFrame = AnalysisUtils.colorRampLegend("Issue Severity Legend",
+                (colorTable != null) ? colorTable : ColorMaps.VIRIDIS, mapper.getMinMax()[0], mapper.getMinMax()[1]);
+        if (heatMapLegend == null) {
+            heatMapLegend = newFrame;
+            heatMapLegend.setLocationRelativeTo(panel);
+        } else {
+            newFrame.setExtendedState(heatMapLegend.getExtendedState());
+            newFrame.setLocation(heatMapLegend.getLocation());
+            // Respect a size the user dragged larger than what colorRampLegend() just packed for, but do not shrink
+            // below the freshly-measured content size
+            final Dimension size = new Dimension(
+                    Math.max(heatMapLegend.getWidth(), newFrame.getWidth()),
+                    Math.max(heatMapLegend.getHeight(), newFrame.getHeight()));
+            newFrame.setMinimumSize(size);
+            newFrame.setSize(size);
+            heatMapLegend.dispose();
+            heatMapLegend = newFrame;
+        }
+        heatMapLegend.setVisible(true);
     }
 
     /**
@@ -2119,6 +2521,31 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         void setWarnings(final List<PlausibilityCheck.Warning> warnings) {
             this.allWarnings = new ArrayList<>(warnings);
             applyFilter();
+        }
+
+        /**
+         * Removes the given entries from both {@link #allWarnings} and the currently-filtered {@link #warnings}, then
+         * re-applies the filter. Identity-based (List#removeIf uses equals(), and Warning has no custom equals(), so
+         * this matches the same objects returned by getSelectedWarnings()).
+         *
+         * @param toRemove entries to drop; {@code null} or empty is a no-op
+         */
+        void removeWarnings(final Collection<PlausibilityCheck.Warning> toRemove) {
+            if (toRemove == null || toRemove.isEmpty()) return;
+            allWarnings.removeAll(toRemove);
+            applyFilter();
+        }
+
+        /** Every entry whose checkName() is in {@code checkNames}, regardless of the current severity filter */
+        List<PlausibilityCheck.Warning> getWarningsOfType(final Set<String> checkNames) {
+            return allWarnings.stream()
+                    .filter(w -> checkNames.contains(w.checkName()))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+
+        /** @return the entries passing the current severity filter (i.e., what the table is showing) */
+        List<PlausibilityCheck.Warning> getVisibleWarnings() {
+            return List.copyOf(warnings);
         }
 
         /**

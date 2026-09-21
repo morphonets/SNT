@@ -678,13 +678,17 @@ public class SNTChart extends ChartPanel {
 
 	/* Number of series/rows of the current plot's primary dataset, or 0 if not applicable */
 	private int countSeries() {
-		final Plot plot = getChart().getPlot();
-		if (plot instanceof CategoryPlot catPlot)
-			return catPlot.getDataset().getRowCount();
-		if (plot instanceof XYPlot xyPlot)
-			return xyPlot.getDataset().getSeriesCount();
-		if (plot instanceof PolarPlot polarPlot)
-			return polarSeriesCount(polarPlot);
+		try {
+			final Plot plot = getChart().getPlot();
+			if (plot instanceof CategoryPlot catPlot)
+				return catPlot.getDataset().getRowCount();
+			if (plot instanceof XYPlot xyPlot)
+				return xyPlot.getDataset().getSeriesCount();
+			if (plot instanceof PolarPlot polarPlot)
+				return polarSeriesCount(polarPlot);
+		} catch (final NullPointerException ignored) {
+			// do nothing, likely handling a plot with no dataset
+		}
 		return 0;
 	}
 
@@ -944,6 +948,7 @@ public class SNTChart extends ChartPanel {
 
 	public void setTitle(String title) {
 		this.title = title;
+		if (frame != null) SwingUtilities.invokeLater(() -> frame.setTitle(title));
 	}
 
 	public String getTitle() {
@@ -1955,16 +1960,20 @@ public class SNTChart extends ChartPanel {
 	}
 
 	private float defFontSize() {
-		if (getChart().getPlot() instanceof XYPlot) {
-			return getXYPlot().getRangeAxis().getLabelFont().getSize2D();
+		try {
+			if (getChart().getPlot() instanceof XYPlot xyPlot) {
+				return xyPlot.getRangeAxis().getLabelFont().getSize2D();
+			} else if (getChart().getPlot() instanceof CategoryPlot categoryPlot) {
+				return categoryPlot.getDomainAxis().getLabelFont().getSize2D();
+			} else if (isFlowPlot()) {
+				final FlowPlot plot = (FlowPlot) (getChart().getPlot());
+				return plot.getDefaultNodeLabelFont().getSize2D();
+			}
+			return getChart().getPlot().getNoDataMessageFont().getSize2D();
+		} catch (final NullPointerException ignored) {
+			// do nothing, likely handling a plot with no dataset
 		}
-		else if (getChart().getPlot() instanceof CategoryPlot) {
-			return getCategoryPlot().getDomainAxis().getLabelFont().getSize2D();
-		} else if (isFlowPlot()) {
-			final FlowPlot plot = (FlowPlot)(getChart().getPlot());
-			return plot.getDefaultNodeLabelFont().getSize2D();
-		}
-		return getChart().getPlot().getNoDataMessageFont().getSize2D();
+		return GuiUtils.uiFontSize();
 	}
 
 	/* Experimental: Not all types of data are supported */
@@ -2349,6 +2358,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the histogram
 	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHistogram3D(final double[][] data, final ColorTable colorTable, final boolean prob, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[0]));
@@ -2367,6 +2377,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the heatmap
 	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHeatmap(final double[][] data, final ColorTable colorTable, final String... axisLabels)
 			throws InterruptedException, InvocationTargetException {
@@ -2385,6 +2396,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the heatmap
 	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHeatmap(final String title, final double[][] data, final ColorTable colorTable, final String... axisLabels)
 			throws InterruptedException, InvocationTargetException {
@@ -2406,6 +2418,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the histogram
 	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHistogram3D(final Collection<Double> values1, final Collection<Double> values2,
 	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
@@ -2430,6 +2443,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the heatmap
 	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHeatmap(final Collection<Double> values1, final Collection<Double> values2,
 	                                 final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
@@ -2449,6 +2463,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the heatmap
 	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHeatmap(final String title, final Collection<Double> values1, final Collection<Double> values2,
 	                                 final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
@@ -2472,6 +2487,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the heatmap
 	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHeatmap(final String title, final double[] xCoords, final double[] yCoords,
 	                                 final double[][] data, final ColorTable colorTable, final String... axisLabels)
@@ -2482,6 +2498,40 @@ public class SNTChart extends ChartPanel {
 		if (axisLabels != null && axisLabels.length > 0)
 			figure.setAxisLabels(Arrays.copyOf(axisLabels, figure.getAxisLabels().length));
 		final JFrame frame = figure.show();
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
+	}
+
+	/**
+	 * Shows a two-dimensional heatmap from a two-dimensional data matrix, with rows/columns labeled categorically
+	 * (e.g. class/check names) instead of by numeric coordinate. Cannot be called from event dispatcher thread.
+	 *
+	 * @param title        the heatmap title (null allowed)
+	 * @param rowLabels    label for each row of {@code data}
+	 * @param columnLabels label for each column of {@code data}
+	 * @param data         the two-dimensional matrix holding the data to be plotted
+	 * @param colorTable   the heatmap color table (LUT) (null not allowed)
+	 * @return the frame holding the heatmap
+	 * @throws InterruptedException      if the heatmap cannot be displayed
+	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
+	 */
+	public static JFrame showHeatmap(final String title, final String[] rowLabels, final String[] columnLabels,
+	                                 final double[][] data, final ColorTable colorTable)
+			throws InterruptedException, InvocationTargetException {
+		if (data == null || rowLabels == null || columnLabels == null || data.length == 0
+				|| data.length != rowLabels.length || data[0].length != columnLabels.length)
+			throw new IllegalArgumentException("data, rowLabels, columnLabels must be non-null and match in size");
+		final Color[] palette = alphaColorsFromColorTable(colorTable);
+		final smile.plot.swing.Figure figure = new Heatmap(rowLabels, columnLabels, data, palette).figure();
+		figure.setTitle(title != null ? title : "Heatmap");
+		// remove axis labels
+        final String[] axisLabels = figure.getAxisLabels();
+		Arrays.fill(axisLabels, null);
+		figure.setAxisLabels(axisLabels);
+		// set titles
+		final JFrame frame = figure.show();
+		frame.setTitle(title != null ? title : "Heatmap");
 		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
 		return frame;
 	}
@@ -2498,6 +2548,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the histogram
 	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHistogram3D(final String title, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
 	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
@@ -2517,6 +2568,7 @@ public class SNTChart extends ChartPanel {
 	 * @return the frame holding the histogram
 	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
+	 * @throws Error If called from the event dispatcher thread
 	 */
 	public static JFrame showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
 	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {

@@ -1076,6 +1076,8 @@ public class SNTUI extends JDialog {
         commandFinder.dispose();
         pmUI.dispose();
         fmUI.dispose();
+        if (curationManager != null) curationManager.dispose();
+        if (bookmarkManager != null) bookmarkManager.dispose();
         if (seedManager != null) seedManager.dispose();
         if (recViewer != null) recViewer.dispose();
         if (recorder != null) recorder.dispose();

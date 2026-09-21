@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
+import net.imglib2.display.ColorTable;
 import org.apache.commons.lang.WordUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -31,6 +32,8 @@ import org.jfree.chart.JFreeChart;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.axis.*;
+import org.jfree.chart.block.Block;
+import org.jfree.chart.block.RectangleConstraint;
 import org.jfree.chart.entity.EntityCollection;
 import org.jfree.chart.labels.BoxAndWhiskerToolTipGenerator;
 import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
@@ -43,9 +46,11 @@ import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.chart.renderer.category.CategoryItemRendererState;
 import org.jfree.chart.renderer.category.StandardBarPainter;
 import org.jfree.chart.renderer.xy.*;
+import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
+import org.jfree.chart.ui.Size2D;
 import org.jfree.chart.util.SortOrder;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
@@ -70,11 +75,14 @@ import sc.fiji.snt.analysis.growth.GrowthAnalyzer.GrowthPhase;
 import sc.fiji.snt.analysis.growth.GrowthAnalyzer.GrowthPhaseType;
 
 import java.awt.*;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
 
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.*;
@@ -669,7 +677,7 @@ public class AnalysisUtils {
 	}
 
 	/**
-	 * Generates a ring plot (aka donut plot).
+	 * Generates a ring plot (aka donut plot), with sections ranked by value (highest first).
 	 *
 	 * @param title  the title of the chart. Null allowed
 	 * @param data   a map of data values where the key is a String label and the value is a Number
@@ -680,9 +688,28 @@ public class AnalysisUtils {
 	 */
 	public static SNTChart ringPlot(final String title, final HashMap<String, Double> data,
 									final Map<String, Color> colors)  {
+		return ringPlot(title, data, colors, true);
+	}
+
+	/**
+	 * Generates a ring plot (aka donut plot).
+	 *
+	 * @param title       the title of the chart. Null allowed
+	 * @param data        a map of data values where the key is a String label and the value is a Number
+	 *                    representing the data associated with the label
+	 * @param colors      a map of colors corresponding to the sections of the plot; if null, distinct
+	 *                    colors will be automatically generated
+	 * @param sortByValue if true, sections are ranked by value (highest first); if false, {@code data}'s own
+	 *                    iteration order is kept as-is, e.g. a {@link java.util.LinkedHashMap} pre-grouped by
+	 *                    category so related sections render as contiguous arcs rather than being scattered
+	 *                    by value
+	 * @return an instance of SNTChart containing the generated ring plot
+	 */
+	public static SNTChart ringPlot(final String title, final HashMap<String, Double> data,
+									final Map<String, Color> colors, final boolean sortByValue)  {
 		final DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
 		data.forEach((k,v) -> dataset.setValue(WordUtils.capitalizeFully(k), v));
-		dataset.sortByValues(SortOrder.DESCENDING);
+		if (sortByValue) dataset.sortByValues(SortOrder.DESCENDING);
 		final RingPlot ringPlot = getRingPlot(dataset);
 		if (colors == null) {
 			final Color[] c = SNTColor.getDistinctColorsAWT(data.size());
@@ -823,6 +850,73 @@ public class AnalysisUtils {
 		ringPlot.setLabelLinksVisible(likelyDenseLabels);
 		ringPlot.setLabelLinkStyle(PieLabelLinkStyle.STANDARD);
 		return ringPlot;
+	}
+
+	/**
+	 * @return {@code n} shades of {@code base}, spread across a fixed brightness range so colors read as one hue
+	 * family.
+	 */
+	public static Color[] shadesOf(final Color base, final int n) {
+		final float[] hsb = Color.RGBtoHSB(base.getRed(), base.getGreen(), base.getBlue(), null);
+		final Color[] shades = new Color[n];
+		for (int i = 0; i < n; i++) {
+			final float brightness = (n == 1) ? hsb[2] : 0.6f + 0.4f * i / (n - 1);
+			shades[i] = Color.getHSBColor(hsb[0], hsb[1], brightness);
+		}
+		return shades;
+	}
+
+	/** Minimal JComponent that paints a single JFreeChart Block/Title, nothing else -- no plot,
+	 *  so pack() has nothing else competing for space when sizing the frame that holds it */
+	private static final class BlockPanel extends JPanel {
+		private final Block block;
+		private Dimension preferredSize;
+
+		BlockPanel(final Block block) {
+			this.block = block;
+			setBackground(Color.WHITE);
+		}
+
+		@Override
+		public Dimension getPreferredSize() {
+			if (preferredSize == null) preferredSize = computePreferredSize();
+			return preferredSize;
+		}
+
+		@Override
+		public Dimension getMinimumSize() {
+			if (preferredSize == null) preferredSize = computePreferredSize();
+			return preferredSize;
+		}
+
+		private Dimension computePreferredSize() {
+			final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+			final Graphics2D g2 = scratch.createGraphics();
+			try {
+				final Size2D size = block.arrange(g2, RectangleConstraint.NONE);
+				// +10px safety margin
+				return new Dimension((int) Math.ceil(size.getWidth()) + 10, (int) Math.ceil(size.getHeight()) + 10);
+			} finally {
+				g2.dispose();
+			}
+		}
+
+		@Override
+		protected void paintComponent(final Graphics g) {
+			super.paintComponent(g);
+			block.draw((Graphics2D) g, new Rectangle2D.Double(0, 0, getWidth(), getHeight()));
+		}
+	}
+
+	/** Shows a standalone frame with just the specified LUT ramp, cropped to the ramp's own size */
+	public static JFrame colorRampLegend(final String title, final ColorTable colorTable,
+										   final double min, final double max) {
+		final PaintScaleLegend legend = SNTChart.getPaintScaleLegend(title, colorTable, min, max, 2);
+		final BlockPanel panel = new BlockPanel(legend);
+		final JFrame frame = new JFrame(title);
+		frame.setContentPane(panel);
+		frame.pack(); // sized to BlockPanel#getPreferredSize(), i.e. the legend's own measured size
+		return frame;
 	}
 
 	private static long countValidSections(final DefaultPieDataset<String> dataset) {

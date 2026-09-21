@@ -338,6 +338,20 @@ public class IconFactory {
         return cachedIcon(entry.id, FADerivedIcon.defSize() * 0.9f, color, entry.solid);
     }
 
+    /**
+     * Creates a menu icon rendered as a horizontal gradient between two colors.
+     * Unlike {@link #menuIcon(GLYPH, Color)}, this bypasses the icon cache: gradient icons are expected to be built
+     * sparingly (e.g. once per menu build), and the cache  key only tracks a single color.
+     *
+     * @param entry the glyph
+     * @param from  the gradient's start color
+     * @param to    the gradient's end color
+     * @return the icon
+     */
+    public static Icon menuIcon(final GLYPH entry, final Color from, final Color to) {
+        return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * 0.9f, from, to, entry.solid);
+    }
+
     public static Icon menuIcon(final char symbol, final boolean solid) {
         return cachedIcon(symbol, FADerivedIcon.defSize() * 0.9f, defaultColor(), solid);
     }

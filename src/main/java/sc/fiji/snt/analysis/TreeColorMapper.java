@@ -42,8 +42,6 @@ import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import java.awt.*;
-import java.io.IOException;
-import java.net.URL;
 import java.util.*;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -149,23 +147,6 @@ public class TreeColorMapper extends ColorMapper {
 	 */
 	public static List<String> getMetrics() {
 		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
-	}
-
-	public ColorTable getColorTable(final String lut) {
-        final ColorTable cMap = ColorMaps.get(lut);
-        if (cMap != null) return cMap;
-		initLuts();
-		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
-			if (entry.getKey().contains(lut)) {
-				try {
-					return lutService.loadLUT(entry.getValue());
-				}
-				catch (final IOException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-		return null;
 	}
 
 	protected void mapToProperty(final String measurement,
@@ -691,16 +672,6 @@ public class TreeColorMapper extends ColorMapper {
 			map(it.next(), INTERNAL_COUNTER, lut);
 			internalCounter = it.nextIndex();
 		}
-	}
-
-	/**
-	 * Gets the available LUTs.
-	 *
-	 * @return the set of keys, corresponding to the set of LUTs available
-	 */
-	public Set<String> getAvailableLuts() {
-		initLuts();
-		return luts.keySet();
 	}
 
 	/**
