@@ -3254,8 +3254,11 @@ public class Bvv extends AbstractBigViewer {
                 c.anchor = GridBagConstraints.EAST;
                 main.add(slabToggle, c);
 
-                final JLabel thickLabel = new JLabel(String.format("   Thickness (%s)", unit), JLabel.RIGHT);
-                final JLabel posLabel = new JLabel(String.format("   Position (%s)", unit), JLabel.RIGHT);
+                final JLabel thickLabel = new JLabel("    Thickness", JLabel.RIGHT);
+                final JLabel posLabel = new JLabel("   Position ", JLabel.RIGHT);
+                thickLabel.setToolTipText("Slab thickness, in calibrated units");
+                posLabel.setToolTipText("Slab position, in calibrated units");
+
                 // Force both labels to the same preferred width so spinners/sliders left-align.
                 GuiUtils.ensureSameWidth(thickLabel, posLabel);
                 thickPanel.add(thickLabel, java.awt.BorderLayout.WEST);

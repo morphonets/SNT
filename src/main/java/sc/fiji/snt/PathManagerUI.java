@@ -6049,10 +6049,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             super("Navigation Toolbar", HORIZONTAL);
 
             // Tweak look so that toolbar blends in with JTree's background, etc.
-            setBackground(jTree.getBackground());
-            setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-            setFocusable(false);
-            setFloatable(true);
+            setFloatable(false);
 
             arborChoiceCombo = new JComboBox<>();
             sortArborsButton = sortButton();
@@ -6893,7 +6890,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private void showColorCustomizationDialog() {
             // Create the panel with color chooser buttons
             final JPanel panel = new JPanel(new GridBagLayout());
-            panel.setBackground(ProofReadingTagsToolBar.this.getBackground());
             final GridBagConstraints c = GuiUtils.defaultGbc();
             c.anchor = GridBagConstraints.CENTER;
             // Stretch every button to the width of the widest one in the column

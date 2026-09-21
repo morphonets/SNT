@@ -10546,7 +10546,7 @@ public class Viewer3D {
 
     /**
      * Sets the line thickness for rendering {@link Tree}s that have no specified
-     * radius.
+     * radius. Must be called <i>before</i> adding paths to the scene.
      *
      * @param thickness the new line thickness. Note that this value only applies
      *          to Paths that have no specified radius
