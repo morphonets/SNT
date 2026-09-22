@@ -582,7 +582,7 @@ public class GuiUtils {
 		combo1.setSelectedItem(defaultChoice1);
 		combo2.setSelectedItem(defaultChoice2);
 		final JComponent[] inputs = new JComponent[] { new JLabel(choice1Label), combo1, new JLabel(choice2Label), combo2 };
-		final int result = JOptionPane.showConfirmDialog(null, inputs, title, JOptionPane.OK_CANCEL_OPTION,
+		final int result = JOptionPane.showConfirmDialog(parent, inputs, title, JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.QUESTION_MESSAGE);
 		if (result == JOptionPane.OK_OPTION) {
 			return new String[] { (String) combo1.getSelectedItem(),  (String) combo2.getSelectedItem() };
@@ -597,7 +597,7 @@ public class GuiUtils {
 		final JTextField input = new JTextField(defaultInput);
 		Fields.addClearButton(input);
 		final JComponent[] inputs = new JComponent[] { new JLabel(message), combo, input };
-		final int result = JOptionPane.showConfirmDialog(null, inputs, title, JOptionPane.OK_CANCEL_OPTION,
+		final int result = JOptionPane.showConfirmDialog(parent, inputs, title, JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.QUESTION_MESSAGE);
 		if (result == JOptionPane.OK_OPTION) {
 			return new String[] { (String) combo.getSelectedItem(), input.getText() };
@@ -1748,6 +1748,18 @@ public class GuiUtils {
 		return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
 	}
 
+	/**
+	 * The screen area actually usable for positioning windows on {@code c}'s screen, i.e., its
+	 * {@link GraphicsConfiguration} bounds shrunk by the OS-reported screen insets (taskbar, dock, menu bar)
+	 */
+	public static Rectangle usableScreenBounds(final Component c) {
+		final GraphicsConfiguration gc = c.getGraphicsConfiguration();
+		final Rectangle bounds = gc.getBounds();
+		final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+		return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
+				bounds.width - insets.left - insets.right, bounds.height - insets.top - insets.bottom);
+	}
+
 
 	/**
 	 * Positions a target window relative to a reference window while preventing it from
@@ -1767,35 +1779,52 @@ public class GuiUtils {
 		// 1. Initial baseline positioning relative to the component
 		target.setLocationRelativeTo(reference);
 
-		// 2. Resolve the correct monitor/graphics configuration context
-		// If reference is null, fallback to the target's current config or default screen
-		GraphicsConfiguration config = (reference != null && reference.isShowing())
-				? reference.getGraphicsConfiguration()
-				: target.getGraphicsConfiguration();
+		// 2. Resolve the correct monitor: prefer reference's screen if it is showing, else target's own
+		final Component gcSource = (reference != null && reference.isShowing()) ? reference : target;
 
-		if (config == null) {
-			config = target.getGraphicsConfiguration();
-		}
+		// 3. Usable area of that screen (taskbar/dock/menu bar excluded)
+		final Rectangle usable = usableScreenBounds(gcSource);
 
-		// 3. Extract screen boundaries in pixels
-		Rectangle screenBounds = config.getBounds();
+		// 4. Clamp the coordinates to stay completely within the safe zone
+		final int finalX = Math.clamp(target.getX(), usable.x, usable.x + usable.width - target.getWidth());
+		final int finalY = Math.clamp(target.getY(), usable.y, usable.y + usable.height - target.getHeight());
 
-		// 4. Extract native OS exclusions (OSX Dock, Windows Taskbar, GNOME Panel)
-		// This automatically returns high-DPI scaled pixels in Java 9+
-		Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(config);
-
-		// 5. Compute the absolute bounding box of safe printable space
-		int minX = screenBounds.x + screenInsets.left;
-		int minY = screenBounds.y + screenInsets.top;
-		int maxX = screenBounds.x + screenBounds.width - screenInsets.right - target.getWidth();
-		int maxY = screenBounds.y + screenBounds.height - screenInsets.bottom - target.getHeight();
-
-		// 6. Clamp the coordinates to stay completely within the safe zone
-		int finalX = Math.clamp(target.getX(), minX, maxX);
-		int finalY = Math.clamp(target.getY(), minY, maxY);
-
-		// 7. Apply safely-clamped bounds back to the target frame
+		// 5. Apply safely-clamped bounds back to the target frame
 		target.setLocation(finalX, finalY);
+	}
+
+	/**
+	 * Positions a target window immediately to the right of a reference window, clamped to
+	 * stay within the screen's usable bounds (docks/taskbars excluded). Falls back to
+	 * {@link #centerOnParent(Component, Window)} if the reference is unavailable, or to
+	 * {@link #setLocationRelativeTo(Window, Window)} if there is no room to its right
+	 * (e.g., the reference sits near the screen's right edge)
+	 *
+	 * <p><b>Precondition:</b> The target window must have its size initialized
+	 *
+	 * @param target    the window to be positioned (e.g., JFrame, JDialog); cannot be null
+	 * @param reference the window to position beside; if null or not showing, target centers
+	 *                  on the primary screen instead
+	 */
+	public static void setLocationNextTo(final Window target, final Window reference) {
+		if (target == null) {
+			throw new IllegalArgumentException("target cannot be null");
+		}
+		if (reference == null || !reference.isShowing()) {
+			centerOnParent((Component) null, target);
+			return;
+		}
+		final Rectangle usable = usableScreenBounds(reference);
+		final Rectangle refBounds = reference.getBounds();
+		final int x = refBounds.x + refBounds.width;
+		if (x + target.getWidth() > usable.x + usable.width) {
+			// no room to the right on this screen: fall back to centering on the reference
+			setLocationRelativeTo(target, reference);
+			return;
+		}
+		final int minY = usable.y;
+		final int maxY = usable.y + usable.height - target.getHeight();
+		target.setLocation(x, Math.clamp(refBounds.y, minY, maxY));
 	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {

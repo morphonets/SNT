@@ -544,6 +544,25 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	/**
+	 * Gets whether the SNT button is auto-installed in the IJ toolbar at Fiji startup.
+	 *
+	 * @return true if the button is loaded at startup (the default)
+	 */
+	public static boolean getAutoLoadToolbarButton() {
+		return Prefs.get("snt.tool.autoload", true);
+	}
+
+	/**
+	 * Sets whether the SNT button should be auto-installed in the IJ toolbar at Fiji startup.
+	 *
+	 * @param autoLoad the new preference
+	 * @see #getAutoLoadToolbarButton()
+	 */
+	public static void setAutoLoadToolbarButton(final boolean autoLoad) {
+		Prefs.set("snt.tool.autoload", autoLoad);
+	}
+
+	/**
 	 * Gets the current number of threads setting.
 	 *
 	 * @return the number of threads

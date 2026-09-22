@@ -6895,12 +6895,7 @@ public class SNTUI extends JDialog {
 
         /** Usable screen bounds (i.e., excluding taskbar/dock/menu bar) for whatever screen {@code c} is on. */
         static Rectangle usableScreenBounds(final Component c) {
-            final GraphicsConfiguration gc = c.getGraphicsConfiguration();
-            final Rectangle screenBounds = gc.getBounds();
-            final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
-            return new Rectangle(screenBounds.x + insets.left, screenBounds.y + insets.top,
-                    screenBounds.width - insets.left - insets.right,
-                    screenBounds.height - insets.top - insets.bottom);
+            return GuiUtils.usableScreenBounds(c);
         }
 
         static String getImportActionName(final int type) {

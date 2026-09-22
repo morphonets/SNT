@@ -31,6 +31,7 @@ import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.thread.ThreadService;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.FileDrop;
@@ -298,8 +299,8 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		frame.pack();
 		//TODO: use ij1 for now because it detects if the location is valid. 
 		final Point loc = ij.Prefs.getLocation(WIN_LOC);
-		if (loc == null) 
-			GuiUtils.centerWindow(frame);
+		if (loc == null)
+			GuiUtils.setLocationNextTo(frame, ij.IJ.getInstance());
 		else
 			frame.setLocation(loc);
 		frame.setVisible(true);
@@ -317,7 +318,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	@SuppressWarnings("unused")
 	public static void resetFrameLocation() {
 		ij.Prefs.saveLocation(WIN_LOC, null); // convenience methods for macro access
-		if (frame != null) GuiUtils.centerWindow(frame);
+		if (frame != null) GuiUtils.setLocationNextTo(frame, ij.IJ.getInstance());
 	}
 
 	public static boolean isVisible() {
@@ -326,15 +327,47 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	@SuppressWarnings("unused")
 	public static void toggleVisibility() {
+		if (isVisible())
+			hide();
+		else
+			show();
+	}
+
+	@SuppressWarnings("unused")
+	public static void show() {
 		if (frame == null) {
 			final ShortcutWindowCmd swc = new ShortcutWindowCmd();
 			swc.setContext(SNTUtils.getContext());
 			swc.run();
 		} else {
-			frame.setVisible(!isVisible());
 			if (frame.isVisible() && frame.getState() == Frame.ICONIFIED)
 				frame.setState(Frame.NORMAL);
+			frame.setVisible(true);
 		}
+	}
+
+	@SuppressWarnings("unused")
+	public static void hide() {
+		if (frame != null) frame.setVisible(false);
+	}
+
+	/** Displays the "Options" prompt configuring the startup behavior of the panel */
+	@SuppressWarnings("unused")
+	public static void showOptionsPrompt() {
+		final boolean enabled = SNTPrefs.getAutoLoadToolbarButton();
+		final GuiUtils guiUtils = new GuiUtils(); // parent: active window
+		final String[] choicesButton = {"Auto-install at startup", "Install manually using the >> dropdown menu"};
+		final String[] choicesPosition = {"Remember last position", "Reset"};
+		final String[] result = guiUtils.getTwoChoices("Neuroanatomy Shortcuts Options",
+				"<HTML><i>SNT</i> button in Fiji's toolbar:", choicesButton, (enabled) ? choicesButton[0] : choicesButton[1],
+				"<HTML>Location of <i>Shortcuts</i> panel:", choicesPosition, choicesPosition[0]);
+
+		if (result == null) return; // User canceled
+
+		final String buttonChoice = result[0];
+		final String positionChoice = result[1];
+		if (buttonChoice != null) SNTPrefs.setAutoLoadToolbarButton(choicesButton[0].equals(buttonChoice));
+		if (choicesPosition[1].equals(positionChoice)) resetFrameLocation();
 	}
 
 	private static class Shortcut {
@@ -424,12 +457,8 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	@Override
 	public void run(final String ignored) {
-		// As sad as it is, this IJ1 code is just so that we can register this command as
-		// an IJ1 plugin in th plugins menu so that the Neuroanatomy menu is sorted properly. See e.g.
-		// https://github.com/imagej/imagej-legacy/issues/179
-		final ShortcutWindowCmd swc = new ShortcutWindowCmd();
-		// get the existing Context from the running Fiji instance. 
-		swc.setContext(SNTUtils.getContext());
-		swc.run();
+		// This IJ1 code is just so that we can register this command as an IJ1 plugin in the plugins menu so that the
+		// Neuroanatomy menu is sorted properly. See e.g. https://github.com/imagej/imagej-legacy/issues/179
+		show();
 	}
 }

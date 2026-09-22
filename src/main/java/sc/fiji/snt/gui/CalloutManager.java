@@ -669,16 +669,11 @@ public class CalloutManager {
     }
 
     /**
-     * The screen area actually usable for positioning windows on {@code c}'s screen, i.e., its
-     * {@link GraphicsConfiguration} bounds shrunk by the OS-reported screen insets (taskbar, dock, menu bar), so
-     * callouts are never placed on top of them
+     * The screen area actually usable for positioning windows on {@code c}'s screen (taskbar, dock, menu bar
+     * excluded), so callouts are never placed on top of them
      */
     private static Rectangle usableScreenBounds(final Component c) {
-        final GraphicsConfiguration gc = c.getGraphicsConfiguration();
-        final Rectangle bounds = gc.getBounds();
-        final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
-        return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
-                bounds.width - insets.left - insets.right, bounds.height - insets.top - insets.bottom);
+        return GuiUtils.usableScreenBounds(c);
     }
 
     /**

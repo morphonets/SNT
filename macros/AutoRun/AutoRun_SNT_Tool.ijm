@@ -1,2 +1,3 @@
-run("Install...","install=["+getDirectory("macros")+"toolsets"+File.separator+"Neuroanatomy Shortcuts.ijm]");
+if (call("sc.fiji.snt.SNTPrefs.getAutoLoadToolbarButton") == "true")
+    run("Install...","install=["+getDirectory("macros")+"toolsets"+File.separator+"Neuroanatomy Shortcuts.ijm]");
 
