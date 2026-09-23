@@ -129,6 +129,9 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	protected void triggerZoomEvent(final boolean in, final int off_screen_x,
 		final int off_screen_y)
 	{
+		// Pane may have been closed by the user without single_pane being
+		// updated; super's zoom methods assume a live window and NPE otherwise
+		if (imp == null || imp.getWindow() == null) return;
 		if (in) super.zoomIn(screenX(off_screen_x), screenY(off_screen_y));
 		else super.zoomOut(screenX(off_screen_x), screenY(off_screen_y));
 	}

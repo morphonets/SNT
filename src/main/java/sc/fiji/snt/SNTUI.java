@@ -775,8 +775,8 @@ public class SNTUI extends JDialog {
      *
      * @param cmd  The command to be run, exactly as listed in SNTUI's menu bar
      * @param args the option(s) that would fill the command's prompt. e.g.,
-     *             'runCommand("Load Demo Dataset...", "4. Hippocampal neuron (DIC
-     *             timelapse)")'
+     *             'runCommand("Load Demo Dataset/Tutorial...", "Hippocampal
+     *             neuron (DIC timelapse)")'
      * @throws IllegalArgumentException if {@code cmd} is not found or supported.
      */
     public void runCommand(final String cmd, final String... args) throws IllegalArgumentException {
@@ -1401,9 +1401,18 @@ public class SNTUI extends JDialog {
                 public void windowClosing(final WindowEvent e) {
                     if (plugin.isStreamMode()) {
                         exitRequested();
-                    } else if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
-                        bvvSNT.getViewerFrame().getViewerPanel().stop();
-                        bvvSNT.getViewerFrame().dispose();
+                        return;
+                    }
+                    // Always stop/dispose *this* window's own viewer, regardless of whether it is still
+                    // the instance tracked in bvvSNT: an older Bvv left orphaned by a later setBvv() call
+                    // (e.g. a second demo/tutorial opening its own instance without closing this one first)
+                    // must still close itself when its own close button is clicked, rather than reaching
+                    // for whatever instance bvvSNT currently happens to hold.
+                    if (bvv.getViewerFrame() != null) {
+                        bvv.getViewerFrame().getViewerPanel().stop();
+                        bvv.getViewerFrame().dispose();
+                    }
+                    if (bvvSNT == bvv) { // this window is (still) the tethered/active one; clear UI bookkeeping too
                         bvvSNT = null;
                         if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
                         syncBookmarksTabContent();
@@ -1464,9 +1473,15 @@ public class SNTUI extends JDialog {
                 public void windowClosing(final WindowEvent e) {
                     if (plugin.isStreamMode()) {
                         exitRequested();
-                    } else if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
-                        bdvSNT.getViewerFrame().getViewerPanel().stop();
-                        bdvSNT.getViewerFrame().dispose();
+                        return;
+                    }
+                    // See the twin comment in setBvvOnEDT's windowClosing: always close *this* window's own
+                    // viewer, regardless of whether it is still the instance tracked in bdvSNT.
+                    if (bdv.getViewerFrame() != null) {
+                        bdv.getViewerFrame().getViewerPanel().stop();
+                        bdv.getViewerFrame().dispose();
+                    }
+                    if (bdvSNT == bdv) { // this window is (still) the tethered/active one; clear UI bookkeeping too
                         bdvSNT = null;
                         if (bdvSeedHandler != null) { bdvSeedHandler.dispose(); bdvSeedHandler = null; }
                         syncBookmarksTabContent();
@@ -3750,8 +3765,8 @@ public class SNTUI extends JDialog {
         fileMenu.add(changeImpMenu);
 
         // Load
-        fileMenu.addSeparator();
         fileMenu.add(importSubmenu);
+        fileMenu.addSeparator();
         final JMenuItem fromDemo = getImportActionMenuItem(ImportAction.DEMO);
         fromDemo.setIcon(IconFactory.menuIcon(GLYPH.GRADUATION_CAP));
         fromDemo.setToolTipText("Load sample images and/or reconstructions");
@@ -3937,7 +3952,7 @@ public class SNTUI extends JDialog {
         urlItem.setIcon(IconFactory.menuIcon(GLYPH.GLOBE));
         importSubmenu.add(urlItem);
         CalloutManager.add(fileMenu, CalloutManager.AUTO,
-                "Use <i>File &gt; Load Demo Dataset...</i> to explore SNT<br>using sample images and reconstructions.",
+                "Use <i>File &gt; Load Demo Dataset/Tutorial...</i> to explore SNT<br>using sample images, reconstructions, and tutorials.",
                 calloutGroup(), 1);
         return fileMenu;
     }
@@ -4191,8 +4206,10 @@ public class SNTUI extends JDialog {
         arrangeDialogsMenuItem.addActionListener(e -> {
             final DialogLayout layout = arrangeCoreDialogs(true);
             if (layout == null) return; // error already shown (corrupt prefs)
-            // Classic mode: unchanged behavior: nothing else to do. Arrange the BVV/BDV viewer frame:
-            if (plugin.isStreamMode()) arrangeStreamViewer(layout);
+            if (plugin.isStreamMode())
+                arrangeStreamViewer(layout); // display-canvas placeholder + viewer frame
+            else
+                arrangeBigViewerOnly(layout); // canvas is handled by arrangeCanvases(): just the viewer
         });
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
@@ -5718,7 +5735,8 @@ public class SNTUI extends JDialog {
     }
 
     /**
-     * Stream-mode continuation of {@link #arrangeCoreDialogs(boolean)}.
+     * Stream-mode continuation of {@link #arrangeCoreDialogs(boolean)}: positions the display-canvas
+     * placeholder (if any) above the BVV/BDV viewer frame, both in the "next column" it reserved
      */
     private void arrangeStreamViewer(final DialogLayout layout) {
         int viewerY = layout.usableY();
@@ -5730,6 +5748,23 @@ public class SNTUI extends JDialog {
             imp.getWindow().toFront();
             viewerY += placeholderHeight + InternalUtils.MARGIN;
         }
+        arrangeBigViewer(layout, viewerY);
+    }
+
+    /**
+     * Classic-mode counterpart of {@link #arrangeStreamViewer(DialogLayout)}: the tracing canvas is
+     * already handled by {@link #arrangeCanvases(boolean)}/"Arrange Tracing Views", so this only
+     * places an active BVV/BDV viewer frame, if any, in the "next column" {@code layout} reserved
+     */
+    private void arrangeBigViewerOnly(final DialogLayout layout) {
+        arrangeBigViewer(layout, layout.usableY());
+    }
+
+    /**
+     * Positions the active BVV/BDV viewer frame, if any, in the "next column" {@code layout}
+     * reserved, starting at {@code viewerY} and filling the remaining usable area
+     */
+    private void arrangeBigViewer(final DialogLayout layout, final int viewerY) {
         final AbstractBigViewer viewer = getActiveBigViewer();
         if (viewer == null) return;
         final JFrame viewerFrame = viewer.getViewerFrame();
@@ -6142,6 +6177,54 @@ public class SNTUI extends JDialog {
         abortCurrentOperation();
         resetState();
         showStatus("Resetting", true);
+    }
+
+    /**
+     * Closes any tethered {@link Bvv}/{@link Bdv} viewer(s), if open. Unlike {@link #resetUI()}, this does not
+     * touch the loaded image or paths: closing a big-viewer *window* isn't data loss the way clearing paths is
+     * (the underlying {@code PathAndFillManager} is untouched), so this needs no confirmation and is safe to call
+     * unconditionally - e.g. from {@code DemoRunner} before loading a new demo, so a viewer left over from a
+     * previous one is never silently orphaned (see {@code AbstractBigViewer}/{@code setBvvOnEDT}'s
+     * {@code windowClosing} handler for what "orphaned" means here).
+     */
+    public void closeBigViewers() {
+        closeBigViewer(bvvSNT);
+        closeBigViewer(bdvSNT);
+    }
+
+    /**
+     * Full reset: closes any tethered {@link Bvv}/{@link Bdv} viewer (via {@link #closeBigViewers()}) and the
+     * current image, and clears all paths, restoring the UI to its initial, blank-canvas state. Intended for
+     * callers that need a guaranteed-fresh session regardless of whatever was open before.
+     *
+     * @return true if the reset completed; false if it was aborted (e.g. the current image has unsaved changes and the
+     * user did not resolve ImageJ's own "Save Changes?" prompt), in which case nothing else was changed
+     */
+    public boolean resetUI() {
+        abortCurrentOperation();
+        closeBigViewers();
+        if (plugin.getImagePlus() != null) {
+            plugin.getImagePlus().close();
+            if (plugin.getImagePlus() != null) // user did not resolve the 'Save Changes?' prompt
+                return false;
+        }
+        plugin.closeAndResetAllPanes();
+        plugin.getPathAndFillManager().clear();
+        resetState();
+        showStatus("Resetting", true);
+        return true;
+    }
+
+    /**
+     * Closes {@code viewer} (if non-null) by dispatching {@link WindowEvent#WINDOW_CLOSING} at its frame,
+     * rather than disposing it directly, so this runs the exact same stop()+dispose()+SNTUI-detach path
+     * that closing the window by hand would trigger (see {@code setBvvOnEDT}/{@code setBdvOnEDT}'s
+     * {@code windowClosing} handler).
+     */
+    private void closeBigViewer(final AbstractBigViewer viewer) {
+        if (viewer != null && viewer.getViewerFrame() != null) {
+            viewer.getViewerFrame().dispatchEvent(new WindowEvent(viewer.getViewerFrame(), WindowEvent.WINDOW_CLOSING));
+        }
     }
 
     protected void ctPositionChanged() {
@@ -6908,7 +6991,7 @@ public class SNTUI extends JDialog {
                 case ImportAction.IMAGE -> "From File...";
                 case ImportAction.ANY_RECONSTRUCTION -> "Guess File Type...";
                 case ImportAction.JSON -> "JSON...";
-                case ImportAction.DEMO -> "Load Demo Dataset...";
+                case ImportAction.DEMO -> "Load Demo Dataset/Tutorial...";
                 case ImportAction.NDF -> "NDF...";
                 case ImportAction.NEUROLUCIDA -> "Neurolucida XML...";
                 case ImportAction.TRACES -> "TRACES...";
@@ -6928,7 +7011,7 @@ public class SNTUI extends JDialog {
                 case "From File..." -> ImportAction.IMAGE;
                 case "Guess File Type..." -> ImportAction.ANY_RECONSTRUCTION;
                 case "JSON..." -> ImportAction.JSON;
-                case "Load Demo Dataset..." -> ImportAction.DEMO;
+                case "Load Demo Dataset/Tutorial...", "Load Demo Dataset..." -> ImportAction.DEMO; // 2nd form: backwards compatibility
                 case "NDF..." -> ImportAction.NDF;
                 case "Neurolucida XML..." -> ImportAction.NEUROLUCIDA;
                 case "TRACES..." -> ImportAction.TRACES;
@@ -7488,10 +7571,10 @@ public class SNTUI extends JDialog {
                     }
                     final DemoRunner demoRunner = new DemoRunner(SNTUI.this, plugin);
                     if (file != null) { // recorded command
-                        try (final Scanner scanner = new Scanner(file.getName())) {
-                            demoRunner.load(scanner.useDelimiter("\\D+").nextInt());
+                        try {
+                            demoRunner.load(file.getName()); // resolves label or legacy/bare id
                             return;
-                        } catch (final NoSuchElementException | IllegalStateException | IllegalArgumentException ex) {
+                        } catch (final IllegalArgumentException ex) {
                             throw new IllegalArgumentException("Invalid recorded option " + ex.getMessage());
                         }
                     }

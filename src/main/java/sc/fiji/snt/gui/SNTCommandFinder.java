@@ -734,6 +734,10 @@ public class SNTCommandFinder {
 
     public void runCommand(final String actionIdentifier) {
         scriptCall = true;
+        // Unlike populateList()/getShortcuts()/setRecorder(), this is often the *first* thing to touch cmdScrapper in a
+        // session (e.g. a recorded macro, or a script/demo calling this cold, before the Command Palette has ever been
+        // shown),  so the index cannot be assumed fresh here
+        if (cmdScrapper.scrapeFailed()) cmdScrapper.scrape();
         final CmdAction cmdAction = cmdScrapper.getCmdAction(actionIdentifier);
         if (cmdAction == null)
             throw new IllegalArgumentException("Unrecognized command: '" + actionIdentifier + "'");

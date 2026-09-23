@@ -95,6 +95,28 @@ public abstract class AbstractBigViewer {
      */
     public boolean isTracingEnabled() { return tracingEnabled; }
 
+    /**
+     * Enables tracing on this viewer, as if the user had clicked its manual/interactive
+     * tracing-mode toggle button (see {@code AbstractTracer#getToggleAction(boolean)}), so a
+     * click on the canvas traces instead of panning it. Shows an error dialog and leaves tracing
+     * off if {@code manual} is {@code false} (semi-automated tracing) and no image data is
+     * available to trace on. Does nothing if this viewer has no tracer (e.g. a standalone viewer
+     * with no attached SNT instance, or the toolbar has not been built yet).
+     *
+     * @param manual {@code true} for manual (point-and-click) tracing, {@code false} for
+     *               semi-automated (auto-trace) tracing
+     * @see #isTracingEnabled()
+     */
+    public abstract void enableTracing(boolean manual);
+
+    /**
+     * @return whether this viewer currently has a path in progress, i.e. the user has clicked to start
+     *         (or extend/fork) a path but has not yet finished or discarded it. Always {@code false} if
+     *         this viewer has no tracer (see {@link #enableTracing(boolean)}).
+     * @see #isTracingEnabled()
+     */
+    public abstract boolean isPathInProgress();
+
     // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
     // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a
     // stationary click, which silently suppresses mouseClicked entirely: no event is delivered at all, not
@@ -264,6 +286,16 @@ public abstract class AbstractBigViewer {
      * or 0 if the viewer is not yet initialized.
      */
     public abstract int getViewerHeight();
+
+    /**
+     * Returns the viewer canvas itself, i.e., the actual Component {@link #getViewerWidth()}/
+     * {@link #getViewerHeight()} measure, or {@code null} if the viewer is not yet initialized.
+     * Unlike those two, callers can use this to locate the canvas on screen (e.g. via
+     * {@code SwingUtilities.convertPoint()}) - the canvas is not necessarily centered in, or even
+     * the same size as, the frame's content pane, since {@link #getViewerSplitPanel()} may also be
+     * hosting a side panel next to it
+     */
+    public abstract Component getViewerCanvas();
 
     /**
      * Returns a snapshot of the current viewer-to-screen (world-to-screen) transform.
@@ -552,6 +584,14 @@ public abstract class AbstractBigViewer {
     public abstract void setCurrentTimepoint(int timepoint);
 
     /**
+     * Animation duration used by {@link #flyTo(BoundingBox)} itself, exposed so a caller that needs
+     * to run something else only once the camera has actually settled there (e.g. a rotation that
+     * must pivot on the box {@link #flyTo(BoundingBox)} just framed, not on wherever the camera was
+     * beforehand - see {@code GuidedTutorial#showCurrentStep()}) knows how long to wait first
+     */
+    public static final long FLY_TO_DURATION_MS = 300;
+
+    /**
      * Animates the camera to frame the given world-coordinate bounding box: an isotropic scale is
      * computed so the box's width/height fit the viewport, and the transform is translated to
      * center the box's centroid on screen. Any existing rotation is dropped.
@@ -591,7 +631,7 @@ public abstract class AbstractBigViewer {
         target.set(cw / 2.0 - scale * centroid.getX(), 0, 3);
         target.set(ch / 2.0 - scale * centroid.getY(), 1, 3);
         target.set(-scale * centroid.getZ(), 2, 3);
-        setViewerTransform(target, 300);
+        setViewerTransform(target, FLY_TO_DURATION_MS);
         return true;
     }
 
@@ -2100,6 +2140,12 @@ public abstract class AbstractBigViewer {
         // (see AbstractBigViewer#CLICK_MOVE_TOLERANCE_PX) rather than a drag (e.g. BVV's own rotate/pan).
         private Point pressPoint;
 
+        // Alt/Shift as they stood at mousePressed, OR'd with mouseReleased's own modifiers in
+        // handleClick(): chording a modifier key with a click is prone to the key coming up a moment
+        // before the mouse button does, which would otherwise make AWT report it as already released
+        // by the time mouseReleased(MouseEvent) fires, silently dropping a fork request (see #handleClick)
+        private boolean pressAltDown, pressShiftDown;
+
         // Screen-space pick radius for snapping a click to a fork point (see #handleClick). It gets
         // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant
         // across zoom levels. Safe to keep generous: the search that consumes this is a single path
@@ -2126,6 +2172,8 @@ public abstract class AbstractBigViewer {
         @Override
         public void mousePressed(final MouseEvent e) {
             pressPoint = e.getPoint();
+            pressAltDown = e.isAltDown();
+            pressShiftDown = e.isShiftDown();
         }
 
         @Override
@@ -2174,12 +2222,14 @@ public abstract class AbstractBigViewer {
                 return; // a segment is still being traced; ignore further clicks until it lands
             }
 
-            if (renderingOptions.strategy == RecenterStrategy.ADAPTIVE && System.currentTimeMillis() < tracingSettleUntilMs) {
-                // A recenter animation triggered by a previous click is still running, or has just
-                // finished but tiles for the new focal region may still be streaming in (see
-                // Bvv#registerCenterOnDoubleClickListener). Sampling now risks the exact zig-zag this gate
-                // exists to prevent, so the click is dropped rather than silently placing a bad node;
-                // the status row (set by the recenter listener) already reads "Stabilizing..."
+            if (System.currentTimeMillis() < tracingSettleUntilMs) {
+                // An animated camera transform is still interpolating (or has just finished but tiles for the new focal
+                // region may still be streaming in): either Bvv's own ADAPTIVE recenter-on- click (see
+                // Bvv#registerCenterOnDoubleClickListener) or an externally-triggered jump such as flyTo()/a bookmark/a
+                // seed/GuidedTutorial's rotate() (see #setViewerTransform, which arms this window for any of those).
+                // Resolving a click's world position against a transform that's still moving would silently place a bad
+                // node or miss a fork target, so the click is dropped instead; the status row (set by the recenter
+                // listener, where applicable) already reads "Stabilizing..."
                 showViewerMessage("Scene still stabilizing, please click again");
                 return;
             }
@@ -2211,8 +2261,11 @@ public abstract class AbstractBigViewer {
                 final double[] cc1 = resolveClickWorldPosition(e);
                 if (cc1 == null) return; // msg already displayed
 
-                // Is this new starting node supposed to be a fork point on an existing path?
-                final boolean joiner_modifier_down = (renderingOptions.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
+                // Is this new starting node supposed to be a fork point on an existing path? OR'd with
+                // the modifiers captured at mousePressed (see #pressAltDown/#pressShiftDown above)
+                final boolean altDown = e.isAltDown() || pressAltDown;
+                final boolean shiftDown = e.isShiftDown() || pressShiftDown;
+                final boolean joiner_modifier_down = (renderingOptions.requireShiftToFork) ? shiftDown && altDown : altDown;
 
                 if (!joiner_modifier_down) {
                     previousNode = new Path.PathNode(cc1);
@@ -2697,6 +2750,17 @@ public abstract class AbstractBigViewer {
         }
 
         /**
+         * @return whether a path is currently in progress on this viewer, i.e. at least one click has
+         *         landed (see {@link #handleClick(MouseEvent)}) but the path has not yet been finished
+         *         (see {@link #finishPath()}) or discarded (see {@link #discardCurrentPath()}). Mirrors
+         *         the same check {@link #finishPath()} and {@link #discardCurrentPath()} use internally
+         *         to decide whether there is anything to commit/discard.
+         */
+        protected boolean isPathInProgress() {
+            return previousNode != null || (tempPath != null && tempPath.size() > 0);
+        }
+
+        /**
          * Records the node count of a segment that was just auto-confirmed into {@code tempPath}, for
          * {@link #undoLastSegment()} to later pop. Mirrors {@code SNT#confirmedSegmentSizes}/{@code
          * SNT#confirmTemporary}, capped the same way at {@link SNTPrefs#MAX_UNDO_STEPS}.
@@ -3029,6 +3093,21 @@ public abstract class AbstractBigViewer {
             this.interactiveTracingButton = interactive;
         }
 
+        /**
+         * Enables tracing exactly as {@link #getToggleAction(boolean)}'s own toolbar button would, for callers outside
+         * the toolbar itself (see {@link AbstractBigViewer#enableTracing(boolean)}).
+         *
+         * @param manual as in {@link #getToggleAction(boolean)}
+         */
+        protected void enableTracingExternally(final boolean manual) {
+            getToggleAction(manual).actionPerformed(
+                    new java.awt.event.ActionEvent(this, java.awt.event.ActionEvent.ACTION_PERFORMED, null));
+            if (tracingEnabled) { // false if the action above bailed (e.g. no image data for A*)
+                final JToggleButton modeButton = manual ? manualTracingButton : interactiveTracingButton;
+                if (modeButton != null) modeButton.setSelected(true);
+            }
+        }
+        
         /**
          * Wires the "Continue Extending Path" toggle button built by the viewer's own toolbar code into
          * this tracer: kept selected for as long as {@link #toBeCombinedPath} is set, and disabled

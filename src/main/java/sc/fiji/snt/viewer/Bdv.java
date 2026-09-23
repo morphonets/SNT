@@ -119,6 +119,10 @@ public class Bdv extends AbstractBigViewer {
 
     // Tracing state machine; null if this viewer isn't tethered to an SNT instance
     private Tracer tracer;
+
+    // Grace period added on top of an animated setViewerTransform()'s own duration before a trace click
+    // is accepted again; mirrors Bvv's own RECENTER_SETTLE_BUFFER_MS constant/rationale.
+    private static final long TRANSFORM_SETTLE_BUFFER_MS = 150;
     private JProgressBar progressBar; // Docked at CardPanel bottom; see updateStatus()
 
 
@@ -489,6 +493,11 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    public Component getViewerCanvas() {
+        return (viewerPanel == null) ? null : viewerPanel.getDisplay();
+    }
+
+    @Override
     public AffineTransform3D getViewerTransform() {
         final AffineTransform3D t = new AffineTransform3D();
         if (viewerPanel != null) viewerPanel.state().getViewerTransform(t);
@@ -501,6 +510,12 @@ public class Bdv extends AbstractBigViewer {
         final AffineTransform3D current = getViewerTransform();
         viewerPanel.setTransformAnimator(
                 new SimilarityTransformAnimator(current, target, 0, 0, durationMs));
+        // A click landing while this animation is still interpolating would resolve against a stale
+        // transform (see AbstractTracer#handleClick's settle check and Bvv#setViewerTransform's twin of
+        // this), e.g. flyTo(), BookmarkManager, SeedManager, or GuidedTutorial#rotate().
+        if (tracer != null && durationMs > 0) {
+            tracer.tracingSettleUntilMs = System.currentTimeMillis() + durationMs + TRANSFORM_SETTLE_BUFFER_MS;
+        }
     }
 
     @Override
@@ -517,6 +532,16 @@ public class Bdv extends AbstractBigViewer {
      */
     public void setTracingLockedByPause(final boolean locked) {
         if (tracer != null) tracer.setLockedByPause(locked);
+    }
+
+    @Override
+    public void enableTracing(final boolean manual) {
+        if (tracer != null) tracer.enableTracingExternally(manual);
+    }
+
+    @Override
+    public boolean isPathInProgress() {
+        return tracer != null && tracer.isPathInProgress();
     }
 
     @Override

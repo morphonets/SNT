@@ -28,13 +28,22 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
+import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.viewer.AbstractBigViewer;
+import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.function.Consumer;
+import java.util.Scanner;
 
 /**
  * Manages loading and running of demonstration datasets and reconstructions in SNT.
@@ -63,8 +72,13 @@ public class DemoRunner {
 		priorUIState = ui.getState();
 		ui.changeState(SNTUI.LOADING);
 		ui.showStatus("Retrieving Demo data. Please wait...", false);
-		entries = List.of(demo01(), demo02(), demo03(), demo04(), demo05(), demo06(), demo07(), demo08(),
-				demo09(), demo10(), demo11(), demo12(), demo13(), demo14());
+		final List<Demo> unsorted = new ArrayList<>(List.of(demo01(), demo02(), demo03(), demo04(), demo05(),
+				demo06(), demo07(), demo08(), demo09(), demo10(), demo11(), demo12(), demo13(), demo14(), demo15()));
+		// grouped by Category for display/discovery; each Demo's own id (below) never changes with this
+		// order, so reshuffling categories/adding demos can never renumber (or break macros recorded
+		// against) an existing one
+		unsorted.sort(Comparator.comparingInt((Demo d) -> d.category.ordinal()).thenComparingInt(d -> d.id));
+		entries = List.copyOf(unsorted);
 	}
 
 	public DemoRunner(final Context context) {
@@ -77,7 +91,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo01() {
-		final Demo entry = new Demo(1, "Brainbow zebrafish larva") {
+		final Demo entry = new Demo(1, "Brainbow Zebrafish Larva (2D Image)") {
 			@Override
 			public ImagePlus getImage() {
 				return ImpUtils.demo("brainbow");
@@ -88,11 +102,13 @@ public class DemoRunner {
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL41458";
 		entry.online = true;
 		entry.keywords = List.of("multicolor", "spectral refinement");
+		entry.category = Category.IMAGE_ONLY;
 		return entry;
 	}
 
 	private Demo demo02() {
-		final Demo entry = new Demo(2, "DG Granule Cell (Reconstruction only)") {
+		final Demo entry = new Demo(2, "DG Granule Cell (3D Reconstruction)") {
+			{ hasImage = false; hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -133,11 +149,12 @@ public class DemoRunner {
 				NeuroMorpho.org ID: 21dpi_contra_infra_01, Source version (Beining archive)""";
 		entry.online = false;
 		entry.keywords = List.of("Dentate gyrus", "root angle analysis");
+		entry.category = Category.RECONSTRUCTION;
 		return entry;
 	}
 
 	private Demo demo03() {
-		final Demo entry = new Demo(3, "Drosophila ddaC neuron (Autotrace demo)") {
+		final Demo entry = new Demo(3, "Drosophila ddaC Neuron (Autotrace Demo)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.demo("ddaC");
@@ -179,11 +196,13 @@ public class DemoRunner {
 		entry.online = false;
 		entry.source = "PMID 24449841";
 		entry.keywords = List.of("space-filling", "tracing-free", "confocal", "projection", "Sholl", "auto-tracing");
+		entry.category = Category.TUTORIAL_SCRIPT;
 		return entry;
 	}
 
 	private Demo demo04() {
-		final Demo entry = new Demo(4, "Drosophila OP neuron (Complete 3D reconstruction)") {
+		final Demo entry = new Demo(4, "Drosophila OP Neuron (Complete 3D Dataset)") {
+			{ hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.demo("OP_1");
@@ -209,11 +228,13 @@ public class DemoRunner {
 		// "https://raw.githubusercontent.com/morphonets/SNT/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1-gs.swc";
 		entry.online = true;
 		entry.keywords = List.of("DIADEM", "confocal", "antennal lobe", "PNs", "auto-tracing");
+		entry.category = Category.RECONSTRUCTION;
 		return entry;
 	}
 
 	private Demo demo05() {
-		final Demo entry = new Demo(5, "Hippocampal neuron (DIC timelapse)") {
+		final Demo entry = new Demo(5, "Hippocampal Neuron (DIC Timelapse)") {
+			{ hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.demo("cil701");
@@ -228,11 +249,12 @@ public class DemoRunner {
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/CIL_Dataset_%23701.traces";
 		entry.keywords = List.of("In vitro", "brightfield", "unlabeled", "growth analysis");
+		entry.category = Category.GROWTH_ANALYSIS;
 		return entry;
 	}
 
 	private Demo demo06() {
-		final Demo entry = new Demo(6, "Hippocampal neuron (Neuronal receptors)") {
+		final Demo entry = new Demo(6, "Hippocampal Neuron (Neuronal receptors)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp =  ImpUtils.demo("Rat_Hippocampal_Neuron");
@@ -245,11 +267,12 @@ public class DemoRunner {
 		entry.source = "ImageJ sample image";
 		entry.online = true;
 		entry.keywords = List.of("In vitro", "membrane", "synapses", "neurotransmitter", "profile");
+		entry.category = Category.IMAGE_ONLY;
 		return entry;
 	}
 
 	private Demo demo07() {
-		final Demo entry = new Demo(7, "Hippocampal neuron (Synaptic labeling)") {
+		final Demo entry = new Demo(7, "Hippocampal Neuron (Synaptic Labeling)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("cil810");
@@ -262,11 +285,13 @@ public class DemoRunner {
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL810";
 		entry.online = true;
 		entry.keywords = List.of("In vitro", "membrane", "synapses", "neurotransmitter", "profile");
+		entry.category = Category.IMAGE_ONLY;
 		return entry;
 	}
 
 	private Demo demo08() {
-		final Demo entry = new Demo(8, "L-systems fractal (2D toy neuron)") {
+		final Demo entry = new Demo(8, "L-systems Fractal (2D Toy Neuron)") {
+			{ hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.demo("fractal");
@@ -289,11 +314,12 @@ public class DemoRunner {
 		entry.source = "SNT script";
 		entry.online = false;
 		entry.keywords = List.of("synthetic", "Strahler");
+		entry.category = Category.RECONSTRUCTION;
 		return entry;
 	}
 
 	private Demo demo09() {
-		final Demo entry = new Demo(9, "Microglia cells (Autotrace demo)") {
+		final Demo entry = new Demo(9, "Microglia Cells (Autotrace Demo)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.demo("microglia");
@@ -336,11 +362,13 @@ public class DemoRunner {
 		entry.online = true;
 		entry.source = "PMID 29750189";
 		entry.keywords = List.of("glia", "multi-cell", "auto-tracing");
+		entry.category = Category.TUTORIAL_SCRIPT;
 		return entry;
 	}
 
 	private Demo demo10() {
-		final Demo entry = new Demo(10, "MouseLight dendrites (Reconstructions only)") {
+		final Demo entry = new Demo(10, "MouseLight Dendrites (CCF Annotated)") {
+			{ hasImage = false; hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -374,14 +402,16 @@ public class DemoRunner {
 		entry.source = "MouseLight database (AA0001-AA0004)";
 		entry.online = false;
 		entry.keywords = List.of("whole-brain", "neuropil annotations", "CCF", "delineation analysis");
+		entry.category = Category.RECONSTRUCTION;
 		return entry;
 	}
 
 	private Demo demo11() {
-		final Demo entry = new Demo(11, "Non-neuronal dividing cell (5D image)") {
+		final Demo entry = new Demo(11, "Non-neuronal Dividing Cell (5D Image)") {
+			{ hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp = ImpUtils.open("http://wsr.imagej.net/images/mitosis.tif");
+				final ImagePlus imp = ImpUtils.open("https://wsr.imagej.net/images/mitosis.tif");
 				if (imp != null) {
 					imp.setPosition(2, 4, 31); // k-fibers channel, mid Z-range, traced time point
 					tagForQuickDisposal(imp);
@@ -406,11 +436,13 @@ public class DemoRunner {
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/SNTmanuscript/718e4b90fb4bb61f382edcf467173b53045b25e0/FigS3_5D-Tracing/traces/mitosis.traces";
 		entry.keywords = List.of("Chromosome", "in-vitro", "not-a-neuron", "time-lapse");
+		entry.category = Category.ADVANCED;
 		return entry;
 	}
 
 	private Demo demo12() {
-		final Demo entry = new Demo(12, "NeuronJ dataset (2D neurites)") {
+		final Demo entry = new Demo(12, "NeuronJ Dataset (2D Neurites)") {
+			{ hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				return ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
@@ -431,11 +463,12 @@ public class DemoRunner {
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/NeuronJ/neurites.ndf";
 		entry.keywords = List.of("2D", "in-vitro", "rubber-band", "live-tracing");
+		entry.category = Category.RECONSTRUCTION;
 		return entry;
 	}
 
 	private Demo demo13() {
-		final Demo entry = new Demo(13, "Segmented video (2D timelapse)") {
+		final Demo entry = new Demo(13, "Segmented Video (2D Timelapse)") {
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -462,14 +495,16 @@ public class DemoRunner {
 		entry.summary = "Downloads a small video of segmented neurites extending in culture, and runs automated "
 				+ "tracing on each frame through a script.";
 		entry.data = "Image (2D timelapse, 0.9MB)";
-		entry.source = "https://forum.image.sc/t/snt-time-lapse-utilites/47974";
+		entry.source = "Stephanie Sarbanes (NIH/NINDS)";
 		entry.online = true;
 		entry.keywords = List.of("growth analysis", "in-vitro", "script", "auto-tracing", "binary");
+		entry.category = Category.TUTORIAL_SCRIPT;
 		return entry;
 	}
 
 	private Demo demo14() {
-		final Demo entry = new Demo(14, "Spot Spine dataset (spine decorated dendrite)") {
+		final Demo entry = new Demo(14, "Spot Spine Dataset (Spine Decorated Dendrite)") {
+			{ hasTree = true; }
 			@Override
 			public ImagePlus getImage() {
 				return ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
@@ -496,7 +531,125 @@ public class DemoRunner {
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.swc";
 		entry.keywords = List.of("spine morphology", "SNT add-on", "synapse", "dendrite");
+		entry.category = Category.ADVANCED;
 		return entry;
+	}
+
+	private Demo demo15() {
+		final Demo entry = new Demo(15, " Guided Tracing (Interactive)") {
+			@Override
+			public ImagePlus getImage() {
+				final ImagePlus imp = ImpUtils.demo("OP_1");
+				tagForQuickDisposal(imp);
+				return imp;
+			}
+
+			@Override
+			public void load() {
+				if (!ui.resetUI()) return; // user did not resolve an unsaved-changes prompt; abort
+				super.load();
+				if (!imageLoaded) return;
+				startTutorial(Bvv.open(snt));
+			}
+		};
+		entry.summary = "Interactive, step-by-step walkthrough tutorial of semi-automated tracing in Bvv/Stream mode: "
+				+ "Start a path, finish it, inspect a branch point location, and fork a child path.";
+		entry.data = "Image (3D; 1-channel confocal image, 15MB)";
+		entry.source = "DIADEM dataset, PMID 17382886";
+		entry.online = true;
+		entry.keywords = List.of("tutorial", "onboarding", "semi-automated tracing", "Bvv", "3D");
+		entry.category = Category.TUTORIAL_INTERACTIVE;
+		return entry;
+	}
+
+	// Builds and starts the interactive tutorial for demo15
+	private void startTutorial(final Bvv bvv) {
+		final PathAndFillManager pafm = snt.getPathAndFillManager();
+		// If the user taps spacebar out of curiosity, or a stray press while reading a callout, tracing stays silently
+		// disabled and every click-based step from then on can never be satisfied, leaving the tutorial stuck retrying
+		// the same step with no obvious explanation why. We'll re-arming semi-automated tracing on entry to each step
+		final Consumer<AbstractBigViewer> reenableTracing = v -> v.enableTracing(false);
+		final List<GuidedTutorial.Step> steps = List.of(
+				GuidedTutorial.Step.of(
+						"Click at this location to start a path.",
+						new BoundingBox(List.of(SNTPoint.of(10.212, 141.432, 0))),
+						bvv::isPathInProgress, // the path is not added to the manager until finished (next step)
+						reenableTracing),
+				GuidedTutorial.Step.of(
+						"Double-click at this location to finish the path.",
+						new BoundingBox(List.of(SNTPoint.of(146.674, 56.604, 34.745))),
+						() -> pafm.size() >= 1,
+						reenableTracing),
+				GuidedTutorial.Step.of(
+						"Press 'G' to Grab (select) the path you just finished.",
+						new BoundingBox(List.of(SNTPoint.of(59.997, 81.753, 38.953))), // aprox. path mid point
+						() -> pafm.size() >= 1 && pafm.anySelected(),
+						reenableTracing),
+				GuidedTutorial.Step.of(
+						"Now let's inspect this location. Hold 'H' to Hide the annotated path.",
+						new BoundingBox(List.of(
+								SNTPoint.of(138.72, 85.897, 30.820),
+								SNTPoint.of(098.72, 45.897, 38.820))), // zoom out box around fork point
+						() -> true, // nothing to validate
+						GuidedTutorial.rotate(0, -45, 500).andThen(reenableTracing)), // orbit, then re-arm tracing
+				GuidedTutorial.Step.of(
+						String.format("Hold Alt%s and click on the node under the crosshair to fork a child path.",
+								(snt.getPrefs().getRequireShiftToFork()) ? "+Shift" : ""),
+						new BoundingBox(List.of(SNTPoint.of(118.72, 65.897, 34.820))),
+						bvv::isPathInProgress,
+						reenableTracing),
+				new GuidedTutorial.Step(
+						"Double-click here to finish the child path.",
+						new BoundingBox(List.of(SNTPoint.of(141.68, 77.303, 17.843))),
+						() -> pafm.getPaths().stream().anyMatch(p -> !p.isPrimary()),
+						(bvv.isPathInProgress()) ? -1 : 4, // retry from the fork step if no child path was created
+						reenableTracing, // re-arm tracing on entry (see comment above); last click-based step
+						null), // default (canvas-center) callout anchor
+				GuidedTutorial.Step.of(
+								"Press space bar to toggle between navigation mode and tracing modes.",
+								new BoundingBox(
+										List.of(SNTPoint.of(0, 0, 0), SNTPoint.of(200, 200, 60))), // image bounds
+								() -> true) // no validation
+						.pointingAt((viewer) -> {
+							final bvv.core.VolumeViewerFrame viewerFrame = (bvv.core.VolumeViewerFrame) viewer.getViewerFrame();
+							try {
+								final int idx = viewerFrame.getCardPanel().indexOf("SNT Controls");
+								return viewerFrame.getCardPanel().getComponent().getComponent(idx); // the SNT controls card
+							} catch (final Exception ignored) {} // do nothing. best effort
+							return viewer.getViewerCanvas();
+						}),
+				GuidedTutorial.Step.of(
+						"Explore the scene by rotating (left-click + drag),<br>" +
+								"zooming (scroll), or panning (right-click + drag).<br><br>" +
+								"Double-click anywhere to re-center on that point.<br>" +
+								"While tracing, hold Space first, or the double-click<br>" +
+								"will finish the path instead.",
+						new BoundingBox(
+								List.of(SNTPoint.of(0, 0, 0), // image corners
+										SNTPoint.of(200, 200, 60))),
+						() -> true,
+						GuidedTutorial.rotate(1, 45, 900))); // orbit 45 deg around the vertical axis, animated
+
+		final boolean canvasAutoActivationWasEnabled = snt.getPrefs().isCanvasAutoActivationEnabled();
+		new GuidedTutorial(bvv, steps)
+				.setPreAction(() -> {
+					snt.getUI().setVisibilityFilter("z-slices", true); // distinct visuals between ImagePlus vs Bvv
+					snt.getUI().runCommand("Arrange Dialogs");
+					snt.getPrefs().setCanvasAutoActivation(false); // could hijack cursor before/during tutorial
+					bvv.getViewerFrame().toFront();
+					bvv.enableTracing(false); // enable semi-automated (A*) tracing
+				}, 500) // let "Arrange Dialogs"' window resizing/repositioning settle before step 1 reads canvas geometry
+				.setPostAction(() -> {
+					snt.getPrefs().setCanvasAutoActivation(canvasAutoActivationWasEnabled);
+					snt.getUI().getPathManager().runCommand("Expand All");
+					snt.getUI().getPathManager().clearSelection();
+					bvv.resetView();
+					new GuiUtils(bvv.getViewerFrame()).infoMsg(
+							"All done! You are now a tracing expert! ☺ These tracing operations are common to all viewers," +
+									"including traditional images and streamed data. Feel free to keep exploring, or run other tutorials.",
+							"Tutorial Complete");
+				})
+				.start();
 	}
 
 	private void error(final Throwable ex) {
@@ -522,8 +675,8 @@ public class DemoRunner {
 		}
 		final String defChoice = (prefs == null) ? choices[0] : prefs.getTemp("demo", choices[0]);
 		final String choice = new GuiUtils(ui).getChoice(
-				"Which dataset?<br>NB: Remote data may take a while to download", "Load Demo Dataset", choices,
-				descriptions, defChoice);
+				"Which dataset/tutorial?<br>NB: Remote data may take a while to download", "Load Demo Dataset/Tutorial", choices,
+				descriptions, defChoice, (list, index) -> entries.get(index).icon(list));
 		if (choice == null)
 			return null;
 		if (prefs != null)
@@ -531,12 +684,56 @@ public class DemoRunner {
 		return entries.get(Arrays.asList(choices).indexOf(choice));
 	}
 
-	public void load(final int demoID) { // 1-based index to match GUI choice
-		if (demoID < 1 || demoID > entries.size())
-			throw new IllegalArgumentException("Invalid demo id. Must be between 1-" + entries.size());
+	public void load(final int demoID) { // matches a Demo's own fixed id, not its position in entries
+		final Demo demo = entries.stream().filter(d -> d.id == demoID).findFirst()
+				.orElseThrow(() -> new IllegalArgumentException("Invalid demo id: " + demoID));
 		directLoading = true;
-		entries.get(demoID-1).load();
+		demo.load();
 		directLoading = false;
+	}
+
+	/**
+	 * Loads the {@link Demo} matching {@code recorded}: either its exact display label (see {@link Demo#toString()}),
+	 * or a bare/legacy id (for scripts or macros recorded before the id moved out of the label, into
+	 * {@link Demo#description()}). Tries the exact label first, so an unrelated digit elsewhere in a label (e.g. "3D"
+	 * in a demo's name) is never mistaken for an id.
+	 *
+	 * @param recorded the recorded/typed argument, e.g. {@code "Guided Tracing (Interactive)"}, or a bare id such as
+	 *                 {@code "15"}
+	 * @throws IllegalArgumentException if {@code recorded} matches neither a label nor a valid id
+	 */
+	public void load(final String recorded) {
+		for (final Demo d : entries) {
+			if (d.toString().equals(recorded)) {
+				load(d.id);
+				return;
+			}
+		}
+		try (final Scanner scanner = new Scanner(recorded)) {
+			load(scanner.useDelimiter("\\D+").nextInt());
+		} catch (final NoSuchElementException | IllegalStateException ex) {
+			throw new IllegalArgumentException("Invalid recorded option: " + recorded, ex);
+		}
+	}
+
+	/**
+	 * Coarse grouping used to order/discover {@link Demo} entries in {@link #getChoice()}; declaration
+	 * order here is display order (see the sort in {@link #DemoRunner(SNTUI, SNT)}), independent of each
+	 * Demo's own fixed {@code id}.
+	 */
+	enum Category {
+		TUTORIAL_INTERACTIVE("Interactive Tutorial"),
+		TUTORIAL_SCRIPT("Scripted Tutorial"),
+		RECONSTRUCTION("Reconstruction"),
+		GROWTH_ANALYSIS("Growth Analysis"),
+		ADVANCED("Advanced"),
+		IMAGE_ONLY("Image Only");
+
+		final String label;
+
+		Category(final String label) {
+			this.label = label;
+		}
 	}
 
 	public class Demo {
@@ -550,6 +747,10 @@ public class DemoRunner {
 		boolean online;
 		boolean imageLoaded;
 		List<String> keywords;
+		Category category = Category.IMAGE_ONLY;
+		boolean hasImage = true; // false only for demos with no image at all (see Category.RECONSTRUCTION below)
+		boolean hasTree = false; // true only for demos that also bundle a ready-made reconstruction (getTree()/
+		                          // getTrees()/tracingsURL), whether alongside an image or (with hasImage=false) alone
 
 		private Demo(final int id, final String name) {
 			this.id = id;
@@ -627,6 +828,7 @@ public class DemoRunner {
 					return;
 				}
 				tagForQuickDisposal(imp);
+				ui.closeBigViewers(); // a Bvv/Bdv left open from a previous demo is about to be replaced/orphaned
 				resetPaths();
 				snt.initialize(imp);
 				imageLoaded = true;
@@ -663,6 +865,7 @@ public class DemoRunner {
 					new GuiUtils(ui).error("Loading of demo aborted. Please resolve any unsaved changes and retry.");
 					return false;
 				}
+				ui.closeBigViewers(); // a Bvv/Bdv left open from a previous demo is about to be replaced/orphaned
 				snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
 				snt.getPathAndFillManager().clear(); // will reset spatial calibration
 				return true;
@@ -683,6 +886,8 @@ public class DemoRunner {
 				sb.append("\n");
 				sb.append("Source: ").append(source);
 			}
+			sb.append("\n");
+			sb.append("Demo ID: ").append(String.format("%02d", id));
 			if (keywords != null && !keywords.isEmpty()) {
 				sb.append("\n");
 				sb.append("Keywords: ").append(String.join(", ", keywords));
@@ -706,7 +911,24 @@ public class DemoRunner {
 
 		@Override
 		public String toString() {
-			return String.format("%02d. %s", id, name);
+			return name; //String.format("[%s] %s", category.label, name);
+		}
+
+		// Never derived from getImage()/getTree(): both can trigger a network download for online demos
+		Icon icon(final JList<?> list) {
+			return switch (category) {
+				case TUTORIAL_INTERACTIVE -> IconFactory.listIcon(list, IconFactory.GLYPH.GRADUATION_CAP,
+						IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.secondaryColor());
+				case TUTORIAL_SCRIPT -> IconFactory.listIcon(list, IconFactory.GLYPH.GRADUATION_CAP,
+						IconFactory.GLYPH.CODE, IconFactory.secondaryColor());
+				default -> {
+					if (hasImage && hasTree)
+						yield IconFactory.listIcon(list, IconFactory.GLYPH.IMAGE, IconFactory.GLYPH.TREE,
+								IconFactory.secondaryColor());
+					yield IconFactory.listIcon(list, hasTree ? IconFactory.GLYPH.TREE : IconFactory.GLYPH.IMAGE,
+							null, IconFactory.secondaryColor());
+				}
+			};
 		}
 	}
 }

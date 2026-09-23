@@ -2306,6 +2306,12 @@ public class Bvv extends AbstractBigViewer {
     }
 
     @Override
+    public Component getViewerCanvas() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return (p == null) ? null : p.getDisplay().getComponent();
+    }
+
+    @Override
     public AffineTransform3D getViewerTransform() {
         final AffineTransform3D t = new AffineTransform3D();
         if (getViewerPanel() != null)
@@ -2383,6 +2389,13 @@ public class Bvv extends AbstractBigViewer {
         final AffineTransform3D current = getViewerTransform();
         p.setTransformAnimator(new bdv.viewer.animate.SimilarityTransformAnimator(
                 current, target, 0, 0, durationMs));
+        // A click landing while this animation is still interpolating would resolve against a stale
+        // transform (see AbstractTracer#handleClick's settle check). This viewer's own recenter-on-click
+        // gesture arms that window itself; this covers every other caller (flyTo(), BookmarkManager,
+        // SeedManager, GuidedTutorial#rotate(), ...) the same way.
+        if (tracer != null && durationMs > 0) {
+            tracer.tracingSettleUntilMs = System.currentTimeMillis() + durationMs + RECENTER_SETTLE_BUFFER_MS;
+        }
     }
 
     @Override
@@ -2399,6 +2412,16 @@ public class Bvv extends AbstractBigViewer {
      */
     public void setTracingLockedByPause(final boolean locked) {
         if (tracer != null) tracer.setLockedByPause(locked);
+    }
+
+    @Override
+    public void enableTracing(final boolean manual) {
+        if (tracer != null) tracer.enableTracingExternally(manual);
+    }
+
+    @Override
+    public boolean isPathInProgress() {
+        return tracer != null && tracer.isPathInProgress();
     }
 
     @Override

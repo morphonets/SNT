@@ -567,16 +567,35 @@ public class CalloutManager {
     public static void clearGroup(final Object group) {
         runOnEdt(() -> {
             final String target = resolveScope(group);
-            final CalloutPanel active = activeChains.get(target);
-            if (active != null) active.close(); // also removes itself from activeCallouts/activeChains
-            synchronized (registrations) {
-                registrations.removeIf(e -> {
-                    final Component owner = e.owner.get();
-                    return owner == null || Objects.equals(resolveGroup(e, owner), target);
-                });
-            }
+            clearRegistrationsFor(target);
             groupStateListeners.remove(target);
         });
+    }
+
+    /**
+     * Same as {@link #clearGroup(Object)}, but leaves any state listener registered for {@code group} (see
+     * {@link #addStateListener(Runnable, Object)}) in place - the narrow-scope counterpart for a caller that
+     * re-registers a fresh callout under the same group on every step of an ongoing sequence (see
+     * {@code GuidedTutorial}), and so must discard only the previous step's now-stale registration(s) without
+     * unregistering its own listener along with them, the way {@link #clearGroup(Object)} would.
+     *
+     * @param group same as {@link #clearGroup(Object)}
+     */
+    public static void clearRegistrations(final Object group) {
+        runOnEdt(() -> clearRegistrationsFor(resolveScope(group)));
+    }
+
+    // Shared by clearGroup()/clearRegistrations(): closes target's currently-shown chain (if any) and drops
+    // every registration belonging to it. Must run on the EDT (see runOnEdt() callers above)
+    private static void clearRegistrationsFor(final String target) {
+        final CalloutPanel active = activeChains.get(target);
+        if (active != null) active.close(); // also removes itself from activeCallouts/activeChains
+        synchronized (registrations) {
+            registrations.removeIf(e -> {
+                final Component owner = e.owner.get();
+                return owner == null || Objects.equals(resolveGroup(e, owner), target);
+            });
+        }
     }
 
     private static int indexOfOwner(final Component owner) {
@@ -1161,6 +1180,9 @@ public class CalloutManager {
         private JLabel stepLabel; // "step/total" indicator; null (and omitted) whenever total <= 1
         private BalloonBorder balloonBorder;
         private boolean paused;
+        // the side actually rendered; starts as callout.position but reposition() may flip it to the
+        // mirrored side to keep clear of the anchor (see #fittingLocation)
+        private int resolvedPosition;
 
         private CalloutPanel(final Callout callout, final int step, final int total, final Runnable onDismiss) {
             super(callout.owner);
@@ -1168,6 +1190,7 @@ public class CalloutManager {
             this.step = step;
             this.total = total;
             this.onDismiss = onDismiss;
+            this.resolvedPosition = callout.position;
             build();
             updateBalloonBorder();
             messageLabel.setText("<html>" + callout.message + "</html>");
@@ -1205,12 +1228,12 @@ public class CalloutManager {
         }
 
         private void updateBalloonBorder() {
-            final int direction = switch (callout.position) {
+            final int direction = switch (resolvedPosition) {
                 case SwingConstants.LEFT -> SwingConstants.RIGHT;
                 case SwingConstants.TOP -> SwingConstants.BOTTOM;
                 case SwingConstants.RIGHT -> SwingConstants.LEFT;
                 case SwingConstants.BOTTOM -> SwingConstants.TOP;
-                default -> throw new IllegalArgumentException("Invalid position: " + callout.position);
+                default -> throw new IllegalArgumentException("Invalid position: " + resolvedPosition);
             };
             balloonBorder = new BalloonBorder(direction, FlatUIUtils.getUIColor("PopupMenu.borderColor", Color.GRAY));
             setBorder(balloonBorder);
@@ -1222,50 +1245,105 @@ public class CalloutManager {
             final Rectangle anchor = anchorBounds(callout.owner);
             final Point pt = anchor.getLocation();
             final Dimension ownerSize = anchor.getSize();
-            final Dimension size = popup.getSize();
-            final int gap = UIScale.scale(6);
-            // offset from the balloon's top-left corner to where its arrow tip actually is, so the tip lands
-            // on the anchor's center rather than the box being merely flush with the anchor's corner
-            final int arrowXY = UIScale.scale(BalloonBorder.PAD + BalloonBorder.ARROW_XY + BalloonBorder.ARROW_SIZE);
-            int x;
-            int y;
-            switch (callout.position) {
-                case SwingConstants.TOP -> {
-                    x = pt.x + ownerSize.width / 2 - arrowXY;
-                    y = pt.y - size.height - gap;
-                }
-                case SwingConstants.BOTTOM -> {
-                    x = pt.x + ownerSize.width / 2 - arrowXY;
-                    y = pt.y + ownerSize.height + gap;
-                }
-                case SwingConstants.LEFT -> {
-                    x = pt.x - size.width - gap;
-                    y = pt.y + ownerSize.height / 2 - arrowXY;
-                }
-                case SwingConstants.RIGHT -> {
-                    x = pt.x + ownerSize.width + gap;
-                    y = pt.y + ownerSize.height / 2 - arrowXY;
-                }
-                default -> throw new IllegalArgumentException("Invalid position: " + callout.position);
-            }
-            // clamp to the current screen's usable area (i.e., not under the taskbar/dock), so edge-anchored
-            // balloons stay fully visible
             final Rectangle screen = usableScreenBounds(callout.owner);
-            x = Math.max(screen.x, Math.min(x, screen.x + screen.width - size.width));
-            y = Math.max(screen.y, Math.min(y, screen.y + screen.height - size.height));
-            popup.setLocation(x, y);
+            final int gap = UIScale.scale(6);
 
-            // re-derive the arrow's target from the box's FINAL (possibly clamped) position, so it keeps pointing
-            // at the anchor's center instead of drifting off once the box gets pushed off an edge
+            Point loc = fittingLocation(resolvedPosition, pt, ownerSize, screen, gap);
+            if (loc == null) {
+                // no room for resolvedPosition without clamping onto the anchor -- most likely because
+                // owner's window has since been pushed against a screen edge (e.g. by "Arrange Dialogs").
+                // Flip to the mirrored side, which is the other side of the very same anchor, before
+                // resorting to a clamp that would defeat the whole point of an arrow-callout
+                final int flipped = flip(resolvedPosition);
+                if (fittingLocation(flipped, pt, ownerSize, screen, gap) != null) {
+                    resolvedPosition = flipped;
+                    updateBalloonBorder(); // new direction: rebuild the arrow border/insets
+                    popup.pack(); // insets just changed size; re-measure before finalizing the location
+                    loc = fittingLocation(resolvedPosition, pt, ownerSize, screen, gap);
+                }
+            }
+            // boxed in on both sides (e.g. a tiny display): same clamp-to-screen behavior as before this
+            // guard existed, i.e. stay fully visible even if that means overlapping the anchor
+            if (loc == null) loc = clampedLocation(resolvedPosition, pt, ownerSize, screen, gap);
+            popup.setLocation(loc.x, loc.y);
+
+            // re-derive the arrow's target from the box's FINAL (possibly clamped/flipped) position, so it
+            // keeps pointing at the anchor's center instead of drifting off once the box gets pushed off an
+            // edge or flipped to the other side
             if (balloonBorder != null) {
-                final boolean horizontal = callout.position == SwingConstants.TOP
-                        || callout.position == SwingConstants.BOTTOM;
+                final boolean horizontal = resolvedPosition == SwingConstants.TOP
+                        || resolvedPosition == SwingConstants.BOTTOM;
                 final int ownerCenter = horizontal
                         ? pt.x + ownerSize.width / 2
                         : pt.y + ownerSize.height / 2;
-                balloonBorder.setArrowOffset(ownerCenter - (horizontal ? x : y));
+                balloonBorder.setArrowOffset(ownerCenter - (horizontal ? loc.x : loc.y));
                 repaint();
             }
+        }
+
+        // Unclamped top-left corner for the balloon on side dir, so its arrow tip lands on the anchor's
+        // center rather than the box being merely flush with the anchor's corner
+        private Point rawLocation(final int dir, final Point pt, final Dimension ownerSize, final int gap) {
+            final Dimension size = popup.getSize();
+            final int arrowXY = UIScale.scale(BalloonBorder.PAD + BalloonBorder.ARROW_XY + BalloonBorder.ARROW_SIZE);
+            return switch (dir) {
+                case SwingConstants.TOP ->
+                        new Point(pt.x + ownerSize.width / 2 - arrowXY, pt.y - size.height - gap);
+                case SwingConstants.BOTTOM ->
+                        new Point(pt.x + ownerSize.width / 2 - arrowXY, pt.y + ownerSize.height + gap);
+                case SwingConstants.LEFT ->
+                        new Point(pt.x - size.width - gap, pt.y + ownerSize.height / 2 - arrowXY);
+                case SwingConstants.RIGHT ->
+                        new Point(pt.x + ownerSize.width + gap, pt.y + ownerSize.height / 2 - arrowXY);
+                default -> throw new IllegalArgumentException("Invalid position: " + dir);
+            };
+        }
+
+        /**
+         * {@link #rawLocation}, clamped to {@code screen} on the cross axis as usual, but {@code null} if
+         * the main axis (the one the arrow points along) would need to be clamped past {@code screen}'s
+         * edge to fit: clamping that axis, unlike the cross axis, drags the balloon back towards, and
+         * potentially onto, the very anchor it points at, which is what this method lets callers avoid
+         */
+        private Point fittingLocation(final int dir, final Point pt, final Dimension ownerSize,
+                                       final Rectangle screen, final int gap) {
+            final Dimension size = popup.getSize();
+            final Point raw = rawLocation(dir, pt, ownerSize, gap);
+            final boolean horizontal = dir == SwingConstants.TOP || dir == SwingConstants.BOTTOM;
+            final boolean fits = horizontal
+                    ? raw.y >= screen.y && raw.y + size.height <= screen.y + screen.height
+                    : raw.x >= screen.x && raw.x + size.width <= screen.x + screen.width;
+            if (!fits) return null;
+            if (horizontal)
+                raw.x = clampAxis(raw.x, screen.x, screen.x + screen.width - size.width);
+            else
+                raw.y = clampAxis(raw.y, screen.y, screen.y + screen.height - size.height);
+            return raw;
+        }
+
+        // Last-resort fallback: clamps both axes to screen, same as this class did before it started
+        // guarding the main axis against landing on the anchor (see #fittingLocation)
+        private Point clampedLocation(final int dir, final Point pt, final Dimension ownerSize,
+                                       final Rectangle screen, final int gap) {
+            final Dimension size = popup.getSize();
+            final Point raw = rawLocation(dir, pt, ownerSize, gap);
+            raw.x = clampAxis(raw.x, screen.x, screen.x + screen.width - size.width);
+            raw.y = clampAxis(raw.y, screen.y, screen.y + screen.height - size.height);
+            return raw;
+        }
+
+        private static int clampAxis(final int v, final int lo, final int hi) {
+            return Math.max(lo, Math.min(v, hi)); // NB: deliberately not Math.clamp: lo may exceed hi
+        }
+
+        private static int flip(final int dir) {
+            return switch (dir) {
+                case SwingConstants.TOP -> SwingConstants.BOTTOM;
+                case SwingConstants.BOTTOM -> SwingConstants.TOP;
+                case SwingConstants.LEFT -> SwingConstants.RIGHT;
+                case SwingConstants.RIGHT -> SwingConstants.LEFT;
+                default -> throw new IllegalArgumentException("Invalid position: " + dir);
+            };
         }
 
         @Override

@@ -368,6 +368,21 @@ public class IconFactory {
         return cachedIcon(entry.id, list.getFont().getSize() * 0.9f, color, entry.solid);
     }
 
+    /**
+     * Two-glyph analog of {@link #listIcon(JList, GLYPH)}: composites {@code entry1} and {@code entry2}
+     * side by side (see {@link #doubleIcon(GLYPH, GLYPH, float, Color)}), scaled to match single-glyph
+     * {@code listIcon} icons in the same list, rather than {@code doubleIcon}'s own default-size-relative
+     * scaling (meant for toolbar buttons, not list rows).
+     */
+    public static Icon listIcon(final JList<?> list, final GLYPH entry1, final GLYPH entry2) {
+        return listIcon(list, entry1, entry2, list.getForeground());
+    }
+
+    public static Icon listIcon(final JList<?> list, final GLYPH entry1, final GLYPH entry2, final Color color) {
+        final float scalingFactor = (list.getFont().getSize() * 0.9f) / FADerivedIcon.defSize();
+        return doubleIcon(entry1, entry2, scalingFactor, color);
+    }
+
     public static void assignTabIcon(final JTabbedPane tabbedPane, final int tabIndex, final GLYPH entry) {
         tabbedPane.setIconAt(tabIndex,
                 cachedIcon(entry.id, tabbedPane.getFont().getSize(), tabbedPane.getForeground(), entry.solid));
@@ -386,10 +401,32 @@ public class IconFactory {
     }
 
     public static Icon doubleIcon(final GLYPH entry1, final GLYPH entry2, final float scalingFactor, final Color color) {
-        if (entry2 == null) // plain single-glyph icon, no companion glyph to composite
-            return cachedIcon(entry1.id, scalingFactor * FADerivedIcon.defSize(), color, entry1.solid);
-        final Icon rightIcon = cachedIcon(entry2.id, scalingFactor * FADerivedIcon.defSize(), color, entry2.solid);
+        final float size = scalingFactor * FADerivedIcon.defSize();
+        // No companion glyph: reserve its width anyway (rather than collapsing to a plain single-glyph
+        // icon) so callers that sometimes pass a real entry2 and sometimes null - e.g. a JList mixing
+        // single- and double-glyph rows, or a menu item whose badge glyph only applies in some state -
+        // get a consistently-sized icon either way.
+        final Icon rightIcon = (entry2 == null) ? new BlankIcon(Math.round(size), Math.round(size))
+                : cachedIcon(entry2.id, size, color, entry2.solid);
         return dropdownIcon(entry1, scalingFactor, color, rightIcon);
+    }
+
+    /** Invisible {@link Icon} of a given size; used by {@link #doubleIcon} to reserve space for an absent glyph. */
+    private record BlankIcon(int width, int height) implements Icon {
+        @Override
+        public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+            // intentionally blank
+        }
+
+        @Override
+        public int getIconWidth() {
+            return width;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return height;
+        }
     }
 
     /**

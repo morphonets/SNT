@@ -23,6 +23,8 @@
 package sc.fiji.snt.hyperpanes;
 
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.image.ColorModel;
 
 import ij.ImagePlus;
@@ -685,10 +687,24 @@ public class MultiDThreePanes implements PaneOwner {
 			xz_canvas = createCanvas(xz, XZ_PLANE);
 			xz_window = new StackWindow(xz, xz_canvas);
 			xz_canvas.requestFocusInWindow();
+			xz_window.addWindowListener(sideViewClosedListener());
 			zy_canvas = createCanvas(zy, ZY_PLANE);
 			zy_window = new StackWindow(zy, zy_canvas);
 			zy_canvas.requestFocusInWindow();
+			zy_window.addWindowListener(sideViewClosedListener());
 		}
+	}
+
+	// If the user closes a ZY/XZ pane directly (rather than through SNT's own
+	// controls) single_pane would otherwise never be updated, leaving stale
+	// windowless canvases in the sync path (e.g. triggerZoomEvent)
+	private WindowAdapter sideViewClosedListener() {
+		return new WindowAdapter() {
+			@Override
+			public void windowClosed(final WindowEvent e) {
+				setSinglePane(true);
+			}
+		};
 	}
 
 	/*

@@ -95,6 +95,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -623,6 +624,21 @@ public class GuiUtils {
 
 	public String getChoice(final String message, final String title, final String[] choices,
 							final String[] descriptions, final String defaultChoice) {
+		return getChoice(message, title, choices, descriptions, defaultChoice, null);
+	}
+
+	/**
+	 * Same as {@link #getChoice(String, String, String[], String[], String)}, but with each row of the
+	 * choice list prefixed by an icon.
+	 *
+	 * @param iconResolver resolves the icon for row {@code index} of the eventual {@link JList} (the
+	 *                     list itself is passed in, e.g. for sizing/coloring via {@link IconFactory#listIcon
+	 *                     (JList, IconFactory.GLYPH)}), or {@code null} for no icons (same as the 5-arg
+	 *                     overload)
+	 */
+	public String getChoice(final String message, final String title, final String[] choices,
+							final String[] descriptions, final String defaultChoice,
+							final BiFunction<JList<?>, Integer, Icon> iconResolver) {
 		final JTextArea ta = new JTextArea();
 		ta.setRows(6);
 		ta.setWrapStyleWord(true);
@@ -642,8 +658,9 @@ public class GuiUtils {
 			}
 		};
 		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-		if (choices.length < 15)
-			list.setVisibleRowCount(choices.length);
+		if (iconResolver != null)
+			list.setCellRenderer(iconListCellRenderer(iconResolver));
+		list.setVisibleRowCount(Math.min(20, choices.length));
 		list.addListSelectionListener(e -> {
 			ta.setText(descriptions[list.getSelectedIndex()]);
 			ta.setCaretPosition(0);
@@ -684,6 +701,29 @@ public class GuiUtils {
 				(choices.length < 6) ? JOptionPane.QUESTION_MESSAGE : JOptionPane.PLAIN_MESSAGE, null,
 				new String[] { "OK", "Cancel" }, list);
 		return (promptResult == JOptionPane.OK_OPTION) ? list.getSelectedValue() : null;
+	}
+
+	/**
+	 * A {@link ListCellRenderer} that prefixes each row with an icon resolved by {@code iconResolver},
+	 * for a {@link JList} whose items don't otherwise carry icon info (e.g. plain {@code String}
+	 * choices, as in {@link #getChoice(String, String, String[], String[], String, BiFunction)}).
+	 *
+	 * @param iconResolver given the list (for sizing/coloring) and a row index, returns that row's icon,
+	 *                     or {@code null} for no icon on that row
+	 */
+	public static ListCellRenderer<Object> iconListCellRenderer(final BiFunction<JList<?>, Integer, Icon> iconResolver) {
+		return new DefaultListCellRenderer() {
+			final int ICON_TEXT_GAP = 10; // JLabel default (~4px) is too cramped with IconFactory#doubleIcon
+
+			@Override
+			public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index,
+														  final boolean isSelected, final boolean cellHasFocus) {
+				final JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+				label.setIcon(iconResolver.apply(list, index));
+				label.setIconTextGap(ICON_TEXT_GAP);
+				return label;
+			}
+		};
 	}
 
 	private JList<String> getJList(final String[] choices, final String defaultChoice) {
@@ -1663,6 +1703,10 @@ public class GuiUtils {
 		return ep;
 	}
 
+	public void infoMsg(final String msg, final String title) {
+		centeredDialog(msg, title, JOptionPane.INFORMATION_MESSAGE);
+	}
+
 	public void centeredMsg(final String msg, final String title) {
 		centeredDialog(msg, title, JOptionPane.PLAIN_MESSAGE);
 	}
@@ -1931,9 +1975,7 @@ public class GuiUtils {
 		return "<html><body><div style='width:" + Math.min(width, maxWidth) + ";'>" + text;
 	}
 
-	public void blinkingError(final JComponent blinkingComponent,
-							  final String msg)
-	{
+	public void blinkingError(final JComponent blinkingComponent, final String msg) {
 		final Color prevColor = blinkingComponent.getForeground();
 		final Color flashColor = Colors.errorColor();
 		final Timer blinkTimer = new Timer(400, new ActionListener() {
@@ -1956,10 +1998,7 @@ public class GuiUtils {
 			}
 		});
 		blinkTimer.start();
-		if (centeredDialog(msg, "Ongoing Operation",
-				JOptionPane.WARNING_MESSAGE) > Integer.MIN_VALUE)
-		{ // Dialog
-			// dismissed
+		if (centeredDialog(msg, "Ongoing Operation", JOptionPane.WARNING_MESSAGE) > Integer.MIN_VALUE) { // Dialog dismissed
 			blinkTimer.stop();
 		}
 		blinkingComponent.setForeground(prevColor);
