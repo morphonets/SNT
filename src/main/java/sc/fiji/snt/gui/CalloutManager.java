@@ -871,17 +871,18 @@ public class CalloutManager {
      * menu item that is not currently armed: a plain {@link JMenuItem#isShowing()} check is false for one whose
      * menu is closed. Standalone popups (not anchored to a JMenu/JMenuBar, e.g. a right-click context menu) have
      * no chain to open and are left alone; a callout anchored there should invoke the menu itself before showing
+     * <p>
+     * <b>Known limitation:</b> forcing the chain open here does not reliably keep it open for the lifetime of
+     * the callout. Showing the callout's balloon window while a nested {@link JMenuItem}'s dropdown is forced
+     * open can make the platform auto-cancel that menu regardless (confirmed on macOS, even with the balloon's
+     * {@link Window} set non-focusable and {@link Window.Type#POPUP}), which currently tears down the whole
+     * chain, not just this one entry. Prefer anchoring a menu-related callout to the top-level {@link JMenu}
+     * itself instead.
+     * </p>
      */
     private static void openMenuChain(final JMenuItem jmi) {
-        try {
-            final MenuElement[] path = GuiUtils.MenuItems.getMenuPath(jmi);
-            if (path.length > 1) {
-                MenuSelectionManager.defaultManager().setSelectedPath(path);
-                jmi.setArmed(true);
-            }
-        } catch (final RuntimeException ignored) {
-            // best effort only; caller falls back to awaitShowing if this did not make jmi showing
-        }
+        // best effort only; caller falls back to awaitShowing if this did not make jmi showing
+        GuiUtils.MenuItems.revealMenuItem(jmi);
     }
 
     private static void showChain(final List<Callout> list, final int index, final boolean ignoreDismissed,
@@ -1054,6 +1055,12 @@ public class CalloutManager {
             // an owned top-level window, not the owner's layered pane, so the
             // balloon can extend past a narrow/short parent dialog uncropped
             popup = new JWindow(ownerWindow);
+            popup.setFocusableWindowState(false);
+            try {
+                popup.setType(Window.Type.POPUP);
+            } catch (final RuntimeException ignored) {
+                // best effort only; type must be set pre-peer, and some platforms may not support it
+            }
             if (isTranslucencySupported(owner)) {
                 try {
                     popup.setBackground(new Color(0, 0, 0, 0));

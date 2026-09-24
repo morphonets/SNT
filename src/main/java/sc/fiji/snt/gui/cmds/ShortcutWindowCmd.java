@@ -67,6 +67,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final String HTML_TOOLTIP = "<html>";
+	private static final float BUTTON_SCALING = .95f;
 
 	@Parameter
 	private CommandService cmdService;
@@ -219,20 +220,18 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			if (shrtct == null) {
 				buttons.add(null);
 			} else {
-				final JButton b = new JButton(shrtct.label);
+				final JButton b = GuiUtils.Buttons.smallButton(shrtct.label, BUTTON_SCALING, false);
 				b.setToolTipText(HTML_TOOLTIP + shrtct.description);
 				b.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
-				makeSmallerButton(b);
 				buttons.add(b);
 			}
 		});
 	}
 
 	private JButton getPopupButton(final JPopupMenu popup, final String label, final String tooltip) {
-		final JButton button = new JButton("<HTML>" + label + " &#9657;");
+		final JButton button = GuiUtils.Buttons.smallButton("<HTML>" + label + " &#9657;", BUTTON_SCALING, false);
 		button.setToolTipText(HTML_TOOLTIP + tooltip);
 		button.addActionListener( e -> popup.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		makeSmallerButton(button);
 		return button;
 	}
 
@@ -249,30 +248,20 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	private void addScriptsButton() {
 		final ScriptInstaller installer = new ScriptInstaller(getContext(), getFrame());
-		final JButton button = new JButton("<HTML>Scripts &#9657;");
+		final JButton button = GuiUtils.Buttons.smallButton("<HTML>Scripts &#9657;", BUTTON_SCALING, false);
 		button.setToolTipText(HTML_TOOLTIP + "All of SNT scripts: Bulk measurements, conversions, multi-panel figures, etc.");
 		final JPopupMenu sMenu = installer.getScriptsMenu().getPopupMenu();
 		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		makeSmallerButton(button);
 		buttons.add(button);
 	}
 
 	private void addHelpButton() {
-		final JButton button = new JButton("<HTML>Help & Resources &#9657;");
+		final JButton button = GuiUtils.Buttons.smallButton("<HTML>Help & Resources &#9657;", BUTTON_SCALING, false);
 		final JPopupMenu hMenu = GuiUtils.MenuItems.helpMenu(null).getPopupMenu();
 		button.addActionListener(e -> hMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		makeSmallerButton(button);
 		buttons.add(button);
 	}
 
-	private void makeSmallerButton(final JButton button) {
-        final Font currentFont = button.getFont();
-		if (currentFont != null) {
-			button.setFont(currentFont.deriveFont(currentFont.getSize() * 0.95f));
-		}
-        // too harsh
-        //button.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
-    }
 
 	private JFrame getFrame() {
 		if (frame == null) {

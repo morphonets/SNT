@@ -1179,7 +1179,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Filter button: restrict table by severity
         final JButton filterButton = GuiUtils.Buttons.OptionsButton(
                 IconFactory.GLYPH.EYE, 1.1f, getFilterVisibilityMenu());
-        filterButton.setToolTipText("Filter warnings by severity");
+        filterButton.setToolTipText("Filter/sort warnings by severity");
         tb.add(filterButton);
 
         tb.addSeparator();

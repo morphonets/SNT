@@ -224,6 +224,12 @@ public class PrefsCmd extends OptionsPlugin {
 			workspaceDirectory = snt.getPrefs().getWorkspaceDir();
 			nextImgExtensions = String.join(", ", snt.getPrefs().getNextImgExtensions());
 			bookmarkSize = POINT_ROI_SIZES[ij.gui.PointRoi.getDefaultSize()];
+			if (snt.isStreamMode()) {
+				resolveInput("bookmarkSize");
+				resolveInput("force2DDisplayCanvas");
+				resolveInput("nextImgExtensions");
+				getInfo().getMutableInput("somaDisplay", String.class).setLabel("Soma display (materialized crops)");
+			}
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}

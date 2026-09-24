@@ -29,6 +29,9 @@ import sc.fiji.snt.viewer.AbstractBigViewer;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -59,6 +62,7 @@ public class GuidedTutorial {
     private final String group;
     private JComponent anchor;
     private Runnable stateListener;
+    private WindowListener viewerCloseListener;
     private Runnable preAction;
     private long preActionSettleMs;
     private Runnable postAction;
@@ -125,6 +129,23 @@ public class GuidedTutorial {
         index = 0;
         stateListener = this::onCalloutStateChanged;
         CalloutManager.addStateListener(stateListener, group);
+        // Without this, abandoning the tutorial by closing its viewer (rather than finishing it, or even just
+        // pausing it with Escape - which only hides the callout, see CalloutManager#ensureEscDispatcherInstalled)
+        // leaves this instance registered forever: CalloutManager#fireStateChanged() runs every group's listener
+        // on ANY callout's state change anywhere in the app, so this stale listener would keep firing, find its
+        // own group no longer "active" (Balloon's own owner-close cleanup already dropped it once the frame
+        // disposed), and call showCurrentStep() against a now-disposed viewer. Stopping here - exactly as if the
+        // last step had been dismissed - closes that off for every caller, not just this one
+        final JFrame frame = viewer.getViewerFrame();
+        if (frame != null) {
+            viewerCloseListener = new WindowAdapter() {
+                @Override
+                public void windowClosed(final WindowEvent e) {
+                    stop();
+                }
+            };
+            frame.addWindowListener(viewerCloseListener);
+        }
         if (preActionSettleMs > 0) {
             final Timer timer = new Timer((int) preActionSettleMs, e -> {
                 if (!stopped) showCurrentStep();
@@ -138,7 +159,8 @@ public class GuidedTutorial {
 
     /**
      * Aborts the tutorial: hides the current callout, forgets the anchor, unregisters the state listener, then runs
-     * {@link #setPostAction}. Called automatically once the last step is dismissed.
+     * {@link #setPostAction}. Called automatically once the last step is dismissed, or as soon as the viewer's
+     * window closes.
      */
     public void stop() {
         if (stopped) return;
@@ -146,6 +168,11 @@ public class GuidedTutorial {
         try {
             CalloutManager.clearGroup(group);
             if (stateListener != null) CalloutManager.removeStateListener(stateListener);
+            if (viewerCloseListener != null) {
+                final JFrame frame = viewer.getViewerFrame();
+                if (frame != null) frame.removeWindowListener(viewerCloseListener);
+                viewerCloseListener = null;
+            }
             if (anchor != null && anchor.getParent() != null) anchor.getParent().remove(anchor);
             anchor = null;
         } finally {

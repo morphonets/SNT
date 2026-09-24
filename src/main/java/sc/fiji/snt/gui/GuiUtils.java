@@ -3512,6 +3512,26 @@ public class GuiUtils {
 			return path.toArray(new MenuElement[0]);
 		}
 
+		/**
+		 * Opens and arms the {@link JMenu}/{@link JMenuBar} chain leading to {@code jmi}, so it becomes
+		 * {@link JMenuItem#isShowing() showing} without the user clicking through it (e.g., to anchor a tour
+		 * callout, or to reveal a command-finder search hit). Does nothing (returns {@code false}) if {@code jmi}'s
+		 * chain could not be resolved this way.
+		 * @return {@code true} if {@code jmi} ended up armed/selected
+		 */
+		public static boolean revealMenuItem(final JMenuItem jmi) {
+			final MenuElement[] path = getMenuPath(jmi);
+			if (path.length <= 1 || path[0] instanceof JMenu)
+				return false;
+			try {
+				MenuSelectionManager.defaultManager().setSelectedPath(path);
+				jmi.setArmed(true);
+				return true;
+			} catch (final Throwable ignored) {
+				return false;
+			}
+		}
+
 		public static JMenuItem distribution(final Supplier<SNTTable> tableSupplier) {
 			final JMenuItem jmi = new JMenuItem("Frequency Distribution(s)...", IconFactory.menuIcon(GLYPH.CHART));
 			jmi.addActionListener(e -> {
@@ -5279,13 +5299,19 @@ public class GuiUtils {
 		}
 
 		public static JButton smallButton(final String text) {
-			final float SCALE = .85f;
+			return smallButton(text, .85f, true);
+
+		}
+
+		public static JButton smallButton(final String text, final float scale, final boolean scaleInsets) {
 			final JButton button = new JButton(text);
 			final Font font = button.getFont();
-			button.setFont(font.deriveFont(font.getSize() * SCALE));
-			final Insets insets = button.getMargin();
-			button.setMargin(new Insets((int) (insets.top * SCALE), (int) (insets.left *
-					SCALE), (int) (insets.bottom * SCALE), (int) (insets.right * SCALE)));
+			button.setFont(font.deriveFont(font.getSize() * scale));
+			if (scaleInsets) {
+				final Insets insets = button.getMargin();
+				button.setMargin(new Insets((int) (insets.top * scale), (int) (insets.left *
+						scale), (int) (insets.bottom * scale), (int) (insets.right * scale)));
+			}
 			return button;
 		}
 

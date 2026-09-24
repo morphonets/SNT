@@ -571,42 +571,42 @@ public class DemoRunner {
 		final Consumer<AbstractBigViewer> reenableTracing = v -> v.enableTracing(false);
 		final List<GuidedTutorial.Step> steps = List.of(
 				GuidedTutorial.Step.of(
-						"Click at this location to start a path.",
+						"<b>Click at this location</b> to start a path.",
 						new BoundingBox(List.of(SNTPoint.of(10.212, 141.432, 0))),
 						bvv::isPathInProgress, // the path is not added to the manager until finished (next step)
 						reenableTracing),
 				GuidedTutorial.Step.of(
-						"Double-click at this location to finish the path.",
+						"<b>Double-click at this location</b> to finish the path.",
 						new BoundingBox(List.of(SNTPoint.of(146.674, 56.604, 34.745))),
 						() -> pafm.size() >= 1,
 						reenableTracing),
 				GuidedTutorial.Step.of(
-						"Press 'G' to Grab (select) the path you just finished.",
+						"<b>Press 'G'</b> to Grab (select) the path you just finished.",
 						new BoundingBox(List.of(SNTPoint.of(59.997, 81.753, 38.953))), // aprox. path mid point
 						() -> pafm.size() >= 1 && pafm.anySelected(),
 						reenableTracing),
 				GuidedTutorial.Step.of(
-						"Now let's inspect this location. Hold 'H' to Hide the annotated path.",
+						"Now let's inspect this location. <b>Hold 'H'</b> to Hide the annotated path.",
 						new BoundingBox(List.of(
 								SNTPoint.of(138.72, 85.897, 30.820),
 								SNTPoint.of(098.72, 45.897, 38.820))), // zoom out box around fork point
 						() -> true, // nothing to validate
 						GuidedTutorial.rotate(0, -45, 500).andThen(reenableTracing)), // orbit, then re-arm tracing
 				GuidedTutorial.Step.of(
-						String.format("Hold Alt%s and click on the node under the crosshair to fork a child path.",
+						String.format("<b>Alt%s+Click</b> on the node under the crosshair to fork a child path.",
 								(snt.getPrefs().getRequireShiftToFork()) ? "+Shift" : ""),
 						new BoundingBox(List.of(SNTPoint.of(118.72, 65.897, 34.820))),
 						bvv::isPathInProgress,
 						reenableTracing),
 				new GuidedTutorial.Step(
-						"Double-click here to finish the child path.",
+						"<b>Double-click here</b> to finish the child path.",
 						new BoundingBox(List.of(SNTPoint.of(141.68, 77.303, 17.843))),
 						() -> pafm.getPaths().stream().anyMatch(p -> !p.isPrimary()),
 						(bvv.isPathInProgress()) ? -1 : 4, // retry from the fork step if no child path was created
 						reenableTracing, // re-arm tracing on entry (see comment above); last click-based step
 						null), // default (canvas-center) callout anchor
 				GuidedTutorial.Step.of(
-								"Press space bar to toggle between navigation mode and tracing modes.",
+								"<b>Press space bar</b> to toggle between navigation mode and tracing modes.",
 								new BoundingBox(
 										List.of(SNTPoint.of(0, 0, 0), SNTPoint.of(200, 200, 60))), // image bounds
 								() -> true) // no validation
@@ -643,11 +643,14 @@ public class DemoRunner {
 					snt.getPrefs().setCanvasAutoActivation(canvasAutoActivationWasEnabled);
 					snt.getUI().getPathManager().runCommand("Expand All");
 					snt.getUI().getPathManager().clearSelection();
-					bvv.resetView();
-					new GuiUtils(bvv.getViewerFrame()).infoMsg(
-							"All done! You are now a tracing expert! ☺ These tracing operations are common to all viewers," +
-									"including traditional images and streamed data. Feel free to keep exploring, or run other tutorials.",
-							"Tutorial Complete");
+					if (bvv.isOpen()) { // user may have exited tutorial by closing the viewer (dispose() never
+						// nulls getViewerFrame(), so that alone can't detect this: see AbstractBigViewer#isOpen())
+						bvv.resetView();
+						new GuiUtils(bvv.getViewerFrame()).infoMsg(
+								"All done! You are now a tracing expert! ☺ These tracing operations are common to all viewers," +
+										"including traditional images and streamed data. Feel free to keep exploring, or run other tutorials.",
+								"Tutorial Complete");
+					}
 				})
 				.start();
 	}

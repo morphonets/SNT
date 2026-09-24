@@ -303,7 +303,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private int getDefaultBooleans() {
-		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + SCROLL_DIAMETER + JUST_ACTIVE_CT;
+		return DRAW_DIAMETERS + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + SCROLL_DIAMETER + JUST_ACTIVE_CT;
 	}
 
 	private void getBooleans() {

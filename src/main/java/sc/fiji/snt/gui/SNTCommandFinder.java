@@ -486,13 +486,8 @@ public class SNTCommandFinder {
                 } catch (final NullPointerException npe) {
                     displayTempMsg("Menu item is not available!", true);
                 }
-            } else {
-                try {
-                    MenuSelectionManager.defaultManager().setSelectedPath(path);
-                    jmi.setArmed(true);
-                } catch (final NullPointerException npe) {
-                    displayTempMsg("Menu item is not available!", true);
-                }
+            } else if (!GuiUtils.MenuItems.revealMenuItem(jmi)) {
+                displayTempMsg("Menu item is not available!", true);
             }
         } else if (jmi.getParent() instanceof JPopupMenu popup) {
             // Root-level item in a standalone popup (path reduced to [jmi] by getMenuPath)
