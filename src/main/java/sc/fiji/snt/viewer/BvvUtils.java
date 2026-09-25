@@ -169,8 +169,8 @@ public final class BvvUtils {
     }
 
     /**
-     * Returns the world-space endpoints of the perspective ray through the
-     * current mouse cursor position in the given viewer panel.
+     * Returns the world-space endpoints of the perspective ray through an arbitrary screen
+     * point in the given viewer panel.
      *
      * <p>BVV uses the formula {@code pf = dCam / (dCam + viewerZ)} to project
      * world points onto the screen. Inverting that relationship gives the viewer-space
@@ -187,18 +187,18 @@ public final class BvvUtils {
      * @param dCam     camera distance in screen-pixel units (from OverlayRenderer.dCam)
      * @param nearClip near clip distance in screen-pixel units (>0, <dCam)
      * @param farClip  far clip distance in screen-pixel units (>0)
+     * @param screenX  screen-space X of the point the ray passes through
+     * @param screenY  screen-space Y of the point the ray passes through
      * @return a 2x3 array { nearWorld, farWorld } in world coordinates, or null
-     * if the mouse is outside the display or the viewer state is unavailable
+     * if the viewer state is unavailable
      */
-    static double[][] findClickRay(final VolumeViewerPanel vp,
+    private static double[][] rayFromScreenPoint(final VolumeViewerPanel vp,
                                    final double dCam,
                                    final double nearClip,
-                                   final double farClip) {
+                                   final double farClip,
+                                   final double screenX,
+                                   final double screenY) {
         if (vp == null || dCam <= 0) return null;
-
-        // Mouse position in display coordinates.
-        final Point mouse = vp.getDisplay().getComponent().getMousePosition();
-        if (mouse == null) return null;
 
         final AffineTransform3D t = new AffineTransform3D();
         vp.state().getViewerTransform(t);
@@ -207,9 +207,9 @@ public final class BvvUtils {
         final double cx = vp.getDisplay().getWidth() / 2.0;
         final double cy = vp.getDisplay().getHeight() / 2.0;
 
-        // Offset of the cursor from screen center.
-        final double dx = mouse.x - cx;
-        final double dy = mouse.y - cy;
+        // Offset of the requested point from screen center.
+        final double dx = screenX - cx;
+        final double dy = screenY - cy;
 
         // Viewer-space X,Y scale factor at each clip plane:
         //   at near (viewerZ = -nearClip): scale = 1 - nearClip/dCam
@@ -229,13 +229,57 @@ public final class BvvUtils {
 
         if (SNTUtils.isDebugMode()) {
             SNTUtils.log(String.format(
-                    "BVV click-ray: mouse=(%d,%d) center=(%.1f,%.1f) dCam=%.1f near=%.1f far=%.1f%n"
+                    "BVV ray: screen=(%.1f,%.1f) center=(%.1f,%.1f) dCam=%.1f near=%.1f far=%.1f%n"
                             + "  nearW=(%.3f,%.3f,%.3f) farW=(%.3f,%.3f,%.3f)",
-                    mouse.x, mouse.y, cx, cy, dCam, nearClip, farClip,
+                    screenX, screenY, cx, cy, dCam, nearClip, farClip,
                     nearW[0], nearW[1], nearW[2], farW[0], farW[1], farW[2]));
         }
 
         return new double[][]{nearW, farW};
+    }
+
+    /**
+     * Returns the world-space endpoints of the perspective ray through the
+     * current mouse cursor position in the given viewer panel.
+     *
+     * @param vp       the BVV viewer panel
+     * @param dCam     camera distance in screen-pixel units (from OverlayRenderer.dCam)
+     * @param nearClip near clip distance in screen-pixel units (>0, <dCam)
+     * @param farClip  far clip distance in screen-pixel units (>0)
+     * @return a 2x3 array { nearWorld, farWorld } in world coordinates, or null
+     * if the mouse is outside the display or the viewer state is unavailable
+     */
+    static double[][] findClickRay(final VolumeViewerPanel vp,
+                                   final double dCam,
+                                   final double nearClip,
+                                   final double farClip) {
+        if (vp == null) return null;
+        final Point mouse = vp.getDisplay().getComponent().getMousePosition();
+        if (mouse == null) return null;
+        return rayFromScreenPoint(vp, dCam, nearClip, farClip, mouse.x, mouse.y);
+    }
+
+    /**
+     * Returns the world-space endpoints of the perspective ray through the center of the
+     * viewer panel's display, i.e. its optical axis. Unlike {@link #findClickRay}, this
+     * does not depend on the mouse cursor and is defined even when the pointer is outside
+     * the display (or the viewer has no focus).
+     *
+     * @param vp       the BVV viewer panel
+     * @param dCam     camera distance in screen-pixel units (from OverlayRenderer.dCam)
+     * @param nearClip near clip distance in screen-pixel units (>0, <dCam)
+     * @param farClip  far clip distance in screen-pixel units (>0)
+     * @return a 2x3 array { nearWorld, farWorld } in world coordinates, or null
+     * if the viewer state is unavailable
+     */
+    static double[][] findCenterRay(final VolumeViewerPanel vp,
+                                   final double dCam,
+                                   final double nearClip,
+                                   final double farClip) {
+        if (vp == null) return null;
+        final double cx = vp.getDisplay().getWidth() / 2.0;
+        final double cy = vp.getDisplay().getHeight() / 2.0;
+        return rayFromScreenPoint(vp, dCam, nearClip, farClip, cx, cy);
     }
 
     /**

@@ -636,6 +636,28 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * The world-space point currently displayed at the center of this viewer, i.e. the inverse
+     * of {@link #flyTo}'s centroid-to-screen-center mapping: applies the inverse viewer transform
+     * to the viewport's center screen point, at the focal plane (viewer-space Z = 0).
+     * <p>
+     * Correct as-is for an orthogonal slicing view (the displayed slice <em>is</em> the focal
+     * plane). {@link Bvv} overrides this to prefer the depth of whatever is actually visible
+     * there (see {@link Bvv#findSceneCenterMaxima()}), falling back to this same focal-plane
+     * result when that ray finds nothing.
+     *
+     * @return the world-space scene center, or {@code null} if the viewport has not yet been
+     * realized
+     */
+    public SNTPoint getSceneCenter() {
+        final int cw = getViewerWidth(), ch = getViewerHeight();
+        if (cw <= 0 || ch <= 0) return null;
+        final AffineTransform3D t = getViewerTransform();
+        final double[] world = new double[3];
+        t.applyInverse(world, new double[]{cw / 2.0, ch / 2.0, 0});
+        return new PointInImage(world[0], world[1], world[2]);
+    }
+
+    /**
      * Creates and returns a new {@link sc.fiji.snt.BookmarkManager} for this viewer.
      * Called exactly once (lazily) by {@link #getMarkerManager()}.
      */

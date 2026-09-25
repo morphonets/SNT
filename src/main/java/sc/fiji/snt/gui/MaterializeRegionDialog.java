@@ -32,6 +32,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -73,7 +74,7 @@ public class MaterializeRegionDialog extends JDialog {
 	}
 
 	private static final String CENTER_AUTO = "Auto";
-	private static final String CENTER_SCENE = "Center of scene (not yet implemented; uses Auto)";
+	private static final String CENTER_SCENE = "Center of scene (current view; falls back to Auto if unavailable)";
 	private static final String CENTER_OTHER = "Other...";
 
 	// Wide enough for this dialog's own content (three X/Y/Z fields plus labels) without forcing the
@@ -86,6 +87,7 @@ public class MaterializeRegionDialog extends JDialog {
 	// excluded: a thin/2D slab (e.g. depth 1) is a legitimate, intentional choice
 	private static final long MIN_USEFUL_XY_PX = 100;
 
+	private final SNTUI ui;
 	private final SNT plugin;
 	private boolean succeeded;
 	private BoundingBox resolvedBox;
@@ -117,6 +119,7 @@ public class MaterializeRegionDialog extends JDialog {
 
 	public MaterializeRegionDialog(final SNTUI ui, final SNT plugin) {
 		super(ui, "Materialize Region...", true);
+		this.ui = ui;
 		this.plugin = plugin;
 
 		final List<String> scopeItems = new ArrayList<>(List.of(SCOPE_MAIN));
@@ -455,10 +458,17 @@ public class MaterializeRegionDialog extends JDialog {
 			return new PointInImage(centerFields.getValue(0, 0), centerFields.getValue(1, 0),
 					centerFields.getValue(2, 0));
 		}
-		// CENTER_AUTO and the still-stubbed CENTER_SCENE (falls back to Auto until viewport-center math
-		// is implemented) both resolve to the centroid of the selected paths if any are
-		// selected, else every loaded path, mirroring materializeDisplayCanvas()'s own selected-else-all
-		// fallback. Uses the same memoized boxes as the size section, so this never re-traverses paths
+		if (CENTER_SCENE.equals(choice)) {
+			final AbstractBigViewer viewer = ui.getActiveBigViewer();
+			final SNTPoint center = (viewer != null && viewer.isOpen()) ? viewer.getSceneCenter() : null;
+			if (center != null) return center;
+			// No viewer open (or its viewport isn't realized yet): fall through to the same
+			// path-centroid fallback used by CENTER_AUTO
+		}
+		// CENTER_AUTO, and CENTER_SCENE's fallback above, resolve to the centroid of the selected
+		// paths if any are selected, else every loaded path, mirroring materializeDisplayCanvas()'s
+		// own selected-else-all fallback. Uses the same memoized boxes as the size section, so this
+		// never re-traverses paths
 		final BoundingBox box = selectedPathsBox() != null ? selectedPathsBox() : allPathsBox();
 		if (box == null) {
 			errorOut.append("No paths exist to center the region on.");

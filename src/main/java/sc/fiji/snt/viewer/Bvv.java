@@ -2461,11 +2461,40 @@ public class Bvv extends AbstractBigViewer {
      * source is loaded
      */
     public double[] findClickRayMaxima() {
+        final double[][] ray = findClickRay();
+        return (ray == null) ? null : findRayMaxima(ray);
+    }
+
+    /**
+     * Finds the world-space point of maximum intensity along the perspective ray through the
+     * center of the viewer's display, i.e. whatever is actually visible at the middle of the
+     * screen right now, at whatever depth its signal peaks. Same search as
+     * {@link #findClickRayMaxima()}, but along the optical axis rather than through the mouse.
+     *
+     * @return world-space [x, y, z] of the intensity maximum, or null if the ray misses the
+     * volume, the viewer is unavailable, or no source is loaded
+     */
+    public double[] findSceneCenterMaxima() {
+        final double[][] ray = findCenterRay();
+        return (ray == null) ? null : findRayMaxima(ray);
+    }
+
+    /**
+     * Shared ray-sampling logic behind {@link #findClickRayMaxima()} and
+     * {@link #findSceneCenterMaxima()}: samples the active source(s) along {@code ray} at
+     * 0.5-voxel intervals and refines the peak location to sub-voxel accuracy via a 3-point
+     * parabola fit, escalating the search radius (tight, then wide, then the full ray) until a
+     * significant peak is found.
+     *
+     * @param ray the near/far world-space endpoints to sample along, e.g. from
+     *            {@link #findClickRay()} or {@link #findCenterRay()}
+     * @return world-space [x, y, z] of the intensity maximum, or null if no source is loaded
+     * or no peak is found anywhere along the ray
+     */
+    private double[] findRayMaxima(final double[][] ray) {
         if (pathOverlay == null) return null;
         final double near = pathOverlay.overlayRenderer.nearClip;
         final double far  = pathOverlay.overlayRenderer.farClip;
-        final double[][] ray = findClickRay();
-        if (ray == null) return null;
         final VolumeViewerPanel vp = getViewerPanel();
         if (vp == null) return null;
         final int tp = vp.state().getCurrentTimepoint();
@@ -2482,7 +2511,7 @@ public class Bvv extends AbstractBigViewer {
                 ? java.util.Collections.singleton(current)
                 : visible;
         if (SNTUtils.isDebugMode()) {
-            SNTUtils.log("BVV findClickRayMaxima: focalT=" + focalT + " near=" + near + " far=" + far
+            SNTUtils.log("BVV findRayMaxima: focalT=" + focalT + " near=" + near + " far=" + far
                     + " sampling " + toSample.size() + " source(s)"
                     + (current != null ? " (current-only: " + current.getSpimSource().getName() + ")" : ""));
         }
@@ -2516,11 +2545,38 @@ public class Bvv extends AbstractBigViewer {
         }
         final double[] peak = (result == null) ? null : new double[]{result[0], result[1], result[2]};
         if (SNTUtils.isDebugMode()) {
-            SNTUtils.log("BVV findClickRayMaxima: final peak = "
+            SNTUtils.log("BVV findRayMaxima: final peak = "
                     + (result == null ? "null" : String.format("(%.3f,%.3f,%.3f) normVal=%.4f",
                             result[0], result[1], result[2], result[3])));
         }
         return peak;
+    }
+
+    /**
+     * Returns the world-space endpoints of the perspective ray through the center of the
+     * viewer's display (its optical axis). Unlike {@link #findClickRay()}, this does not
+     * depend on the mouse cursor.
+     *
+     * @return a 2x3 array { nearWorld, farWorld } in world coordinates, or null if the viewer
+     * state is unavailable
+     */
+    public double[][] findCenterRay() {
+        if (pathOverlay == null) return null;
+        final double dCam = pathOverlay.overlayRenderer.dCam;
+        final double near = pathOverlay.overlayRenderer.nearClip;
+        final double far = pathOverlay.overlayRenderer.farClip;
+        return BvvUtils.findCenterRay(getViewerPanel(), dCam, near, far);
+    }
+
+    /**
+     * The world-space point currently at the center of this viewer's display: the intensity-peak
+     * result of {@link #findSceneCenterMaxima()} when available, otherwise the same focal-plane
+     * fallback used by {@link AbstractBigViewer#getSceneCenter()}.
+     */
+    @Override
+    public SNTPoint getSceneCenter() {
+        final double[] peak = findSceneCenterMaxima();
+        return (peak == null) ? super.getSceneCenter() : new PointInImage(peak[0], peak[1], peak[2]);
     }
 
     /**
