@@ -4,7 +4,7 @@
 """
 file:       Analysis_Demo_(Interactive).py
 author:     Tiago Ferreira
-version:    20241031
+version:    20260925
 info:       Exemplifies how to programmatically interact with a running instance
             of SNT to analyze traced data. Because of all the GUI updates, this
             approach is _significantly slower_ than analyzing reconstructions
@@ -67,7 +67,7 @@ def run():
     # E.g., let's' downsample the Tree, imposing 10um between 'shaft' nodes:
     # When downsampling, branch points and tip positions are not altered
     tree = demo_tree.clone() # duplicate demo_tree
-    tree.downSample(10) # 10um
+    tree.downsample(10) # 10um
     tree.setLabel("10um downsampled")
 
     # Initialize a new TreeStatistics instance from downsampled tree

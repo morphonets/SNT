@@ -13,7 +13,7 @@
 """
 file:      Measure_Multiple_Files.py
 author:    Tiago Ferreira
-version:   20200527
+version:   20260925
 info:      Bulk measurements of reconstruction files using SNT
 """
 
@@ -52,7 +52,7 @@ def run():
     if 'Complete' in chosen_metrics:
         metrics = TreeStatistics.getAllMetrics()
     else:
-        metrics = TreeStatistics.getMetrics()
+        metrics = TreeStatistics.getMetrics("common")
 
     for (counter, tree) in enumerate(trees):
 

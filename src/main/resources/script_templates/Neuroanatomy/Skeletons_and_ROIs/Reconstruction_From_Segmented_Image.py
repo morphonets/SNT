@@ -22,6 +22,7 @@ import os
 from ij import IJ
 from sc.fiji.snt import Tree
 from sc.fiji.snt.tracing.auto import BinaryTracer
+from sc.fiji.snt.util import TreeUtils
 from sc.fiji.snt.viewer import Viewer3D
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
@@ -53,7 +54,7 @@ def main():
 	if showInViewer:
 		# Display generated reconstructions
 		viewer = Viewer3D(context)
-		Tree.assignUniqueColors(trees)
+		TreeUtils.assignUniqueColors(trees)
 		viewer.add(trees)
 		viewer.show()
 	if saveResult:
