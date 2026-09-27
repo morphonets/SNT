@@ -235,7 +235,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final boolean threeD = viewerType != null && viewerType.toLowerCase().contains("bvv");
         final boolean tracer = tracingEnabled;
 
-        if (tracer && SNTUtils.getInstance() != null) {
+        if (tracer && SNTUtils.getInstance() != null && SNTUtils.getInstance().getUI() != null) {
             error("SNT seems to be already running. Please close the current instance and re-run.");
             return;
         }

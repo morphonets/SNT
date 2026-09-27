@@ -3176,6 +3176,9 @@ public class Bvv extends AbstractBigViewer {
                 // Guards posSlider.setValue() calls that are programmatic (not from the user
                 // dragging the slider), so slabListener does not fire a second applySlab().
                 final boolean[] updatingSlab = {false};
+                // Slab Paths defaults to following Slab View (activated whenever Slab View is turned
+                // on) until the user manually toggles Slab Paths themselves, at which point it decouples
+                final boolean[] slabPathsUserOverride = {false};
 
                 final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
 
@@ -3421,8 +3424,12 @@ public class Bvv extends AbstractBigViewer {
                         slabAxis.set(axis0);
                         reconfigureAndApplySlab.run();
                         slabPathsToggle.setEnabled(true);
-                        // Slab Paths' *selected* state is a persistent user preference (left alone on deactivation),
-                        // but renderingOptions.isClipPathsToSlab() is the actual  effective flag and was forced false
+                        // Slab Paths defaults to activating alongside Slab View (synced) unless the user has
+                        // manually toggled Slab Paths before (decoupled)
+                        if (!slabPathsUserOverride[0]) {
+                            slabPathsToggle.setSelected(true);
+                        }
+                        // renderingOptions.isClipPathsToSlab() is the actual effective flag and was forced false
                         // on deactivation since it's meaningless while there's no active slab. Re-sync it here to
                         // whatever the toggle currently shows, or re-activating slab would silently render all paths
                         // (front and back) despite Slab Paths still looking selected
@@ -3467,6 +3474,7 @@ public class Bvv extends AbstractBigViewer {
                 thickSpinner.addChangeListener(slabListener);
 
                 slabPathsToggle.addActionListener(ev -> {
+                    slabPathsUserOverride[0] = true; // user acted on it directly: decouple from Slab View's default
                     final boolean clip = slabPathsToggle.isSelected();
                     renderingOptions.setClipPathsToSlab(clip);
                     overlayRenderer.invalidateCache();
@@ -3507,27 +3515,32 @@ public class Bvv extends AbstractBigViewer {
                     IconFactory.GLYPH.CROSSHAIR, IconFactory.GLYPH.CROSSHAIR);
             crosshairToggle.setSelected(true);
             bar.add(crosshairToggle);
-            final JToggleButton axesToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    BvvActions.overlayToggleAction("Axes", false, show -> {
-                        if (sceneOverlay != null) { sceneOverlay.showAxes = show; bvvInstance.repaint(); }
-                    }),
-                    "Show/hide coordinate axes at the volume origin.\nX: Red; Y: Green; Z: Blue",
-                    IconFactory.GLYPH.CHART_LINE, IconFactory.GLYPH.CHART_LINE);
-            axesToggle.setSelected(false);
-            bar.add(axesToggle);
-            final JToggleButton boxToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    BvvActions.overlayToggleAction("Volume Box", false, show -> {
-                        if (sceneOverlay != null) { sceneOverlay.showBox = show; bvvInstance.repaint(); }
-                    }),
-                    "Show/hide bounding box around all loaded volumes",
-                    IconFactory.GLYPH.CUBE, IconFactory.GLYPH.CUBE);
-            boxToggle.setSelected(false);
-            bar.add(boxToggle);
+            bar.add(axesButton());
             bar.addSeparator();
             bar.add(Box.createHorizontalGlue());
             bar.addSeparator();
             bar.add(optionsButton(bvvActions));
             return bar;
+        }
+
+        private JButton axesButton() {
+            final JPopupMenu menu = new JPopupMenu();
+            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.CUBE, 1f, menu);
+            final JCheckBoxMenuItem axesItem = new JCheckBoxMenuItem(
+                    BvvActions.overlayToggleAction("Axes", false, show -> {
+                        if (sceneOverlay != null) { sceneOverlay.showAxes = show; bvvInstance.repaint(); }
+                    }));
+            axesItem.setToolTipText("Show/hide coordinate axes at the volume origin. X: Red; Y: Green; Z: Blue");
+            axesItem.setSelected(false);
+            menu.add(axesItem);
+            final JCheckBoxMenuItem boxItem = new JCheckBoxMenuItem(
+                    BvvActions.overlayToggleAction("Volume Box", false, show -> {
+                        if (sceneOverlay != null) { sceneOverlay.showBox = show; bvvInstance.repaint(); }
+                    }));
+            boxItem.setToolTipText("Show/hide bounding box around all loaded volumes");
+            boxItem.setSelected(false);
+            menu.add(boxItem);
+            return button;
         }
 
         private JButton optionsButton(final BvvActions actions) {
@@ -3796,7 +3809,7 @@ public class Bvv extends AbstractBigViewer {
             final double x0 = b[0], y0 = b[1], z0 = b[2], x1 = b[3], y1 = b[4], z1 = b[5];
 
             if (showAxes) {
-                g2.setStroke(new java.awt.BasicStroke(3f));
+                g2.setStroke(new java.awt.BasicStroke(4f));
                 final float axisLen = 0.20f * (float) Math.min(x1 - x0, Math.min(y1 - y0, z1 - z0));
                 drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0 + axisLen, y0, z0}, new java.awt.Color(220, 60, 60));
                 drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0, y0 + axisLen, z0}, new java.awt.Color(60, 200, 60));

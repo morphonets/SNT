@@ -242,11 +242,29 @@ public abstract class AbstractBigViewer {
         };
     }
 
+    /** Recursively finds the widest preferred width among any JToolBar descendants of {@code c} */
+    private static int widestToolbarPreferredWidth(final Container c) {
+        int widest = 0;
+        for (final Component comp : c.getComponents()) {
+            if (comp instanceof JToolBar) {
+                widest = Math.max(widest, comp.getPreferredSize().width);
+            } else if (comp instanceof Container) {
+                widest = Math.max(widest, widestToolbarPreferredWidth((Container) comp));
+            }
+        }
+        return widest;
+    }
+
     void resizeCardPanelsAsNeeded(final JComponent refPanel) {
         // Ensure the card panel is wide enough to show all controls without clipping.
         // Use the Scene Controls panel's own preferred width since it's the widest,
         // and its GridBagLayout has already computed the correct natural width.
-        final int cardPrefW = refPanel.getMinimumSize().width + 16; // minor padding
+        // Toolbars built by createToolbar() report a zeroed minimum width by design (see its
+        // javadoc), so GridBagLayout's minimum-size pass never sees their real button-row width.
+        // Recover it from each toolbar's preferred width instead (glue there contributes zero)
+        // and widen cardPrefW to fit the widest one too
+        final int cardPrefW = Math.max(refPanel.getMinimumSize().width,
+                widestToolbarPreferredWidth(refPanel)) + 16; // extra padding avoids clipping at frame edge
         SwingUtilities.invokeLater(() -> {
             final javax.swing.JSplitPane split = getViewerSplitPanel();
             if (split == null) return;
@@ -1095,7 +1113,7 @@ public abstract class AbstractBigViewer {
         menu.add(new JMenuItem(actions.autoBrightnessAllAction()));
         final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ADJUST, 1f, menu);
         button.setToolTipText("<html>Recompute brightness/contrast from data percentiles.<br>Useful to retry "
-                + "after loading large/remote datasets, where the automatic estimate is bounded by a timeout "
+                + "after loading large/remote datasets,<br>where the automatic estimate is bounded by a timeout<br>"
                 + "and may fall back to a default range.</html>");
         return button;
     }
@@ -1650,6 +1668,8 @@ public abstract class AbstractBigViewer {
         bar.add(GuiUtils.Buttons.toolbarButton(actions.fitToCurrentSourceAction(),
                 "Fit view to the current (selected) source"));
         bar.add(autoBrightnessButton(actions));
+        bar.addSeparator();
+        bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
         // Action names match those registered by BDV/BVV NavigationActions
         final java.util.HashMap<String, List<IconFactory.GLYPH>> planes = new java.util.LinkedHashMap<>();
