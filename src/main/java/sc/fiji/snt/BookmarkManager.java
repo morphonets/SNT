@@ -198,6 +198,17 @@ public class BookmarkManager {
     }
 
     /**
+     * Re-pushes all markers onto the viewer's shared {@link AbstractBigViewer.AnnotationOverlay}.
+     * A no-op in SNT-UI mode ({@code viewer == null}). Meant to be called by {@code Bvv}/{@code Bdv}
+     * right after (re)creating that overlay, so markers added while {@link #syncViewerOverlay()}
+     * was still no-op-ing on a null {@link AbstractBigViewer#annotations()} (i.e. before the
+     * viewer window existed) get rendered instead of silently staying buffered in the model.
+     */
+    public void resyncOverlay() {
+        syncViewerOverlay();
+    }
+
+    /**
      * Returns whether this manager's markers are currently rendered in the big-viewer's shared
      * {@link AbstractBigViewer.AnnotationOverlay}, independently of the paths and seed-annotation layers.
      *

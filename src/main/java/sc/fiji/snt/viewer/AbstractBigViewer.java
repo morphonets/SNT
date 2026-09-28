@@ -878,11 +878,29 @@ public abstract class AbstractBigViewer {
         switch (o) {
             case Tree t -> addTree(t, syncNow);
             case DirectedWeightedGraph g -> addTree(g.getTree(), syncNow);
+            case SNTPoint p -> addPoint(p);
             case Collection<?> c -> addCollection(c, syncNow);
             case null, default -> {
                 assert o != null;
                 throw new IllegalArgumentException("Unsupported type: " + o.getClass().getSimpleName());
             }
+        }
+    }
+
+    /**
+     * Adds a marker at {@code p} via the (lazily-created) {@link #getMarkerManager()}, which
+     * auto-syncs the overlay itself once a marker is added (see BookmarkManager's model listener),
+     * so there is no {@code syncNow} equivalent to honor here.
+     * <p>
+     * Dispatched onto the EDT when necessary: unlike {@link #addTree}, first-time
+     * {@link #getMarkerManager()} access lazily builds Swing components, which is unsafe off-EDT
+     * (see the matching guard in {@code Bvv#attachControlPanel}).
+     */
+    private void addPoint(final SNTPoint p) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            getMarkerManager().add(p.getX(), p.getY(), p.getZ());
+        } else {
+            SwingUtilities.invokeLater(() -> getMarkerManager().add(p.getX(), p.getY(), p.getZ()));
         }
     }
 

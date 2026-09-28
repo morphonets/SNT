@@ -1377,6 +1377,8 @@ public class Bvv extends AbstractBigViewer {
             sceneOverlay = new SceneOverlay();
             currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();
+            // Flush any markers added while annotations() was returning null (viewer not live yet)
+            if (hasMarkerManager()) getMarkerManager().resyncOverlay();
             final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
             final BvvActions actions = new BvvActions(bvv);
             // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
@@ -2056,6 +2058,10 @@ public class Bvv extends AbstractBigViewer {
 
     @Override
     public AnnotationOverlay annotations() {
+        // No live viewer yet (e.g. called before show()): overlay creation needs a
+        // real BigVolumeViewer, so defer rather than NPE-ing inside initializeAnnotationOverlay()
+        if (currentBvv == null) return null;
+        if (annotationOverlay == null) initializeAnnotationOverlay(currentBvv);
         return annotationOverlay;
     }
 

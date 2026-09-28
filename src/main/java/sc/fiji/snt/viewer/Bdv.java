@@ -629,6 +629,10 @@ public class Bdv extends AbstractBigViewer {
 
     @Override
     public Bvv.AnnotationOverlay annotations() {
+        // No live viewer yet (e.g. called before show()): overlay creation needs a
+        // real viewerPanel, so defer rather than NPE-ing inside initializeOverlays()
+        if (viewerPanel == null) return null;
+        if (annotationOverlay == null) initializeOverlays();
         return annotationOverlay;
     }
 
@@ -743,6 +747,8 @@ public class Bdv extends AbstractBigViewer {
         annotationOverlay = new Bvv.AnnotationOverlay(bvp, renderingOptions);
         // dCam=MAX_VALUE => orthographic (same formula as pathOverlay); near/far set by updateSliceClip
         annotationOverlay.setCamParams(Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE);
+        // Flush any markers added while annotations() was returning null (viewer not live yet)
+        if (hasMarkerManager()) getMarkerManager().resyncOverlay();
 
         // Slice-aware clipping: paths and annotations outside +-0.5 voxels are hidden.
         renderingOptions.setClipPathsToSlab(true);
