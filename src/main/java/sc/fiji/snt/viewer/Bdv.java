@@ -123,7 +123,6 @@ public class Bdv extends AbstractBigViewer {
     // Grace period added on top of an animated setViewerTransform()'s own duration before a trace click
     // is accepted again; mirrors Bvv's own RECENTER_SETTLE_BUFFER_MS constant/rationale.
     private static final long TRANSFORM_SETTLE_BUFFER_MS = 150;
-    private JProgressBar progressBar; // Docked at CardPanel bottom; see updateStatus()
 
 
 
@@ -641,32 +640,6 @@ public class Bdv extends AbstractBigViewer {
     }
 
     /**
-     * @see AbstractBigViewer#updateStatus(String, int, int)
-     */
-    @Override
-    public void updateStatus(final String message, final int step, final int nSteps) {
-        SwingUtilities.invokeLater(() -> {
-            if (progressBar == null) return;
-            if (nSteps == 0) {
-                progressBar.setIndeterminate(false);
-                progressBar.setVisible(false);
-                progressBar.setValue(0);
-                progressBar.setString("");
-            } else if (nSteps < 0) {
-                progressBar.setIndeterminate(true);
-                progressBar.setString(message == null ? "" : message);
-                progressBar.setVisible(true);
-            } else {
-                progressBar.setIndeterminate(false);
-                progressBar.setMaximum(nSteps);
-                progressBar.setValue(step);
-                progressBar.setString(message == null ? "" : message);
-                progressBar.setVisible(true);
-            }
-        });
-    }
-
-    /**
      * @see AbstractBigViewer#resyncCalibrationFromActiveSource()
      */
     @Override
@@ -917,6 +890,23 @@ public class Bdv extends AbstractBigViewer {
             annotationOverlay.setCamParams(Double.MAX_VALUE, slabZ, slabZ);
     }
 
+    /** Places a marker at the current mouse position (M key) */
+    private Action addMarkerAction() {
+        return new AbstractAction("Add Marker") {
+            @Override
+            public void actionPerformed(final java.awt.event.ActionEvent e) {
+                if (blockMarkerPlacement()) return;
+                final RealPoint pos = new RealPoint(3);
+                getGlobalMouseCoordinates(pos);
+                final double x = pos.getDoublePosition(0);
+                final double y = pos.getDoublePosition(1);
+                final double z = pos.getDoublePosition(2);
+                getMarkerManager().add(x, y, z);
+                showViewerMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
+            }
+        };
+    }
+
     private void initializeCardPanel() {
         // addCard() below builds JComponents (Card/HeaderPanel) directly, which is
         // unsafe if this runs off-EDT (e.g. from a SciJava command thread): it can
@@ -944,68 +934,14 @@ public class Bdv extends AbstractBigViewer {
                 cp.setCardExpanded("SNT Controls", true);
             });
             resizeCardPanelsAsNeeded(cp.getComponent());
-            // Progress bar: docked at the bottom of the card panel, below all cards, without a card
-            // header - see Bvv's identical placement for why (avoids viewport flicker vs. BorderLayout.SOUTH)
-            progressBar = new JProgressBar(0, 100);
-            progressBar.setStringPainted(true);
-            progressBar.setString("");
-            progressBar.setVisible(false);
-            addToCardPanelBottom(cp, progressBar);
+            initProgressBar(cp);
         }
 
         // M and H keys via BDV's keybindings system so the trigger layer sees them
         if (bdvHandle.getSplitPanel().getTopLevelAncestor() instanceof bdv.viewer.ViewerFrame vf) {
             final javax.swing.InputMap sntIMap = new javax.swing.InputMap();
             final javax.swing.ActionMap sntAMap = new javax.swing.ActionMap();
-            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), "snt-add-marker");
-            sntAMap.put("snt-add-marker", new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (blockMarkerPlacement()) return;
-                    final RealPoint pos = new RealPoint(3);
-                    getGlobalMouseCoordinates(pos);
-                    final double x = pos.getDoublePosition(0);
-                    final double y = pos.getDoublePosition(1);
-                    final double z = pos.getDoublePosition(2);
-                    getMarkerManager().add(x, y, z);
-                    showViewerMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
-                }
-            });
-            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, false), "snt-hide-annotations-press");
-            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true),  "snt-hide-annotations-release");
-            sntAMap.put("snt-hide-annotations-press",   actions.hideAnnotationsPressAction());
-            sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
-            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, 0), "snt-toggle-secondary-layer");
-            sntAMap.put("snt-toggle-secondary-layer", actions.toggleSecondaryLayerTracingAction());
-            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0), "snt-pick-sigma-point");
-            sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
-            if (tracer != null) {
-                // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
-                // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
-                // NB: this intentionally shadows BDV/BVV's own native "toggle grouping" (plain G)
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, 0), "snt-select-nearest-path");
-                sntAMap.put("snt-select-nearest-path", tracer.getSelectNearestPathAction(false));
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-append-nearest-path");
-                sntAMap.put("snt-append-nearest-path", tracer.getSelectNearestPathAction(true));
-                // Finish/discard the in-progress tracing path without a canvas click (see Bvv's identical
-                // wiring for why Enter/Esc are used instead of a double click to finish)
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "snt-finish-path");
-                sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
-                sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, 0), "snt-undo-segment"); // see Tracer#undoLastSegment
-                sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
-                // Space: a quick tap flips tracing on/off permanently (like clicking No tracing/  Manual/Interactive);
-                // holding it past a threshold instead changes to "No tracing" for as long as it's held and snaps back
-                // on release (mirrors InteractiveTracerCanvas#mousePressed hold-Space-to-pan convention). See
-                // AbstractTracer#getToggleTracingHoldPressAction/ReleaseAction for the tap/hold logic. Like G above,
-                // this intentionally shadows BDV's own native Space binding, if any, since both maps share this same
-                // "snt" input map
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "snt-toggle-tracing-hold-press");
-                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, true), "snt-toggle-tracing-hold-release");
-                sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
-                sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
-            }
+            registerSntKeybindings(sntIMap, sntAMap, actions, addMarkerAction(), tracer);
             registerKeyframeCapture(sntIMap, sntAMap);
             // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BDV
             // window can be opened in classic mode too, and its own keybindings layer needs this regardless

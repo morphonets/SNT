@@ -355,7 +355,45 @@ public abstract class AbstractBigViewer {
      * @param step    current step (0-based; ignored in indeterminate mode)
      * @param nSteps  total steps (0 = hide, negative = indeterminate)
      */
-    public abstract void updateStatus(String message, int step, int nSteps);
+    public void updateStatus(final String message, final int step, final int nSteps) {
+        SwingUtilities.invokeLater(() -> {
+            if (progressBar == null) return;
+            if (nSteps == 0) {
+                progressBar.setIndeterminate(false);
+                progressBar.setVisible(false);
+                progressBar.setValue(0);
+                progressBar.setString("");
+            } else if (nSteps < 0) {
+                progressBar.setIndeterminate(true);
+                progressBar.setString(message == null ? "" : message);
+                progressBar.setVisible(true);
+            } else {
+                progressBar.setIndeterminate(false);
+                progressBar.setMaximum(nSteps);
+                progressBar.setValue(step);
+                progressBar.setString(message == null ? "" : message);
+                progressBar.setVisible(true);
+            }
+        });
+    }
+
+    /** Progress bar docked at the bottom of the card panel: see {@link #initProgressBar} */
+    private JProgressBar progressBar;
+
+    /**
+     * Creates the progress bar driven by {@link #updateStatus(String, int, int)} and docks it at the
+     * bottom of the card panel, below all cards and without a card header. This avoids the viewport
+     * flicker caused by adding the bar to the frame's BorderLayout.SOUTH.
+     *
+     * @param cardPanel the viewer's card panel
+     */
+    protected void initProgressBar(final bdv.ui.CardPanel cardPanel) {
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setStringPainted(true);
+        progressBar.setString("");
+        progressBar.setVisible(false);
+        addToCardPanelBottom(cardPanel, progressBar);
+    }
 
     /**
      * Forces {@code snt}'s image metadata (dimensions, calibration, pixel data, channel/frame) to be
@@ -838,6 +876,61 @@ public abstract class AbstractBigViewer {
     /** Auto-incrementing counter for keyframe identifiers (K hotkey) */
     private static final java.util.concurrent.atomic.AtomicInteger keyframeCounter =
             new java.util.concurrent.atomic.AtomicInteger(1);
+
+    /**
+     * Registers SNT's viewer keybindings shared by Bvv and Bdv: {@code M} (marker), {@code H}
+     * (hold to hide annotations), {@code L} (secondary layer), {@code P} (pick sigma point) and,
+     * if a tracer is available, the tracing shortcuts (G, Shift+G, Enter, Esc, Z, Space). They must
+     * go through BDV/BVV's keybindings system, since its input trigger layer shadows ordinary Swing
+     * InputMaps. Same {@code sntIMap}/{@code sntAMap} constraints as
+     * {@link #registerCommandFinderAccelerator}.
+     *
+     * @param sntIMap   the viewer's own SNT-overlay {@link InputMap}, not yet installed
+     * @param sntAMap   the matching {@link ActionMap}, not yet installed
+     * @param actions   the viewer's {@link Actions}
+     * @param addMarker the action bound to {@code M}
+     * @param tracer    the viewer's tracer, or {@code null} if tracing is unavailable
+     */
+    protected void registerSntKeybindings(final InputMap sntIMap, final ActionMap sntAMap,
+            final Actions actions, final Action addMarker, final AbstractTracer tracer) {
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), "snt-add-marker");
+        sntAMap.put("snt-add-marker", addMarker);
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, false), "snt-hide-annotations-press");
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true), "snt-hide-annotations-release");
+        sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
+        sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, 0), "snt-toggle-secondary-layer");
+        sntAMap.put("snt-toggle-secondary-layer", actions.toggleSecondaryLayerTracingAction());
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0), "snt-pick-sigma-point");
+        sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
+        if (tracer == null) return;
+        // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
+        // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
+        // NB: this intentionally shadows BDV/BVV's own native "toggle grouping" (plain G)
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, 0), "snt-select-nearest-path");
+        sntAMap.put("snt-select-nearest-path", tracer.getSelectNearestPathAction(false));
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.SHIFT_DOWN_MASK), "snt-append-nearest-path");
+        sntAMap.put("snt-append-nearest-path", tracer.getSelectNearestPathAction(true));
+        // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is
+        // itself a click, and its first (clickCount==1) event is indistinguishable from an ordinary
+        // "extend path" click, so it lands a spurious node right next to the previous. Enter/Esc avoids
+        // this since neither is a MouseEvent
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "snt-finish-path");
+        sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
+        sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, 0), "snt-undo-segment"); // see Tracer#undoLastSegment
+        sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
+        // Space: a quick tap flips tracing on/off permanently (like clicking No tracing/Manual/Interactive);
+        // holding it past a threshold instead changes to "No tracing" for as long as it's held and snaps
+        // back on release (mirrors InteractiveTracerCanvas#mousePressed hold-Space-to-pan convention). See
+        // AbstractTracer#getToggleTracingHoldPressAction/ReleaseAction for the tap/hold logic (shadows BDV's own native
+        // Space binding)
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, false), "snt-toggle-tracing-hold-press");
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0, true), "snt-toggle-tracing-hold-release");
+        sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
+        sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
+    }
 
     /**
      * Registers the {@code K} hotkey that captures a {@link Keyframe}: the script-ready line is

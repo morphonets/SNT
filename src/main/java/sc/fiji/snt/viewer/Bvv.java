@@ -99,7 +99,6 @@ public class Bvv extends AbstractBigViewer {
     // snt, cal, dims, calUnit, renderedTrees, spimDataFilePaths, markerManager: inherited from AbstractBigViewer
 
     private final BvvOptions options;
-    private JProgressBar progressBar; // Docked at CardPanel bottom via addToCardPanelBottom().
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
@@ -1386,59 +1385,17 @@ public class Bvv extends AbstractBigViewer {
             // SNT toolbar
             sntAnnotationsCard = sntToolbar(actions);
             bvvFrame.getCardPanel().addCard("SNT Controls", sntAnnotationsCard, true);
-            // Progress bar: docked at the bottom of the card panel, below all
-            // cards, without a card header.  This avoids the viewport flicker
-            // caused by adding the bar to the frame's BorderLayout.SOUTH.
-            progressBar = new JProgressBar(0, 100);
-            progressBar.setStringPainted(true);
-            progressBar.setString("");
-            progressBar.setVisible(false);
-            addToCardPanelBottom(bvvFrame.getCardPanel(), progressBar);
+            initProgressBar(bvvFrame.getCardPanel());
             // Register shortcuts through BDV's keybindings system so they are
             // handled at the same level as BVV's own shortcuts (e.g., Shift+B).
             // Using Swing's InputMap/ActionMap directly gets shadowed by BDV's
             // input trigger layer.
             final InputMap sntIMap = new InputMap();
             final ActionMap sntAMap = new ActionMap();
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_M, 0), "snt-add-marker");
-            sntAMap.put("snt-add-marker", actions.addMarkerAction());
+            registerSntKeybindings(sntIMap, sntAMap, actions, actions.addMarkerAction(), tracer);
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
                     java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-bvv-snapshot");
             sntAMap.put("snt-bvv-snapshot", snapshotAction());
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_H, 0, false),
-                    "snt-hide-annotations-press");
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_H, 0, true),
-                    "snt-hide-annotations-release");
-            sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
-            sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, 0), "snt-toggle-secondary-layer");
-            sntAMap.put("snt-toggle-secondary-layer", actions.toggleSecondaryLayerTracingAction());
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_P, 0), "snt-pick-sigma-point");
-            sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
-            if (tracer != null) {
-                // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
-                // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
-                // NB: this intentionally shadows BDV/BVV's own native "toggle grouping" (plain G)
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G, 0), "snt-select-nearest-path");
-                sntAMap.put("snt-select-nearest-path", tracer.getSelectNearestPathAction(false));
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G,
-                        java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-append-nearest-path");
-                sntAMap.put("snt-append-nearest-path", tracer.getSelectNearestPathAction(true));
-                // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is itself a
-                // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so
-                // it lands a spurious node right next to the previous. Enter/Esc avoids this since neither is a MouseEvent
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "snt-finish-path");
-                sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
-                sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, 0), "snt-undo-segment"); //See Tracer#undoLastSegment
-                sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
-                // Space: a quick tap flips tracing on/off permanently: see comments on mirrored code in Bdv
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, 0, false), "snt-toggle-tracing-hold-press");
-                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, 0, true), "snt-toggle-tracing-hold-release");
-                sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
-                sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
-            }
             registerKeyframeCapture(sntIMap, sntAMap);
             // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BVV
             // window can be opened in classic mode too, and its own keybindings layer needs this regardless
@@ -1985,32 +1942,6 @@ public class Bvv extends AbstractBigViewer {
                 updateStatus("", 0, 0); // clear / hide progress bar
             }
         }.execute();
-    }
-
-    /**
-     * @see AbstractBigViewer#updateStatus(String, int, int)
-     */
-    @Override
-    public void updateStatus(final String message, final int step, final int nSteps) {
-        SwingUtilities.invokeLater(() -> {
-            if (progressBar == null) return;
-            if (nSteps == 0) {
-                progressBar.setIndeterminate(false);
-                progressBar.setVisible(false);
-                progressBar.setValue(0);
-                progressBar.setString("");
-            } else if (nSteps < 0) {
-                progressBar.setIndeterminate(true);
-                progressBar.setString(message == null ? "" : message);
-                progressBar.setVisible(true);
-            } else {
-                progressBar.setIndeterminate(false);
-                progressBar.setMaximum(nSteps);
-                progressBar.setValue(step);
-                progressBar.setString(message == null ? "" : message);
-                progressBar.setVisible(true);
-            }
-        });
     }
 
     /**
