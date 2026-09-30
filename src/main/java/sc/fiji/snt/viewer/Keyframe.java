@@ -63,6 +63,12 @@ public class Keyframe {
      */
     public int timepoint = -1;
     /**
+     * Viewer (canvas) size in pixels at capture, or {@code -1} if unspecified. The viewer transform is
+     * in screen pixels, so it depends on the canvas size: see {@link #transformFor(int, int)}.
+     */
+    public int width = -1, height = -1;
+
+    /**
      * Per-source display settings (levels and LUT color), keyed by 0-based source index. Interpolated
      * between keyframes for sources present in both; sources absent from the map are left untouched.
      */
@@ -162,6 +168,8 @@ public class Keyframe {
         this.frames = parsed.frames;
         this.timepoint = parsed.timepoint;
         this.display.putAll(parsed.display);
+        this.width = parsed.width;
+        this.height = parsed.height;
     }
 
     public Keyframe(final AffineTransform3D transform, final double dCam, final double nearClip,
@@ -220,12 +228,65 @@ public class Keyframe {
     }
 
     /**
+     * Returns a copy of the viewer transform adjusted to a canvas of the given size. Mirrors what the
+     * viewer does when resized (the scene center stays at the canvas center): the translation is
+     * shifted by half the size difference. The transform is returned unchanged if this keyframe has
+     * no recorded size.
+     *
+     * @param canvasWidth  the current canvas width in pixels
+     * @param canvasHeight the current canvas height in pixels
+     * @return a new transform
+     */
+    public AffineTransform3D transformFor(final int canvasWidth, final int canvasHeight) {
+        final AffineTransform3D t = transform.copy();
+        if (width > 0 && height > 0) {
+            t.set(t.get(0, 3) + 0.5 * (canvasWidth - width), 0, 3);
+            t.set(t.get(1, 3) + 0.5 * (canvasHeight - height), 1, 3);
+        }
+        return t;
+    }
+
+    /**
+     * Sets the transition length (chainable, for scripts).
+     *
+     * @param frames number of frames of the transition into this keyframe
+     * @return this keyframe
+     */
+    public Keyframe frames(final int frames) {
+        this.frames = frames;
+        return this;
+    }
+
+    /**
+     * Sets the easing type by name (chainable, for scripts).
+     *
+     * @param name the easing name, see {@link #setAccel(String)}
+     * @return this keyframe
+     */
+    public Keyframe accel(final String name) {
+        setAccel(name);
+        return this;
+    }
+
+    /**
      * Serializes this keyframe to a single-line string:
-     * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a;b;c|accel=name|frames=N|t=N|display=i:min,max,#RRGGBB;...}
-     * (the timepoint and display entries are omitted if unspecified).
+     * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a;b;c|accel=name|frames=N|t=N|size=WxH|display=i:min,max,#RRGGBB;...}
+     * (the timepoint, size and display entries are omitted if unspecified).
      */
     @Override
     public String toString() {
+        return toString(true);
+    }
+
+    /**
+     * Serializes this keyframe, optionally leaving out the timing entries ({@code accel} and
+     * {@code frames}), e.g., when they are set separately through {@link #frames(int)} and
+     * {@link #accel(String)}.
+     *
+     * @param includeTiming whether to include the {@code accel} and {@code frames} entries
+     * @return the serialized keyframe
+     */
+    public String toString(final boolean includeTiming) {
         final StringBuilder sb = new StringBuilder("transform=");
         final double[] m = transform.getRowPackedCopy();
         for (int i = 0; i < m.length; i++) {
@@ -236,9 +297,12 @@ public class Keyframe {
         // Sanitize actor names: replace ';' to avoid breaking the delimiter
         sb.append("|visible=").append(visibleActors.stream().map(a -> a.replace(';', '_'))
                 .collect(Collectors.joining(";")));
-        sb.append("|accel=").append(getAccelNameSerialized());
-        sb.append("|frames=").append(frames);
+        if (includeTiming) {
+            sb.append("|accel=").append(getAccelNameSerialized());
+            sb.append("|frames=").append(frames);
+        }
         if (timepoint > 0) sb.append("|t=").append(timepoint);
+        if (width > 0 && height > 0) sb.append("|size=").append(width).append('x').append(height);
         if (!display.isEmpty()) {
             sb.append("|display=").append(display.entrySet().stream().map(e -> {
                 final SourceDisplay d = e.getValue();
@@ -290,6 +354,12 @@ public class Keyframe {
             final int frames = Integer.parseInt(parts.getOrDefault("frames", "60"));
             final Keyframe kf = new Keyframe(t, dc, nc, fc, vis, accel, frames);
             kf.timepoint = Integer.parseInt(parts.getOrDefault("t", "-1"));
+            final String sizeStr = parts.getOrDefault("size", "");
+            if (!sizeStr.isBlank()) {
+                final String[] wh = sizeStr.split("x");
+                kf.width = Integer.parseInt(wh[0].trim());
+                kf.height = Integer.parseInt(wh[1].trim());
+            }
             final String dispStr = parts.getOrDefault("display", "");
             if (!dispStr.isBlank()) {
                 for (final String entry : dispStr.split(";")) {

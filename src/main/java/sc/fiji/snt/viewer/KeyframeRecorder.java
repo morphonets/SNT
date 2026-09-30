@@ -83,6 +83,8 @@ final class KeyframeRecorder {
         if (ann != null && ann.isVisible()) actors.add("annotations");
         final Keyframe kf = new Keyframe(viewer.getViewerTransform(), cam[0], cam[1], cam[2], actors, 0);
         kf.timepoint = viewer.getCurrentTimepoint();
+        kf.width = viewer.getViewerWidth();
+        kf.height = viewer.getViewerHeight();
         final ConverterSetups setups = viewer.getConverterSetups();
         if (setups != null) {
             for (int i = 0; i < srcs.size(); i++) {
@@ -152,6 +154,33 @@ final class KeyframeRecorder {
         });
     }
 
+    /**
+     * Creates the animator interpolating between two transforms. The animator is probed at both ends: if
+     * it does not reproduce the keyframes (e.g., because it adds the center offset {@code cX/cY} to the
+     * translation, shifting the whole scene), the inputs are pre-shifted to compensate.
+     */
+    private static SimilarityTransformAnimator animatorFor(final AffineTransform3D a, final AffineTransform3D b,
+                                                           final double cX, final double cY) {
+        SimilarityTransformAnimator animator = new SimilarityTransformAnimator(a, b, cX, cY, 0);
+        final double[] d0 = offset(animator.get(0), a);
+        final double[] d1 = offset(animator.get(1), b);
+        if (Math.abs(d0[0]) > 1e-3 || Math.abs(d0[1]) > 1e-3 || Math.abs(d1[0]) > 1e-3 || Math.abs(d1[1]) > 1e-3) {
+            animator = new SimilarityTransformAnimator(shifted(a, d0), shifted(b, d1), cX, cY, 0);
+        }
+        return animator;
+    }
+
+    private static double[] offset(final AffineTransform3D actual, final AffineTransform3D expected) {
+        return new double[] { actual.get(0, 3) - expected.get(0, 3), actual.get(1, 3) - expected.get(1, 3) };
+    }
+
+    private static AffineTransform3D shifted(final AffineTransform3D t, final double[] delta) {
+        final AffineTransform3D copy = t.copy();
+        copy.set(t.get(0, 3) - delta[0], 0, 3);
+        copy.set(t.get(1, 3) - delta[1], 1, 3);
+        return copy;
+    }
+
     private static boolean saveFrame(final Component canvas, final File dir, final int index) {
         final BufferedImage bi = new BufferedImage(canvas.getWidth(), canvas.getHeight(),
                 BufferedImage.TYPE_INT_RGB);
@@ -181,16 +210,24 @@ final class KeyframeRecorder {
             throw new IllegalArgumentException("Cannot create output directory: " + outputDir);
 
         final Component canvas = viewer.getViewerCanvas();
-        final int cX = canvas.getWidth() / 2;
-        final int cY = canvas.getHeight() / 2;
+        // Use the viewer's own notion of its size (the one its transform is centered on), which
+        // is not necessarily the size of the canvas component, and adjust keyframes captured at another size
+        final int vw = viewer.getViewerWidth();
+        final int vh = viewer.getViewerHeight();
+        final int cX = vw / 2;
+        final int cY = vh / 2;
+        final AffineTransform3D[] transforms = new AffineTransform3D[keyframes.size()];
+        for (int k = 0; k < transforms.length; k++) {
+            final Keyframe kf = keyframes.get(k);
+            transforms[k] = kf.transformFor(vw, vh);
+        }
         int globalFrame = 0;
         try {
             for (int k = 1; k < keyframes.size(); k++) {
                 final Keyframe from = keyframes.get(k - 1);
                 final Keyframe to = keyframes.get(k);
                 final int nFrames = to.frames;
-                final SimilarityTransformAnimator animator = new SimilarityTransformAnimator(
-                        from.transform, to.transform, cX, cY, 0);
+                final SimilarityTransformAnimator animator = animatorFor(transforms[k - 1], transforms[k], cX, cY);
                 final boolean interpolateT = from.timepoint > 0 && to.timepoint > 0;
                 // Visibility and cam/slab snap at keyframe boundaries
                 applyState(from);
@@ -210,7 +247,7 @@ final class KeyframeRecorder {
             }
             final Keyframe last = keyframes.getLast();
             applyState(last);
-            showAndWait(last.transform, last.timepoint, last.display);
+            showAndWait(transforms[transforms.length - 1], last.timepoint, last.display);
             if (save) {
                 Thread.sleep(100); // allow final render
                 saveFrame(canvas, dir, globalFrame);
@@ -223,8 +260,11 @@ final class KeyframeRecorder {
             SNTUtils.log("Movie render failed at frame " + globalFrame + ": " + e.getMessage());
             return;
         }
-        if (save)
-            System.out.println("Movie: " + (globalFrame + 1) + " frames saved to " + dir.getAbsolutePath());
+        if (save) {
+            VideoInstructions.write(dir, 30, "frame_%05d.png");
+            System.out.println("Movie: " + (globalFrame + 1) + " frames saved to " + dir.getAbsolutePath()
+                    + " (see " + VideoInstructions.FILE_NAME + " to assemble the video)");
+        }
         else
             System.out.println("Playback complete: " + (globalFrame + 1) + " frames");
     }

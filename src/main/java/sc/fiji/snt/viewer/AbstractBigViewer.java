@@ -873,9 +873,8 @@ public abstract class AbstractBigViewer {
         sntAMap.put(actionKey, commandFinder.getToggleVisibilityAction());
     }
 
-    /** Auto-incrementing counter for keyframe identifiers (K hotkey) */
-    private static final java.util.concurrent.atomic.AtomicInteger keyframeCounter =
-            new java.util.concurrent.atomic.AtomicInteger(1);
+    /** Script-ready lines of the keyframes captured with the K hotkey since the last reset */
+    private final List<String> capturedKeyframes = new ArrayList<>();
 
     /**
      * Registers SNT's viewer keybindings shared by Bvv and Bdv: {@code M} (marker), {@code H}
@@ -933,9 +932,10 @@ public abstract class AbstractBigViewer {
     }
 
     /**
-     * Registers the {@code K} hotkey that captures a {@link Keyframe}: the script-ready line is
-     * printed to the console and copied to the clipboard. Same {@code sntIMap}/{@code sntAMap}
-     * constraints as {@link #registerCommandFinderAccelerator}.
+     * Registers the keyframe hotkeys: {@code K} captures a {@link Keyframe} and appends it to a running
+     * script-ready {@code kfs} block that is printed to the console and copied to the clipboard, and
+     * {@code Shift+K} clears that block. Same {@code sntIMap}/{@code sntAMap} constraints as
+     * {@link #registerCommandFinderAccelerator}.
      *
      * @param sntIMap the viewer's own SNT-overlay {@link InputMap}, not yet installed
      * @param sntAMap the matching {@link ActionMap}, not yet installed
@@ -946,16 +946,30 @@ public abstract class AbstractBigViewer {
             @Override
             public void actionPerformed(final ActionEvent e) {
                 try {
-                    final int id = keyframeCounter.getAndIncrement();
-                    final String scriptLine = String.format("kf%02d = new Keyframe(\"%s\")", id,
-                            captureKeyframe());
-                    System.out.println(scriptLine);
-                    showViewerMessage("Keyframe #" + id + " captured");
+                    final String line = String.format("    new Keyframe(\"%s\")\n\t.frames(60).accel(\"symmetric\"),",
+                            captureKeyframe().toString(false));
+                    final String block;
+                    synchronized (capturedKeyframes) {
+                        capturedKeyframes.add(line);
+                        block = "def kfs = [\n" + String.join("\n", capturedKeyframes) + "\n]";
+                        showViewerMessage("Keyframe #" + capturedKeyframes.size() + " captured (copied)");
+                    }
+                    System.out.println(block);
                     java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
-                            .setContents(new java.awt.datatransfer.StringSelection(scriptLine), null);
+                            .setContents(new java.awt.datatransfer.StringSelection(block), null);
                 } catch (final Exception ex) {
                     SNTUtils.log("Keyframe capture failed: " + ex.getMessage());
                 }
+            }
+        });
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_K, InputEvent.SHIFT_DOWN_MASK), "snt-clear-keyframes");
+        sntAMap.put("snt-clear-keyframes", new AbstractAction() {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                synchronized (capturedKeyframes) {
+                    capturedKeyframes.clear();
+                }
+                showViewerMessage("Captured keyframes cleared");
             }
         });
     }
@@ -1411,6 +1425,12 @@ public abstract class AbstractBigViewer {
     }
 
     protected class Actions {
+        private GuiUtils guiUtils;
+        // State for hide-annotations (H key) press/release tracking
+        float lastClippingDistance = 100f;
+        private boolean hideActive;
+        private boolean pathsWereVisible;
+        private boolean annotationsWereVisible;
 
         Action loadSettingsAction() {
             return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
@@ -1468,13 +1488,6 @@ public abstract class AbstractBigViewer {
                 }
             };
         }
-        private GuiUtils guiUtils;
-        // State for hide-annotations (H key) press/release tracking
-        float lastClippingDistance = 100f;
-        private boolean hideActive;
-        private boolean pathsWereVisible;
-        private boolean annotationsWereVisible;
-
 
         /**
          * Creates an {@link Action} that calls {@code onToggle} with the toggle button's
