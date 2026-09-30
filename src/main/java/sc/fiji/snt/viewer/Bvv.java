@@ -2308,6 +2308,12 @@ public class Bvv extends AbstractBigViewer {
     }
 
     @Override
+    protected bdv.viewer.ConverterSetups getConverterSetups() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return (p == null) ? null : p.getConverterSetups();
+    }
+
+    @Override
     protected double[] getCamParams() {
         if (pathOverlay == null) return super.getCamParams();
         final var r = pathOverlay.overlayRenderer;

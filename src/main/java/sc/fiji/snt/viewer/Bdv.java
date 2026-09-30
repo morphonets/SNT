@@ -524,6 +524,11 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    protected bdv.viewer.ConverterSetups getConverterSetups() {
+        return (bdvHandle == null) ? null : bdvHandle.getConverterSetups();
+    }
+
+    @Override
     protected void awaitRender(final Runnable trigger) throws InterruptedException {
         final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         final bdv.viewer.TransformListener<AffineTransform3D> listener = t -> latch.countDown();

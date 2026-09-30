@@ -63,6 +63,50 @@ public class Keyframe {
      */
     public int timepoint = -1;
     /**
+     * Per-source display settings (levels and LUT color), keyed by 0-based source index. Interpolated
+     * between keyframes for sources present in both; sources absent from the map are left untouched.
+     */
+    public final Map<Integer, SourceDisplay> display = new LinkedHashMap<>();
+
+    /**
+     * Display settings of a single source.
+     *
+     * @param min the display range minimum
+     * @param max the display range maximum
+     * @param rgb the LUT color as 0xRRGGBB, or -1 if unspecified/unsupported
+     */
+    public record SourceDisplay(double min, double max, int rgb) {
+
+        /** Linear interpolation; color is interpolated per RGB channel if both are specified */
+        SourceDisplay lerp(final SourceDisplay to, final double t) {
+            int c = (t < 0.5) ? rgb : to.rgb;
+            if (rgb >= 0 && to.rgb >= 0) {
+                c = 0;
+                for (int shift = 16; shift >= 0; shift -= 8) {
+                    final double a = (rgb >> shift) & 0xFF;
+                    final double b = (to.rgb >> shift) & 0xFF;
+                    c |= ((int) Math.round(a + t * (b - a)) & 0xFF) << shift;
+                }
+            }
+            return new SourceDisplay(min + t * (to.min - min), max + t * (to.max - max), c);
+        }
+    }
+
+    /**
+     * Display settings at progress {@code t} (eased, in [0, 1]) between two keyframes, for the
+     * sources specified in both.
+     */
+    static Map<Integer, SourceDisplay> interpolateDisplay(final Keyframe from, final Keyframe to,
+                                                          final double t) {
+        final Map<Integer, SourceDisplay> result = new LinkedHashMap<>();
+        from.display.forEach((idx, a) -> {
+            final SourceDisplay b = to.display.get(idx);
+            if (b != null) result.put(idx, a.lerp(b, t));
+        });
+        return result;
+    }
+
+    /**
      * Easing type for the transition <em>into</em> this keyframe (0-5). Can be set by name via
      * {@link #setAccel(String)}.
      *
@@ -117,6 +161,7 @@ public class Keyframe {
         this.accelType = parsed.accelType;
         this.frames = parsed.frames;
         this.timepoint = parsed.timepoint;
+        this.display.putAll(parsed.display);
     }
 
     public Keyframe(final AffineTransform3D transform, final double dCam, final double nearClip,
@@ -176,8 +221,8 @@ public class Keyframe {
 
     /**
      * Serializes this keyframe to a single-line string:
-     * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a;b;c|accel=name|frames=N|t=N}
-     * (the timepoint entry is omitted if unspecified).
+     * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a;b;c|accel=name|frames=N|t=N|display=i:min,max,#RRGGBB;...}
+     * (the timepoint and display entries are omitted if unspecified).
      */
     @Override
     public String toString() {
@@ -194,6 +239,13 @@ public class Keyframe {
         sb.append("|accel=").append(getAccelNameSerialized());
         sb.append("|frames=").append(frames);
         if (timepoint > 0) sb.append("|t=").append(timepoint);
+        if (!display.isEmpty()) {
+            sb.append("|display=").append(display.entrySet().stream().map(e -> {
+                final SourceDisplay d = e.getValue();
+                return e.getKey() + ":" + d.min() + "," + d.max()
+                        + (d.rgb() >= 0 ? String.format(",#%06X", d.rgb()) : "");
+            }).collect(Collectors.joining(";")));
+        }
         return sb.toString();
     }
 
@@ -238,6 +290,16 @@ public class Keyframe {
             final int frames = Integer.parseInt(parts.getOrDefault("frames", "60"));
             final Keyframe kf = new Keyframe(t, dc, nc, fc, vis, accel, frames);
             kf.timepoint = Integer.parseInt(parts.getOrDefault("t", "-1"));
+            final String dispStr = parts.getOrDefault("display", "");
+            if (!dispStr.isBlank()) {
+                for (final String entry : dispStr.split(";")) {
+                    final String[] idxAndVals = entry.split(":");
+                    final String[] v = idxAndVals[1].split(",");
+                    final int rgb = (v.length > 2) ? Integer.parseInt(v[2].substring(1), 16) : -1;
+                    kf.display.put(Integer.parseInt(idxAndVals[0].trim()),
+                            new SourceDisplay(Double.parseDouble(v[0]), Double.parseDouble(v[1]), rgb));
+                }
+            }
             return kf;
         } catch (final Exception e) {
             SNTUtils.log("Keyframe parse error: " + e.getMessage());

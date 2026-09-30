@@ -22,11 +22,14 @@
 
 package sc.fiji.snt.viewer;
 
+import bdv.tools.brightness.ConverterSetup;
+import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.SourceGroup;
 import bdv.viewer.SynchronizedViewerState;
 import bdv.viewer.animate.SimilarityTransformAnimator;
 import net.imglib2.realtransform.AffineTransform3D;
+import net.imglib2.type.numeric.ARGBType;
 import sc.fiji.snt.SNTUtils;
 
 import javax.imageio.ImageIO;
@@ -35,9 +38,9 @@ import java.awt.Component;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -64,25 +67,31 @@ final class KeyframeRecorder {
         final SynchronizedViewerState state = state();
         final double[] cam = viewer.getCamParams();
         final Set<String> actors = new LinkedHashSet<>();
-        // Collect sources that belong to at least one group (active or not)
         final List<SourceGroup> groups = state.getGroups();
-        final Set<SourceAndConverter<?>> groupedSources = new HashSet<>();
         for (int g = 0; g < groups.size(); g++) {
             final SourceGroup grp = groups.get(g);
-            groupedSources.addAll(state.getSourcesInGroup(grp));
             if (state.isGroupActive(grp)) actors.add("vol:" + groupKey(state, grp, g));
         }
-        // Only record individual sources that are active but NOT covered by any group
+        // Every active source is recorded, grouped or not: applyState() sets the active flag of
+        // all sources, so omitting grouped ones would deactivate them on playback
         final List<? extends SourceAndConverter<?>> srcs = state.getSources();
         for (int i = 0; i < srcs.size(); i++) {
-            if (state.isSourceActive(srcs.get(i)) && !groupedSources.contains(srcs.get(i)))
-                actors.add("src:" + i);
+            if (state.isSourceActive(srcs.get(i))) actors.add("src:" + i);
         }
         if (viewer.isPathRenderingEnabled()) actors.add("paths");
         final AbstractBigViewer.AnnotationOverlay ann = viewer.annotations();
         if (ann != null && ann.isVisible()) actors.add("annotations");
         final Keyframe kf = new Keyframe(viewer.getViewerTransform(), cam[0], cam[1], cam[2], actors, 0);
         kf.timepoint = viewer.getCurrentTimepoint();
+        final ConverterSetups setups = viewer.getConverterSetups();
+        if (setups != null) {
+            for (int i = 0; i < srcs.size(); i++) {
+                final ConverterSetup cs = setups.getConverterSetup(srcs.get(i));
+                if (cs == null) continue;
+                final int rgb = (cs.supportsColor() && cs.getColor() != null) ? cs.getColor().get() & 0xFFFFFF : -1;
+                kf.display.put(i, new Keyframe.SourceDisplay(cs.getDisplayRangeMin(), cs.getDisplayRangeMax(), rgb));
+            }
+        }
         return kf;
     }
 
@@ -108,14 +117,31 @@ final class KeyframeRecorder {
         final AbstractBigViewer.AnnotationOverlay ann = viewer.annotations();
         if (ann != null) ann.setVisible(kf.visibleActors.contains("annotations"));
         if (kf.timepoint > 0) viewer.setCurrentTimepoint(kf.timepoint);
+        applyDisplay(kf.display);
     }
 
-    /** Sets transform (and timepoint, if positive) on the EDT and waits for the render */
-    private void showAndWait(final AffineTransform3D t, final int timepoint) throws InterruptedException {
+    /** Applies levels and LUT colors to the sources at the given indices */
+    private void applyDisplay(final Map<Integer, Keyframe.SourceDisplay> display) {
+        final ConverterSetups setups = viewer.getConverterSetups();
+        if (setups == null || display.isEmpty()) return;
+        final List<? extends SourceAndConverter<?>> srcs = state().getSources();
+        display.forEach((idx, d) -> {
+            if (idx < 0 || idx >= srcs.size()) return;
+            final ConverterSetup cs = setups.getConverterSetup(srcs.get(idx));
+            if (cs == null) return;
+            cs.setDisplayRange(d.min(), d.max());
+            if (d.rgb() >= 0 && cs.supportsColor()) cs.setColor(new ARGBType(0xFF000000 | d.rgb()));
+        });
+    }
+
+    /** Sets transform (and timepoint, if positive, and display settings, if any) on the EDT and waits for the render */
+    private void showAndWait(final AffineTransform3D t, final int timepoint,
+                             final Map<Integer, Keyframe.SourceDisplay> display) throws InterruptedException {
         viewer.awaitRender(() -> {
             try {
                 SwingUtilities.invokeAndWait(() -> {
                     viewer.getViewerState().setViewerTransform(t);
+                    if (display != null) applyDisplay(display);
                     if (timepoint > 0 && timepoint != viewer.getCurrentTimepoint())
                         viewer.setCurrentTimepoint(timepoint);
                     viewer.repaint();
@@ -177,14 +203,14 @@ final class KeyframeRecorder {
                     final int tp = interpolateT
                             ? (int) Math.round(from.timepoint + eased * (to.timepoint - from.timepoint))
                             : -1;
-                    showAndWait(animator.get(eased), tp);
+                    showAndWait(animator.get(eased), tp, Keyframe.interpolateDisplay(from, to, eased));
                     if (save) saveFrame(canvas, dir, globalFrame);
                     globalFrame++;
                 }
             }
             final Keyframe last = keyframes.getLast();
             applyState(last);
-            showAndWait(last.transform, last.timepoint);
+            showAndWait(last.transform, last.timepoint, last.display);
             if (save) {
                 Thread.sleep(100); // allow final render
                 saveFrame(canvas, dir, globalFrame);

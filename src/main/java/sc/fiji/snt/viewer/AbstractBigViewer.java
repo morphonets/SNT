@@ -919,6 +919,9 @@ public abstract class AbstractBigViewer {
     /** Returns the viewer's state (sources, groups, timepoint) or {@code null} if not yet live */
     protected abstract bdv.viewer.SynchronizedViewerState getViewerState();
 
+    /** Returns the viewer's per-source display settings (levels, LUTs) or {@code null} if not yet live */
+    protected abstract bdv.viewer.ConverterSetups getConverterSetups();
+
     /**
      * Returns the current {@code {dCam, nearClip, farClip}}. Defaults to BVV's defaults: viewers
      * without a perspective camera (BDV) keep this implementation.
