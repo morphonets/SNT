@@ -519,6 +519,26 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    protected bdv.viewer.SynchronizedViewerState getViewerState() {
+        return (viewerPanel == null) ? null : viewerPanel.state();
+    }
+
+    @Override
+    protected void awaitRender(final Runnable trigger) throws InterruptedException {
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        final bdv.viewer.TransformListener<AffineTransform3D> listener = t -> latch.countDown();
+        // Listener goes in first so that a fast render cannot be missed
+        viewerPanel.renderTransformListeners().add(listener);
+        try {
+            trigger.run();
+            latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            Thread.sleep(50); // brief pause for the canvas paint to finish
+        } finally {
+            viewerPanel.renderTransformListeners().remove(listener);
+        }
+    }
+
+    @Override
     public void showViewerMessage(final String msg) {
         if (viewerPanel != null) viewerPanel.showMessage(msg);
     }
@@ -953,6 +973,7 @@ public class Bdv extends AbstractBigViewer {
                 sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
                 sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
             }
+            registerKeyframeCapture(sntIMap, sntAMap);
             // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BDV
             // window can be opened in classic mode too, and its own keybindings layer needs this regardless
             if (snt != null && snt.getUI() != null) {

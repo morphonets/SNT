@@ -834,6 +834,115 @@ public abstract class AbstractBigViewer {
         sntAMap.put(actionKey, commandFinder.getToggleVisibilityAction());
     }
 
+    /** Auto-incrementing counter for keyframe identifiers (K hotkey) */
+    private static final java.util.concurrent.atomic.AtomicInteger keyframeCounter =
+            new java.util.concurrent.atomic.AtomicInteger(1);
+
+    /**
+     * Registers the {@code K} hotkey that captures a {@link Keyframe}: the script-ready line is
+     * printed to the console and copied to the clipboard. Same {@code sntIMap}/{@code sntAMap}
+     * constraints as {@link #registerCommandFinderAccelerator}.
+     *
+     * @param sntIMap the viewer's own SNT-overlay {@link InputMap}, not yet installed
+     * @param sntAMap the matching {@link ActionMap}, not yet installed
+     */
+    protected void registerKeyframeCapture(final InputMap sntIMap, final ActionMap sntAMap) {
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_K, 0), "snt-capture-keyframe");
+        sntAMap.put("snt-capture-keyframe", new AbstractAction() {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                try {
+                    final int id = keyframeCounter.getAndIncrement();
+                    final String scriptLine = String.format("kf%02d = new Keyframe(\"%s\")", id,
+                            captureKeyframe());
+                    System.out.println(scriptLine);
+                    showViewerMessage("Keyframe #" + id + " captured");
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+                            .setContents(new java.awt.datatransfer.StringSelection(scriptLine), null);
+                } catch (final Exception ex) {
+                    SNTUtils.log("Keyframe capture failed: " + ex.getMessage());
+                }
+            }
+        });
+    }
+
+    /**
+     * Captures the current viewer state as a {@link Keyframe}: transform, camera/slab parameters
+     * (BVV only), timepoint, and visible actors.
+     *
+     * @return the current state as a Keyframe
+     * @throws IllegalStateException if no viewer is active
+     */
+    public Keyframe captureKeyframe() {
+        return new KeyframeRecorder(this).capture();
+    }
+
+    /**
+     * Plays back an animation between keyframes in the viewer without saving frames. The frame count
+     * of each transition is read from {@link Keyframe#frames} on the destination keyframe.
+     *
+     * @param keyframes ordered list of keyframes (at least 2)
+     * @see #renderFrames(List, String)
+     */
+    public void playback(final List<Keyframe> keyframes) {
+        renderFrames(keyframes, null);
+    }
+
+    /**
+     * Plays back keyframes {@code from} to {@code to} (both inclusive, 0-based).
+     *
+     * @param keyframes ordered list of all keyframes
+     * @param from      start index
+     * @param to        end index
+     * @see #playback(List)
+     */
+    public void playback(final List<Keyframe> keyframes, final int from, final int to) {
+        renderFrames(keyframes.subList(from, to + 1), null);
+    }
+
+    /**
+     * Renders an animation between keyframes, saving each frame as a PNG. The transform is
+     * interpolated using {@code SimilarityTransformAnimator} and the timepoint linearly (if specified
+     * in both keyframes); visibility and slab bounds snap at keyframe boundaries. The first keyframe's
+     * {@link Keyframe#frames} is ignored. Must be called from a non-EDT thread: blocks until done.
+     *
+     * @param keyframes ordered list of keyframes (at least 2)
+     * @param outputDir directory for the PNGs (created if needed); if {@code null}, frames are played
+     *                  back live without saving
+     * @throws IllegalArgumentException if arguments are inconsistent
+     * @throws IllegalStateException    if no viewer is active
+     */
+    public void renderFrames(final List<Keyframe> keyframes, final String outputDir) {
+        new KeyframeRecorder(this).render(keyframes, outputDir);
+    }
+
+    /** Returns the viewer's state (sources, groups, timepoint) or {@code null} if not yet live */
+    protected abstract bdv.viewer.SynchronizedViewerState getViewerState();
+
+    /**
+     * Returns the current {@code {dCam, nearClip, farClip}}. Defaults to BVV's defaults: viewers
+     * without a perspective camera (BDV) keep this implementation.
+     */
+    protected double[] getCamParams() {
+        return new double[] { BvvUtils.DEFAULT_D_CAM, BvvUtils.DEFAULT_NEAR_CLIP, BvvUtils.DEFAULT_FAR_CLIP };
+    }
+
+    /** Applies camera/slab parameters from a {@link Keyframe}. No-op by default */
+    protected void applyCamParams(final double dCam, final double nearClip, final double farClip) {}
+
+    /**
+     * Runs {@code trigger} (which updates the viewer and requests a repaint) and blocks until the
+     * resulting frame has been rendered. Must not be called on the EDT. The default implementation
+     * waits a fixed interval.
+     *
+     * @param trigger the action that changes the scene
+     * @throws InterruptedException if interrupted while waiting
+     */
+    protected void awaitRender(final Runnable trigger) throws InterruptedException {
+        trigger.run();
+        Thread.sleep(150);
+    }
+
     /**
      * Adds a Tree to the viewer overlay, assigning it a unique display label.
      *

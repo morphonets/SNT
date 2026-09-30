@@ -96,10 +96,6 @@ public class Bvv extends AbstractBigViewer {
         return (lastInstance instanceof Bvv b) ? b : null;
     }
 
-    /** Auto-incrementing counter for keyframe identifiers (K hotkey). */
-    private static final java.util.concurrent.atomic.AtomicInteger keyframeCounter =
-            new java.util.concurrent.atomic.AtomicInteger(1);
-
     // snt, cal, dims, calUnit, renderedTrees, spimDataFilePaths, markerManager: inherited from AbstractBigViewer
 
     private final BvvOptions options;
@@ -1443,27 +1439,7 @@ public class Bvv extends AbstractBigViewer {
                 sntAMap.put("snt-toggle-tracing-hold-press", tracer.getToggleTracingHoldPressAction());
                 sntAMap.put("snt-toggle-tracing-hold-release", tracer.getToggleTracingHoldReleaseAction());
             }
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, 0), "snt-capture-keyframe");
-            sntAMap.put("snt-capture-keyframe", new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    try {
-                        final Keyframe kf = captureKeyframe();
-                        final String serialized = kf.toString();
-                        final int id = keyframeCounter.getAndIncrement();
-                        final String scriptLine = String.format(
-                                "kf%02d = new Bvv.Keyframe(\"%s\")", id, serialized);
-                        System.out.println(scriptLine);
-                        bvv.getViewer().showMessage("Keyframe #" + id + " captured");
-                        // Copy the script-ready line to system clipboard
-                        final java.awt.datatransfer.StringSelection sel =
-                                new java.awt.datatransfer.StringSelection(scriptLine);
-                        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, null);
-                    } catch (final Exception ex) {
-                        SNTUtils.log("Keyframe capture failed: " + ex.getMessage());
-                    }
-                }
-            });
+            registerKeyframeCapture(sntIMap, sntAMap);
             // Command palette shortcut: wired unconditionally (not just in Stream mode), since the BVV
             // window can be opened in classic mode too, and its own keybindings layer needs this regardless
             if (snt != null && snt.getUI() != null) {
@@ -2323,6 +2299,50 @@ public class Bvv extends AbstractBigViewer {
         if (getViewerPanel() != null)
             getViewerPanel().state().getViewerTransform(t);
         return t;
+    }
+
+    @Override
+    protected bdv.viewer.SynchronizedViewerState getViewerState() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return (p == null) ? null : p.state();
+    }
+
+    @Override
+    protected double[] getCamParams() {
+        if (pathOverlay == null) return super.getCamParams();
+        final var r = pathOverlay.overlayRenderer;
+        return new double[] { r.dCam, r.nearClip, r.farClip };
+    }
+
+    @Override
+    protected void applyCamParams(final double dCam, final double nearClip, final double farClip) {
+        // vp.setCamParams() is what actually controls the BVV volume clipping
+        getViewerPanel().setCamParams(dCam, nearClip, farClip);
+        if (pathOverlay != null) {
+            pathOverlay.overlayRenderer.dCam = dCam;
+            pathOverlay.overlayRenderer.nearClip = nearClip;
+            pathOverlay.overlayRenderer.farClip = farClip;
+        }
+        if (annotationOverlay != null)
+            annotationOverlay.setCamParams(dCam, nearClip, farClip);
+        if (tracer != null && tracer.tracingOverlay != null)
+            tracer.tracingOverlay.setCamParams(dCam, nearClip, farClip);
+    }
+
+    @Override
+    protected void awaitRender(final Runnable trigger) throws InterruptedException {
+        final VolumeViewerPanel vp = getViewerPanel();
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        final bdv.viewer.TransformListener<AffineTransform3D> listener = t -> latch.countDown();
+        // Listener goes in first so that a fast render cannot be missed
+        vp.renderTransformListeners().add(listener);
+        try {
+            trigger.run();
+            latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            Thread.sleep(50); // brief pause for GL paint to finish
+        } finally {
+            vp.renderTransformListeners().remove(listener);
+        }
     }
 
     @Override
@@ -5342,479 +5362,6 @@ public class Bvv extends AbstractBigViewer {
             double viewerZ1, viewerZ2; // screen-space Z for slab clipping vs nearClip/farClip
             Color color1, color2;
         }
-    }
-
-    /**
-     * A snapshot of the BVV viewer state at a particular moment, used as a
-     * keyframe for movie recording. Captures the viewer transform, camera/slab
-     * parameters ({@code dCam}, {@code nearClip}, {@code farClip}), and which
-     * "actors" (volume channels, paths, annotations) are visible.
-     * <p>
-     * Keyframes are serialized/deserialized via {@link #toString()} and
-     * {@link #fromString(String)} so they can be dumped to the console with
-     * the {@code K} hotkey and pasted into scripts.
-     */
-    public static class Keyframe {
-
-        /** Viewer transform (camera position + zoom + rotation). */
-        public final AffineTransform3D transform;
-        /** Camera depth parameter (perspective). */
-        public final double dCam;
-        /** Near clipping distance (slab front). */
-        public final double nearClip;
-        /** Far clipping distance (slab back). */
-        public final double farClip;
-        /** Names of visible actors (e.g. "vol:Sample#1", "paths", "annotations"). */
-        public final Set<String> visibleActors;
-        /**
-         * Easing type for the transition <em>into</em> this keyframe (0-5).
-         * Can be set by name via {@link #setAccel(String)}.
-         *
-         * @see #ACCEL_SYMMETRIC
-         * @see #ACCEL_SLOW_START
-         * @see #ACCEL_SLOW_END
-         * @see #ACCEL_SOFT_SYMMETRIC
-         * @see #ACCEL_SOFT_SLOW_START
-         * @see #ACCEL_SOFT_SLOW_END
-         */
-        public int accelType;
-
-        public static final int ACCEL_SYMMETRIC       = 0;
-        public static final int ACCEL_SLOW_START      = 1;
-        public static final int ACCEL_SLOW_END        = 2;
-        public static final int ACCEL_SOFT_SYMMETRIC  = 3;
-        public static final int ACCEL_SOFT_SLOW_START = 4;
-        public static final int ACCEL_SOFT_SLOW_END   = 5;
-
-        private static final Map<String, Integer> ACCEL_NAMES = new LinkedHashMap<>();
-        static {
-            ACCEL_NAMES.put("symmetric",       ACCEL_SYMMETRIC);
-            ACCEL_NAMES.put("slow start",      ACCEL_SLOW_START);
-            ACCEL_NAMES.put("slow end",        ACCEL_SLOW_END);
-            ACCEL_NAMES.put("soft symmetric",  ACCEL_SOFT_SYMMETRIC);
-            ACCEL_NAMES.put("soft slow start", ACCEL_SOFT_SLOW_START);
-            ACCEL_NAMES.put("soft slow end",   ACCEL_SOFT_SLOW_END);
-        }
-
-        /**
-         * Normalizes an accel name: lowercase, trim, underscores → spaces.
-         */
-        private static String normalizeAccelName(final String name) {
-            return name.toLowerCase().trim().replace('_', ' ');
-        }
-
-        /**
-         * Sets the easing type by name. Accepted values (case-insensitive,
-         * spaces or underscores): "symmetric", "slow_start" / "slow start",
-         * "slow_end", "soft_symmetric", "soft_slow_start", "soft_slow_end".
-         *
-         * @param name the easing name
-         * @throws IllegalArgumentException if the name is not recognized
-         */
-        public void setAccel(final String name) {
-            final Integer type = ACCEL_NAMES.get(normalizeAccelName(name));
-            if (type == null)
-                throw new IllegalArgumentException("Unknown accel type: '" + name
-                        + "'. Valid: " + String.join(", ", ACCEL_NAMES.keySet()));
-            this.accelType = type;
-        }
-
-        /**
-         * Returns the current easing type as a human-readable name.
-         *
-         * @return the easing name, e.g. "slow start"
-         */
-        public String getAccelName() {
-            for (final Map.Entry<String, Integer> e : ACCEL_NAMES.entrySet())
-                if (e.getValue() == accelType) return e.getKey();
-            return "symmetric";
-        }
-
-        /**
-         * Returns the easing name in serialization-safe form (underscores, no spaces).
-         */
-        private String getAccelNameSerialized() {
-            return getAccelName().replace(' ', '_');
-        }
-
-        /**
-         * Number of frames for the transition from the previous keyframe into
-         * this one. Ignored for the first keyframe in a sequence. Defaults to
-         * 60 (~2 s at 30 fps).
-         */
-        public int frames;
-
-        /**
-         * Convenience constructor that deserializes a keyframe from a string.
-         * Equivalent to {@link #fromString(String)} but usable as
-         * {@code new Keyframe("transform=...|cam=...|...")} in scripts.
-         *
-         * @param serialized the string produced by {@link #toString()}
-         * @throws IllegalArgumentException if parsing fails
-         */
-        public Keyframe(final String serialized) {
-            final Keyframe parsed = fromString(serialized);
-            if (parsed == null) throw new IllegalArgumentException("Invalid keyframe string");
-            this.transform = parsed.transform;
-            this.dCam = parsed.dCam;
-            this.nearClip = parsed.nearClip;
-            this.farClip = parsed.farClip;
-            this.visibleActors = parsed.visibleActors;
-            this.accelType = parsed.accelType;
-            this.frames = parsed.frames;
-        }
-
-        public Keyframe(final AffineTransform3D transform,
-                        final double dCam, final double nearClip, final double farClip,
-                        final Set<String> visibleActors, final int accelType) {
-            this(transform, dCam, nearClip, farClip, visibleActors, accelType, 60);
-        }
-
-        public Keyframe(final AffineTransform3D transform,
-                        final double dCam, final double nearClip, final double farClip,
-                        final Set<String> visibleActors, final int accelType, final int frames) {
-            this.transform = new AffineTransform3D();
-            this.transform.set(transform);
-            this.dCam = dCam;
-            this.nearClip = nearClip;
-            this.farClip = farClip;
-            this.visibleActors = new LinkedHashSet<>(visibleActors);
-            this.accelType = accelType;
-            this.frames = frames;
-        }
-
-        /**
-         * Serializes this keyframe to a single-line string:
-         * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a;b;c|accel=N}
-         */
-        @Override
-        public String toString() {
-            final StringBuilder sb = new StringBuilder("transform=");
-            final double[] m = transform.getRowPackedCopy();
-            for (int i = 0; i < m.length; i++) {
-                if (i > 0) sb.append(',');
-                sb.append(m[i]);
-            }
-            sb.append("|cam=").append(dCam).append(',').append(nearClip).append(',').append(farClip);
-            // Sanitize actor names: replace ';' to avoid breaking the delimiter
-            sb.append("|visible=").append(visibleActors.stream()
-                    .map(a -> a.replace(';', '_'))
-                    .collect(java.util.stream.Collectors.joining(";")));
-            sb.append("|accel=").append(getAccelNameSerialized());
-            sb.append("|frames=").append(frames);
-            return sb.toString();
-        }
-
-        /**
-         * Deserializes a keyframe from the string produced by {@link #toString()}.
-         *
-         * @param s the serialised keyframe string
-         * @return a new Keyframe, or {@code null} if parsing fails
-         */
-        public static Keyframe fromString(final String s) {
-            try {
-                final Map<String, String> parts = new LinkedHashMap<>();
-                for (final String part : s.split("\\|")) {
-                    final int eq = part.indexOf('=');
-                    if (eq > 0) parts.put(part.substring(0, eq), part.substring(eq + 1));
-                }
-                // Transform
-                final String[] td = parts.get("transform").split(",");
-                final double[] m = new double[12];
-                for (int i = 0; i < 12; i++) m[i] = Double.parseDouble(td[i]);
-                final AffineTransform3D t = new AffineTransform3D();
-                t.set(m);
-                // Camera / slab params
-                final String camStr = parts.getOrDefault("cam", "");
-                double dc = BvvUtils.DEFAULT_D_CAM, nc = BvvUtils.DEFAULT_NEAR_CLIP, fc = BvvUtils.DEFAULT_FAR_CLIP;
-                if (!camStr.isBlank()) {
-                    final String[] cp = camStr.split(",");
-                    dc = Double.parseDouble(cp[0]);
-                    nc = Double.parseDouble(cp[1]);
-                    fc = Double.parseDouble(cp[2]);
-                }
-                // Visible actors
-                final Set<String> vis = new LinkedHashSet<>();
-                final String visStr = parts.getOrDefault("visible", "");
-                if (!visStr.isBlank()) Collections.addAll(vis, visStr.split(";"));
-                // Accel (accepts "slow_start", "slow start", or int "1")
-                final String accelStr = parts.getOrDefault("accel", "symmetric");
-                int accel;
-                final Integer named = ACCEL_NAMES.get(normalizeAccelName(accelStr));
-                if (named != null) accel = named;
-                else try { accel = Integer.parseInt(accelStr.trim()); } catch (final NumberFormatException nf) { accel = 0; }
-                // Frames
-                final int frames = Integer.parseInt(parts.getOrDefault("frames", "60"));
-                return new Keyframe(t, dc, nc, fc, vis, accel, frames);
-            } catch (final Exception e) {
-                SNTUtils.log("Keyframe parse error: " + e.getMessage());
-                return null;
-            }
-        }
-    }
-
-    /**
-     * Captures the current viewer state as a {@link Keyframe}. The transform,
-     * camera/slab parameters, and visible actor set are all snapshotted.
-     *
-     * @return the current state as a Keyframe
-     */
-    public Keyframe captureKeyframe() {
-        if (currentBvv == null) throw new IllegalStateException("No BVV viewer active");
-        final VolumeViewerPanel vp = currentBvv.getViewer();
-        // Transform
-        final AffineTransform3D t = new AffineTransform3D();
-        vp.state().getViewerTransform(t);
-        // Camera / slab params from the overlay renderer
-        final double dc = pathOverlay != null ? pathOverlay.overlayRenderer.dCam : BvvUtils.DEFAULT_D_CAM;
-        final double nc = pathOverlay != null ? pathOverlay.overlayRenderer.nearClip : BvvUtils.DEFAULT_NEAR_CLIP;
-        final double fc = pathOverlay != null ? pathOverlay.overlayRenderer.farClip : BvvUtils.DEFAULT_FAR_CLIP;
-        // Visible actors
-        final Set<String> actors = new LinkedHashSet<>();
-        final bdv.viewer.SynchronizedViewerState state = vp.state();
-        // Collect sources that belong to at least one group (active or not)
-        final List<bdv.viewer.SourceGroup> groups = state.getGroups();
-        final Set<bdv.viewer.SourceAndConverter<?>> groupedSources = new HashSet<>();
-        for (int g = 0; g < groups.size(); g++) {
-            final bdv.viewer.SourceGroup grp = groups.get(g);
-            groupedSources.addAll(state.getSourcesInGroup(grp));
-            if (state.isGroupActive(grp)) {
-                final String name = state.getGroupName(grp);
-                actors.add("vol:" + (name != null ? name : "group" + g));
-            }
-        }
-        // Only record individual sources that are active but NOT covered by any group
-        final List<? extends bdv.viewer.SourceAndConverter<?>> allSrcs = state.getSources();
-        for (int i = 0; i < allSrcs.size(); i++) {
-            if (state.isSourceActive(allSrcs.get(i)) && !groupedSources.contains(allSrcs.get(i))) {
-                actors.add("src:" + i);
-            }
-        }
-        // Paths
-        if (pathOverlay != null && pathOverlay.isRenderingEnable())
-            actors.add("paths");
-        // Annotations
-        if (annotationOverlay != null && annotationOverlay.isVisible())
-            actors.add("annotations");
-        return new Keyframe(t, dc, nc, fc, actors, 0);
-    }
-
-    /**
-     * Cosine easing function (symmetric).
-     * @see <a href="https://github.com/maarzt/bigdataviewer-core-movie">BDV movie recorder</a>
-     */
-    private static double cos(final double x) {
-        return 0.5 - 0.5 * Math.cos(Math.PI * x);
-    }
-
-    /**
-     * Easing functions for keyframe transitions, adapted from BDV movie recorder.
-     *
-     * @param t    progress value in [0, 1]
-     * @param type easing type: 0 = symmetric, 1 = slow start, 2 = slow end,
-     *             3 = soft symmetric, 4 = soft slow start, 5 = soft slow end
-     * @return eased progress value in [0, 1]
-     */
-    public static double accel(final double t, final int type) {
-        return switch (type) {
-            case 1 -> cos(t * t);                                // slow start
-            case 2 -> 1.0 - cos(Math.pow(1.0 - t, 2));          // slow end
-            case 3 -> cos(cos(t));                               // soft symmetric
-            case 4 -> cos(cos(t * t));                           // soft slow start
-            case 5 -> 1.0 - cos(cos(Math.pow(1.0 - t, 2)));     // soft slow end
-            default -> cos(t);                                   // symmetric (type 0)
-        };
-    }
-
-    /**
-     * Plays back an animation between keyframes in the viewer without saving
-     * frames. Useful for previewing a movie before committing to a render.
-     * The frame count for each transition is read from {@link Keyframe#frames}
-     * on the destination keyframe.
-     *
-     * @param keyframes ordered list of keyframes (at least 2)
-     * @see #renderFrames(List, String)
-     */
-    public void playback(final List<Keyframe> keyframes) {
-        renderFrames(keyframes, null);
-    }
-
-    /**
-     * Plays back a subset of keyframes (from index {@code from} to index
-     * {@code to}, inclusive). Useful for previewing a specific transition
-     * without replaying the entire sequence.
-     *
-     * @param keyframes ordered list of all keyframes
-     * @param from      start index (inclusive, 0-based)
-     * @param to        end index (inclusive, 0-based)
-     * @see #playback(List)
-     */
-    public void playback(final List<Keyframe> keyframes, final int from, final int to) {
-        renderFrames(keyframes.subList(from, to + 1), null);
-    }
-
-    /**
-     * Renders an animation between a list of keyframes, saving each frame as a
-     * PNG screenshot. The transform is interpolated smoothly between keyframes
-     * using {@link SimilarityTransformAnimator}; visibility and slab bounds snap
-     * at keyframe boundaries (no interpolation).
-     * <p>
-     * The number of frames for each transition is read from {@link Keyframe#frames}
-     * on each destination keyframe (the first keyframe's value is ignored).
-     * <p>
-     * This method must be called from a non-EDT thread. It blocks until all
-     * frames have been rendered and saved.
-     *
-     * @param keyframes ordered list of keyframes (at least 2)
-     * @param outputDir directory where PNGs will be saved (created if needed);
-     *                  if {@code null}, frames are played back live without saving
-     * @throws IllegalArgumentException if arguments are inconsistent
-     * @throws IllegalStateException    if no BVV viewer is active
-     */
-    public void renderFrames(final List<Keyframe> keyframes, final String outputDir) {
-        if (currentBvv == null) throw new IllegalStateException("No BVV viewer active");
-        if (keyframes.size() < 2) throw new IllegalArgumentException("Need at least 2 keyframes");
-
-        final boolean save = outputDir != null;
-        final java.io.File dir = save ? new java.io.File(outputDir) : null;
-        if (save && !dir.exists() && !dir.mkdirs())
-            throw new IllegalArgumentException("Cannot create output directory: " + outputDir);
-
-        final VolumeViewerPanel vp = currentBvv.getViewer();
-        final java.awt.Component canvas = vp.getDisplayComponent();
-        final int cX = canvas.getWidth() / 2;
-        final int cY = canvas.getHeight() / 2;
-        int globalFrame = 0;
-
-        for (int k = 1; k < keyframes.size(); k++) {
-            final Keyframe from = keyframes.get(k - 1);
-            final Keyframe to = keyframes.get(k);
-            final int nFrames = to.frames;
-            final SimilarityTransformAnimator animator = new SimilarityTransformAnimator(
-                    from.transform, to.transform, cX, cY, 0);
-
-            // Apply visibility & camera/slab from the 'from' keyframe at the start
-            // of each segment: visibility snaps at keyframe boundaries
-            applyKeyframeState(from);
-            if (!save) {
-                vp.showMessage(String.format("Keyframe %d → %d  (%d frames, %s)",
-                        k - 1, k, nFrames, to.getAccelName()));
-            }
-
-            for (int d = 0; d < nFrames; d++) {
-                final double progress = (double) d / (double) nFrames;
-                final double eased = accel(progress, to.accelType);
-                final AffineTransform3D interpolated = animator.get(eased);
-                // Set transform on EDT and wait for render
-                try {
-                    SwingUtilities.invokeAndWait(() -> {
-                        vp.state().setViewerTransform(interpolated);
-                        vp.requestRepaint();
-                    });
-                    // Wait for render to complete via the latch pattern
-                    final java.util.concurrent.CountDownLatch latch =
-                            new java.util.concurrent.CountDownLatch(1);
-                    final bdv.viewer.TransformListener<AffineTransform3D> listener =
-                            t -> latch.countDown();
-                    vp.renderTransformListeners().add(listener);
-                    vp.requestRepaint();
-                    latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
-                    Thread.sleep(50); // brief pause for GL paint to finish
-                    vp.renderTransformListeners().remove(listener);
-                } catch (final Exception e) {
-                    SNTUtils.log("Movie render interrupted at frame " + globalFrame);
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-                if (save) {
-                    // Capture screenshot and save PNG
-                    final int w = canvas.getWidth();
-                    final int h = canvas.getHeight();
-                    final java.awt.image.BufferedImage bi =
-                            new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
-                    try {
-                        SwingUtilities.invokeAndWait(() -> canvas.paint(bi.getGraphics()));
-                    } catch (final Exception e) {
-                        SNTUtils.log("Screenshot failed at frame " + globalFrame);
-                        globalFrame++;
-                        continue;
-                    }
-                    final java.io.File outFile = new java.io.File(dir,
-                            String.format("frame_%05d.png", globalFrame));
-                    try {
-                        javax.imageio.ImageIO.write(bi, "PNG", outFile);
-                    } catch (final java.io.IOException e) {
-                        SNTUtils.log("Failed to write " + outFile.getName() + ": " + e.getMessage());
-                    }
-                }
-                globalFrame++;
-            }
-        }
-        // Apply the final keyframe
-        final Keyframe last = keyframes.getLast();
-        applyKeyframeState(last);
-        try {
-            SwingUtilities.invokeAndWait(() -> {
-                vp.state().setViewerTransform(last.transform);
-                vp.requestRepaint();
-            });
-            if (save) {
-                Thread.sleep(150); // allow final render
-                final int w = canvas.getWidth();
-                final int h = canvas.getHeight();
-                final java.awt.image.BufferedImage bi =
-                        new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
-                SwingUtilities.invokeAndWait(() -> canvas.paint(bi.getGraphics()));
-                javax.imageio.ImageIO.write(bi, "PNG",
-                        new java.io.File(dir, String.format("frame_%05d.png", globalFrame)));
-            }
-        } catch (final Exception e) {
-            SNTUtils.log("Failed to render final frame: " + e.getMessage());
-        }
-        if (save)
-            System.out.println("Movie: " + (globalFrame + 1) + " frames saved to " + dir.getAbsolutePath());
-        else
-            System.out.println("Playback complete: " + (globalFrame + 1) + " frames");
-    }
-
-    /**
-     * Applies the full non-transform state from a keyframe to the current viewer:
-     * camera/slab parameters, source/group visibility, paths, and annotations.
-     */
-    private void applyKeyframeState(final Keyframe kf) {
-        final VolumeViewerPanel vp = currentBvv.getViewer();
-        // Camera / slab params: this is what actually controls the BVV volume clipping
-        vp.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
-        if (pathOverlay != null) {
-            pathOverlay.overlayRenderer.dCam = kf.dCam;
-            pathOverlay.overlayRenderer.nearClip = kf.nearClip;
-            pathOverlay.overlayRenderer.farClip = kf.farClip;
-        }
-        if (annotationOverlay != null)
-            annotationOverlay.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
-        if (tracer != null && tracer.tracingOverlay != null)
-            tracer.tracingOverlay.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
-        syncOverlays();
-        // Groups
-        final bdv.viewer.SynchronizedViewerState state = vp.state();
-        final List<bdv.viewer.SourceGroup> groups = state.getGroups();
-        for (int g = 0; g < groups.size(); g++) {
-            final bdv.viewer.SourceGroup grp = groups.get(g);
-            final String name = state.getGroupName(grp);
-            final String key = "vol:" + (name != null ? name : "group" + g);
-            state.setGroupActive(grp, kf.visibleActors.contains(key));
-        }
-        // Individual sources
-        final List<? extends bdv.viewer.SourceAndConverter<?>> allSrcs = state.getSources();
-        for (int i = 0; i < allSrcs.size(); i++) {
-            state.setSourceActive(allSrcs.get(i), kf.visibleActors.contains("src:" + i));
-        }
-        // Paths
-        if (pathOverlay != null)
-            pathOverlay.disableRendering(!kf.visibleActors.contains("paths"));
-        // Annotations
-        if (annotationOverlay != null)
-            annotationOverlay.setVisible(kf.visibleActors.contains("annotations"));
     }
 
     /** Actions for BVV GUI components. */
