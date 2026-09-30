@@ -1069,14 +1069,14 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /**
-     * Opens the ConvertToN5 boilerplate script in Fiji's Script Editor with
+     * Opens the ConvertToN5 recipe script in Fiji's Script Editor with
      * the input path pre-filled.
      */
     private void openConversionScript(final String inputPath) {
         try {
             final ClassLoader cl = Thread.currentThread().getContextClassLoader();
             final java.io.InputStream is = cl.getResourceAsStream(
-                    "script_templates/Neuroanatomy/Boilerplate/ConvertToN5.groovy");
+                    "script_templates/Neuroanatomy/Recipes/ConvertToN5.groovy");
             if (is == null) {
                 error("ConvertToN5.groovy template not found in resources.");
                 return;

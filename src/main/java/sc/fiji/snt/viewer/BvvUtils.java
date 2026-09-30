@@ -107,17 +107,17 @@ public final class BvvUtils {
     } // static utility class
 
     /**
-     * Loads a boilerplate Groovy script template from the
-     * {@code script_templates/Neuroanatomy/Boilerplate/} resource directory.
+     * Loads a Groovy recipe template from the
+     * {@code script_templates/Neuroanatomy/Recipes/} resource directory.
      *
      * @param scriptName the template file name (e.g. {@code "ChannelUnmixing.groovy"})
      * @return the script contents, or a comment describing the error on failure
      */
-    static String loadBoilerPlateScript(final String scriptName) {
+    static String loadRecipeScript(final String scriptName) {
         try {
             final ClassLoader cl = Thread.currentThread().getContextClassLoader();
             final InputStream is = cl.getResourceAsStream(
-                    "script_templates/Neuroanatomy/Boilerplate/" + scriptName);
+                    "script_templates/Neuroanatomy/Recipes/" + scriptName);
             if (is == null)
                 return "// Error: " + scriptName + " template not found in resources";
             return new BufferedReader(new InputStreamReader(is))

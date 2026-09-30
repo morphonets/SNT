@@ -2314,6 +2314,28 @@ public class Bvv extends AbstractBigViewer {
     }
 
     @Override
+    protected void loadViewerSettings(final String path) throws Exception {
+        currentBvv.loadSettings(path);
+    }
+
+    @Override
+    protected void saveViewerSettings(final String path) throws Exception {
+        currentBvv.saveSettings(path);
+    }
+
+    @Override
+    protected void showShortcuts(final GuiUtils gui) {
+        gui.showKeyboardShortcuts(
+                new InputMap[] {
+                        currentBvv.getViewerFrame().getKeybindings().getConcatenatedInputMap(),
+                        currentBvv.getViewer().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                },
+                currentBvv.getViewerFrame().getKeybindings().getConcatenatedActionMap(),
+                currentBvv.getViewer().getActionMap() // picks up snt-add-marker, snt-bvv-snapshot
+        );
+    }
+
+    @Override
     protected double[] getCamParams() {
         if (pathOverlay == null) return super.getCamParams();
         final var r = pathOverlay.overlayRenderer;
@@ -3630,16 +3652,6 @@ public class Bvv extends AbstractBigViewer {
             menu.add(new JMenuItem(actions.showMovieHelpAction()));
             return oButton;
         }
-    }
-
-    private static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
-        if (menu.getComponentCount() > 0)
-            menu.addSeparator();
-        final JMenuItem sep = new JMenuItem(header);
-        sep.setEnabled(false);
-        sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
-        sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
-        menu.add(sep);
     }
 
     private class Tracer extends AbstractTracer {
@@ -5378,43 +5390,6 @@ public class Bvv extends AbstractBigViewer {
             this.bvv = bvv;
         }
 
-        Action loadSettingsAction() {
-            return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = getGuiUtils().getFile(new File(getDefaultDir(), ".xml"), "xml");
-                    if (SNTUtils.fileAvailable(f)) {
-                        try {
-                            bvv.loadSettings(f.getAbsolutePath());
-                            bvv.getViewer().showMessage(String.format("%s loaded", f.getName()));
-                            setDefaultDir(f);
-                        } catch (final Exception ex) {
-                            getGuiUtils().error(ex.getMessage());
-                        }
-                    }
-                }
-            };
-        }
-
-        Action saveSettingsAction() {
-            return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = getGuiUtils().getSaveFile("Save BVV Settings...",
-                            new File(getDefaultDir(), "settings.xml"), "xml");
-                    if (SNTUtils.fileAvailable(f)) {
-                        try {
-                            bvv.saveSettings(f.getAbsolutePath());
-                            bvv.getViewer().showMessage(String.format("%s saved", f.getName()));
-                            setDefaultDir(f);
-                        } catch (final Exception ex) {
-                            getGuiUtils().error(ex.getMessage());
-                        }
-                    }
-                }
-            };
-        }
-
         Action importAction() {
             return new AbstractAction("Import Reconstructions...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
@@ -5454,32 +5429,6 @@ public class Bvv extends AbstractBigViewer {
                         bvv.getViewer().showMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)",
                                 pos[0], pos[1], pos[2]));
                     }
-                }
-            };
-        }
-
-        Action showHelpAction() {
-            return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    getGuiUtils().showKeyboardShortcuts(
-                            new InputMap[]{
-                                    bvv.getViewerFrame().getKeybindings().getConcatenatedInputMap(),
-                                    bvv.getViewer().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-                            },
-                            bvv.getViewerFrame().getKeybindings().getConcatenatedActionMap(),
-                            bvv.getViewer().getActionMap()  // picks up snt-add-marker, snt-bvv-snapshot
-                    );
-                }
-            };
-        }
-
-        Action showMovieHelpAction() {
-            return new AbstractAction("Scripted Movies...", IconFactory.menuIcon('\uf008', true)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final String script = "BvvRecording.groovy";
-                    ScriptInstaller.newScript(BvvUtils.loadBoilerPlateScript(script), script);
                 }
             };
         }

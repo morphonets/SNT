@@ -675,7 +675,7 @@ class ChannelUnmixingCard {
         final int subSetupId = setups.get(subIdx).getId();
         final int nTimepoints = spimData.getSequenceDescription().getTimePoints().size();
 
-        final String template = BvvUtils.loadBoilerPlateScript("ChannelUnmixing.groovy");
+        final String template = BvvUtils.loadRecipeScript("ChannelUnmixing.groovy");
         return template
                 .replace("#{INPUT_PATH}", filePath.replace("\\", "\\\\").replace("'", "\\'"))
                 .replace("#{SIG_SETUP}", String.valueOf(sigSetupId))

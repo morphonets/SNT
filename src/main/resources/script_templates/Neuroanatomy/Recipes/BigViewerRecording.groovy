@@ -1,5 +1,5 @@
 /**
- * file:  BvvRecording.groovy
+ * file:  BigViewerRecording.groovy
  * info:  Exemplifies how to capture BVV/BDV scene states and render scripted fly-through movies.
  *
  * # Workflow
@@ -59,6 +59,18 @@ def kfs = [
     // kf02,
 ]
 
+// Recipe: flip the movie vertically. A plain Y mirror cannot be interpolated between keyframes, so
+// this rotates 180 degrees about the screen X axis instead (same result for a 2D slice). Uncomment
+// to use:
+// def flipY = { kf, height ->
+//     def f = new AffineTransform3D()
+//     f.set(1, 0, 0, 0,
+//           0, -1, 0, height, // y' = -y + height (mirror about the canvas center)
+//           0, 0, -1, 0)      // z' = -z keeps the transform a proper rotation
+//     kf.transform.preConcatenate(f)
+// }
+// kfs.each { flipY(it, viewer.getViewerCanvas().height) }
+
 if (kfs.isEmpty()) {
     println "ERROR: No keyframes defined. Press K in the viewer to capture keyframes,"
     println "  then paste them above and add them to the kfs list."
@@ -92,3 +104,4 @@ if (dryRun) {
 import sc.fiji.snt.viewer.Bvv
 import sc.fiji.snt.viewer.Bdv
 import sc.fiji.snt.viewer.Keyframe
+import net.imglib2.realtransform.AffineTransform3D

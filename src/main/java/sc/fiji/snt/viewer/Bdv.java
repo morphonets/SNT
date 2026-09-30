@@ -529,6 +529,34 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    protected void loadViewerSettings(final String path) throws Exception {
+        bigDataViewer().loadSettings(path);
+    }
+
+    @Override
+    protected void saveViewerSettings(final String path) throws Exception {
+        bigDataViewer().saveSettings(path);
+    }
+
+    private bdv.BigDataViewer bigDataViewer() {
+        if (bdvHandle instanceof bdv.util.BdvHandleFrame hf) return hf.getBigDataViewer();
+        throw new UnsupportedOperationException("Settings are only supported for BDV windows");
+    }
+
+    @Override
+    protected void showShortcuts(final GuiUtils gui) {
+        final ViewerFrame vf = getViewerFrame();
+        gui.showKeyboardShortcuts(
+                new InputMap[] {
+                        vf.getKeybindings().getConcatenatedInputMap(),
+                        viewerPanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                },
+                vf.getKeybindings().getConcatenatedActionMap(),
+                viewerPanel.getActionMap() // picks up snt-add-marker
+        );
+    }
+
+    @Override
     protected void awaitRender(final Runnable trigger) throws InterruptedException {
         final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         final bdv.viewer.TransformListener<AffineTransform3D> listener = t -> latch.countDown();
@@ -1113,7 +1141,20 @@ public class Bdv extends AbstractBigViewer {
     }
 
     private JToolBar buildSceneControlToolbar() {
-        return buildBaseSceneControlToolbar();
+        final JToolBar bar = buildBaseSceneControlToolbar();
+        bar.addSeparator();
+        bar.add(Box.createHorizontalGlue());
+        bar.addSeparator();
+        final JPopupMenu menu = new JPopupMenu();
+        final Actions actions = new Actions();
+        addSeparator(menu, IconFactory.GLYPH.CLOCK_ROTATE_LEFT, "Restore View");
+        menu.add(new JMenuItem(actions.loadSettingsAction()));
+        menu.add(new JMenuItem(actions.saveSettingsAction()));
+        addSeparator(menu, IconFactory.GLYPH.INFO, "Help");
+        menu.add(new JMenuItem(actions.showHelpAction()));
+        menu.add(new JMenuItem(actions.showMovieHelpAction()));
+        bar.add(GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu));
+        return bar;
     }
 
     private class BdvActions extends Actions {

@@ -31,6 +31,7 @@ import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.tracing.SearchInterface;
@@ -919,6 +920,25 @@ public abstract class AbstractBigViewer {
     /** Returns the viewer's state (sources, groups, timepoint) or {@code null} if not yet live */
     protected abstract bdv.viewer.SynchronizedViewerState getViewerState();
 
+    /**
+     * Loads viewer settings (display ranges, colors, etc.) from an XML file.
+     *
+     * @param path the path of the settings file
+     * @throws Exception if the settings could not be loaded
+     */
+    protected abstract void loadViewerSettings(String path) throws Exception;
+
+    /**
+     * Saves viewer settings (display ranges, colors, etc.) to an XML file.
+     *
+     * @param path the path of the settings file
+     * @throws Exception if the settings could not be saved
+     */
+    protected abstract void saveViewerSettings(String path) throws Exception;
+
+    /** Displays the dialog listing the viewer's keyboard shortcuts */
+    protected abstract void showShortcuts(GuiUtils gui);
+
     /** Returns the viewer's per-source display settings (levels, LUTs) or {@code null} if not yet live */
     protected abstract bdv.viewer.ConverterSetups getConverterSetups();
 
@@ -1298,6 +1318,63 @@ public abstract class AbstractBigViewer {
     }
 
     protected class Actions {
+
+        Action loadSettingsAction() {
+            return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    final File f = getGuiUtils().getFile(new File(getDefaultDir(), ".xml"), "xml");
+                    if (SNTUtils.fileAvailable(f)) {
+                        try {
+                            loadViewerSettings(f.getAbsolutePath());
+                            showViewerMessage(String.format("%s loaded", f.getName()));
+                            setDefaultDir(f);
+                        } catch (final Exception ex) {
+                            getGuiUtils().error(ex.getMessage());
+                        }
+                    }
+                }
+            };
+        }
+
+        Action saveSettingsAction() {
+            return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    final File f = getGuiUtils().getSaveFile("Save Viewer Settings...",
+                            new File(getDefaultDir(), "settings.xml"), "xml");
+                    if (SNTUtils.fileAvailable(f)) {
+                        try {
+                            saveViewerSettings(f.getAbsolutePath());
+                            showViewerMessage(String.format("%s saved", f.getName()));
+                            setDefaultDir(f);
+                        } catch (final Exception ex) {
+                            getGuiUtils().error(ex.getMessage());
+                        }
+                    }
+                }
+            };
+        }
+
+        Action showHelpAction() {
+            return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    showShortcuts(getGuiUtils());
+                }
+            };
+        }
+
+        /** Opens the keyframe recording recipe in the Script Editor */
+        Action showMovieHelpAction() {
+            return new AbstractAction("Scripted Movies...", IconFactory.menuIcon('\uf008', true)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    final String script = "BigViewerRecording.groovy";
+                    ScriptInstaller.newScript(BvvUtils.loadRecipeScript(script), script);
+                }
+            };
+        }
         private GuiUtils guiUtils;
         // State for hide-annotations (H key) press/release tracking
         float lastClippingDistance = 100f;
@@ -1845,6 +1922,16 @@ public abstract class AbstractBigViewer {
         });
         bar.add(scaleBarToggle);
         return bar;
+    }
+
+    static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
+        if (menu.getComponentCount() > 0)
+            menu.addSeparator();
+        final JMenuItem sep = new JMenuItem(header);
+        sep.setEnabled(false);
+        sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
+        sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
+        menu.add(sep);
     }
 
     /**

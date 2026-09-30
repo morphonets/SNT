@@ -216,7 +216,8 @@ public class ScriptInstaller {
             case "Full List" -> IconFactory.menuIcon(GLYPH.LIST);
             case "Misc" -> IconFactory.menuIcon(GLYPH.ELLIPSIS);
             case "Render" -> IconFactory.menuIcon(GLYPH.CUBE);
-            case "Skeletons and ROIs" -> IconFactory.menuIcon(GLYPH.BEZIER_CURVE);
+			case "Recipes" -> IconFactory.menuIcon(GLYPH.SCROLL);
+			case "Skeletons and ROIs" -> IconFactory.menuIcon(GLYPH.BEZIER_CURVE);
 			case "Spines and Varicosities" -> IconFactory.menuIcon('\ue29c', true);
 			case "Tracing" -> IconFactory.menuIcon(GLYPH.ROUTE);
             case "Time-lapses" -> IconFactory.menuIcon(GLYPH.VIDEO);
@@ -264,7 +265,7 @@ public class ScriptInstaller {
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
 		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Big_Data", "Misc", "Render",
-				"Skeletons_and_ROIs", "Spines_and_Varicosities", "Tracing", "Time-lapses");
+				"Recipes", "Skeletons_and_ROIs", "Spines_and_Varicosities", "Tracing", "Time-lapses");
 		menus.insert(getDemosMenu(), 3);
 		return menus;
 	}
