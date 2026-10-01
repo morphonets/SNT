@@ -22,8 +22,6 @@
 
 package sc.fiji.snt.viewer;
 
-import bdv.tools.InitializeViewerState;
-import bdv.tools.brightness.ConverterSetup;
 import bdv.util.Prefs;
 import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.generic.AbstractSpimData;
@@ -36,7 +34,6 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -50,7 +47,6 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -415,7 +411,7 @@ public abstract class AbstractBigViewer {
 
     /**
      * Recomputes the display range (brightness/contrast) for the source(s) selected by {@code scope}, from
-     * data percentiles, on a bounded background thread - see {@link #initBrightnessSafely}. Called
+     * data percentiles, on a bounded background thread - see {@link ViewerSettingsUtils#initBrightnessSafely}. Called
      * automatically with {@link BrightnessScope#ALL} right after a source is first added, and re-invocable
      * on demand (any scope) via the "Auto Brightness/Contrast" scene-control button (see {@link
      * #autoBrightnessButton}). Does nothing if this viewer isn't yet backed by an underlying BDV/BVV scene (e.g.
@@ -443,107 +439,6 @@ public abstract class AbstractBigViewer {
             container.add(comp);
         }
         container.revalidate();
-    }
-
-    /** Wall-clock budget (seconds) for {@link #initBrightnessSafely}. */
-    private static final long BRIGHTNESS_INIT_TIMEOUT_SECONDS = 30;
-
-    /**
-     * Cumulative cutoff (0-1 fraction) for the low/high ends of the auto-brightness percentile range: 1%/99%.
-     * A general-purpose default, not a formal standard like IJ's  "Auto" B&C button that saturates to 0.35%
-     * (that needs a full histogram, which we won't compute)
-     * {@link #initBrightnessSafely(bdv.viewer.ViewerState, bdv.viewer.ConverterSetups, String)} (expects a 0-1 fraction)
-     * and {@link #initBrightnessSafely(SourceAndConverter, ConverterSetup, int, String)} (expects a 0-100 percentile)
-     */
-    private static final double BRIGHTNESS_CUTOFF_LOW = 0.01; // 1%
-    private static final double BRIGHTNESS_CUTOFF_HIGH = 0.99; // 99%
-
-    /**
-     * Computes and applies a display range from data percentiles ({@link InitializeViewerState#initBrightness})
-     * on a bounded background thread so that a remote N5/Zarr/SPIM data hit by a bad chunk or network stall cannot
-     * block the caller indefinitely (see {@link SNTUtils#runWithTimeout}).
-     * Callers should invoke this off the EDT; a caller that doesn't is still bounded by the timeout, just at the
-     * cost of freezing the UI for up to {@link #BRIGHTNESS_INIT_TIMEOUT_SECONDS} seconds instead o`f indefinitely.
-     * <p>
-     * On timeout or any other failure, the failure is logged and swallowed` rather than thrown: a slow/failed
-     * brightness estimate should never prevent a viewer from opening, or block whatever triggered this call
-     * (initial load, or a manual "Auto Brightness/Contrast" button click).
-     *
-     * @param state  the viewer state to sample and update
-     * @param setups the converter setups whose display ranges are updated
-     * @param label  short, human-readable description of the viewer/dataset (used only in the failure log)
-     */
-    protected static void initBrightnessSafely(final bdv.viewer.ViewerState state,
-            final bdv.viewer.ConverterSetups setups, final String label) {
-        try {
-            SNTUtils.runWithTimeout(() -> {
-                InitializeViewerState.initBrightness(BRIGHTNESS_CUTOFF_LOW, BRIGHTNESS_CUTOFF_HIGH, state, setups);
-                return null;
-            }, BRIGHTNESS_INIT_TIMEOUT_SECONDS, "computing display range for " + label);
-        } catch (final IOException e) {
-            SNTUtils.log("Could not auto-adjust brightness/contrast for " + label + " (" + e.getMessage()
-                    + "); keeping current display range. Use the 'Auto Brightness/Contrast' button to retry.");
-        }
-    }
-
-    /**
-     * Single-source counterpart of {@link #initBrightnessSafely(bdv.viewer.ViewerState,
-     * bdv.viewer.ConverterSetups, String)}, for {@link BrightnessScope#CURRENT}/{@link BrightnessScope#ACTIVE}.
-     * {@link InitializeViewerState}. This samples the source's own data directly via {@link ImgUtils#computePercentile}
-     * (max 100k pixels, regardless of image size) at its coarsest available resolution level
-     */
-    protected static void initBrightnessSafely(final SourceAndConverter<?> source, final ConverterSetup setup,
-            final int timepoint, final String label) {
-        try {
-            SNTUtils.runWithTimeout(() -> {
-                final var spimSource = source.getSpimSource();
-                final int level = Math.max(0, spimSource.getNumMipmapLevels() - 1); // coarsest level
-                @SuppressWarnings("unchecked")
-                final net.imglib2.RandomAccessibleInterval<? extends net.imglib2.type.numeric.RealType<?>> rai =
-                        (net.imglib2.RandomAccessibleInterval<? extends net.imglib2.type.numeric.RealType<?>>)
-                                spimSource.getSource(timepoint, level);
-                final double min = ImgUtils.computePercentile(rai, BRIGHTNESS_CUTOFF_LOW * 100);
-                final double max = ImgUtils.computePercentile(rai, BRIGHTNESS_CUTOFF_HIGH * 100);
-                setup.setDisplayRange(min, max);
-                return null;
-            }, BRIGHTNESS_INIT_TIMEOUT_SECONDS, "computing display range for " + label);
-        } catch (final IOException e) {
-            SNTUtils.log("Could not auto-adjust brightness/contrast for " + label + " (" + e.getMessage()
-                    + "); keeping current display range. Use the 'Auto Brightness/Contrast' button to retry.");
-        }
-    }
-
-    /**
-     * Dispatches {@link #applyAutoBrightness(BrightnessScope)} for a given scope: the single {@link
-     * #getCurrentSource() current source}, every currently active source ({@link
-     * bdv.viewer.ViewerState#isSourceActive}), or (for {@link BrightnessScope#ALL}) the whole scene via the
-     * aggregate {@link #initBrightnessSafely(bdv.viewer.ViewerState, bdv.viewer.ConverterSetups, String)}.
-     * Shared by {@link Bdv#applyAutoBrightness} and {@link Bvv#applyAutoBrightness}
-     *
-     * @param scope         which source(s) to recompute
-     * @param state         the viewer state (sources, active flags)
-     * @param setups        the converter setups (source -> display-range control lookup)
-     * @param currentSource the viewer's current/selected source, or null if none
-     * @param label         short, human-readable description of the viewer (for logging)
-     */
-    protected static void applyBrightnessScope(final BrightnessScope scope, final bdv.viewer.ViewerState state,
-            final bdv.viewer.ConverterSetups setups, final SourceAndConverter<?> currentSource, final String label) {
-        final int timepoint = state.getCurrentTimepoint();
-        switch (scope) {
-            case ALL -> initBrightnessSafely(state, setups, label);
-            case CURRENT -> {
-                if (currentSource == null) return;
-                final ConverterSetup setup = setups.getConverterSetup(currentSource);
-                if (setup != null) initBrightnessSafely(currentSource, setup, timepoint, label + " (current source)");
-            }
-            case ACTIVE -> {
-                for (final SourceAndConverter<?> sac : state.getSources()) {
-                    if (!state.isSourceActive(sac)) continue;
-                    final ConverterSetup setup = setups.getConverterSetup(sac);
-                    if (setup != null) initBrightnessSafely(sac, setup, timepoint, label + " (active sources)");
-                }
-            }
-        }
     }
 
     /**
@@ -1043,6 +938,108 @@ public abstract class AbstractBigViewer {
      */
     protected abstract void saveViewerSettings(String path) throws Exception;
 
+    /** Preference key: whether to restore saved settings when a dataset is opened (ask/always/never) */
+    private static final String PREF_AUTOLOAD_SETTINGS = "viewer.settings.autoload";
+    private String settingsTitle;
+    private String settingsId;
+    private File promptedSettingsFile;
+    private int restoredSettingsCount = -1;
+
+    /** Tag identifying the viewer type in the names of settings files (e.g., "bdv" or "bvv") */
+    protected abstract String getSettingsTag();
+
+    /** The directory for viewer settings: a subfolder of SNT's workspace. Null if unavailable */
+    private File getSettingsDir() {
+        return (snt == null) ? null : new File(snt.getPrefs().getWorkspaceDir(), "viewer-settings");
+    }
+
+    /**
+     * The settings file proposed when saving: it is named after the dataset and stored in the
+     * workspace if it exists. Null if not available (e.g., standalone viewer)
+     */
+    private File getSuggestedSettingsFile() {
+        final File dir = getSettingsDir();
+        final var names = ViewerSettingsUtils.idToName(getViewerState(), getConverterSetups());
+        if (dir == null || names.isEmpty() || !dir.getParentFile().isDirectory()) return null;
+        dir.mkdirs();
+        final String title = (settingsTitle != null) ? settingsTitle : names.values().iterator().next();
+        final String id = (settingsId != null) ? settingsId : title;
+        return new File(dir, ViewerSettingsUtils.settingsFileName(title, id, names.size(), getSettingsTag()));
+    }
+
+    /**
+     * Initializes the display range of the sources. If saved settings for this dataset exist, and
+     * the user agrees to restore them, they are loaded instead of computing the display range
+     *
+     * @param state  the viewer state
+     * @param setups the converter setups
+     * @param title  the dataset title (null to use the name of the first source)
+     * @param id     the dataset identifier, e.g., path (null to use the title)
+     * @param label  short description of the viewer/dataset, for logging
+     */
+    protected void initBrightnessOrRestore(final bdv.viewer.ViewerState state, final bdv.viewer.ConverterSetups setups,
+            final String title, final String id, final String label) {
+        try {
+            if (restoreSavedSettings(state, setups, title, id)) return;
+        } catch (final Exception ex) {
+            SNTUtils.log("Could not restore saved settings (" + ex.getMessage() + ")");
+        }
+        ViewerSettingsUtils.initBrightnessSafely(state, setups, label);
+    }
+
+    private boolean restoreSavedSettings(final bdv.viewer.ViewerState state, final bdv.viewer.ConverterSetups setups,
+            final String title, final String id) {
+        if (snt == null || java.awt.GraphicsEnvironment.isHeadless()) return false;
+        final var names = ViewerSettingsUtils.idToName(state, setups);
+        if (names.isEmpty()) return false;
+        if (restoredSettingsCount == names.size()) return true; // do not override what was restored
+        settingsTitle = (title != null) ? title : names.values().iterator().next();
+        settingsId = (id != null) ? id : settingsTitle;
+        final String pref = snt.getPrefs().get(PREF_AUTOLOAD_SETTINGS, "ask");
+        if ("never".equals(pref)) return false;
+        final File f = new File(getSettingsDir(),
+                ViewerSettingsUtils.settingsFileName(settingsTitle, settingsId, names.size(), getSettingsTag()));
+        if (!f.isFile() || f.equals(promptedSettingsFile) || !ViewerSettingsUtils.isCompatible(f, names)) return false;
+        promptedSettingsFile = f;
+        final boolean[] restored = { false };
+        runOnEdt(() -> {
+            boolean load = "always".equals(pref);
+            if (!load) {
+                final boolean[] reply = new GuiUtils(getViewerFrame()).getConfirmationAndOption(
+                        "Saved display settings were found for this dataset (" + f.getName() + "). Load them?",
+                        "Saved Settings Found", "Remember my choice", false, new String[] { "Load", "Skip" });
+                load = reply[0];
+                if (reply[1]) snt.getPrefs().set(PREF_AUTOLOAD_SETTINGS, load ? "always" : "never");
+            }
+            if (!load) return;
+            try {
+                loadViewerSettings(f.getAbsolutePath());
+                restoredSettingsCount = names.size();
+                restored[0] = true;
+            } catch (final Exception ex) {
+                SNTUtils.log("Could not load " + f.getName() + ": " + ex.getMessage());
+            }
+        });
+        return restored[0];
+    }
+
+    private static void runOnEdt(final Runnable r) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            r.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(r);
+        } catch (final InterruptedException | java.lang.reflect.InvocationTargetException ex) {
+            SNTUtils.log("Settings prompt failed: " + ex);
+        }
+    }
+
+    /** Maps current converter setup ids to source names */
+    protected java.util.Map<Integer, String> setupIdToName() {
+        return ViewerSettingsUtils.idToName(getViewerState(), getConverterSetups());
+    }
+
     /** Displays the dialog listing the viewer's keyboard shortcuts */
     protected abstract void showShortcuts(GuiUtils gui);
 
@@ -1454,9 +1451,11 @@ public abstract class AbstractBigViewer {
             return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
                 public void actionPerformed(final ActionEvent e) {
+                    final File suggested = getSuggestedSettingsFile();
                     final File f = getGuiUtils().getSaveFile("Save Viewer Settings...",
-                            new File(getDefaultDir(), "settings.xml"), "xml");
-                    if (SNTUtils.fileAvailable(f)) {
+                            (suggested != null) ? suggested
+                                    : new File(getDefaultDir(), "settings-" + getSettingsTag() + ".xml"), "xml");
+                    if (f != null) {
                         try {
                             saveViewerSettings(f.getAbsolutePath());
                             showViewerMessage(String.format("%s saved", f.getName()));

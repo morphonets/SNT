@@ -175,7 +175,8 @@ public class Bdv extends AbstractBigViewer {
                         bdvHandle = cs.getBdvHandle();
                         viewerPanel = bdvHandle.getViewerPanel();
                         initializeOverlays();
-                        initBrightnessSafely(viewerPanel.state(), bdvHandle.getConverterSetups(), imp.getTitle());
+                        initBrightnessOrRestore(viewerPanel.state(), bdvHandle.getConverterSetups(), imp.getTitle(),
+                                ViewerSettingsUtils.idOf(imp), imp.getTitle());
                     }
                 }
             }
@@ -186,7 +187,8 @@ public class Bdv extends AbstractBigViewer {
                 bdvHandle = src.getBdvHandle();
                 viewerPanel = bdvHandle.getViewerPanel();
                 initializeOverlays();
-                initBrightnessSafely(viewerPanel.state(), bdvHandle.getConverterSetups(), imp.getTitle());
+                initBrightnessOrRestore(viewerPanel.state(), bdvHandle.getConverterSetups(), imp.getTitle(),
+                                ViewerSettingsUtils.idOf(imp), imp.getTitle());
             }
         }
         return src;
@@ -359,7 +361,10 @@ public class Bdv extends AbstractBigViewer {
             viewerPanel = bdvHandle.getViewerPanel();
             initializeOverlays();
         }
-        initBrightnessSafely(viewerPanel.state(), bdvHandle.getConverterSetups(), label);
+        final ImagePlus tracedImp = snt.getImagePlus();
+        initBrightnessOrRestore(viewerPanel.state(), bdvHandle.getConverterSetups(),
+                (tracedImp == null) ? null : tracedImp.getTitle(),
+                (tracedImp == null) ? null : ViewerSettingsUtils.idOf(tracedImp), label);
     }
 
     /**
@@ -528,13 +533,55 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    protected String getSettingsTag() {
+        return "bdv";
+    }
+
+    @Override
     protected void loadViewerSettings(final String path) throws Exception {
-        bigDataViewer().loadSettings(path);
+        logSetupState("BDV-SETTINGS before load of " + path);
+        java.io.File remapped = null;
+        try {
+            remapped = ViewerSettingsUtils.remapIds(new java.io.File(path), setupIdToName());
+            bigDataViewer().loadSettings(remapped.getAbsolutePath());
+        } finally {
+            if (remapped != null && !remapped.getPath().equals(path)) remapped.delete();
+            logSetupState("BDV-SETTINGS after load");
+        }
     }
 
     @Override
     protected void saveViewerSettings(final String path) throws Exception {
+        logSetupState("BDV-SETTINGS before save to " + path);
         bigDataViewer().saveSettings(path);
+        ViewerSettingsUtils.tagSourceNames(new java.io.File(path), setupIdToName());
+    }
+
+    /** Logs SetupAssignments (BDV settings) vs live ConverterSetups ids and groups */
+    private void logSetupState(final String header) {
+        try {
+            final var sa = bigDataViewer().getSetupAssignments();
+            final var groups = sa.getMinMaxGroups();
+            final var sb = new StringBuilder(header).append('\n');
+            sb.append("  SetupAssignments: ").append(sa.getConverterSetups().size())
+                    .append(" setups, ").append(groups.size()).append(" groups\n");
+            for (final var cs : sa.getConverterSetups()) {
+                sb.append("    id=").append(cs.getSetupId()).append(" groupIdx=")
+                        .append(groups.indexOf(sa.getMinMaxGroup(cs))).append('\n');
+            }
+            final var live = bdvHandle.getViewerPanel().state().getSources();
+            sb.append("  Live sources: ").append(live.size()).append('\n');
+            for (final var soc : live) {
+                final var cs = bdvHandle.getConverterSetups().getConverterSetup(soc);
+                sb.append("    ").append(soc.getSpimSource().getName()).append(" id=")
+                        .append(cs == null ? "null" : cs.getSetupId())
+                        .append(" inSetupAssignments=")
+                        .append(cs != null && sa.getConverterSetups().contains(cs)).append('\n');
+            }
+            SNTUtils.log(sb.toString());
+        } catch (final Exception ex) {
+            SNTUtils.log("BDV-SETTINGS logging failed: " + ex);
+        }
     }
 
     private bdv.BigDataViewer bigDataViewer() {
@@ -705,7 +752,7 @@ public class Bdv extends AbstractBigViewer {
     @Override
     protected void applyAutoBrightness(final BrightnessScope scope) {
         if (bdvHandle == null || viewerPanel == null) return;
-        applyBrightnessScope(scope, viewerPanel.state(), bdvHandle.getConverterSetups(), getCurrentSource(), "BDV");
+        ViewerSettingsUtils.applyBrightnessScope(scope, viewerPanel.state(), bdvHandle.getConverterSetups(), getCurrentSource(), "BDV");
     }
 
     /**

@@ -376,7 +376,8 @@ public class Bvv extends AbstractBigViewer {
         // added to an existing viewer would otherwise keep BVV's 0-65535 default.
         assert bvvHandle != null;
         final BigVolumeViewer bvvForInit = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
-        initBrightnessSafely(bvvForInit.getViewer().state(), bvvForInit.getViewer().getConverterSetups(), "BVV");
+        initBrightnessOrRestore(bvvForInit.getViewer().state(), bvvForInit.getViewer().getConverterSetups(),
+                imageName, imageName, "BVV");
 
         // Group assignment: must run after all channels are added
         final int groupIdx = multiSources.size();
@@ -1425,7 +1426,7 @@ public class Bvv extends AbstractBigViewer {
             resizeCardPanelsAsNeeded(sceneControlsCard);
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
-        initBrightnessSafely(bvv.getViewer().state(), bvv.getViewer().getConverterSetups(), "BVV");
+        initBrightnessOrRestore(bvv.getViewer().state(), bvv.getViewer().getConverterSetups(), null, null, "BVV");
     }
 
     /**
@@ -2185,7 +2186,7 @@ public class Bvv extends AbstractBigViewer {
     protected void applyAutoBrightness(final BrightnessScope scope) {
         final VolumeViewerPanel vp = getViewerPanel();
         if (vp == null) return;
-        applyBrightnessScope(scope, vp.state(), vp.getConverterSetups(), getCurrentSource(), "BVV");
+        ViewerSettingsUtils.applyBrightnessScope(scope, vp.state(), vp.getConverterSetups(), getCurrentSource(), "BVV");
     }
 
     /**
@@ -2245,13 +2246,25 @@ public class Bvv extends AbstractBigViewer {
     }
 
     @Override
+    protected String getSettingsTag() {
+        return "bvv";
+    }
+
+    @Override
     protected void loadViewerSettings(final String path) throws Exception {
-        currentBvv.loadSettings(path);
+        java.io.File remapped = null;
+        try {
+            remapped = ViewerSettingsUtils.remapIds(new java.io.File(path), setupIdToName());
+            currentBvv.loadSettings(remapped.getAbsolutePath());
+        } finally {
+            if (remapped != null && !remapped.getPath().equals(path)) remapped.delete();
+        }
     }
 
     @Override
     protected void saveViewerSettings(final String path) throws Exception {
         currentBvv.saveSettings(path);
+        ViewerSettingsUtils.tagSourceNames(new java.io.File(path), setupIdToName());
     }
 
     @Override
@@ -5393,11 +5406,8 @@ public class Bvv extends AbstractBigViewer {
                             }
                         manualT.addContent(new org.jdom2.Element("affine").setText(sb.toString()));
                         root.addContent(manualT);
-                        final org.jdom2.Document doc = new org.jdom2.Document(root);
-                        try (final java.io.FileWriter fw = new java.io.FileWriter(
-                                file.getName().endsWith(".xml") ? file : new File(file.getAbsolutePath() + ".xml"))) {
-                            new org.jdom2.output.XMLOutputter(org.jdom2.output.Format.getPrettyFormat()).output(doc, fw);
-                        }
+                        ViewerSettingsUtils.writeXml(new org.jdom2.Document(root),
+                                file.getName().endsWith(".xml") ? file : new File(file.getAbsolutePath() + ".xml"));
                         bvv.getViewer().showMessage("Transform saved: " + file.getName());
                     } catch (final Exception ex) {
                         getGuiUtils().error("Could not save transform: " + ex.getMessage());
@@ -5427,7 +5437,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         private boolean applyTransformFile(final File file, final List<BvvMultiSource> multiSources) throws JDOMException, IOException {
-            final org.jdom2.Element root = new org.jdom2.input.SAXBuilder().build(file).getRootElement();
+            final org.jdom2.Element root = ViewerSettingsUtils.readXml(file).getRootElement();
             if (!"SNTTransforms".equals(root.getName()))
                 throw new IllegalArgumentException("Not a valid SNT transform file.");
             final org.jdom2.Element manualT = root.getChild("ManualTransformation");
