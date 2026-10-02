@@ -40,6 +40,7 @@ import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
@@ -52,7 +53,10 @@ import java.util.stream.Stream;
  * Callouts are registered with {@link #add(Component, int, String)} (or its grouped overload,
  * {@link #add(Component, int, String, String)}) while a GUI is being built; use the
  * {@link #add(Component, int, String, String, int)} overload if registration order does not match the desired
- * chain sequence. Nothing is displayed at that point. Once
+ * chain sequence. To point at something that is not a component in its own right, or that a legacy (e.g., AWT)
+ * window does not expose, see {@link #add(Component, Rectangle, int, String, String)} (a region of a component),
+ * {@link #add(Container, String, int, String, String)} (a button, by label) and
+ * {@link #add(Container, Class, int, String, String)} (a component, by type). Nothing is displayed at that point. Once
  * the host window is fully realized, {@link #showAll(Object)} or {@link #showPending(Object)} displays every callout
  * registered for a given scope, as a single sequential, "Got it!"-dismissible chain, in registration order.
  * </p>
@@ -68,10 +72,10 @@ import java.util.stream.Stream;
  * Example:
  * </p>
  * <pre>{@code
- * // while building the GUI, e.g., in a dialog's constructor -- AFTER adding each button to its parent
+ * // while building the GUI, e.g., in a dialog's constructor, AFTER adding each button to its parent
  * // container, so the callout's persisted identity is derived from a stable position in the component tree:
  * toolbar.add(saveButton);
- * CalloutManager.add(saveButton, SwingConstants.BOTTOM, "Click here to save your work");
+ * CalloutManager.add(saveButton, CalloutManager.BOTTOM, "Click here to save your work");
  * toolbar.add(exportButton);
  * CalloutManager.add(exportButton, CalloutManager.AUTO, "Export results to a spreadsheet or image stack");
  *
@@ -89,7 +93,7 @@ import java.util.stream.Stream;
  * <p>
  * Tips are unrelated to callouts: a tip is a single, standalone "tooltip"-like balloon shown on demand (e.g., a
  * rotating pool of tips behind a "hints" button), not part of an onboarding chain. It has no group, no persisted
- * dismissal, and no arrow -- {@link #showTip(Component, String, int)} and {@link #showTip(Component, String, int,
+ * dismissal, and no arrow: {@link #showTip(Component, String, int)} and {@link #showTip(Component, String, int,
  * int)} are entirely independent of {@link #add(Component, int, String)}/{@link #showAll(Object)} and friends
  * above.
  * </p>
@@ -99,7 +103,7 @@ import java.util.stream.Stream;
  * <pre>{@code
  * // load (and shuffle) a plain-text, one-tip-per-line resource once, e.g. as a field or in a constructor;
  * // lineProcessor is called on every surviving line, so a caller-specific placeholder token (there is nothing
- * // hint-related about ctrlKey() below -- CalloutManager has no notion of it) can be substituted on load
+ * // hint-related about ctrlKey() below; CalloutManager has no notion of it) can be substituted on load
  * final List<String> hints = CalloutManager.loadTips(MyDialog.class, "hints.txt",
  *         line -> line.replace("ctrlKey()", myPlatformSpecificCtrlKeyLabel));
  *
@@ -119,7 +123,7 @@ import java.util.stream.Stream;
  *
  * // or a one-off tip, e.g. contextual feedback after some action, left on screen until dismissed (Escape, a
  * // click elsewhere, or the owner going away) since no auto-dismiss delay is given
- * CalloutManager.showTip(resultsPanel, "Nothing found -- try widening your search", SwingConstants.TOP);
+ * CalloutManager.showTip(resultsPanel, "Nothing found, try widening your search", CalloutManager.TOP);
  * }</pre>
  * <p>
  * Adapted from {@code HintManager}, part of the FlatLaf demo application (Apache License 2.0, Copyright 2020 FormDev
@@ -165,6 +169,18 @@ public class CalloutManager {
      */
     public static final int AUTO = -1;
 
+    /** Display the callout above its owner. Same value as {@link SwingConstants#TOP} */
+    public static final int TOP = SwingConstants.TOP;
+
+    /** Display the callout below its owner. Same value as {@link SwingConstants#BOTTOM} */
+    public static final int BOTTOM = SwingConstants.BOTTOM;
+
+    /** Display the callout to the left of its owner. Same value as {@link SwingConstants#LEFT} */
+    public static final int LEFT = SwingConstants.LEFT;
+
+    /** Display the callout to the right of its owner. Same value as {@link SwingConstants#RIGHT} */
+    public static final int RIGHT = SwingConstants.RIGHT;
+
     private CalloutManager() {} // do not allow instantiation
 
     /**
@@ -192,7 +208,8 @@ public class CalloutManager {
      * </p>
      *
      * @param owner    the component the callout will point at
-     * @param position the {@link SwingConstants} side of {@code owner} the callout is displayed on, or
+     * @param position the side of {@code owner} to display the callout on ({@link #TOP}, {@link #BOTTOM}, {@link #LEFT}
+     *                 or {@link #RIGHT}), or
      *                 {@link #AUTO} to pick, at display time, whichever side currently has the most free screen space
      * @param message  the (HTML-capable) message to display
      * @param group    an explicit key callouts sharing it are displayed together by, as one chain; {@code null}
@@ -221,16 +238,137 @@ public class CalloutManager {
      */
     public static String add(final Component owner, final int position, final String message, final String group,
                              final int order) {
+        return addImpl(owner, null, position, message, group, order);
+    }
+
+    /**
+     * Registers a callout pointing at a sub-region of {@code host}, for targets that are not components in their own
+     * right: e.g., a single tool of a toolbar painted on one canvas, a node of a tree, or an area of an image. Same
+     * as {@link #add(Component, int, String, String)} otherwise
+     *
+     * @param host     the component containing the region. Only weakly referenced
+     * @param region   the area to point at, in {@code host}'s coordinate space (i.e., relative to its top-left corner)
+     * @param position the side of the region to display the callout on, or {@link #AUTO}. See
+     *                 {@link #add(Component, int, String, String)}
+     * @param message  the (HTML-capable) message to display
+     * @param group    the key callouts sharing it are displayed together by. See
+     *                 {@link #add(Component, int, String, String)}
+     * @see #add(Component, Rectangle, int, String, String, int)
+     */
+    public static String add(final Component host, final Rectangle region, final int position, final String message,
+                             final String group) {
+        return add(host, region, position, message, group, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Same as {@link #add(Component, Rectangle, int, String, String)}, but with an explicit position in the display
+     * chain (see {@link #add(Component, int, String, String, int)}). Registering the same region of the same host
+     * again replaces the earlier registration in place
+     *
+     * @param order this callout's position in its group's chain, relative to other explicitly-ordered entries
+     */
+    public static String add(final Component host, final Rectangle region, final int position, final String message,
+                             final String group, final int order) {
+        if (host == null)
+            throw new IllegalArgumentException("host == null");
+        if (region == null)
+            throw new IllegalArgumentException("region == null");
+        final RegionAnchor anchor = new RegionAnchor(host, region);
+        return addImpl(anchor, anchor, position, message, group, order);
+    }
+
+    /**
+     * Registers a callout pointing at the first button found in {@code root} (searched depth-first) whose label
+     * starts with {@code buttonText}, for windows whose buttons are not exposed by their API (e.g., a legacy AWT
+     * dialog). Both Swing ({@link AbstractButton}) and AWT ({@link Button}) buttons are matched. Same as
+     * {@link #add(Component, int, String, String)} otherwise
+     * <p>
+     * The search happens now, not when the callout is displayed: the button must already exist in {@code root}
+     * (e.g., the window must already have been built) or nothing is registered
+     * </p>
+     *
+     * @param root       the window or container to search
+     * @param buttonText the (case-sensitive) start of the button's label, e.g., {@code "Add"} matches {@code "Add [t]"}
+     * @param position   the side of the button to display the callout on, or {@link #AUTO}
+     * @param message    the (HTML-capable) message to display
+     * @param group      the key callouts sharing it are displayed together by. See
+     *                   {@link #add(Component, int, String, String)}
+     * @return the key of the registration, or {@code null} if no matching button was found (nothing registered)
+     */
+    public static String add(final Container root, final String buttonText, final int position,
+                             final String message, final String group) {
+        if (root == null)
+            throw new IllegalArgumentException("root == null");
+        if (buttonText == null)
+            throw new IllegalArgumentException("buttonText == null");
+        final Component button = findButton(root, buttonText);
+        return (button == null) ? null : add(button, position, message, group);
+    }
+
+    /**
+     * Registers a callout pointing at the first component of the given type found in {@code root} (searched
+     * depth-first), e.g., {@code java.awt.Choice.class} for a legacy AWT dialog's drop-down list. Only the closed
+     * component can be pointed at: the list it opens is a native popup. Same as
+     * {@link #add(Component, int, String, String)} otherwise
+     * <p>
+     * The search happens now, not when the callout is displayed: the component must already exist in
+     * {@code root} (e.g., the window must already have been built) or nothing is registered
+     * </p>
+     *
+     * @param root     the window or container to search
+     * @param type     the type of component to look for
+     * @param position the side of the component to display the callout on, or {@link #AUTO}
+     * @param message  the (HTML-capable) message to display
+     * @param group    the key callouts sharing it are displayed together by. See
+     *                 {@link #add(Component, int, String, String)}
+     * @return the key of the registration, or {@code null} if no matching component was found (nothing registered)
+     */
+    public static String add(final Container root, final Class<? extends Component> type, final int position,
+                             final String message, final String group) {
+        if (root == null)
+            throw new IllegalArgumentException("root == null");
+        if (type == null)
+            throw new IllegalArgumentException("type == null");
+        final Component found = findComponent(root, type::isInstance);
+        return (found == null) ? null : add(found, position, message, group);
+    }
+
+    private static boolean isValidPosition(final int position) {
+        return position == AUTO || position == TOP || position == BOTTOM || position == LEFT || position == RIGHT;
+    }
+
+    private static Component findButton(final Component root, final String labelPrefix) {
+        return findComponent(root, c -> {
+            final String label = (c instanceof AbstractButton b) ? b.getText()
+                    : (c instanceof Button b) ? b.getLabel() : null;
+            return label != null && label.startsWith(labelPrefix);
+        });
+    }
+
+    private static Component findComponent(final Component c, final Predicate<Component> match) {
+        if (match.test(c))
+            return c;
+        if (c instanceof Container container) {
+            for (final Component child : container.getComponents()) {
+                final Component found = findComponent(child, match);
+                if (found != null)
+                    return found;
+            }
+        }
+        return null;
+    }
+
+    private static String addImpl(final Component owner, final Component pin, final int position,
+                                  final String message, final String group, final int order) {
         if (owner == null)
             throw new IllegalArgumentException("owner == null");
         if (message == null)
             throw new IllegalArgumentException("message == null");
-        if (position != AUTO && position != SwingConstants.TOP
-                && position != SwingConstants.BOTTOM && position != SwingConstants.LEFT
-                && position != SwingConstants.RIGHT)
+        if (!isValidPosition(position))
             throw new IllegalArgumentException("Invalid position: " + position);
         final String key = generateKey(owner);
-        final Registration entry = new Registration(message, new WeakReference<>(owner), position, key, group, order);
+        final Registration entry = new Registration(message, new WeakReference<>(owner), position, key, group, order,
+                pin);
         synchronized (registrations) {
             final int idx = indexOfOwner(owner);
             if (idx >= 0)
@@ -286,11 +424,11 @@ public class CalloutManager {
     }
 
     /**
-     * Displays a single, standalone balloon pointing at {@code owner} -- e.g., a rotating one-liner tip cycled
-     * on each click of some ever-present control -- entirely outside the {@link #add(Component, int, String)}/
+     * Displays a single, standalone balloon pointing at {@code owner} (e.g., a rotating one-liner tip cycled
+     * on each click of some ever-present control), entirely outside the {@link #add(Component, int, String)}/
      * {@link #showAll(Object)} machinery: it is never registered, belongs to no group or chain, and its dismissal
      * is never persisted. Calling this repeatedly for the same {@code owner} (e.g., a new tip string on every
-     * click) simply shows a new balloon each time; nothing here can be pulled into -- or interfere with -- an
+     * click) simply shows a new balloon each time; nothing here can be pulled into (or interfere with) an
      * actual onboarding chain running via {@link #showAll(Object)}/{@link #showPending(Object)}, even one
      * sharing the same window or {@code owner}.
      * <p>
@@ -300,13 +438,14 @@ public class CalloutManager {
      * </p>
      * <p>
      * Dismissed by its own close button, or by Escape (which, unlike its effect on a chain, closes the tip
-     * outright rather than merely pausing it -- a standalone tip has no "resume where I left off" state to
+     * outright rather than merely pausing it: a standalone tip has no "resume where I left off" state to
      * preserve)
      * </p>
      *
      * @param owner    the component the tip is anchored near
      * @param message  the (HTML-capable) message to display
-     * @param position the {@link SwingConstants} side of {@code owner} to display on, or {@link #AUTO} to pick
+     * @param position the side of {@code owner} to display on ({@link #TOP}, {@link #BOTTOM}, {@link #LEFT} or
+     *                 {@link #RIGHT}), or {@link #AUTO} to pick
      *                 automatically
      */
     public static void showTip(final Component owner, final String message, final int position) {
@@ -324,8 +463,7 @@ public class CalloutManager {
             throw new IllegalArgumentException("owner == null");
         if (message == null)
             throw new IllegalArgumentException("message == null");
-        if (position != AUTO && position != SwingConstants.TOP && position != SwingConstants.BOTTOM
-                && position != SwingConstants.LEFT && position != SwingConstants.RIGHT)
+        if (!isValidPosition(position))
             throw new IllegalArgumentException("Invalid position: " + position);
         runOnEdt(() -> {
             ensureEscDispatcherInstalled();
@@ -358,8 +496,8 @@ public class CalloutManager {
      *
      * @param anchor            the resource is resolved via <em>this class's</em> class loader, not
      *                          {@code CalloutManager}'s own, nor the calling thread's context class loader: the
-     *                          resource lives in the caller's module/jar (e.g., SNT's), which this class -- by
-     *                          design -- knows nothing about, and a thread's context class loader is not
+     *                          resource lives in the caller's module/jar (e.g., SNT's), which this class (by
+     *                          design) knows nothing about, and a thread's context class loader is not
      *                          guaranteed to see it either (it may be {@code null}, e.g. on a background worker
      *                          thread, or scoped to some other module entirely). Pass, e.g., {@code SNTUI.class}
      * @param classpathResource the resource path (e.g., {@code "gui/hints.txt"}), resolved the same way
@@ -593,14 +731,26 @@ public class CalloutManager {
         synchronized (registrations) {
             registrations.removeIf(e -> {
                 final Component owner = e.owner.get();
-                return owner == null || Objects.equals(resolveGroup(e, owner), target);
+                return isStale(owner) || Objects.equals(resolveGroup(e, owner), target);
             });
         }
     }
 
+    private static boolean isStale(final Component owner) {
+        return owner == null || (owner instanceof RegionAnchor a && a.host.get() == null);
+    }
+
+    // same instance, or two anchors for the same region of the same host
+    private static boolean isSameOwner(final Component a, final Component b) {
+        if (a == b)
+            return true;
+        return a instanceof RegionAnchor ra && b instanceof RegionAnchor rb && ra.host.get() != null
+                && ra.host.get() == rb.host.get() && ra.region.equals(rb.region);
+    }
+
     private static int indexOfOwner(final Component owner) {
         for (int i = 0; i < registrations.size(); i++)
-            if (registrations.get(i).owner.get() == owner)
+            if (isSameOwner(registrations.get(i).owner.get(), owner))
                 return i;
         return -1;
     }
@@ -615,7 +765,7 @@ public class CalloutManager {
         final String target = resolveScope(scope);
         // snapshot the still-live entries (pruning any whose owner was garbage-collected) while holding the
         // lock; resolveGroup()/windowOf() below walk the AWT component tree, which must NOT be done while
-        // holding this lock -- AWT's own tree operations are internally synchronized, and calling into them
+        // holding this lock: AWT's own tree operations are internally synchronized, and calling into them
         // here would risk a lock-ordering deadlock with code that acquires the two locks in the other order
         final List<LiveEntry> live = new ArrayList<>();
         synchronized (registrations) {
@@ -623,7 +773,7 @@ public class CalloutManager {
             while (it.hasNext()) {
                 final Registration e = it.next();
                 final Component owner = e.owner.get();
-                if (owner == null) {
+                if (isStale(owner)) {
                     it.remove(); // owner has been garbage-collected: prune the stale registration
                     continue;
                 }
@@ -745,8 +895,8 @@ public class CalloutManager {
         // an onboarding chain is always meant to be front-and-center; a standalone tip left on screen is just
         // as "always on top" as the callout about to appear, and the two competing for front-most z-order is
         // not reliably resolved in the callout's favor by the OS/LAF. Tips are cheap to re-summon (the next
-        // click of whatever showed them) and persist nothing, so closing them all here -- rather than trying
-        // to scope this to just the incoming chain's window -- is a simple, safe default
+        // click of whatever showed them) and persist nothing, so closing them all here (rather than trying
+        // to scope this to just the incoming chain's window) is a simple, safe default
         new ArrayList<>(activeTips).forEach(TipPanel::close);
         showChain(list, 0, ignoreDismissed, target);
     }
@@ -794,11 +944,13 @@ public class CalloutManager {
             r.run();
             return;
         }
-        c.addHierarchyListener(new HierarchyListener() {
+        // an anchor has no peer so never receives hierarchy events: listen to its host instead
+        final Component target = (c instanceof RegionAnchor a && a.host.get() != null) ? a.host.get() : c;
+        target.addHierarchyListener(new HierarchyListener() {
             @Override
             public void hierarchyChanged(final HierarchyEvent e) {
                 if ((e.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0 && c.isShowing()) {
-                    c.removeHierarchyListener(this);
+                    target.removeHierarchyListener(this);
                     r.run();
                 }
             }
@@ -932,6 +1084,11 @@ public class CalloutManager {
 
     private static String generateKey(final Component comp) {
         assert comp != null;
+        if (comp instanceof RegionAnchor a) {
+            final Component h = a.host.get();
+            final String id = ((h == null) ? "" : generateKey(h)) + a.region;
+            return "region_" + Integer.toString(id.hashCode() & 0x7fffffff, 36);
+        }
         final StringBuilder path = new StringBuilder();
         if (comp instanceof AbstractButton b && b.getText() != null)
             path.append(b.getText()).append("|");
@@ -969,6 +1126,78 @@ public class CalloutManager {
     }
 
     /**
+     * Lightweight, invisible stand-in for a rectangular region of a real component (the host), so callouts can
+     * point at things that are not components, e.g., a button painted on a toolbar canvas. Overrides just what
+     * this class queries of an owner: showing state, screen location, size, window ancestry and screen device
+     */
+    private static final class RegionAnchor extends Component {
+        private static final long serialVersionUID = 1L;
+        private final transient WeakReference<Component> host;
+        private final Rectangle region;
+
+        RegionAnchor(final Component host, final Rectangle region) {
+            this.host = new WeakReference<>(host);
+            this.region = new Rectangle(region);
+        }
+
+        @Override
+        public boolean isShowing() {
+            final Component h = host.get();
+            return h != null && h.isShowing();
+        }
+
+        @Override
+        public boolean isVisible() {
+            final Component h = host.get();
+            return h != null && h.isVisible();
+        }
+
+        @Override
+        public boolean isDisplayable() {
+            final Component h = host.get();
+            return h != null && h.isDisplayable();
+        }
+
+        @Override
+        public Container getParent() {
+            final Component h = host.get();
+            if (h == null)
+                return null;
+            return (h instanceof Container c) ? c : h.getParent();
+        }
+
+        @Override
+        public GraphicsConfiguration getGraphicsConfiguration() {
+            final Component h = host.get();
+            return (h == null) ? null : h.getGraphicsConfiguration();
+        }
+
+        @Override
+        public Point getLocationOnScreen() {
+            final Component h = host.get();
+            if (h == null)
+                throw new IllegalComponentStateException("host is gone");
+            final Point p = h.getLocationOnScreen();
+            return new Point(p.x + region.x, p.y + region.y);
+        }
+
+        @Override
+        public Dimension getSize() {
+            return region.getSize();
+        }
+
+        @Override
+        public int getWidth() {
+            return region.width;
+        }
+
+        @Override
+        public int getHeight() {
+            return region.height;
+        }
+    }
+
+    /**
      * A registered callout, together with the (possibly {@code null}, i.e., not-yet-resolved) group it was
      * registered under. Stays in {@link #registrations} even after being displayed, so the same scope can be
      * shown again later. Holds its owner only via a {@link WeakReference}: once nothing else in the application
@@ -978,8 +1207,10 @@ public class CalloutManager {
      */
     // order: sort key used by entriesFor() to arrange a group's chain; Integer.MAX_VALUE (the default used
     // by the add() overload that omits it) sorts an entry after every explicitly-ordered one
+    // pin: strong reference to an owner that nothing else references (a RegionAnchor), so it is not garbage-collected
+    // while registered; null for owners that are real components
     private record Registration(String message, WeakReference<Component> owner, int position, String prefsKey,
-                                String group, int order) {
+                                String group, int order, Component pin) {
     }
 
     /**
@@ -998,11 +1229,11 @@ public class CalloutManager {
      * being clipped by an otherwise-rectangular, opaque window.
      * <p>
      * Deliberately does NOT own {@link #reposition()} (a chain callout aligns its arrow with the anchor's
-     * center; a tip simply centers the box on it -- different enough that sharing one formula would obscure
+     * center; a tip simply centers the box on it; different enough that sharing one formula would obscure
      * more than it saves) or any notion of dismissal bookkeeping beyond the {@link #onShown()}/
      * {@link #onClosed()} hooks: keeping this class ignorant of {@link #registrations}/{@link #activeChains}/
      * {@link #PREFS} (chain-only) vs. {@link #activeTips} (tip-only) is what keeps the two balloon kinds
-     * structurally independent -- see {@link #showTip(Component, String, int, int)}
+     * structurally independent, see {@link #showTip(Component, String, int, int)}
      * </p>
      */
     private abstract static class Balloon extends JPanel {
@@ -1257,7 +1488,7 @@ public class CalloutManager {
 
             Point loc = fittingLocation(resolvedPosition, pt, ownerSize, screen, gap);
             if (loc == null) {
-                // no room for resolvedPosition without clamping onto the anchor -- most likely because
+                // no room for resolvedPosition without clamping onto the anchor, most likely because
                 // owner's window has since been pushed against a screen edge (e.g. by "Arrange Dialogs").
                 // Flip to the mirrored side, which is the other side of the very same anchor, before
                 // resorting to a clamp that would defeat the whole point of an arrow-callout
@@ -1415,12 +1646,12 @@ public class CalloutManager {
 
     /**
      * A single, standalone balloon shown via {@link #showTip(Component, String, int, int)}. Deliberately does
-     * not extend or share any state with {@link CalloutPanel} -- beyond {@link Balloon}'s generic window
+     * not extend or share any state with {@link CalloutPanel}, beyond {@link Balloon}'s generic window
      * plumbing and the same static positioning helpers ({@link #windowOf}, {@link #anchorBounds},
-     * {@link #usableScreenBounds}, etc.) -- so it belongs to no chain, is never registered, and its dismissal is
+     * {@link #usableScreenBounds}, etc.), so it belongs to no chain, is never registered, and its dismissal is
      * never persisted to {@link #PREFS}. Keeping the two classes structurally independent (rather than, say, a
-     * shared "chain vs. tip" flag on one class) is what makes it impossible for a tip to be pulled into -- or
-     * clobber the {@link #activeChains} state of -- an actual onboarding chain
+     * shared "chain vs. tip" flag on one class) is what makes it impossible for a tip to be pulled into (or
+     * clobber the {@link #activeChains} state of) an actual onboarding chain
      */
     private static class TipPanel extends Balloon {
 
@@ -1455,7 +1686,7 @@ public class CalloutManager {
          * to that width. {@code text} is expected to be plain text (tips are loaded from a plain-text resource,
          * not authored as HTML), so it is escaped before being placed in the markup: this is what keeps a tip
          * that happens to contain '&amp;'/'&lt;'/'&gt;' (e.g., "Tracings & Open Next/Previous Image") from being
-         * misread as markup -- an unescaped '&lt;' in particular would otherwise be parsed as the start of a tag
+         * misread as markup: an unescaped '&lt;' in particular would otherwise be parsed as the start of a tag
          * and swallow the rest of the tip
          */
         private String htmlText(final String text) {

@@ -138,11 +138,11 @@ public class SpimDataUtils {
                 }
                 final File dir = file.getParentFile();
                 if (dir != null && !dir.canWrite()) {
-                    throw new IllegalArgumentException(
-                            "Cannot write to directory: " + dir.getAbsolutePath() + "\n" +
-                                    "Create the BDV XML file manually via " +
-                                    "Plugins > BigDataViewer > Create XML for Imaris file, " +
-                                    "then use Bvv.open(\"/path/to/dataset.xml\").");
+                    final String msg = (dir.exists()) ?
+                            "Create the BDV XML file manually via Plugins > BigDataViewer > Create XML for Imaris file," +
+                            " then use Bvv.open(\"/path/to/dataset.xml\")"
+                            : "The path does not seem to exist.";
+                    throw new IllegalArgumentException("Cannot write to directory: " + dir.getAbsolutePath() + ". " + msg);
                 }
                 final SpimDataMinimal spimData = Imaris.openIms(file.getAbsolutePath());
                 new XmlIoSpimDataMinimal().save(spimData, xmlPath);
