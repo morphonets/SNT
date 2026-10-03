@@ -1252,6 +1252,122 @@ public class ImgUtils {
     }
 
     /**
+     * Result of {@link #maxProjectionWithDepth}.
+     *
+     * @param max   the max-intensity projection (type preserving)
+     * @param depth for each pixel of {@code max}, the index of the plane (in the coordinates of the projected
+     *              source) at which the maximum was found. The first plane wins on ties
+     */
+    public record MaxProjection<T extends RealType<T>>(Img<T> max, Img<FloatType> depth) {}
+
+    /**
+     * Computes a slab max-intensity projection of a (possibly lazy, e.g., cell-cached) image along an arbitrary
+     * axis, also keeping track of the depth at which each maximum occurs. The source is read plane by plane and
+     * only the 2D results are held in memory, so this is suitable for slabs of large datasets (see
+     * {@link #maxIntensityProjection(ImgPlus)} for the ImgPlus/Z-only counterpart). To project a multichannel
+     * image, slice the channel first, e.g., with {@link Views#hyperSlice(RandomAccessibleInterval, int, long)}
+     *
+     * @param <T>  the pixel type
+     * @param rai  the 3D source
+     * @param axis the dimension to project along (e.g., 2 for Z in XYZ data)
+     * @param min  first plane of the slab (clamped to the source bounds)
+     * @param max  last plane of the slab, inclusive (clamped to the source bounds)
+     * @return the projection and its depth map
+     * @throws IllegalArgumentException if {@code rai} is not 3D, {@code axis} is invalid, or the slab does not
+     *                                  overlap the source
+     */
+    public static <T extends RealType<T> & NativeType<T>> MaxProjection<T> maxProjectionWithDepth(
+            final RandomAccessibleInterval<T> rai, final int axis, final long min, final long max) {
+        if (rai == null) throw new IllegalArgumentException("rai cannot be null");
+        if (rai.numDimensions() != 3) throw new IllegalArgumentException("Only 3D images are supported");
+        if (axis < 0 || axis > 2) throw new IllegalArgumentException("Invalid axis: " + axis);
+        final long lo = Math.max(Math.min(min, max), rai.min(axis));
+        final long hi = Math.min(Math.max(min, max), rai.max(axis));
+        if (lo > hi) throw new IllegalArgumentException("Slab does not overlap the image");
+
+        final long[] dims = new long[2];
+        for (int d = 0, i = 0; d < 3; d++)
+            if (d != axis) dims[i++] = rai.dimension(d);
+        final Img<T> mip = new ArrayImgFactory<>(Util.getTypeFromInterval(rai)).create(dims);
+        final Img<FloatType> depth = new ArrayImgFactory<>(new FloatType()).create(dims);
+
+        LoopBuilder.setImages(Views.zeroMin(Views.hyperSlice(rai, axis, lo)), mip, depth).multiThreaded()
+                .forEachPixel((s, m, d) -> {
+                    m.set(s);
+                    d.setReal(lo);
+                });
+        for (long p = lo + 1; p <= hi; p++) {
+            final float plane = p;
+            LoopBuilder.setImages(Views.zeroMin(Views.hyperSlice(rai, axis, p)), mip, depth).multiThreaded()
+                    .forEachPixel((s, m, d) -> {
+                        if (s.compareTo(m) > 0) {
+                            m.set(s);
+                            d.setReal(plane);
+                        }
+                    });
+        }
+        return new MaxProjection<>(mip, depth);
+    }
+
+    /**
+     * Computes a depth color-coded slab max-intensity projection (analogous to ImageJ's "Temporal-Color Code"
+     * or "Hyperstack Depth Color" tools). Hue is determined by the depth of the maximum within the slab, and
+     * brightness by the intensity of the maximum.
+     *
+     * @param <T>        the pixel type
+     * @param rai        the 3D single-channel source
+     * @param axis       the dimension to project along (e.g., 2 for Z in XYZ data)
+     * @param min        first plane of the slab (clamped to the source bounds)
+     * @param max        last plane of the slab, inclusive (clamped to the source bounds)
+     * @param lut        the color table mapping depth to color (e.g., {@link ColorMaps#get(String)}). Null
+     *                   defaults to {@link ColorMaps#VIRIDIS}
+     * @param displayMin the intensity mapped to black. Ignored (together with {@code displayMax}) if
+     *                   {@code displayMax <= displayMin}, in which case the range of the projection is used
+     * @param displayMax the intensity mapped to full color brightness
+     * @return a 2D RGB image (uncalibrated)
+     * @see #maxProjectionWithDepth(RandomAccessibleInterval, int, long, long)
+     */
+    public static <T extends RealType<T> & NativeType<T>> ImagePlus depthCodedProjection(
+            final RandomAccessibleInterval<T> rai, final int axis, final long min, final long max,
+            final ColorTable lut, final double displayMin, final double displayMax) {
+        final MaxProjection<T> proj = maxProjectionWithDepth(rai, axis, min, max);
+        final ColorTable table = (lut == null) ? ColorMaps.VIRIDIS : lut;
+        final long lo = Math.max(Math.min(min, max), rai.min(axis));
+        final long hi = Math.min(Math.max(min, max), rai.max(axis));
+
+        double dMin = displayMin;
+        double dMax = displayMax;
+        if (dMax <= dMin) {
+            dMin = Double.MAX_VALUE;
+            dMax = -Double.MAX_VALUE;
+            for (final T t : Views.iterable(proj.max())) {
+                final double v = t.getRealDouble();
+                if (v < dMin) dMin = v;
+                if (v > dMax) dMax = v;
+            }
+        }
+        final double range = (dMax > dMin) ? dMax - dMin : 1;
+        final double depthRange = (hi > lo) ? hi - lo : 1;
+        final int nColors = table.getLength();
+
+        final int w = (int) proj.max().dimension(0);
+        final int h = (int) proj.max().dimension(1);
+        final int[] pixels = new int[w * h];
+        final Cursor<T> mc = Views.flatIterable(proj.max()).cursor();
+        final Cursor<FloatType> dc = Views.flatIterable(proj.depth()).cursor();
+        int idx = 0;
+        while (mc.hasNext()) {
+            final double brightness = Math.max(0, Math.min(1, (mc.next().getRealDouble() - dMin) / range));
+            final int c = (int) Math.round((dc.next().get() - lo) / depthRange * (nColors - 1));
+            final int r = (int) Math.round(table.get(ColorTable.RED, c) * brightness);
+            final int g = (int) Math.round(table.get(ColorTable.GREEN, c) * brightness);
+            final int b = (int) Math.round(table.get(ColorTable.BLUE, c) * brightness);
+            pixels[idx++] = (r << 16) | (g << 8) | b;
+        }
+        return new ImagePlus("DepthCoded_MIP", new ij.process.ColorProcessor(w, h, pixels));
+    }
+
+    /**
      * Computes the mean intensity of an image.
      *
      * @param source the input image
