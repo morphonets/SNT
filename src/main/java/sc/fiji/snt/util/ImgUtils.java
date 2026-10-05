@@ -54,7 +54,6 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
-import net.imglib2.util.Util;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.scijava.Context;
@@ -699,7 +698,7 @@ public class ImgUtils {
         if (rai.numDimensions() == 3)
             axisCorrected = Views.permute(Views.addDimension(rai, 0, 0), 2, 3);
 
-        final ImagePlusImgFactory<T> factory = new ImagePlusImgFactory<>(Util.getTypeFromInterval(axisCorrected));
+        final ImagePlusImgFactory<T> factory = new ImagePlusImgFactory<>(axisCorrected.getType().createVariable());
         final ImagePlusImg<T, ?> dest = factory.create(axisCorrected);
         LoopBuilder.setImages(axisCorrected, dest).multiThreaded().forEachPixel((in, out) -> out.set(in));
 
@@ -1346,7 +1345,7 @@ public class ImgUtils {
         if (dMax <= dMin) {
             dMin = Double.MAX_VALUE;
             dMax = -Double.MAX_VALUE;
-            for (final T t : Views.iterable(proj.max())) {
+            for (final T t : proj.max()) {
                 final double v = t.getRealDouble();
                 if (v < dMin) dMin = v;
                 if (v > dMax) dMax = v;
@@ -1530,7 +1529,7 @@ public class ImgUtils {
      * {@code maxDimSize}. Only spatial axes (X, Y, Z) are downsampled;
      * Channel and Time axes are left untouched.
      * <p>
-     * Uses nearest-neighbour subsampling ({@link Views#subsample}) for speed.
+     * Uses nearest-neighbor subsampling ({@link Views#subsample}) for speed.
      * The calibration of downsampled axes is scaled accordingly so that the
      * physical extent of the image is preserved.
      * </p>
@@ -1839,6 +1838,12 @@ public class ImgUtils {
             throw new IllegalArgumentException("Axis not found: " + axis1.getLabel());
         if (d2 < 0)
             throw new IllegalArgumentException("Axis not found: " + axis2.getLabel());
+        return swapDimensions(img, d1, d2);
+    }
+
+    /** Index-based swap, safe when several axes share the same (e.g., unknown) type */
+    private static <T extends net.imglib2.type.Type<T>> ImgPlus<T> swapDimensions(final ImgPlus<T> img,
+                                                                                  final int d1, final int d2) {
         if (d1 == d2) return img; // nothing to do
 
         final RandomAccessibleInterval<T> permuted = Views.permute(img, d1, d2);
@@ -1875,18 +1880,94 @@ public class ImgUtils {
         // The canonical target order for BVV: X, Y, Z, Channel, Time
         final AxisType[] canonical = {Axes.X, Axes.Y, Axes.Z, Axes.CHANNEL, Axes.TIME};
         ImgPlus<T> result = img;
-        // Walk canonical positions; if the axis at position i isn't the right one, find
-        // the correct axis and swap it into place (selection-sort style)
-        for (int i = 0; i < canonical.length; i++) {
-            final int target = result.dimensionIndex(canonical[i]);
-            if (target < 0 || target == i) continue; // axis absent or already in place
-            // Find what is currently at position i and swap
-            final AxisType current = result.axis(i).type();
-            result = swapAxes(result, canonical[i], current);
+        // Walk the canonical axes that are present, placing each at the next free position.
+        // Positions are ranked among present axes only: comparing against the canonical
+        // index would break images lacking any of the five (e.g., XYZT without C)
+        int pos = 0;
+        for (final AxisType type : canonical) {
+            final int current = result.dimensionIndex(type);
+            if (current < 0) continue; // axis absent
+            if (current != pos) result = swapDimensions(result, current, pos);
+            pos++;
         }
         if (result != img)
             SNTUtils.log("Permuted axes > " + axisReport(result));
         return result;
+    }
+
+    /** Returns whether the first three axes of an image are X, Y and Z (in that order) */
+    public static boolean hasXYZLeading(final ImgPlus<?> img) {
+        return img.numDimensions() >= 3
+                && img.axis(0).type() == Axes.X
+                && img.axis(1).type() == Axes.Y
+                && img.axis(2).type() == Axes.Z;
+    }
+
+    private static boolean isUnlabeled(final AxisType type) {
+        return type == null || "Unknown".equalsIgnoreCase(type.getLabel());
+    }
+
+    /**
+     * Normalizes the axes of an {@link ImgPlus} for volume viewers and tracing: singleton axes  are dropped and the
+     * remaining ones are ordered X, Y, Z, [C], [T], with no pixel copy.
+     * <ul>
+     * <li>Unlabeled axes: if exactly 3 axes are present and none is labeled, they are assumed to be XYZ; if X and Y are
+     * labeled and a single third axis is unlabeled, it is assumed to be Z. Both cases are logged. Anything else
+     * unlabeled is rejected as ambiguous</li>
+     * <li>Images without a Z axis after singleton removal (2D, or 2D plus C/T) are returned as is: callers are expected
+     * to reject them as non-volumetric</li>
+     * <li>Images with Z but any other non-singleton axis than C or T (e.g., Position, Series) are rejected</li>
+     * </ul>
+     * Images already in the normalized layout are returned unchanged (same instance).
+     *
+     * @param <T> the pixel type
+     * @param img the source image
+     * @return the normalized image, or {@code img} if no change was needed
+     * @throws IllegalArgumentException if the axis layout is ambiguous or unsupported
+     */
+    public static <T extends NumericType<T>> ImgPlus<T> normalizeToXYZ(final ImgPlus<T> img) {
+        if (img == null || img.numDimensions() < 3) return img;
+        // Singletons first: an unlabeled axis of size 1 is harmless and must not trigger the ambiguity check
+        ImgPlus<T> result = labelUnknownAxes(dropSingletonDimensions(img));
+        if (result.dimensionIndex(Axes.Z) < 0) return result; // 2D: not our call
+        result = permuteToXYZCT(result);
+        if (!hasXYZLeading(result)) {
+            throw new IllegalArgumentException("Unsupported axis layout: " + axisReport(result)
+                    + ". Expected X, Y, Z leading");
+        }
+        for (int d = 3; d < result.numDimensions(); d++) {
+            final AxisType type = result.axis(d).type();
+            if (type != Axes.CHANNEL && type != Axes.TIME) {
+                throw new IllegalArgumentException("Unsupported non-spatial axis '" + type.getLabel()
+                        + "' with " + result.dimension(d) + " elements: " + axisReport(result)
+                        + ". Only Channel and Time are supported");
+            }
+        }
+        if (result != img) SNTUtils.log("Normalized axes > " + axisReport(result));
+        return result;
+    }
+
+    private static <T extends NumericType<T>> ImgPlus<T> labelUnknownAxes(final ImgPlus<T> img) {
+        final int n = img.numDimensions();
+        int nUnlabeled = 0;
+        for (int d = 0; d < n; d++)
+            if (isUnlabeled(img.axis(d).type())) nUnlabeled++;
+        if (nUnlabeled == 0) return img;
+        final boolean allUnlabeled3D = n == 3 && nUnlabeled == 3;
+        final boolean unlabeledZ = n == 3 && nUnlabeled == 1 && isUnlabeled(img.axis(2).type())
+                && img.axis(0).type() == Axes.X && img.axis(1).type() == Axes.Y;
+        if (!allUnlabeled3D && !unlabeledZ) {
+            throw new IllegalArgumentException("Ambiguous axis layout (unlabeled axes): " + axisReport(img));
+        }
+        final AxisType[] assumed = {Axes.X, Axes.Y, Axes.Z};
+        final net.imagej.axis.CalibratedAxis[] axes = new net.imagej.axis.CalibratedAxis[n];
+        for (int d = 0; d < n; d++) {
+            axes[d] = img.axis(d).copy();
+            if (isUnlabeled(axes[d].type())) axes[d].setType(assumed[d]);
+        }
+        SNTUtils.log("Unlabeled axes assumed to be XYZ: " + axisReport(img) + " (" + img.dimension(0) + "x"
+                + img.dimension(1) + "x" + img.dimension(2) + ")");
+        return new ImgPlus<>(img.getImg(), img.getName(), axes);
     }
 
     /**

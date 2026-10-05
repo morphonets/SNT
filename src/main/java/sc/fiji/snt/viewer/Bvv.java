@@ -252,7 +252,10 @@ public class Bvv extends AbstractBigViewer {
         return source;
     }
 
-    public <T extends RealType<T>> BvvSource show(final ImgPlus<T> imgPlus) {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T extends RealType<T>> BvvSource show(final ImgPlus<T> rawImgPlus) {
+        // Idempotent: no-op for images already in X, Y, Z, [C], [T] order (e.g., from resolvePathToSource)
+        final ImgPlus<T> imgPlus = (ImgPlus<T>) ImgUtils.normalizeToXYZ((ImgPlus) rawImgPlus);
         // BVV is a volume viewer: reject images that have no Z dimension.
         // Even multichannel 2D images are unsupported: each hypersliced channel
         // would be a 2D RAI, causing an ArrayIndexOutOfBoundsException inside
@@ -286,11 +289,21 @@ public class Bvv extends AbstractBigViewer {
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         // Use showCalibratedSource so the unit propagates to the scale bar renderer
         calUnit = BoundingBox.sanitizedUnit(unit);
-        final BvvStackSource<?> source = showCalibratedSource(imgPlus, title, cal, unit, opt);
+        // After normalization a remaining 4th axis can only be T (last)
+        final int nT = numTimepoints(imgPlus);
+        final BvvStackSource<?> source = (nT > 1)
+                ? showCalibratedSource(imgPlus, title, cal, unit, nT, opt)
+                : showCalibratedSource(imgPlus, title, cal, unit, opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
         multiSources.add(new BvvMultiSource(source));
         return source;
+    }
+
+    /** Number of frames of a normalized (X, Y, Z, [C], [T]) image, or 1 if it has no T axis */
+    private static int numTimepoints(final ImgPlus<?> imgPlus) {
+        final int tDim = imgPlus.dimensionIndex(Axes.TIME);
+        return (tDim >= 0) ? (int) imgPlus.dimension(tDim) : 1;
     }
 
     /**
@@ -314,6 +327,7 @@ public class Bvv extends AbstractBigViewer {
                 imgPlus.dimension(imgPlus.dimensionIndex(Axes.Y)), nZ};
         BvvUtils.checkVolumeSize(dims[0], dims[1], nZ);
 
+        final int nT = numTimepoints(imgPlus);
         final String imageName = (imgPlus.getName() != null && !imgPlus.getName().isBlank())
                 ? imgPlus.getName() : "SNT Bvv";
 
@@ -338,7 +352,9 @@ public class Bvv extends AbstractBigViewer {
             final BvvOptions chOpt = (!hasExistingWindow && leaderSource == null)
                     ? baseOpt
                     : baseOpt.addTo(bvvHandle != null ? bvvHandle : leaderSource.getBvvHandle());
-            final BvvStackSource<?> chSource = showCalibratedSource(channelRai, chTitle, cal, unit, chOpt);
+            final BvvStackSource<?> chSource = (nT > 1)
+                    ? showCalibratedSource(channelRai, chTitle, cal, unit, nT, chOpt)
+                    : showCalibratedSource(channelRai, chTitle, cal, unit, chOpt);
 
             if (leaderSource == null) {
                 leaderSource = chSource;

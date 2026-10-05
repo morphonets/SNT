@@ -95,7 +95,14 @@ public class SpimDataUtils {
      * @return an {@link AbstractSpimData}, {@link N5Sources}, or {@link ImgPlus}
      * @throws IllegalArgumentException if the file cannot be opened
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static Object resolvePathToSource(final String filePathOrUrl) {
+        final Object source = resolveRawPathToSource(filePathOrUrl);
+        // Single choke point: every ImgPlus handed to SNT, BVV and BDV has X, Y, Z leading, then optional C, T
+        return (source instanceof ImgPlus<?> img) ? ImgUtils.normalizeToXYZ((ImgPlus) img) : source;
+    }
+
+    private static Object resolveRawPathToSource(final String filePathOrUrl) {
         // Remote containers (e.g. https://.../dataset.ome.zarr, s3://bucket/key) have no meaningful
         // java.io.File representation: File#getAbsolutePath() would mangle the URL by prepending the
         // current working directory, since "https:" etc. isn't a recognized absolute-path prefix. Route
