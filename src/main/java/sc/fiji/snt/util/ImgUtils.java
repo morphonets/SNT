@@ -1288,23 +1288,29 @@ public class ImgUtils {
         final long[] dims = new long[2];
         for (int d = 0, i = 0; d < 3; d++)
             if (d != axis) dims[i++] = rai.dimension(d);
-        final Img<T> mip = new ArrayImgFactory<>(Util.getTypeFromInterval(rai)).create(dims);
+        final Img<T> mip = new ArrayImgFactory<>(rai.getType().createVariable()).create(dims);
         final Img<FloatType> depth = new ArrayImgFactory<>(new FloatType()).create(dims);
 
-        LoopBuilder.setImages(Views.zeroMin(Views.hyperSlice(rai, axis, lo)), mip, depth).multiThreaded()
-                .forEachPixel((s, m, d) -> {
+        // Lazy sources (e.g., Imaris/HDF5) are not safe to read from many threads at once (the HDF5 lib serializes on a
+        // global monitor and has crashed the JVM under contention). Stage each plane serially, reduce in parallel
+        final Img<T> plane = new ArrayImgFactory<>(rai.getType().createVariable()).create(dims);
+        for (long p = lo; p <= hi; p++) {
+            LoopBuilder.setImages(Views.zeroMin(Views.hyperSlice(rai, axis, p)), plane)
+                    .forEachPixel((s, t) -> t.set(s));
+            if (p == lo) {
+                LoopBuilder.setImages(plane, mip, depth).multiThreaded().forEachPixel((s, m, d) -> {
                     m.set(s);
                     d.setReal(lo);
                 });
-        for (long p = lo + 1; p <= hi; p++) {
-            final float plane = p;
-            LoopBuilder.setImages(Views.zeroMin(Views.hyperSlice(rai, axis, p)), mip, depth).multiThreaded()
-                    .forEachPixel((s, m, d) -> {
-                        if (s.compareTo(m) > 0) {
-                            m.set(s);
-                            d.setReal(plane);
-                        }
-                    });
+                continue;
+            }
+            final float z = p;
+            LoopBuilder.setImages(plane, mip, depth).multiThreaded().forEachPixel((s, m, d) -> {
+                if (s.compareTo(m) > 0) {
+                    m.set(s);
+                    d.setReal(z);
+                }
+            });
         }
         return new MaxProjection<>(mip, depth);
     }
