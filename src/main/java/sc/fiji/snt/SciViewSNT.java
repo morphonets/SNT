@@ -87,8 +87,8 @@ public class SciViewSNT {
 		plottedTrees = new TreeMap<>();
         try {
             sciView = sciViewService.getOrCreateActiveSciView();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (final Exception e) {
+            throw new IllegalStateException("sciview could not be initialized", e);
         }
         snt = null;
 	}
@@ -121,8 +121,10 @@ public class SciViewSNT {
 				SNTUtils.log("Initializing active SciView from EDT");
 			try {
 				setSciView(sciViewService.getOrCreateActiveSciView());
-			} catch (Exception e) {
-				e.printStackTrace();
+			} catch (final Error e) {
+				throw e; // e.g., NoClassDefFoundError: do not hide its type
+			} catch (final Exception e) {
+				throw new IllegalStateException("sciview could not be initialized", e);
 			}
 		}
 	}
@@ -456,7 +458,7 @@ public class SciViewSNT {
 			OrientedBoundingBox bb = new OrientedBoundingBox(this, 0.0f, 0.0f, 0.0f,
 					0.0f, 0.0f, 0.0f);
 			for( final Node n : getChildren() ) {
-				final OrientedBoundingBox cBB = n.generateBoundingBox();
+				final OrientedBoundingBox cBB = n.generateBoundingBox(true);
 				if( cBB != null )
 					bb = bb.expand(bb, cBB);
 			}

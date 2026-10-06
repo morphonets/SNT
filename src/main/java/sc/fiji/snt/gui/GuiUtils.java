@@ -166,6 +166,71 @@ public class GuiUtils {
 		centeredDialog(msg, title, JOptionPane.ERROR_MESSAGE);
 	}
 
+	/**
+	 * Displays an error dialog for a failure, and logs its stack trace. Wrappers (e.g., {@link ExecutionException}) are
+	 * unwrapped. A hint to (re)install dependencies is added if the failure is caused by a missing class.
+	 *
+	 * @param throwable the failure
+	 */
+	public void error(final Throwable throwable) {
+		final Throwable cause = (throwable instanceof ExecutionException && throwable.getCause() != null)
+				? throwable.getCause()
+				: throwable;
+		if (cause instanceof OutOfMemoryError) {
+			SNTUtils.error("Out of memory", cause, false);
+			error("Out of Memory: There is not enough RAM to complete the operation. Please allocate more "
+					+ "memory to Fiji (<i>Edit>Options>Memory & Threads...</i>) or try a smaller input. "
+					+ "See Console for details.");
+			return;
+		}
+		String msg = describeFailure(cause);
+		msg = msg.substring(0, 1).toUpperCase() + msg.substring(1);
+		SNTUtils.error(msg, cause, false); // dialog below surfaces it already
+		msg = "Unfortunately an error occurred: <i>" + msg.replace("<", "&lt;").replace(">", "&gt;") + "</i>.";
+		if (isMissingClass(cause)) {
+			msg += "<br>Some files may be missing. Please use the updater to (re)install any missing files.";
+		}
+		error(msg + " See Console for details.");
+	}
+
+	/**
+	 * Checks if a failure is due to a missing class. Also recognizes bare class paths as messages, since wrappers may
+	 * stringify their cause.
+	 *
+	 * @param throwable the failure
+	 * @return true if the failure (or any of its causes) is a missing class
+	 */
+	public static boolean isMissingClass(final Throwable throwable) {
+		for (Throwable t = throwable; t != null; t = t.getCause()) {
+			if (t instanceof NoClassDefFoundError || t instanceof ClassNotFoundException) return true;
+		}
+		return looksLikeClassPath(rootCause(throwable).getMessage());
+	}
+
+	/**
+	 * Gets a concise description of a failure: the message of its root cause, prefixed by "Missing class: " if applicable.
+	 *
+	 * @param throwable the failure
+	 * @return the description, never empty
+	 */
+	public static String describeFailure(final Throwable throwable) {
+		final Throwable root = rootCause(throwable);
+		String msg = root.getMessage();
+		if (msg == null || msg.isBlank()) msg = root.getClass().getSimpleName();
+		msg = msg.replaceFirst("^.*NoClassDefFoundError: ", "");
+		return (isMissingClass(throwable)) ? "Missing class: " + msg : msg;
+	}
+
+	private static Throwable rootCause(final Throwable throwable) {
+		Throwable root = throwable;
+		while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+		return root;
+	}
+
+	private static boolean looksLikeClassPath(final String msg) {
+		return msg != null && msg.matches("[\\w$]+([/.][\\w$]+)*/[\\w$]+");
+	}
+
 	public void warning(final String msg) {
 		centeredDialog(msg, "SNT v" + SNTUtils.VERSION, JOptionPane.WARNING_MESSAGE);
 	}

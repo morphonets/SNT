@@ -1866,13 +1866,6 @@ public class SNTUI extends JDialog {
         plugin.error(msg); // centered on active window (ImageWindow, etc.)
     }
 
-    private void error(final Throwable throwable) {
-        final String msg = (throwable.getMessage() == null) ? "Unknown error" : throwable.getMessage();
-        final String adjMsg = msg.substring(0, 1).toUpperCase() + msg.substring(1);
-        SNTUtils.error(adjMsg, throwable, false); // already surfaced synchronously via the modal dialog below
-        guiUtils.error("Unfortunately an error occurred: <i>" + adjMsg + "</i>. See Console for details.");
-    }
-
     /*
      * These guiError(...) overloads mirror GuiUtils#error(...) but additionally log the message via
      * SNTUtils.error(..., false) first, giving every internal validation/failure dialog a permanent record,
@@ -2112,7 +2105,7 @@ public class SNTUI extends JDialog {
                 if (t instanceof OutOfMemoryError) {
                     guiError("Out of Memory: There is not enough RAM to load side views!");
                 } else {
-                    error(t);
+                    guiUtils.error(t);
                 }
                 plugin.setSinglePane(true);
                 if (noImageData) {
@@ -2163,7 +2156,7 @@ public class SNTUI extends JDialog {
                 if (t instanceof OutOfMemoryError) {
                     guiError("Out of Memory: There is not enough RAM to create a canvas this large.");
                 } else {
-                    error(t);
+                    guiUtils.error(t);
                 }
                 showStatus("Out of memory error...", true);
             } finally {
@@ -3080,7 +3073,7 @@ public class SNTUI extends JDialog {
                     try {
                         recViewer = new SNTViewer3D();
                     } catch (final NoClassDefFoundError | RuntimeException exc) {
-                        error(exc);
+                        guiUtils.error(exc);
                         return false;
                     }
                     if (pathAndFillManager.size() > 0) recViewer.syncPathManagerList();
@@ -3094,7 +3087,7 @@ public class SNTUI extends JDialog {
                         if (!get())
                             no3DCapabilitiesError("Reconstruction Viewer");
                     } catch (final InterruptedException | ExecutionException e) {
-                        error(e);
+                        guiUtils.error(e);
                     } finally {
                         setReconstructionViewer(recViewer);
                     }
@@ -3143,17 +3136,14 @@ public class SNTUI extends JDialog {
 
                 @Override
                 protected Boolean doInBackground() {
-                    try {
-                        newSciViewSNT = new SciViewSNT(plugin);
-                        newSciViewSNT.getSciView(); // This blocks until sciview is ready
-                        if (pathAndFillManager.size() > 0) {
-                            newSciViewSNT.syncPathManagerList();
-                        }
-                        return true;
-                    } catch (final NoClassDefFoundError | RuntimeException exc) {
-                        error(exc);
-                        return false;
+                    // Exceptions propagate to done() via get(), so they are reported once, on the EDT
+                    newSciViewSNT = new SciViewSNT(plugin);
+                    if (newSciViewSNT.getSciView() == null) // blocks until sciview is ready
+                        throw new IllegalStateException("sciview could not be initialized");
+                    if (pathAndFillManager.size() > 0) {
+                        newSciViewSNT.syncPathManagerList();
                     }
+                    return true;
                 }
 
                 @Override
@@ -3164,10 +3154,10 @@ public class SNTUI extends JDialog {
                         } else {
                             no3DCapabilitiesError("sciview");
                         }
-                    } catch (final InterruptedException | ExecutionException ex) {
-                        error(ex);
-                    } catch (final CancellationException ignored) {
-                        // User cancelled, do nothing
+                    } catch (final ExecutionException ex) {
+                        guiUtils.error(ex);
+                    } catch (final InterruptedException | CancellationException ignored) {
+                        // User canceled or thread interrupted, do nothing
                     } finally {
                         setSciViewSNT(sciViewSNT);
                     }
@@ -3215,7 +3205,7 @@ public class SNTUI extends JDialog {
                 try {
                     initializeBigViewerFromPrompt(Bvv.class, openBVV);
                 } catch (final Throwable exc) {
-                    error(exc);
+                    guiUtils.error(exc);
                     no3DCapabilitiesError("BVV");
                 }
             }
@@ -3256,7 +3246,7 @@ public class SNTUI extends JDialog {
                 try {
                     initializeBigViewerFromPrompt(Bdv.class, openBDV);
                 } catch (final Throwable exc) {
-                    error(exc);
+                    guiUtils.error(exc);
                 }
             }
         });
@@ -3326,7 +3316,7 @@ public class SNTUI extends JDialog {
                     }
                     return viewer;
                 } catch (final Throwable exc) {
-                    error(exc);
+                    guiUtils.error(exc);
                     return null;
                 } finally {
                     SNTUtils.setIsLoading(false, false);
@@ -3340,9 +3330,9 @@ public class SNTUI extends JDialog {
                 try {
                     viewer = get();
                 } catch (final InterruptedException | ExecutionException exc) {
-                    error(exc);
+                    guiUtils.error(exc);
                 } catch (final CancellationException ignored) {
-                    // user cancelled, do nothing
+                    // user canceled, do nothing
                 }
                 if (viewer == null) {
                     if (secondaryDataGone) noSecondaryDataAvailableError();
@@ -3651,7 +3641,7 @@ public class SNTUI extends JDialog {
                     return ("It seems there is not enough memory to proceed. See Console for details.");
                 } catch (final Exception e4) {
                     e4.printStackTrace();
-                    return ("Un unknown error occurred. See Console for details.");
+                    return ("An unknown error occurred. See Console for details.");
                 }
                 return null;
             }

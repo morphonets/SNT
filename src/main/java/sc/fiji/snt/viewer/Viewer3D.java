@@ -4826,12 +4826,8 @@ public class Viewer3D {
                             final Viewer3D dup = get();
                             dup.show();
                             dup.view.setBoundsManual(view.getBounds().clone());
-                        } catch (final OutOfMemoryError e1) {
-                            e1.printStackTrace();
-                            mgrGuiUtils.error("There is not enough memory to complete command. See Console for details.");
-                        } catch (NullPointerException | InterruptedException | ExecutionException e2) {
-                            e2.printStackTrace();
-                            mgrGuiUtils.error("Unfortunately an error occurred. See Console for details.");
+                        } catch (final NullPointerException | InterruptedException | ExecutionException e1) {
+                            mgrGuiUtils.error(e1); // unwraps ExecutionException, handles OutOfMemoryError
                         } finally {
                             removeProgressLoad(-1);
                         }
