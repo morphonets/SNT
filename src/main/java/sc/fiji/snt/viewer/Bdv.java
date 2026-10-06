@@ -603,14 +603,22 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
-    protected void awaitRender(final Runnable trigger) throws InterruptedException {
-        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-        final bdv.viewer.TransformListener<AffineTransform3D> listener = t -> latch.countDown();
+    protected void awaitRender(final Runnable trigger, final long settleMillis) throws InterruptedException {
+        final java.util.concurrent.atomic.AtomicLong lastRender = new java.util.concurrent.atomic.AtomicLong(-1);
+        final bdv.viewer.TransformListener<AffineTransform3D> listener = t -> lastRender.set(System.nanoTime());
         // Listener goes in first so that a fast render cannot be missed
         viewerPanel.renderTransformListeners().add(listener);
         try {
             trigger.run();
-            latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            // The viewer renders progressively (coarse screen scales and lower res. levels first), notifying at each
+            // pass. Wait for the 1st render, then until no new render has arrived for settleMillis (finest pass drawn)
+            final long quietNanos = settleMillis * 1_000_000L;
+            final long deadline = System.nanoTime() + 5_000_000_000L;
+            while (System.nanoTime() < deadline) {
+                final long last = lastRender.get();
+                if (last > 0 && System.nanoTime() - last > quietNanos) break;
+                Thread.sleep(25);
+            }
             Thread.sleep(50); // brief pause for the canvas paint to finish
         } finally {
             viewerPanel.renderTransformListeners().remove(listener);

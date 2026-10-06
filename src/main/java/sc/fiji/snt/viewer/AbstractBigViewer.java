@@ -78,6 +78,8 @@ public abstract class AbstractBigViewer {
 
     protected boolean tracingEnabled;
 
+    private KeyframeRecorder keyframeRecorder;
+
     /** @return SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     public SNT getSNT() { return snt; }
 
@@ -877,7 +879,33 @@ public abstract class AbstractBigViewer {
      * @throws IllegalStateException if no viewer is active
      */
     public Keyframe captureKeyframe() {
-        return new KeyframeRecorder(this).capture();
+        return recorder().capture();
+    }
+
+    private KeyframeRecorder recorder() {
+        if (keyframeRecorder == null) keyframeRecorder = new KeyframeRecorder(this);
+        return keyframeRecorder;
+    }
+
+    /**
+     * Gets the time without new render passes after which a recorded frame is considered fully refined.
+     *
+     * @return the settle time in milliseconds
+     * @see #setRenderSettleTime(long)
+     */
+    public long getRenderSettleTime() {
+        return recorder().getSettleMillis();
+    }
+
+    /**
+     * Sets the time without new render passes after which a recorded frame is considered fully refined and is captured
+     * by {@link #renderFrames(List, String)}. The viewer renders progressively (coarse first): values that are too
+     * small may yield low-resolution frames, while large values slow down recording. Default is 250 ms.
+     *
+     * @param millis the settle time in milliseconds (non-negative)
+     */
+    public void setRenderSettleTime(final long millis) {
+        recorder().setSettleMillis(millis);
     }
 
     /**
@@ -916,7 +944,7 @@ public abstract class AbstractBigViewer {
      * @throws IllegalStateException    if no viewer is active
      */
     public void renderFrames(final List<Keyframe> keyframes, final String outputDir) {
-        new KeyframeRecorder(this).render(keyframes, outputDir);
+        recorder().render(keyframes, outputDir);
     }
 
     /** Returns the viewer's state (sources, groups, timepoint) or {@code null} if not yet live */
@@ -1043,6 +1071,108 @@ public abstract class AbstractBigViewer {
     /** Displays the dialog listing the viewer's keyboard shortcuts */
     protected abstract void showShortcuts(GuiUtils gui);
 
+    /** Resolves a source by 0-based index, falling back to the active source if out of range */
+    private SourceAndConverter<?> resolveSource(final int sourceIndex) {
+        final var state = getViewerState();
+        if (state == null) return null;
+        final var sources = state.getSources();
+        return (sourceIndex >= 0 && sourceIndex < sources.size()) ? sources.get(sourceIndex) : getCurrentSource();
+    }
+
+    /**
+     * Returns the display range (brightness min/max) of a source in the viewer.
+     *
+     * @param sourceIndex 0-based index of the source (e.g., channel), or a negative value for the active source
+     * @return {min, max} in raw intensity units, or {@code null} if unavailable
+     * @see #getSourceData(int, int)
+     */
+    public double[] getDisplayRange(final int sourceIndex) {
+        final var setups = getConverterSetups();
+        final SourceAndConverter<?> sac = (setups == null) ? null : resolveSource(sourceIndex);
+        final var cs = (sac == null) ? null : setups.getConverterSetup(sac);
+        return (cs == null) ? null : new double[]{cs.getDisplayRangeMin(), cs.getDisplayRangeMax()};
+    }
+
+    /**
+     * Returns the pixel data of a source in the viewer at the current timepoint.
+     * Unlike {@link SNT#getLoadedData()}, which holds a single channel, this gives access to any source.
+     *
+     * @param sourceIndex 0-based index of the source (e.g., channel), or a negative value for the active source
+     * @param level       the resolution level (0: full resolution). Clamped to the levels available
+     * @return the source's data
+     * @throws IllegalStateException if the viewer has no live state or the source cannot be resolved/read
+     * @see #getNumResolutionLevels(int)
+     * @see #getDownsamplingFactors(int, int)
+     */
+    public net.imglib2.RandomAccessibleInterval<?> getSourceData(final int sourceIndex, final int level) {
+        final var state = getViewerState();
+        if (state == null)
+            throw new IllegalStateException(getClass().getSimpleName() + " has no live viewer state (open=" + isOpen() + ")");
+        final SourceAndConverter<?> sac = resolveSource(sourceIndex);
+        if (sac == null)
+            throw new IllegalStateException("No source at index " + sourceIndex + " and no active source ("
+                    + state.getSources().size() + " source(s) in viewer)");
+        final int t = getCurrentTimepoint() - 1; // SNT is 1-based, BDV sources 0-based
+        final var src = sac.getSpimSource();
+        final var rai = src.getSource(t, clampLevel(src.getNumMipmapLevels(), level));
+        if (rai == null)
+            throw new IllegalStateException("Source '" + src.getName() + "' has no data at timepoint " + t);
+        return rai;
+    }
+
+    /**
+     * Returns the name of a source in the viewer.
+     *
+     * @param sourceIndex 0-based index of the source (e.g., channel), or a negative value for the active source
+     * @return the source name, or {@code null} if unavailable
+     */
+    public String getSourceName(final int sourceIndex) {
+        final SourceAndConverter<?> sac = resolveSource(sourceIndex);
+        return (sac == null) ? null : sac.getSpimSource().getName();
+    }
+
+    /**
+     * Returns the number of resolution levels of a source in the viewer.
+     *
+     * @param sourceIndex 0-based index of the source (e.g., channel), or a negative value for the active source
+     * @return the number of levels (1 if the source has no pyramid or is unavailable)
+     */
+    public int getNumResolutionLevels(final int sourceIndex) {
+        final SourceAndConverter<?> sac = resolveSource(sourceIndex);
+        return (sac == null) ? 1 : Math.max(1, sac.getSpimSource().getNumMipmapLevels());
+    }
+
+    /**
+     * Returns how much coarser a resolution level is than full resolution, along each axis.
+     *
+     * @param sourceIndex 0-based index of the source (e.g., channel), or a negative value for the active source
+     * @param level       the resolution level (clamped to the levels available)
+     * @return {x, y, z} downsampling factors (all 1 for level 0)
+     */
+    public double[] getDownsamplingFactors(final int sourceIndex, final int level) {
+        final double[] factors = {1, 1, 1};
+        final SourceAndConverter<?> sac = resolveSource(sourceIndex);
+        if (sac == null) return factors;
+        final var src = sac.getSpimSource();
+        final int l = clampLevel(src.getNumMipmapLevels(), level);
+        if (l == 0) return factors;
+        final int t = Math.max(0, getCurrentTimepoint() - 1);
+        final AffineTransform3D t0 = new AffineTransform3D();
+        final AffineTransform3D tl = new AffineTransform3D();
+        src.getSourceTransform(t, 0, t0);
+        src.getSourceTransform(t, l, tl);
+        for (int d = 0; d < 3; d++) {
+            final double voxel0 = Math.sqrt(t0.get(0, d) * t0.get(0, d) + t0.get(1, d) * t0.get(1, d) + t0.get(2, d) * t0.get(2, d));
+            final double voxelL = Math.sqrt(tl.get(0, d) * tl.get(0, d) + tl.get(1, d) * tl.get(1, d) + tl.get(2, d) * tl.get(2, d));
+            if (voxel0 > 0) factors[d] = voxelL / voxel0;
+        }
+        return factors;
+    }
+
+    private static int clampLevel(final int numLevels, final int level) {
+        return Math.max(0, Math.min(level, numLevels - 1));
+    }
+
     /** Returns the viewer's per-source display settings (levels, LUTs) or {@code null} if not yet live */
     protected abstract bdv.viewer.ConverterSetups getConverterSetups();
 
@@ -1062,10 +1192,12 @@ public abstract class AbstractBigViewer {
      * resulting frame has been rendered. Must not be called on the EDT. The default implementation
      * waits a fixed interval.
      *
-     * @param trigger the action that changes the scene
+     * @param trigger      the action that changes the scene
+     * @param settleMillis the time without new render passes after which the frame is considered
+     *                     fully refined (implementations may ignore it)
      * @throws InterruptedException if interrupted while waiting
      */
-    protected void awaitRender(final Runnable trigger) throws InterruptedException {
+    protected void awaitRender(final Runnable trigger, final long settleMillis) throws InterruptedException {
         trigger.run();
         Thread.sleep(150);
     }

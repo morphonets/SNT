@@ -42,6 +42,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Viewer-agnostic keyframe capture/playback/recording logic shared by {@link Bvv} and {@link Bdv}.
@@ -51,9 +55,27 @@ import java.util.Set;
 final class KeyframeRecorder {
 
     private final AbstractBigViewer viewer;
+    private volatile long settleMillis = 250;
 
     KeyframeRecorder(final AbstractBigViewer viewer) {
         this.viewer = viewer;
+    }
+
+    /** See {@link #setSettleMillis(long)} */
+    long getSettleMillis() {
+        return settleMillis;
+    }
+
+    /**
+     * Sets the time without new render passes after which a frame is considered fully refined and is captured. Viewers
+     * render progressively (coarse resolution first), so values that are too small may yield low-resolution frames,
+     * while large values slow down recording. Default is 250 ms.
+     *
+     * @param millis the quiet period in milliseconds (non-negative)
+     */
+    void setSettleMillis(final long millis) {
+        if (millis < 0) throw new IllegalArgumentException("Settle time must be non-negative");
+        settleMillis = millis;
     }
 
     private SynchronizedViewerState state() {
@@ -151,7 +173,7 @@ final class KeyframeRecorder {
             } catch (final Exception e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, settleMillis);
     }
 
     /**
@@ -181,7 +203,12 @@ final class KeyframeRecorder {
         return copy;
     }
 
-    private static boolean saveFrame(final Component canvas, final File dir, final int index) {
+    /**
+     * Grabs the canvas on the EDT and hands the PNG encoding/writing to {@code writer}, so that
+     * rendering of the next frame is not blocked by disk I/O
+     */
+    private static boolean saveFrame(final Component canvas, final File dir, final int index,
+                                     final ExecutorService writer) {
         final BufferedImage bi = new BufferedImage(canvas.getWidth(), canvas.getHeight(),
                 BufferedImage.TYPE_INT_RGB);
         try {
@@ -191,12 +218,35 @@ final class KeyframeRecorder {
             return false;
         }
         final File out = new File(dir, String.format("frame_%05d.png", index));
+        writer.execute(() -> {
+            try {
+                ImageIO.write(bi, "PNG", out);
+            } catch (final IOException e) {
+                SNTUtils.log("Failed to write " + out.getName() + ": " + e.getMessage());
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Creates the pool that writes frames. The queue is bounded and the caller runs the task when
+     * it is full, which throttles rendering instead of accumulating frames in memory
+     */
+    private static ExecutorService newFrameWriter() {
+        final int n = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2));
+        return new ThreadPoolExecutor(n, n, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(2 * n),
+                new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
+    /** Waits for pending frames to be written */
+    private static void flush(final ExecutorService writer) {
+        writer.shutdown();
         try {
-            ImageIO.write(bi, "PNG", out);
-            return true;
-        } catch (final IOException e) {
-            SNTUtils.log("Failed to write " + out.getName() + ": " + e.getMessage());
-            return false;
+            if (!writer.awaitTermination(5, TimeUnit.MINUTES))
+                SNTUtils.log("Timed out waiting for frames to be written");
+        } catch (final InterruptedException e) {
+            writer.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -221,6 +271,7 @@ final class KeyframeRecorder {
             final Keyframe kf = keyframes.get(k);
             transforms[k] = kf.transformFor(vw, vh);
         }
+        final ExecutorService writer = save ? newFrameWriter() : null;
         int globalFrame = 0;
         try {
             for (int k = 1; k < keyframes.size(); k++) {
@@ -241,7 +292,7 @@ final class KeyframeRecorder {
                             ? (int) Math.round(from.timepoint + eased * (to.timepoint - from.timepoint))
                             : -1;
                     showAndWait(animator.get(eased), tp, Keyframe.interpolateDisplay(from, to, eased));
-                    if (save) saveFrame(canvas, dir, globalFrame);
+                    if (save) saveFrame(canvas, dir, globalFrame, writer);
                     globalFrame++;
                 }
             }
@@ -250,7 +301,7 @@ final class KeyframeRecorder {
             showAndWait(transforms[transforms.length - 1], last.timepoint, last.display);
             if (save) {
                 Thread.sleep(100); // allow final render
-                saveFrame(canvas, dir, globalFrame);
+                saveFrame(canvas, dir, globalFrame, writer);
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -259,6 +310,8 @@ final class KeyframeRecorder {
         } catch (final IllegalStateException e) {
             SNTUtils.log("Movie render failed at frame " + globalFrame + ": " + e.getMessage());
             return;
+        } finally {
+            if (writer != null) flush(writer);
         }
         if (save) {
             VideoInstructions.write(dir, 30, "frame_%05d.png");
