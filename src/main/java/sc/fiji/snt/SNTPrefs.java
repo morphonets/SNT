@@ -92,6 +92,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	public static final String BVV_RENDER_HEIGHT = "bvv.renderHeight";
 	public static final String BVV_MAX_RENDER_MILLIS = "bvv.maxRenderMillis";
 	public static final String BVV_MAX_STEP_IN_VOXELS = "bvv.maxStepInVoxels";
+	public static final String BVV_CACHE_SIZE_MB = "bvv.cacheSizeMB";
 	public static final int MAX_UNDO_STEPS = 20;
 
 	/** Boolean identifiers */

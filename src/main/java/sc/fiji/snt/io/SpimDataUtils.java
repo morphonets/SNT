@@ -403,8 +403,16 @@ public class SpimDataUtils {
      * @param sources       One {@link SourceAndConverter} per channel/setup, in discovery order.
      * @param numTimepoints Number of timepoints shared by all sources.
      * @param name          Display name derived from the container's directory name.
+     * @param chunkShape    Chunk (block) shape of the full-resolution array in N5 axis order (x, y, z[, c, t]), or
+     *                      {@code null} if unknown.
      */
-    public record N5Sources(List<SourceAndConverter<?>> sources, int numTimepoints, String name) {}
+    public record N5Sources(List<SourceAndConverter<?>> sources, int numTimepoints, String name, int[] chunkShape) {
+
+        /** Creates sources whose chunk shape is unknown */
+        public N5Sources(final List<SourceAndConverter<?>> sources, final int numTimepoints, final String name) {
+            this(sources, numTimepoints, name, null);
+        }
+    }
 
     /**
      * Timeout (ms) for {@link #probeS3Region(String)}'s single HEAD request: generous enough for a slow
@@ -636,7 +644,31 @@ public class SpimDataUtils {
                 n5, selected, sharedQueue, converterSetups, (List) sourcesAndConverters, BdvOptions.options());
         if (sourcesAndConverters.isEmpty())
             throw new IllegalArgumentException("No displayable sources found for '" + name + "'.");
-        return new N5Sources(new ArrayList<>(sourcesAndConverters), numTimepoints, name);
+        return new N5Sources(new ArrayList<>(sourcesAndConverters), numTimepoints, name,
+                chunkShapeOf(n5, selected));
+    }
+
+    /**
+     * Gets the chunk shape of the full-resolution array of the first selected dataset (for multiscale metadata, its
+     * first, i.e., finest, level)
+     *
+     * @return the chunk shape in N5 axis order, or {@code null} if it could not be determined
+     */
+    private static int[] chunkShapeOf(final N5Reader n5, final List<N5Metadata> selected) {
+        for (final N5Metadata m : selected) {
+            String path = m.getPath();
+            if (m instanceof org.janelia.saalfeldlab.n5.universe.metadata.N5MetadataGroup<?> group
+                    && group.getPaths().length > 0) {
+                path = group.getPaths()[0];
+            }
+            try {
+                final org.janelia.saalfeldlab.n5.DatasetAttributes attrs = n5.getDatasetAttributes(path);
+                if (attrs != null) return attrs.getChunkSize();
+            } catch (final RuntimeException ex) {
+                SNTUtils.log("Could not read chunk shape of '" + path + "': " + ex.getMessage());
+            }
+        }
+        return null;
     }
 
     /**

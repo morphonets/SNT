@@ -44,7 +44,6 @@ import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.util.BoundingBox;
@@ -94,7 +93,8 @@ public class BigDataLoaderCmd extends ContextCommand {
     private static final int REACHABILITY_TIMEOUT_MS = 4000;
     private static final String ABORT = "Abort";
     private static final String DOWNSAMPLE = "Downsample to fit";
-    private static final String CONVERT = "Show me how to convert to multi-resolution pyramid image";
+    private static final String FULL_RES = "Load at full resolution (tiled pyramid, needs more memory)";
+    private static final String CONVERT = "Convert to multi-resolution OME-Zarr and open";
 
 
     @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
@@ -347,8 +347,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                             SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
                     // Same non-pyramidal-dataset risk as resolveBvvSources(), only relevant for BVV
                     if (viewer instanceof Bvv bvv) {
-                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir) && awaitBvvSourcesReady(n5Sources)) {
-                            bvv.show(withSyntheticPyramid(n5Sources));
+                        final SpimDataUtils.N5Sources cellBacked = cellBacked(n5Sources);
+                        if (confirmPyramidOrAbort(cellBacked, n5ZarrDir) && awaitBvvSourcesReady(cellBacked)) {
+                            bvv.show(withSyntheticPyramid(cellBacked));
                         }
                     } else if (viewer instanceof Bdv bdv) {
                         bdv.show(n5Sources);
@@ -375,9 +376,12 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /** Resolves sources, enforces GPU texture limits, then opens BVV. */
     private AbstractBigViewer runBvv(final String[] filePaths) {
-        final int maxTexSize = GLUtils.getInfo().maxTexture3DSize();
-        SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
-        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
+        final GLUtils.Info gl = GLUtils.getInfo();
+        final int maxTexSize = gl.maxTexture3DSize();
+        // available=false means the GL query failed and maxTexture3DSize is a conservative fallback, not a real reading
+        SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize + (gl.available() ? "" : " (fallback, GL query failed)")
+                + " [" + gl.vendor() + " | " + gl.renderer() + " | OpenGL " + gl.version() + "]");
+        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize, null, false);
         if (resolved == null) return null; // user chose Abort (oversized image or non-pyramidal dataset)
         final Bvv bvv = new Bvv();
         addSourcesToBvv(bvv, resolved);
@@ -399,14 +403,17 @@ public class BigDataLoaderCmd extends ContextCommand {
      * of a loaded image), but A* has nothing real to search until an image is loaded via the SNTUI.
      */
     private AbstractBigViewer runBvvWithTracing(final String[] filePaths) {
-        final int maxTexSize = GLUtils.getInfo().maxTexture3DSize();
-        SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
+        final GLUtils.Info gl = GLUtils.getInfo();
+        final int maxTexSize = gl.maxTexture3DSize();
+        // available=false means the GL query failed and maxTexture3DSize is a conservative fallback, not a real reading
+        SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize + (gl.available() ? "" : " (fallback, GL query failed)")
+                + " [" + gl.vendor() + " | " + gl.renderer() + " | OpenGL " + gl.version() + "]");
         // Resolve the primary volume (img1File, i.e. filePaths[0]) exactly once: startTracingSNT() needs
         // it for calibration/A* wiring, and the viewer needs the very same source. Doing this before
         // resolveBvvSources() lets that primary resolution be reused there instead of re-running N5/Zarr
         // discovery a second time for an unchanged path
         final TracingSetup setup = startTracingSNT(img1File);
-        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize, setup.primarySource());
+        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize, setup.primarySource(), true);
         if (resolved == null) return null; // user chose Abort (oversized image or non-pyramidal dataset)
         final Bvv bvv = new Bvv(setup.snt());
         addSourcesToBvv(bvv, resolved);
@@ -416,13 +423,8 @@ public class BigDataLoaderCmd extends ContextCommand {
         return bvv;
     }
 
-    /** Holds the outcome of {@link #resolveBvvSources(String[], int, Object)}. */
+    /** Holds the outcome of {@link #resolveBvvSources(String[], int, Object, boolean)}. */
     private record ResolvedSources(List<Object> sources, List<String> deferredPaths) {}
-
-    /** {@link #resolveBvvSources(String[], int, Object)} for callers with no already-resolved primary source. */
-    private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize) {
-        return resolveBvvSources(filePaths, maxTexSize, null);
-    }
 
     /**
      * Resolves each path to a BVV-displayable source (an {@link ImgPlus}, {@link AbstractSpimData},
@@ -433,12 +435,15 @@ public class BigDataLoaderCmd extends ContextCommand {
      * @param cachedPrimarySource {@code filePaths[0]}'s source, if already resolved elsewhere (see
      *                            {@link #startTracingSNT}), to avoid resolving it a second time; or
      *                            {@code null} to resolve every path here
+     * @param tracing             whether the viewer is tethered to SNT for tracing. If so, the (memory-hungry)
+     *                            full-resolution option is not offered for oversized images, since SNT already
+     *                            holds its own copy of the primary image
      * @return the resolved sources, or {@code null} if the user chose to Abort when prompted about
      *         an oversized image (see {@link #handleOversizedImage}) or a non-pyramidal N5/Zarr
      *         source (see {@link #confirmPyramidOrAbort})
      */
     private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize,
-                                               final Object cachedPrimarySource) {
+                                               final Object cachedPrimarySource, final boolean tracing) {
         final List<Object> sources = new ArrayList<>();
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (int i = 0; i < filePaths.length; i++) {
@@ -456,6 +461,14 @@ public class BigDataLoaderCmd extends ContextCommand {
                 }
                 throw e;
             }
+            if (source instanceof SpimDataUtils.N5Sources n5 && !n5.sources().isEmpty()
+                    && n5.sources().getFirst().getSpimSource().getNumMipmapLevels() <= 1) {
+                final AbstractSpimData<?> sibling = pyramidalSiblingXml(path);
+                if (sibling != null) {
+                    sources.add(sibling);
+                    continue;
+                }
+            }
             if (source instanceof SpimDataUtils.N5Sources n5 && !confirmPyramidOrAbort(n5, path)) {
                 return null; // user chose Abort
             }
@@ -463,8 +476,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                 // Diagnostic only. A plain ImgPlus has no pyramid, so unlike AbstractSpimData/N5Sources there is
                 // nothing to force here, only a remote-origin freeze risk worth logging
                 BvvUtils.warnIfLikelyRemoteImgPlus(img, path);
-                if (ImgUtils.exceedsDimension(img, maxTexSize)) {
-                    final Object handled = handleOversizedImage(img, maxTexSize, path);
+                if (ImgUtils.exceedsDimension(img, maxTexSize)
+                        || ImgUtils.exceedsVoxelCount(img, BvvUtils.MAX_SINGLE_TEXTURE_VOXELS)) {
+                    final Object handled = handleOversizedImage(img, maxTexSize, path, tracing);
                     if (handled == null) return null; // user chose Abort
                     sources.add(handled);
                     continue;
@@ -476,12 +490,72 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /** Adds each resolved source to {@code bvv}, and opens the interactive dialog for deferred N5/Zarr paths. */
+    /**
+     * Makes sure BVV's GPU tile cache is large enough for a streamed pyramid, prompting (once, unless suppressed) if
+     * the user's preference is too low or if the JVM heap limits the cache below what is needed. Must run before the
+     * first BVV window is created (the cache size cannot change afterwards)
+     */
+    private void checkGpuCache(final int nChannels) {
+        final int cap = BvvUtils.maxCacheMB();
+        final int want = Math.min(nChannels * BvvUtils.CACHE_MB_PER_CHANNEL, BvvUtils.MAX_CACHE_SIZE_MB);
+        final int pref = BvvUtils.getCachePrefMB();
+        final int recommended = BvvUtils.recommendedCacheMB(nChannels);
+        final boolean lowPref = pref > 0 && Math.min(pref, cap) < recommended;
+        final boolean lowHeap = cap < want;
+        SNTUtils.log("BVV: GPU tile cache pref=" + (pref > 0 ? pref + "MB" : "auto") + ", recommended="
+                + recommended + "MB, cap=" + cap + "MB (lowPref=" + lowPref + ", lowHeap=" + lowHeap + ")");
+        if (!(lowPref || lowHeap) || BvvUtils.isCachePromptSuppressed() || java.awt.GraphicsEnvironment.isHeadless())
+            return;
+        final StringBuilder msg = new StringBuilder("<html><div style='width:420px'>");
+        if (lowPref) {
+            msg.append("Your GPU tile cache preference (").append(Math.min(pref, cap)).append(" MB) is lower than ")
+                    .append("recommended for ").append(nChannels).append(nChannels == 1 ? " channel" : " channels")
+                    .append(" (").append(recommended).append(" MB). The volume may flicker as tiles are ")
+                    .append("repeatedly evicted and reloaded.<br><br>");
+        }
+        if (lowHeap) {
+            msg.append("The JVM memory limit (").append(Runtime.getRuntime().maxMemory() / (1024 * 1024))
+                    .append(" MB) restricts the GPU tile cache to ").append(cap).append(" MB, below the ")
+                    .append(want).append(" MB ideal for this dataset. Consider increasing Fiji's memory in ")
+                    .append("<i>Edit&gt;Options&gt;Memory &amp; Threads...</i> (or the launcher's memory setting) ")
+                    .append("and restarting.<br><br>");
+        }
+        final boolean sntRunning = SNTUtils.getPluginInstance() != null;
+        final java.util.List<String> buttons = new java.util.ArrayList<>();
+        if (lowPref) buttons.add("Use " + recommended + " MB (this session)");
+        if (sntRunning) buttons.add("Open Preferences...");
+        buttons.add("Continue");
+        final javax.swing.JCheckBox dontAsk = new javax.swing.JCheckBox("Do not ask again");
+        final int choice = javax.swing.JOptionPane.showOptionDialog(null, new Object[]{msg.toString(), dontAsk},
+                "BVV GPU Cache", javax.swing.JOptionPane.DEFAULT_OPTION, javax.swing.JOptionPane.WARNING_MESSAGE,
+                null, buttons.toArray(), buttons.getLast());
+        if (dontAsk.isSelected()) BvvUtils.setCachePromptSuppressed(true);
+        if (choice < 0 || choice >= buttons.size()) return;
+        final String picked = buttons.get(choice);
+        if (picked.startsWith("Use ")) {
+            BvvUtils.setSessionCacheMB(recommended);
+        } else if (picked.startsWith("Open Preferences")) {
+            try {
+                getContext().getService(org.scijava.command.CommandService.class).run(PrefsCmd.class, true).get();
+            } catch (final InterruptedException | java.util.concurrent.ExecutionException ex) {
+                SNTUtils.log("BVV: could not open Preferences: " + ex.getMessage());
+            }
+        }
+    }
+
     private void addSourcesToBvv(final Bvv bvv, final ResolvedSources resolved) {
         for (final Object source : resolved.sources()) {
             if (source instanceof AbstractSpimData<?> spim) {
                 bvv.show(spim);
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                if (awaitBvvSourcesReady(n5)) bvv.show(withSyntheticPyramid(n5));
+                // Wrapped before the prefetch: the prefetch must see the final stack type, otherwise it touches
+                // every voxel of level 0
+                final SpimDataUtils.N5Sources cellBacked = cellBacked(n5);
+                BvvUtils.reportChunking(n5.name(), n5.chunkShape());
+                if (awaitBvvSourcesReady(cellBacked)) {
+                    checkGpuCache(cellBacked.sources().size());
+                    bvv.show(withSyntheticPyramid(cellBacked));
+                }
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) img);
@@ -907,9 +981,9 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (nLevels > 1) return true;
         final String message = String.format(
                 "'%s' has no multi-resolution pyramid (a single resolution level only). Big Volume "
-                        + "Viewer's 3D renderer requires one, so SNT can build one locally instead. "
-                        + "This downloads the full volume once, which may take a while for a large "
-                        + "remote dataset. Build a pyramid now?",
+                        + "Viewer's 3D renderer requires one, so SNT can build one on the fly instead. "
+                        + "Coarser levels are computed on demand; volumes that fit in memory are first "
+                        + "copied locally, which may take a while for a remote dataset. Build a pyramid now?",
                 new File(path).getName());
         // The loading splash screen (SNTUtils#setIsLoading(true), running since run() started) is an
         // always-on-top window that can end up rendered above this confirmation
@@ -924,20 +998,89 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /**
      * Rewraps every source in {@code n5Sources} via {@link BvvUtils#synthesizeMipmapPyramid},
-     * preserving each source's existing converter. No-op for sources that already have a pyramid
+     * preserving each source's existing converter. No-op for sources that already have a pyramid.
+     * Level 0 is copied into memory only if all sources fit comfortably in the JVM heap; otherwise
+     * the sources are used as they are and only the coarser levels are synthesized (lazily)
      *
      * @param n5Sources the sources to rewrap
      * @return an equivalent {@link SpimDataUtils.N5Sources} with pyramid-backed sources
+     * @throws IllegalStateException if there is not enough memory to build the pyramid
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static SpimDataUtils.N5Sources withSyntheticPyramid(final SpimDataUtils.N5Sources n5Sources) {
-        final List<SourceAndConverter<?>> rewrapped = (List<SourceAndConverter<?>>) (List<?>) n5Sources.sources()
-                .stream()
-                .map(soc -> new SourceAndConverter(
-                        BvvUtils.synthesizeMipmapPyramid((Source) soc.getSpimSource(), 3),
-                        soc.getConverter()))
-                .toList();
-        return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name());
+        // Nothing to do (nor to log) if every source already has a pyramid
+        if (n5Sources.sources().stream().allMatch(soc -> soc.getSpimSource().getNumMipmapLevels() > 1))
+            return n5Sources;
+        long needed = 0;
+        for (final SourceAndConverter<?> soc : n5Sources.sources())
+            needed += BvvUtils.estimateLocalCopyBytes(soc.getSpimSource());
+        final long available = (long) (Runtime.getRuntime().maxMemory() * 0.5);
+        final boolean copyLocally = needed <= available;
+        if (!copyLocally) {
+            SNTUtils.log(String.format("BVV: local copy would need ~%s but only %s can be used; "
+                    + "building the pyramid lazily instead", SNTUtils.formatBytes(needed),
+                    SNTUtils.formatBytes(available)));
+        }
+        try {
+            final List<SourceAndConverter<?>> rewrapped = (List<SourceAndConverter<?>>) (List<?>) n5Sources
+                    .sources()
+                    .stream()
+                    .map(soc -> new SourceAndConverter(
+                            BvvUtils.synthesizeMipmapPyramid((Source) soc.getSpimSource(), 3, copyLocally),
+                            soc.getConverter()))
+                    .toList();
+            return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name());
+        } catch (final OutOfMemoryError oom) {
+            throw new IllegalStateException("Not enough memory to build a pyramid for '" + n5Sources.name()
+                    + "'. Increase the JVM max heap, or convert the image to a multi-resolution N5.", oom);
+        }
+    }
+
+    /**
+     * Makes every source of {@code n5Sources} streamable by BVV (see {@link BvvUtils#ensureCellBacked})
+     *
+     * @param n5Sources the sources to check
+     * @return {@code n5Sources} itself if no source needed wrapping, or an equivalent set of sources
+     */
+    private static SpimDataUtils.N5Sources cellBacked(final SpimDataUtils.N5Sources n5Sources) {
+        final List<SourceAndConverter<?>> wrapped = new ArrayList<>();
+        boolean changed = false;
+        for (final SourceAndConverter<?> soc : n5Sources.sources()) {
+            final SourceAndConverter<?> w = BvvUtils.ensureCellBacked(soc, n5Sources.chunkShape());
+            changed |= (w != soc);
+            wrapped.add(w);
+        }
+        return changed ? new SpimDataUtils.N5Sources(wrapped, n5Sources.numTimepoints(), n5Sources.name(),
+                n5Sources.chunkShape()) : n5Sources;
+    }
+
+    /**
+     * Looks for a BDV XML descriptor next to an N5 container (same base name, e.g., written by the
+     * ConvertToN5 recipe) that describes a multi-resolution pyramid. Such a descriptor carries the
+     * downsampling factors, which are not always discoverable from the N5 container alone
+     *
+     * @param n5Path the path to the {@code .n5} directory
+     * @return the multi-resolution data described by the XML, or {@code null} if there is none
+     */
+    private static AbstractSpimData<?> pyramidalSiblingXml(final String n5Path) {
+        final String lower = n5Path.toLowerCase(java.util.Locale.ROOT);
+        if (!lower.endsWith(".n5") && !lower.endsWith(".n5/")) return null;
+        final String base = n5Path.endsWith("/") ? n5Path.substring(0, n5Path.length() - 1) : n5Path;
+        final File xml = new File(base.substring(0, base.length() - 3) + ".xml");
+        if (!xml.isFile()) return null;
+        try {
+            if (SpimDataUtils.resolvePathToSource(xml.getAbsolutePath()) instanceof AbstractSpimData<?> spim
+                    && spim.getSequenceDescription().getImgLoader() instanceof bdv.ViewerImgLoader loader
+                    && !spim.getSequenceDescription().getViewSetupsOrdered().isEmpty()
+                    && loader.getSetupImgLoader(spim.getSequenceDescription().getViewSetupsOrdered().getFirst()
+                    .getId()).numMipmapLevels() > 1) {
+                SNTUtils.log("BVV: using multi-resolution XML next to non-pyramidal N5: " + xml);
+                return spim;
+            }
+        } catch (final RuntimeException e) {
+            SNTUtils.log("BVV: ignoring unusable XML sibling '" + xml + "': " + e.getMessage());
+        }
+        return null;
     }
 
 
@@ -1034,24 +1177,41 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /**
      * Handles an ImgPlus whose spatial dimensions exceed the GPU's 3D texture
-     * limit. Prompts the user to choose between aborting, downsampling, or
-     * opening a conversion script.
+     * limit. Prompts the user to choose between aborting, downsampling, loading at
+     * full resolution as a tiled pyramid (view-only sessions with enough heap), or
+     * converting it to a multi-resolution OME-Zarr that is then opened.
      *
      * @return the (possibly downsampled) source to display, or {@code null} if
      *         the user chose to abort
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Object handleOversizedImage(final ImgPlus<?> img, final int maxTexSize, final String path) {
-        final String message = String.format("The image '%s' has spatial dimensions that exceed your " +
-                        "GPU's 3D texture limit (%d texels). What would you like to do?",
-                img.getName(), maxTexSize);
+    private Object handleOversizedImage(final ImgPlus<?> img, final int maxTexSize, final String path,
+                                        final boolean tracing) {
+        final String reason = ImgUtils.exceedsDimension(img, maxTexSize)
+                ? String.format("has spatial dimensions that exceed your GPU's 3D texture limit (%d texels)", maxTexSize)
+                : String.format("has more voxels per channel (%.2f G) than BVV can upload as a single texture (%.2f G)",
+                img.dimension(0) * (double) img.dimension(1) * img.dimension(2) / 1e9,
+                BvvUtils.MAX_SINGLE_TEXTURE_VOXELS / 1e9);
+        final StringBuilder message = new StringBuilder(String.format("The image '%s' %s. What would you like to do?",
+                img.getName(), reason));
+        final boolean offerFullRes = !tracing && canBuildTiledPyramid(img, message);
+        final boolean offerConvert = hasSupportedLayout(img) && canWriteBeside(path);
+        if (offerConvert) {
+            message.append(" Conversion writes a multi-resolution '").append(omeZarrName(path))
+                    .append("' next to the original image, and may take several minutes.");
+        }
+        final java.util.List<String> options = new java.util.ArrayList<>();
+        options.add(DOWNSAMPLE);
+        if (offerFullRes) options.add(FULL_RES);
+        if (offerConvert) options.add(CONVERT);
+        options.add(ABORT);
+        final String[] choices = options.toArray(new String[0]);
         // See confirmPyramidOrAbort(): the loading splash screen can end up rendered on top of this
         // dialog, so hide it for the duration of the prompt and restore it afterward
         SNTUtils.setIsLoading(false, true);
         final String choice;
         try {
-            choice = new GuiUtils(null).getChoice(message, "BVV: Volume Too Large",
-                    new String[]{DOWNSAMPLE, CONVERT, ABORT}, DOWNSAMPLE);
+            choice = new GuiUtils(null).getChoice(message.toString(), "BVV: Volume Too Large", choices, DOWNSAMPLE);
         } finally {
             SNTUtils.setIsLoading(true, true);
         }
@@ -1061,33 +1221,111 @@ public class BigDataLoaderCmd extends ContextCommand {
             return null;
         }
         if (CONVERT.equals(choice)) {
-            openConversionScript(path);
-            cancel("");
-            return null;
+            final Object converted = convertToOmeZarr(img, path);
+            if (converted == null) {
+                cancel("");
+                return null;
+            }
+            return converted;
         }
-        return ImgUtils.downsampleToFit((ImgPlus) img, maxTexSize);
+        if (FULL_RES.equals(choice)) {
+            GuiUtils.setSplashMessage("Building full-resolution pyramid for '" + img.getName() + "'...");
+            try {
+                return BvvUtils.buildTiledPyramid((ImgPlus) img, 3);
+            } catch (final OutOfMemoryError oom) {
+                SNTUtils.log("BVV: out of memory building tiled pyramid; falling back to downsampling");
+                new GuiUtils(null).error("Not enough memory to load '" + img.getName() + "' at full resolution. "
+                        + "Downsampling instead. Increase the JVM max heap to avoid this.");
+            }
+        }
+        return ImgUtils.downsampleToFit((ImgPlus) img, maxTexSize, BvvUtils.MAX_SINGLE_TEXTURE_VOXELS);
     }
 
     /**
-     * Opens the ConvertToN5 recipe script in Fiji's Script Editor with
-     * the input path pre-filled.
+     * Whether {@code img} can be loaded as a tiled pyramid (see {@link BvvUtils#buildTiledPyramid}): XYZ[C] layout,
+     * a numeric native type, no time series, and an estimated footprint within ~70% of the JVM's max heap. If the
+     * only obstacle is memory, a note is appended to {@code message}
      */
-    private void openConversionScript(final String inputPath) {
-        try {
-            final ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            final java.io.InputStream is = cl.getResourceAsStream(
-                    "script_templates/Neuroanatomy/Recipes/ConvertToN5.groovy");
-            if (is == null) {
-                error("ConvertToN5.groovy template not found in resources.");
-                return;
-            }
-            String script = new java.io.BufferedReader(new java.io.InputStreamReader(is))
-                    .lines().collect(java.util.stream.Collectors.joining("\n"));
-            script = script.replace("#{INPUT_PATH}", inputPath);
-            ScriptInstaller.newScript(script, "ConvertToN5.groovy");
-        } catch (final Exception e) {
-            error("Could not open conversion script: " + e.getMessage());
+    private static boolean canBuildTiledPyramid(final ImgPlus<?> img, final StringBuilder message) {
+        if (!hasSupportedLayout(img)) return false;
+        final long needed = BvvUtils.estimateTiledPyramidBytes(img);
+        final long available = (long) (Runtime.getRuntime().maxMemory() * 0.7);
+        if (needed > available) {
+            message.append(String.format(" Full-resolution loading is not offered: it needs ~%s of memory but only %s"
+                    + " can be used (increase the JVM max heap).", SNTUtils.formatBytes(needed),
+                    SNTUtils.formatBytes(available)));
+            return false;
         }
+        message.append(String.format(" Full-resolution loading needs ~%s of memory and may take a minute or so.",
+                SNTUtils.formatBytes(needed)));
+        return true;
+    }
+
+    /**
+     * Whether {@code img} has an XYZ[C] layout, no time series, and a numeric native type, i.e., it can be handled by
+     * {@link BvvUtils#buildTiledPyramid} and {@link ImgUtils#saveAsOmeZarr}
+     */
+    private static boolean hasSupportedLayout(final ImgPlus<?> img) {
+        final int tDim = img.dimensionIndex(net.imagej.axis.Axes.TIME);
+        return ImgUtils.hasXYZLeading(img) && (tDim < 0 || img.dimension(tDim) <= 1)
+                && img.firstElement() instanceof net.imglib2.type.numeric.RealType
+                && img.firstElement() instanceof net.imglib2.type.NativeType;
+    }
+
+    /** Whether the directory containing {@code path} is a local, writable directory */
+    private static boolean canWriteBeside(final String path) {
+        final File parent = new File(path).getAbsoluteFile().getParentFile();
+        return parent != null && parent.isDirectory() && parent.canWrite();
+    }
+
+    /** The name of the OME-Zarr directory written by {@link #convertToOmeZarr} for the image at {@code path} */
+    private static String omeZarrName(final String path) {
+        return new File(path).getName().replaceFirst("\\.[^.]+$", "") + ".ome.zarr";
+    }
+
+    /** Best-effort recursive deletion of a (partial) output directory */
+    private static void deleteQuietly(final File dir) {
+        try (final java.util.stream.Stream<java.nio.file.Path> paths = java.nio.file.Files.walk(dir.toPath())) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+        } catch (final Exception ignored) {
+            // nothing to do
+        }
+    }
+
+    /**
+     * Converts {@code img} to a multi-resolution OME-Zarr next to {@code path} (see
+     * {@link ImgUtils#saveAsOmeZarr}), and resolves the result as a BVV source. An existing output is never
+     * overwritten: a numeric suffix is appended to the name instead
+     *
+     * @return the pyramid-backed sources of the converted image, or {@code null} if the conversion failed (the user
+     * has been told why)
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Object convertToOmeZarr(final ImgPlus<?> img, final String path) {
+        final File parent = new File(path).getAbsoluteFile().getParentFile();
+        final String name = omeZarrName(path);
+        File out = new File(parent, name);
+        for (int i = 1; out.exists(); i++)
+            out = new File(parent, name.replace(".ome.zarr", "_" + i + ".ome.zarr"));
+        SNTUtils.log("BVV: converting '" + path + "' to " + out);
+        GuiUtils.setSplashMessage("Converting '" + img.getName() + "' to OME-Zarr...");
+        try {
+            final long start = System.currentTimeMillis();
+            ImgUtils.saveAsOmeZarr((ImgPlus) img, out, SNTPrefs.getThreads(), GuiUtils::setSplashMessage);
+            SNTUtils.log("BVV: conversion finished in " + (System.currentTimeMillis() - start) / 1000 + "s");
+            final Object resolved = SpimDataUtils.resolvePathToSource(out.getAbsolutePath());
+            if (resolved instanceof SpimDataUtils.N5Sources n5
+                    && (n5.sources().isEmpty() || n5.sources().getFirst().getSpimSource().getNumMipmapLevels() > 1))
+                return resolved;
+            GuiUtils.errorPrompt("'" + out.getName() + "' was written but could not be read back as a "
+                    + "multi-resolution image. Please report this issue.", true);
+        } catch (final Exception | OutOfMemoryError e) {
+            SNTUtils.error("BVV: OME-Zarr conversion failed", e instanceof Exception ex ? ex : new RuntimeException(e),
+                    false);
+            deleteQuietly(out); // do not leave a partial container behind
+            GuiUtils.errorPrompt("Conversion failed: " + GuiUtils.friendlyErrorMessage(e), true);
+        }
+        return null;
     }
 
 

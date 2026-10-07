@@ -628,25 +628,9 @@ public class ImgUtils {
      * @return the list of Intervals
      */
     public static List<Interval> createIntervals(final long[] sourceDimensions, final long[] blockDimensions) {
-        final List<Interval> intervals = new ArrayList<>();
-        final long[] min = new long[sourceDimensions.length];
-        final long[] max = new long[sourceDimensions.length];
-        createBlocksRecursionLoop(intervals, sourceDimensions, blockDimensions, min, max, 0);
-        return intervals;
-    }
-
-    private static void createBlocksRecursionLoop(final List<Interval> intervals, final long[] sourceDimensions,
-                                                  final long[] blockDimensions, final long[] min, final long[] max,
-                                                  final int d) {
-        if (d == min.length) {
-            for (int m = 0; m < min.length; ++m)
-                max[m] = Math.min(min[m] + blockDimensions[m] - 1, sourceDimensions[m] - 1);
-
-            intervals.add(new FinalInterval(min, max));
-        } else {
-            for (min[d] = 0; min[d] < sourceDimensions[d]; min[d] += blockDimensions[d])
-                createBlocksRecursionLoop(intervals, sourceDimensions, blockDimensions, min, max, d + 1);
-        }
+        final int[] blockSize = new int[blockDimensions.length];
+        for (int d = 0; d < blockSize.length; d++) blockSize[d] = (int) blockDimensions[d];
+        return net.imglib2.algorithm.util.Grids.collectAllContainedIntervals(sourceDimensions, blockSize);
     }
 
     /**
@@ -1543,6 +1527,23 @@ public class ImgUtils {
      */
     public static <T extends RealType<T>> ImgPlus<T> downsampleToFit(final ImgPlus<T> imgPlus,
                                                                       final int maxDimSize) {
+        return downsampleToFit(imgPlus, maxDimSize, Long.MAX_VALUE);
+    }
+
+    /**
+     * Same as {@link #downsampleToFit(ImgPlus, int)}, but additionally caps the number of voxels of the spatial
+     * (X, Y, Z) volume, e.g., to fit BVV's single-texture capacity. After satisfying {@code maxDimSize}, the step of
+     * the axis with the finest physical voxel size is repeatedly increased until the cap is met, which keeps the
+     * resulting voxels as isotropic as possible
+     *
+     * @param imgPlus    the image to downsample
+     * @param maxDimSize maximum allowed size for any spatial dimension
+     * @param maxVoxels  maximum allowed number of voxels in the spatial volume (per channel/frame)
+     * @param <T>        pixel type
+     * @return a (possibly lazy) downsampled ImgPlus, or the original if no limit is exceeded
+     */
+    public static <T extends RealType<T>> ImgPlus<T> downsampleToFit(final ImgPlus<T> imgPlus,
+                                                                      final int maxDimSize, final long maxVoxels) {
         final int nDims = imgPlus.numDimensions();
         final long[] steps = new long[nDims];
         boolean needsDownsample = false;
@@ -1554,6 +1555,22 @@ public class ImgUtils {
                 steps[d] = Math.max(1, (long) Math.ceil((double) imgPlus.dimension(d) / maxDimSize));
                 if (steps[d] > 1) needsDownsample = true;
             }
+        }
+        while (spatialVoxels(imgPlus, steps) > maxVoxels) {
+            int finest = -1;
+            double finestSize = Double.MAX_VALUE;
+            for (int d = 0; d < nDims; d++) {
+                final AxisType type = imgPlus.axis(d).type();
+                if (type == Axes.CHANNEL || type == Axes.TIME || imgPlus.dimension(d) / steps[d] < 2) continue;
+                final double size = imgPlus.averageScale(d) * steps[d];
+                if (size < finestSize) {
+                    finestSize = size;
+                    finest = d;
+                }
+            }
+            if (finest < 0) break; // nothing left to subsample
+            steps[finest]++;
+            needsDownsample = true;
         }
         if (!needsDownsample) return imgPlus;
 
@@ -1582,6 +1599,30 @@ public class ImgUtils {
         sb.append(']');
         SNTUtils.log(sb.toString());
         return result;
+    }
+
+    private static double spatialVoxels(final ImgPlus<?> imgPlus, final long[] steps) {
+        double voxels = 1;
+        for (int d = 0; d < imgPlus.numDimensions(); d++) {
+            final AxisType type = imgPlus.axis(d).type();
+            if (type == Axes.CHANNEL || type == Axes.TIME) continue;
+            voxels *= Math.ceil((double) imgPlus.dimension(d) / steps[d]);
+        }
+        return voxels;
+    }
+
+    /**
+     * Checks whether the spatial (X, Y, Z) volume of an {@link ImgPlus} has more voxels than the given limit.
+     * Channel and Time axes are ignored.
+     *
+     * @param imgPlus   the image to check
+     * @param maxVoxels maximum allowed number of voxels per channel/frame
+     * @return {@code true} if the spatial volume exceeds the limit
+     */
+    public static boolean exceedsVoxelCount(final ImgPlus<?> imgPlus, final long maxVoxels) {
+        final long[] ones = new long[imgPlus.numDimensions()];
+        java.util.Arrays.fill(ones, 1L);
+        return spatialVoxels(imgPlus, ones) > maxVoxels;
     }
 
     /**
@@ -1614,6 +1655,298 @@ public class ImgUtils {
         final Img<T> copy = factory.create(source);
         LoopBuilder.setImages(source, copy).multiThreaded().forEachPixel((s, t) -> t.set(s));
         return copy;
+    }
+
+    /**
+     * Copies a (possibly lazy/remote) view into a local {@link net.imglib2.img.cell.CellImg}. Unlike
+     * {@link #materialize}, the result is an {@code AbstractCellImg}, which is what BVV requires to stream tiles
+     * through its GPU cache instead of uploading the whole volume as a single 3D texture. It also avoids the 2^31
+     * elements limit of {@code ArrayImg}
+     *
+     * @param source   the view to copy
+     * @param cellSize edge length of the cells (clamped to the image dimensions)
+     * @param <T>      pixel type
+     * @return a local, zero-min, fully-realized, cell-based copy of {@code source}
+     */
+    public static <T extends NativeType<T>> Img<T> materializeTiled(final RandomAccessibleInterval<T> source,
+                                                                    final int cellSize) {
+        final RandomAccessibleInterval<T> zeroMin = Views.zeroMin(source);
+        final int[] cellDims = new int[source.numDimensions()];
+        for (int d = 0; d < cellDims.length; d++)
+            cellDims[d] = (int) Math.max(1, Math.min(cellSize, source.dimension(d)));
+        final Img<T> copy = new net.imglib2.img.cell.CellImgFactory<>(source.getType(), cellDims).create(zeroMin);
+        LoopBuilder.setImages(zeroMin, copy).multiThreaded().forEachPixel((s, t) -> t.set(s));
+        return copy;
+    }
+
+    /**
+     * Writes an image as a multiscale OME-Zarr (OME-NGFF v0.5, Zarr v3) directory. Level 0 is streamed from
+     * {@code img} one slab of Z planes at a time (so every plane is read once), and each coarser level is computed
+     * from the previous one, one block at a time, by averaging 2x2x2 neighborhoods. Peak memory is therefore a
+     * single slab plus the blocks in flight, regardless of image size. Chunks are gzip-compressed
+     * <p>
+     * Levels are halved along X, Y and Z until a level fits a 3D texture (2048 voxels per side, and
+     * {@link sc.fiji.snt.viewer.BvvUtils#MAX_SINGLE_TEXTURE_VOXELS}), with a minimum of 3 levels
+     *
+     * @param img      image with X, Y, Z leading, an optional channel axis, and no time series (see
+     *                 {@link #normalizeToXYZ})
+     * @param zarrDir  the output directory (typically ending in {@code .ome.zarr}), which should not exist
+     * @param nThreads number of threads used for computing and compressing blocks
+     * @param progress optional receiver of short status messages, or {@code null}
+     * @param <T>      pixel type
+     * @throws IllegalArgumentException if the axes layout is not XYZ[C]
+     * @throws IOException              if writing fails
+     */
+    public static <T extends RealType<T> & NativeType<T>> void saveAsOmeZarr(final ImgPlus<T> img,
+                                                                              final File zarrDir,
+                                                                              final int nThreads,
+                                                                              final java.util.function.Consumer<String> progress)
+            throws IOException {
+        if (!hasXYZLeading(img))
+            throw new IllegalArgumentException("OME-Zarr export requires X, Y, Z[, C] axes: " + axisReport(img));
+        RandomAccessibleInterval<T> rai = img;
+        final int tDim = img.dimensionIndex(Axes.TIME);
+        if (tDim >= 0) {
+            if (img.dimension(tDim) > 1)
+                throw new IllegalArgumentException("OME-Zarr export does not support time series: " + axisReport(img));
+            rai = Views.hyperSlice(rai, tDim, 0);
+        }
+        final RandomAccessibleInterval<T> src = Views.zeroMin(rai);
+        final int nDim = src.numDimensions(); // 3 (XYZ) or 4 (XYZC)
+        final long[] dims0 = Intervals.dimensionsAsLongArray(src);
+        final int[] blockSize = new int[nDim];
+        // Chunks match the cells BVV streams (64^3, see BvvUtils), a whole multiple of its 32^3 GPU tiles: reading a
+        // cell then decodes exactly one chunk
+        for (int d = 0; d < 3; d++) blockSize[d] = (int) Math.min(OME_ZARR_CHUNK_SIZE, dims0[d]);
+        if (nDim == 4) blockSize[3] = 1;
+        final long[] blockDims = new long[nDim];
+        for (int d = 0; d < nDim; d++) blockDims[d] = blockSize[d];
+
+        final List<long[]> levelDims = omeZarrLevelDims(dims0);
+        // zstd decodes much faster than gzip at similar ratios, and it is an official zarr v3 codec.
+        // Level 3: higher levels give little extra compression but slow down writes (and reads)
+        final org.janelia.scicomp.n5.zstandard.ZstandardCompression compression =
+                new org.janelia.scicomp.n5.zstandard.ZstandardCompression(OME_ZARR_ZSTD_LEVEL);
+        compression.setUseChecksums(false);
+        final org.janelia.saalfeldlab.n5.DataType dataType = n5DataType(src.getType());
+        final java.util.concurrent.ExecutorService exec = java.util.concurrent.Executors
+                .newFixedThreadPool(Math.max(1, nThreads));
+        final org.janelia.saalfeldlab.n5.N5Writer n5 = new org.janelia.saalfeldlab.n5.universe.N5Factory()
+                .openWriter(org.janelia.saalfeldlab.n5.universe.StorageFormat.ZARR3, zarrDir.getAbsolutePath());
+        // dimension names in N5 order (the Zarr v3 writer reverses them to C order on write)
+        final String[] dimNames = (nDim == 4) ? new String[]{"x", "y", "z", "c"} : new String[]{"x", "y", "z"};
+        try {
+            // Level 0, one slab of chunk-deep Z planes at a time. Each slab is further split into XY tiles of at
+            // most OME_ZARR_TILE_SIZE voxels (a multiple of the chunk size), so memory does not grow with image width
+            createZarrV3Dataset(n5, "s0", dims0, blockSize, dataType, compression, dimNames);
+            final int nCh = (nDim == 4) ? (int) dims0[3] : 1;
+            for (int c = 0; c < nCh; c++) {
+                for (long z0 = 0; z0 < dims0[2]; z0 += blockSize[2]) {
+                    for (long y0 = 0; y0 < dims0[1]; y0 += OME_ZARR_TILE_SIZE) {
+                        for (long x0 = 0; x0 < dims0[0]; x0 += OME_ZARR_TILE_SIZE) {
+                            if (progress != null) progress.accept(String.format(Locale.US,
+                                    "Converting: level 0, channel %d/%d, plane %d/%d", c + 1, nCh, z0 + 1, dims0[2]));
+                            final long[] min = new long[nDim];
+                            final long[] max = new long[nDim];
+                            for (int d = 0; d < nDim; d++) max[d] = dims0[d] - 1;
+                            min[0] = x0;
+                            max[0] = Math.min(x0 + OME_ZARR_TILE_SIZE, dims0[0]) - 1;
+                            min[1] = y0;
+                            max[1] = Math.min(y0 + OME_ZARR_TILE_SIZE, dims0[1]) - 1;
+                            min[2] = z0;
+                            max[2] = Math.min(z0 + blockSize[2], dims0[2]) - 1;
+                            if (nDim == 4) min[3] = max[3] = c;
+                            // One read of each voxel (a single-copy local tile), chunks are then compressed in parallel
+                            final Img<T> slab = materializeTiled(Views.interval(src, min, max), blockSize[0]);
+                            final long gridX = x0 / blockSize[0];
+                            final long gridY = y0 / blockSize[1];
+                            final long gridZ = z0 / blockSize[2];
+                            final long gridC = c;
+                            final List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+                            for (final Interval block : createIntervals(Intervals.dimensionsAsLongArray(slab),
+                                    blockDims)) {
+                                futures.add(exec.submit(() -> {
+                                    final long[] grid = new long[nDim];
+                                    grid[0] = gridX + block.min(0) / blockSize[0];
+                                    grid[1] = gridY + block.min(1) / blockSize[1];
+                                    grid[2] = gridZ;
+                                    if (nDim == 4) grid[3] = gridC;
+                                    org.janelia.saalfeldlab.n5.imglib2.N5Utils.saveBlock(
+                                            Views.zeroMin(Views.interval(slab, block)), n5, "s0", grid);
+                                    return null;
+                                }));
+                            }
+                            awaitAll(futures);
+                        }
+                    }
+                }
+            }
+            // Coarser levels, each averaged from the (already written) previous one
+            for (int l = 1; l < levelDims.size(); l++) {
+                final String dataset = "s" + l;
+                final long[] dims = levelDims.get(l);
+                createZarrV3Dataset(n5, dataset, dims, blockSize, dataType, compression, dimNames);
+                final RandomAccessibleInterval<T> prev = org.janelia.saalfeldlab.n5.imglib2.N5Utils
+                        .open(n5, "s" + (l - 1));
+                // Average 2x2x2 (XYZ) neighborhoods, leaving any channel axis alone. Offset.HALF_PIXEL gives
+                // ceil(n/2) pixels per axis, matching levelDims
+                final boolean[] downsampleInDim = new boolean[nDim];
+                Arrays.fill(downsampleInDim, 0, 3, true);
+                final net.imglib2.algorithm.blocks.BlockSupplier<T> downsampler = net.imglib2.algorithm.blocks.BlockSupplier
+                        .of(Views.extendBorder(prev))
+                        .andThen(net.imglib2.algorithm.blocks.downsample.Downsample.downsample(
+                                net.imglib2.algorithm.blocks.ComputationType.AUTO,
+                                net.imglib2.algorithm.blocks.downsample.Downsample.Offset.HALF_PIXEL,
+                                downsampleInDim))
+                        .threadSafe();
+                final List<Interval> blocks = createIntervals(dims, blockDims);
+                final List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+                int done = 0;
+                for (final Interval block : blocks) {
+                    futures.add(exec.submit(() -> {
+                        final long[] grid = new long[nDim];
+                        for (int d = 0; d < nDim; d++) grid[d] = block.min(d) / blockSize[d];
+                        org.janelia.saalfeldlab.n5.imglib2.N5Utils.saveBlock(
+                                net.imglib2.algorithm.blocks.BlockAlgoUtils.arrayImg(downsampler, block), n5, dataset,
+                                grid);
+                        return null;
+                    }));
+                    // Bounded backlog, so that blocks in flight stay in memory
+                    if (futures.size() >= 4 * Math.max(1, nThreads)) {
+                        awaitAll(futures);
+                        futures.clear();
+                    }
+                    if (progress != null && (++done % 64 == 0)) progress.accept(String.format(Locale.US,
+                            "Converting: level %d/%d, block %d/%d", l, levelDims.size() - 1, done, blocks.size()));
+                }
+                awaitAll(futures);
+            }
+            writeOmeNgffMetadata(n5, img, levelDims, nDim == 4);
+        } finally {
+            // After a failure other blocks may still be queued: stop them before the writer is closed
+            exec.shutdownNow();
+            n5.close();
+        }
+    }
+
+    /** Edge length (voxels) of the chunks of exported OME-Zarr arrays: the cell size BVV streams */
+    private static final int OME_ZARR_CHUNK_SIZE = sc.fiji.snt.viewer.BvvUtils.CELL_SIZE;
+
+    /** Edge length (voxels, a multiple of {@link #OME_ZARR_CHUNK_SIZE}) of the XY tiles read into memory at once */
+    private static final int OME_ZARR_TILE_SIZE = 2048;
+
+    /** Zstandard compression level of exported OME-Zarr arrays */
+    private static final int OME_ZARR_ZSTD_LEVEL = 3;
+
+    private static void createZarrV3Dataset(final org.janelia.saalfeldlab.n5.N5Writer n5, final String path,
+                                            final long[] dims, final int[] blockSize,
+                                            final org.janelia.saalfeldlab.n5.DataType dataType,
+                                            final org.janelia.saalfeldlab.n5.Compression compression,
+                                            final String[] dimNames) {
+        n5.createDataset(path, org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3DatasetAttributes
+                .builder(dims, dataType).blockSize(blockSize).compression(compression)
+                .dimensionNames(dimNames).build());
+    }
+
+    private static <T extends NativeType<T>> org.janelia.saalfeldlab.n5.DataType n5DataType(final T type) {
+        final org.janelia.saalfeldlab.n5.DataType dataType = org.janelia.saalfeldlab.n5.imglib2.N5Utils.dataType(type);
+        if (dataType == null) throw new IllegalArgumentException("Unsupported pixel type for OME-Zarr export: "
+                + type.getClass().getSimpleName());
+        return dataType;
+    }
+
+    private static void awaitAll(final List<java.util.concurrent.Future<?>> futures) throws IOException {
+        try {
+            for (final java.util.concurrent.Future<?> f : futures) f.get();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while writing", e);
+        } catch (final java.util.concurrent.ExecutionException e) {
+            final Throwable cause = e.getCause();
+            if (cause instanceof OutOfMemoryError oom) throw oom;
+            throw new IOException("Could not write block: " + cause, cause);
+        }
+    }
+
+    /**
+     * Dimensions of the levels of the pyramid written by {@link #saveAsOmeZarr}. Only the first three (spatial)
+     * dimensions are halved, so any channel dimension is passed through unchanged
+     */
+    private static List<long[]> omeZarrLevelDims(final long[] dims0) {
+        final List<long[]> levels = new ArrayList<>();
+        long[] d = dims0.clone();
+        while (true) {
+            levels.add(d);
+            final boolean fits = d[0] <= 2048 && d[1] <= 2048 && d[2] <= 2048
+                    && d[0] * d[1] * d[2] <= sc.fiji.snt.viewer.BvvUtils.MAX_SINGLE_TEXTURE_VOXELS;
+            if (fits && levels.size() >= 3) break;
+            if (d[0] <= 32 && d[1] <= 32 && d[2] <= 32) break; // nothing left to halve
+            final long[] next = d.clone();
+            for (int i = 0; i < 3; i++) next[i] = Math.max(1, (d[i] + 1) / 2);
+            d = next;
+        }
+        return levels;
+    }
+
+    /**
+     * Writes the OME-NGFF 0.5 root metadata with n5-universe's own writer, which nests {@code multiscales} under
+     * {@code ome}, sets {@code ome/version}, reverses axes and transforms to Zarr (C) order and names the array
+     * dimensions. All arrays here are in N5 (F) order: X, Y, Z[, C]
+     */
+    private static void writeOmeNgffMetadata(final org.janelia.saalfeldlab.n5.N5Writer n5, final ImgPlus<?> img,
+                                              final List<long[]> levelDims, final boolean hasChannels)
+            throws IOException {
+        final String unit = ngffUnit(img.axis(0).unit());
+        final int nDim = hasChannels ? 4 : 3;
+        final org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis[] axes =
+                new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis[nDim];
+        final String[] names = {"x", "y", "z"};
+        for (int d = 0; d < 3; d++)
+            axes[d] = new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis(
+                    org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis.SPACE, names[d], unit);
+        if (hasChannels) axes[3] = new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis(
+                org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis.CHANNEL, "c");
+        final double[] cal = {img.averageScale(0), img.averageScale(1), img.averageScale(2)};
+        final int nLevels = levelDims.size();
+        final String[] paths = new String[nLevels];
+        final double[][] scales = new double[nLevels][nDim];
+        final double[][] translations = new double[nLevels][nDim];
+        // Per-axis downsampling factor: an axis is halved at every level unless it is already a single voxel wide
+        final double[] factor = {1, 1, 1};
+        for (int l = 0; l < nLevels; l++) {
+            paths[l] = "s" + l;
+            if (l > 0) for (int d = 0; d < 3; d++) if (levelDims.get(l - 1)[d] > 1) factor[d] *= 2;
+            for (int d = 0; d < nDim; d++) {
+                final boolean spatial = d < 3;
+                scales[l][d] = spatial ? cal[d] * factor[d] : 1;
+                // 2x2x2 averaging puts level-l voxel centers (f - 1) / 2 level-0 voxels from the level-0 grid
+                translations[l][d] = spatial ? cal[d] * (factor[d] - 1) / 2 : 0;
+            }
+        }
+        final String name = (img.getName() == null || img.getName().isBlank()) ? "image" : img.getName();
+        final org.janelia.saalfeldlab.n5.universe.metadata.ome.ngff.OmeNgffMetadata metadata =
+                org.janelia.saalfeldlab.n5.universe.metadata.ome.ngff.OmeNgffMetadata.buildForWriting(nDim, name,
+                        "0.5", axes, paths, scales, translations);
+        try {
+            // NB: the root group must be given as "./" not "/". See https://github.com/saalfeldlab/n5-universe/issues/64
+            new org.janelia.saalfeldlab.n5.universe.metadata.ome.ngff.OmeNgffMetadataParser(n5)
+                    .writeMetadata(metadata, n5, "./");
+        } catch (final Exception e) {
+            throw new IOException("Could not write OME-NGFF metadata: " + e.getMessage(), e);
+        }
+    }
+
+    /** Maps common unit spellings to the UDUNITS-2 names required by OME-NGFF, or null if unknown/uncalibrated */
+    private static String ngffUnit(final String unit) {
+        if (unit == null) return null;
+        return switch (unit.trim().toLowerCase(Locale.ROOT)) {
+            case "um", "\u00b5m", "\u03bcm", "micron", "microns", "micrometer", "micrometre", "micrometers" ->
+                    "micrometer";
+            case "nm", "nanometer", "nanometre", "nanometers" -> "nanometer";
+            case "mm", "millimeter", "millimetre", "millimeters" -> "millimeter";
+            case "m", "meter", "metre", "meters" -> "meter";
+            default -> null; // e.g. "pixel"
+        };
     }
 
     /**

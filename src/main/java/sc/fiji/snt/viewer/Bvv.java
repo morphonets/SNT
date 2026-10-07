@@ -157,8 +157,8 @@ public class Bvv extends AbstractBigViewer {
         options = bvv.vistools.Bvv.options();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
-        options.cacheBlockSize(32); // GPU cache tile size
-        options.maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB);
+        options.cacheBlockSize(BvvUtils.GPU_BLOCK_SIZE); // GPU cache tile size
+        options.maxCacheSizeInMB(BvvUtils.effectiveCacheMB(1, false));
         options.ditherWidth(1); // dither window. 1 = full resolution; 8 = coarsest resolution
         options.numDitherSamples(8); // no. of nearest neighbors to interpolate from when dithering
     }
@@ -975,7 +975,13 @@ public class Bvv extends AbstractBigViewer {
         // control panel" further down still fires exactly once/
         final boolean firstEverSource = bvvHandle == null;
         final List<BvvStackSource<?>> sources = new ArrayList<>();
-        for (final SourceAndConverter<?> soc : n5Sources.sources()) {
+        // Streamed pyramids need many more GPU tiles than plain images: if the tiles required for a full-screen view
+        // do not fit, BVV evicts and re-requests them every frame (flicker). Only possible before the first window
+        if (bvvHandle == null)
+            options.maxCacheSizeInMB(BvvUtils.effectiveCacheMB(n5Sources.sources().size(), true));
+        for (final SourceAndConverter<?> original : n5Sources.sources()) {
+            // Views (e.g., one channel sliced out of a multichannel array) are not streamable by BVV
+            final SourceAndConverter<?> soc = BvvUtils.ensureCellBacked(original);
             // NB: Each channel is a separate BvvFunctions.show(...) call, and options *without* addTo(...) always
             // opens a brand new top-level window. Deciding "attach to existing handle" once, before any
             // channel exists, meant bvvHandle was still null for the whole loop on a fresh Bvv, so
@@ -1126,17 +1132,19 @@ public class Bvv extends AbstractBigViewer {
         final int blockSize = nSlices <= 32 ? 32 : nSlices <= 64 ? 64 : 128;
         // Read render quality preferences (set via Camera Controls options menu)
         final SNTPrefs prefs = (snt != null) ? snt.getPrefs() : null;
-        final int renderW = BvvUtils.parseIntPref(prefs, SNTPrefs.BVV_RENDER_WIDTH, BvvUtils.DEFAULT_RENDER_SIZE);
-        final int renderH = BvvUtils.parseIntPref(prefs, SNTPrefs.BVV_RENDER_HEIGHT, BvvUtils.DEFAULT_RENDER_SIZE);
-        final int maxMillis = BvvUtils.parseIntPref(prefs, SNTPrefs.BVV_MAX_RENDER_MILLIS, BvvUtils.DEFAULT_MAX_RENDER_MILLIS);
+        final BvvUtils.RenderQuality quality = BvvUtils.getRenderQuality();
+        final int renderW = quality.size;
+        final int renderH = quality.size;
+        final int maxMillis = quality.millis;
         final double maxStep = BvvUtils.parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS);
+        final int cacheMB = BvvUtils.effectiveCacheMB(nChannels, false);
         SNTUtils.log(String.format(
-                "BVV: %d slices, %d ch → blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f",
-                nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep));
+                "BVV: %d slices, %d ch → blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f cache=%dMB",
+                nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep, cacheMB));
         return bvv.vistools.Bvv.options()
                 .preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE)
                 .frameTitle("SNT BVV")
-                .maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB)
+                .maxCacheSizeInMB(cacheMB)
                 .ditherWidth(1)
                 .cacheBlockSize(blockSize)
                 .numDitherSamples(1)
@@ -3557,45 +3565,41 @@ public class Bvv extends AbstractBigViewer {
             return button;
         }
 
+        /** Sets the tooltip on both the spinner and its text field, which otherwise swallows hover events */
+        private static void setSpinnerToolTip(final JSpinner spinner, final String tip) {
+            spinner.setToolTipText(tip);
+            if (spinner.getEditor() instanceof JSpinner.DefaultEditor editor)
+                editor.getTextField().setToolTipText(tip);
+        }
+
         private JButton optionsButton(final BvvActions actions) {
             final JPopupMenu menu = new JPopupMenu();
             final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
-            addSeparator(menu, IconFactory.GLYPH.GAUGE, "Render Quality");
-            // Render quality presets (renderWidth/Height/maxRenderMillis require restart)
-            final ButtonGroup qualityGroup = new ButtonGroup();
-            final String[][] presets = {
-                    {"Low  (256×256, 15ms)", "256", "256", "15",
-                            "<html>Lowest quality, fastest rendering.<br>Best for quick navigation on slow GPUs."},
-                    {"Med  (512×512, 30ms)", "512", "512", "30",
-                            "<html>Balanced quality and performance.<br>Suitable for most systems (default)."},
-                    {"High (768×768, 60ms)", "768", "768", "60",
-                            "<html>Higher quality rendering with more detail.<br>Recommended for analysis and screenshots."},
-                    {"Max (1024×1024, 100ms)", "1024", "1024", "100",
-                            "<html>Maximum quality, slowest rendering.<br>Best for publication-quality screenshots on high-end GPUs."}
-            };
+            addSeparator(menu, IconFactory.GLYPH.QUIT, "Render Quality & GPU Cache");
+            // Render quality preset: set in SNT's Preferences (render size cannot change once a window exists)
             final SNTPrefs prefs = (bvvInstance.snt != null) ? bvvInstance.snt.getPrefs() : null;
-            final String defSize = String.valueOf(BvvUtils.DEFAULT_RENDER_SIZE);
-            final String curW = (prefs != null) ? prefs.getTemp(SNTPrefs.BVV_RENDER_WIDTH, defSize) : defSize;
-            for (final String[] preset : presets) {
-                final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(preset[0], preset[1].equals(curW));
-                rbmi.setToolTipText(preset[4] + "<br><i>Takes effect on next open.</i>");
-                qualityGroup.add(rbmi);
-                menu.add(rbmi);
-                rbmi.addActionListener(e -> {
-                    if (prefs != null) {
-                        prefs.setTemp(SNTPrefs.BVV_RENDER_WIDTH, preset[1]);
-                        prefs.setTemp(SNTPrefs.BVV_RENDER_HEIGHT, preset[2]);
-                        prefs.setTemp(SNTPrefs.BVV_MAX_RENDER_MILLIS, preset[3]);
-                    }
-                    bvvInstance.getViewerFrame().getViewerPanel().showMessage(
-                            "Render quality: " + preset[0] + " (takes effect on next open)");
-                });
-            }
+            final BvvUtils.RenderQuality quality = BvvUtils.getRenderQuality();
+            final javax.swing.JMenuItem qualityItem = new javax.swing.JMenuItem("Quality: " + quality.label + "...");
+            qualityItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.GAUGE));
+            qualityItem.setToolTipText("<html>" + quality.description
+                    + "<br>Set in SNT's Preferences. Requires a restart.");
+            qualityItem.addActionListener(e -> runSNTPrefs());
+            menu.add(qualityItem);
+            // GPU tile cache budget: set in SNT's Preferences (cannot change once a window exists)
+            final int prefMB = BvvUtils.getCachePrefMB();
+            final javax.swing.JMenuItem cacheItem = new javax.swing.JMenuItem("Tile cache: "
+                    + (prefMB > 0 ? Math.min(prefMB, BvvUtils.maxCacheMB()) + " MB..." : "Auto..."));
+            cacheItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MICROCHIP));
+
+            cacheItem.setToolTipText("<html>Maximum GPU memory BVV may use to cache volume tiles of pyramidal data"
+                    + "<br>Set in SNT's Preferences. Requires a restart.");
+            cacheItem.addActionListener(e -> runSNTPrefs());
+            menu.add(cacheItem);
             // maxAllowedStepInVoxels: takes effect immediately
             addSeparator(menu, IconFactory.GLYPH.STAIRS, "Ray-Marching Step");
             final double curStep = BvvUtils.parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, 1.0);
-            final JSpinner stepSpinner = GuiUtils.Fields.doubleSpinner(curStep, 0.1, 8.0, 0.5, 1);
-            stepSpinner.setToolTipText("<html>Ray-marching step size in voxels.<br>"
+            final JSpinner stepSpinner = GuiUtils.Fields.doubleSpinner(curStep, 0.1, 8.0, 0.1, 1);
+            setSpinnerToolTip(stepSpinner, "<html>Ray-marching step size in voxels (range: 0.1 - 8.0).<br>"
                     + "Smaller = higher quality, slower. Larger = faster, lower quality.<br>Default: 1.0");
             stepSpinner.addChangeListener(e -> {
                 final double step = ((Number) stepSpinner.getValue()).doubleValue();
@@ -3603,7 +3607,7 @@ public class Bvv extends AbstractBigViewer {
                 if (prefs != null) prefs.setTemp(SNTPrefs.BVV_MAX_STEP_IN_VOXELS, String.valueOf(step));
                 bvvInstance.getViewerFrame().getViewerPanel().requestRepaint();
             });
-            menu.add(stepSpinner);
+            menu.add(GuiUtils.Fields.withDefaultButton(stepSpinner, BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS));
             addSeparator(menu, IconFactory.GLYPH.CLOCK_ROTATE_LEFT, "Restore View");
             menu.add(new JMenuItem(actions.loadSettingsAction()));
             menu.add(new JMenuItem(actions.saveSettingsAction()));
@@ -3611,6 +3615,16 @@ public class Bvv extends AbstractBigViewer {
             menu.add(new JMenuItem(actions.showHelpAction()));
             menu.add(new JMenuItem(actions.showMovieHelpAction()));
             return oButton;
+        }
+
+        private void runSNTPrefs() {
+            if (SNTUtils.getContext() != null && SNTUtils.getContext()
+                    .getService(org.scijava.command.CommandService.class) != null) {
+                SNTUtils.getContext().getService(org.scijava.command.CommandService.class)
+                        .run(sc.fiji.snt.gui.cmds.PrefsCmd.class, true);
+            } else {
+                new GuiUtils(getViewerFrame()).error("Could not open SNT Settings dialog.");
+            }
         }
     }
 

@@ -25,13 +25,16 @@ package sc.fiji.snt.viewer;
 import bdv.util.AxisOrder;
 import bdv.util.RandomAccessibleIntervalMipmapSource;
 import bdv.util.volatiles.VolatileView;
+import bdv.util.volatiles.VolatileViews;
 import bdv.viewer.Source;
+import bdv.viewer.SourceAndConverter;
 import bvv.core.VolumeViewerPanel;
 import bvv.core.blocks.TileAccess;
 import bvv.core.multires.SourceStacks;
 import bvv.core.util.MatrixMath;
 import ij.ImagePlus;
 import net.imagej.ImgPlus;
+import net.imglib2.cache.img.optional.CacheOptions;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.cell.AbstractCellImg;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
@@ -45,6 +48,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.ImgUtils;
 
@@ -80,10 +84,112 @@ public final class BvvUtils {
     static final int DEFAULT_WINDOW_SIZE = 1024;
     /** GPU cache size in MB. */
     static final int DEFAULT_CACHE_SIZE_MB = 300;
-    /** Default render target width (px). */
-    static final int DEFAULT_RENDER_SIZE = 512;
-    /** Default maximum render time budget (ms). */
-    static final int DEFAULT_MAX_RENDER_MILLIS = 30;
+    /** BVV render quality presets (offscreen render size in px, and max. render time per frame in ms) */
+    public enum RenderQuality {
+        LOW("Low (256x256, 15ms)", 256, 15, "Lowest quality, fastest rendering. Best for slow GPUs"),
+        MEDIUM("Medium (512x512, 30ms)", 512, 30, "Balanced quality and performance (default)"),
+        HIGH("High (768x768, 60ms)", 768, 60, "Higher quality. Recommended for analysis and screenshots"),
+        MAX("Max (1024x1024, 100ms)", 1024, 100, "Maximum quality, slowest rendering. For high-end GPUs");
+
+        public final String label;
+        public final int size;
+        public final int millis;
+        public final String description;
+
+        RenderQuality(final String label, final int size, final int millis, final String description) {
+            this.label = label;
+            this.size = size;
+            this.millis = millis;
+            this.description = description;
+        }
+
+        public static RenderQuality fromLabel(final String label) {
+            for (final RenderQuality q : values()) if (q.label.equals(label)) return q;
+            return MEDIUM;
+        }
+
+        public static String[] labels() {
+            final String[] l = new String[values().length];
+            for (int i = 0; i < l.length; i++) l[i] = values()[i].label;
+            return l;
+        }
+    }
+
+    private static final String QUALITY_PREF_KEY = "snt.bvv.renderQuality";
+
+    /** @return the persisted render quality preset (applies the next time a BVV window is opened) */
+    public static RenderQuality getRenderQuality() {
+        try {
+            return RenderQuality.valueOf(ij.Prefs.get(QUALITY_PREF_KEY, RenderQuality.MEDIUM.name()));
+        } catch (final IllegalArgumentException ignored) {
+            return RenderQuality.MEDIUM;
+        }
+    }
+
+    public static void setRenderQuality(final RenderQuality quality) {
+        ij.Prefs.set(QUALITY_PREF_KEY, (quality == null ? RenderQuality.MEDIUM : quality).name());
+    }
+
+    /** Hard ceiling (MB) for the GPU tile cache */
+    public static final int MAX_CACHE_SIZE_MB = 2048;
+    /** Rough GPU tile budget (MB) a streamed pyramid needs per channel for a full-screen view without thrashing */
+    public static final int CACHE_MB_PER_CHANNEL = 1024;
+    private static final String CACHE_PREF_KEY = "snt.bvv.cacheSizeMB";
+    private static final String CACHE_NO_ASK_KEY = "snt.bvv.cacheNoAsk";
+    private static volatile int sessionCacheMB = 0;
+
+    /** @return the user's GPU tile cache preference (MB). 0 means automatic */
+    public static int getCachePrefMB() {
+        try {
+            return Math.max(0, Integer.parseInt(ij.Prefs.get(CACHE_PREF_KEY, "0").trim()));
+        } catch (final NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    /** Persists the GPU tile cache preference (MB). 0 means automatic. Applies next time a BVV window is opened */
+    public static void setCachePrefMB(final int mb) {
+        ij.Prefs.set(CACHE_PREF_KEY, String.valueOf(Math.max(0, mb)));
+    }
+
+    /** Overrides the preference for the current session only (0 clears the override) */
+    public static void setSessionCacheMB(final int mb) {
+        sessionCacheMB = Math.max(0, mb);
+    }
+
+    public static boolean isCachePromptSuppressed() {
+        return "true".equals(ij.Prefs.get(CACHE_NO_ASK_KEY, "false"));
+    }
+
+    public static void setCachePromptSuppressed(final boolean suppress) {
+        ij.Prefs.set(CACHE_NO_ASK_KEY, String.valueOf(suppress));
+    }
+
+    /** @return the largest GPU tile cache (MB) we allow: {@link #MAX_CACHE_SIZE_MB} or 25% of the JVM max heap */
+    public static int maxCacheMB() {
+        return (int) Math.min(MAX_CACHE_SIZE_MB,
+                Math.max(DEFAULT_CACHE_SIZE_MB, Runtime.getRuntime().maxMemory() / (4L * 1024 * 1024)));
+    }
+
+    /** @return the automatic GPU tile cache size (MB) for a streamed pyramid with {@code nChannels} channels */
+    public static int recommendedCacheMB(final int nChannels) {
+        return (int) Math.max(DEFAULT_CACHE_SIZE_MB,
+                Math.min(maxCacheMB(), (long) Math.max(1, nChannels) * CACHE_MB_PER_CHANNEL));
+    }
+
+    /**
+     * @param nChannels number of channels to be displayed
+     * @param streaming whether the data is a streamed pyramid (N5/Zarr/IMS). Plain images ignore the cache
+     * @return the GPU tile cache size (MB) to use: session override, else user preference, else automatic
+     */
+    public static int effectiveCacheMB(final int nChannels, final boolean streaming) {
+        final int max = maxCacheMB();
+        if (sessionCacheMB > 0) return Math.min(sessionCacheMB, max);
+        final int pref = getCachePrefMB();
+        if (pref > 0) return Math.min(pref, max);
+        return streaming ? recommendedCacheMB(nChannels) : DEFAULT_CACHE_SIZE_MB;
+    }
+
     /** Default maximum ray-marching step size (voxels). */
     static final double DEFAULT_MAX_STEP_IN_VOXELS = 1.0;
 
@@ -397,7 +503,7 @@ public final class BvvUtils {
     private static <T extends RealType<T>> double sampleAt(final RandomAccessibleInterval<?> raiRaw, final double[] voxPt) {
         final RandomAccessibleInterval<T> rai = (RandomAccessibleInterval<T>) raiRaw;
         final net.imglib2.RealRandomAccess<T> ra = Views.interpolate(Views.extendZero(rai),
-                new NLinearInterpolatorFactory<T>()).realRandomAccess();
+                new NLinearInterpolatorFactory<>()).realRandomAccess();
         ra.setPosition(voxPt);
         return ra.get().getRealDouble();
     }
@@ -665,33 +771,47 @@ public final class BvvUtils {
     }
 
     /**
-     * Wraps a single-resolution {@link Source} in a synthetic mipmap pyramid, built by materializing it locally (see
-     * {@link ImgUtils#materialize}) and lazily subsampling that local copy. BVV's {@code VolumeRenderer} requires
+     * Wraps a single-resolution {@link Source} in a synthetic mipmap pyramid. BVV's {@code VolumeRenderer} requires
      * multiple resolution levels to pick a LOD; without one it throws on every repaint. Use this for non-pyramidal
      * N5/Zarr sources that cannot be re-exported with a real pyramid.
      * <p>
-     * Level 0 is the full-resolution, now-local copy; each extra level doubles the previous step size along X/Y/Z,
-     * matching how a real N5/Zarr multiscale pyramid is laid out
+     * Level 0 is either a local, cell-based copy of the source (see {@link ImgUtils#materializeTiled}), or, if
+     * {@code copyLocally} is false, the source itself. Each extra level doubles the previous step size along X/Y/Z,
+     * matching how a real N5/Zarr multiscale pyramid is laid out. Extra levels are nearest-neighbor subsampled and
+     * computed lazily, on demand, into a disk-backed cell cache, so they cost no heap up front
      *
-     * @param source  the single-level source to wrap
-     * @param nLevels number of extra downsampled levels to synthesize
-     * @param <T>     pixel type
+     * @param source      the single-level source to wrap
+     * @param nLevels     number of extra downsampled levels to synthesize
+     * @param copyLocally whether to copy level 0 into memory. Worth it for small remote sources (avoids repeated
+     *                    network reads), but needs the full volume in heap (see {@link #estimateLocalCopyBytes})
+     * @param <T>         pixel type
      * @return a multi-resolution {@link Source} wrapping {@code source}, or {@code source} unchanged if it already has
      * more than one level
      */
     @SuppressWarnings("unchecked")
     public static <T extends NumericType<T> & NativeType<T>> Source<T> synthesizeMipmapPyramid(
-            final Source<T> source, final int nLevels) {
+            final Source<T> source, final int nLevels, final boolean copyLocally) {
         if (source.getNumMipmapLevels() > 1) return source;
-        SNTUtils.log("BVV: materializing '" + source.getName() + "' locally to synthesize a mipmap pyramid "
-                + "(" + nLevels + " extra level(s)); this may take a while for a remote source");
+        SNTUtils.log("BVV: synthesizing " + nLevels + " mipmap level(s) for '" + source.getName() + "'"
+                + (copyLocally ? " (copying level 0 locally; this may take a while for a remote source)"
+                : " (lazy, no local copy)"));
         final RandomAccessibleInterval<T>[] levels = new RandomAccessibleInterval[nLevels + 1];
         final double[][] scales = new double[nLevels + 1][3];
-        levels[0] = ImgUtils.materialize(source.getSource(0, 0)); // one-time local copy
+        final RandomAccessibleInterval<T> base = source.getSource(0, 0);
+        levels[0] = copyLocally ? ImgUtils.materializeTiled(base, PYRAMID_CELL_SIZE) : base;
         scales[0] = new double[]{1, 1, 1};
+        final RandomAccessibleInterval<T> zeroMin0 = Views.zeroMin(levels[0]);
+        final T type = source.getType().createVariable();
         for (int l = 1; l <= nLevels; l++) {
             final long step = 1L << l; // 2, 4, 8...
-            levels[l] = Views.subsample(levels[0], step, step, step);
+            final RandomAccessibleInterval<T> sub = Views.subsample(zeroMin0, step, step, step);
+            final int[] cellDims = new int[3];
+            for (int d = 0; d < 3; d++)
+                cellDims[d] = (int) Math.max(1, Math.min(PYRAMID_CELL_SIZE, sub.dimension(d)));
+            // BVV only streams cell-backed images, which a plain subsample view is not
+            final net.imglib2.cache.img.CellLoader<T> loader = cell ->
+                    LoopBuilder.setImages(Views.interval(sub, cell), cell).forEachPixel((s, t) -> t.set(s));
+            levels[l] = sc.fiji.snt.filter.Lazy.createImg(sub, cellDims, type, loader);
             scales[l] = new double[]{step, step, step};
         }
         final AffineTransform3D transform = new AffineTransform3D();
@@ -699,6 +819,155 @@ public final class BvvUtils {
         SNTUtils.log("BVV: synthetic pyramid ready for '" + source.getName() + "'");
         return new RandomAccessibleIntervalMipmapSource<>(levels, source.getType(),
                 scales, source.getVoxelDimensions(), transform, source.getName());
+    }
+
+    /**
+     * Estimates the heap needed to copy level 0 of {@code source} into memory (see
+     * {@link #synthesizeMipmapPyramid})
+     *
+     * @param source the source to estimate
+     * @return the estimated size in bytes
+     */
+    public static long estimateLocalCopyBytes(final Source<?> source) {
+        final RandomAccessibleInterval<?> rai = source.getSource(0, 0);
+        long voxels = 1;
+        for (int d = 0; d < rai.numDimensions(); d++) voxels *= rai.dimension(d);
+        final Object type = source.getType();
+        final long bytes = (type instanceof RealType<?> rt) ? Math.max(1, rt.getBitsPerPixel() / 8) : 4;
+        return voxels * bytes;
+    }
+
+    /**
+     * Largest per-channel voxel count BVV's single-texture path can handle: its buffer is sized as
+     * {@code voxels * 2} with a 32-bit signed int. Independent of {@code GL_MAX_3D_TEXTURE_SIZE}
+     */
+    public static final long MAX_SINGLE_TEXTURE_VOXELS = Integer.MAX_VALUE / 2L;
+
+    /** Edge length (voxels) of the tiles BVV uploads to the GPU cache (padded by +2 on each axis internally) */
+    public static final int GPU_BLOCK_SIZE = 32;
+
+    /**
+     * Edge length (voxels) of the cells BVV streams from disk. Also the chunk size of exported OME-Zarr
+     * arrays, so that loading a cell reads exactly one chunk. Must be a multiple of {@link #GPU_BLOCK_SIZE}.
+     */
+    public static final int CELL_SIZE = 64;
+    static {
+        assert CELL_SIZE % GPU_BLOCK_SIZE == 0 : "CELL_SIZE must be a multiple of GPU_BLOCK_SIZE";
+    }
+
+    /** Source chunks smaller than this (per axis) are read in whole multiples: cells are {@link #CELL_SIZE} then */
+    private static final int MIN_CELL_SIZE = 32;
+
+    /** Cells never exceed this edge length (voxels), whatever the source chunk size */
+    private static final int MAX_CELL_SIZE = 128;
+
+    /** Edge length of the cells streamed for a source with chunks of {@code chunk} voxels along an axis */
+    static int cellSizeFor(final int chunk) {
+        if (chunk < MIN_CELL_SIZE) return CELL_SIZE;
+        return Math.min(chunk, MAX_CELL_SIZE);
+    }
+
+    /**
+     * Logs how the cells streamed to BVV relate to the source chunks and, if the chunk layout is poorly suited to
+     * interactive 3D viewing, queues a notice for the notification center. Does nothing if the chunk shape is unknown
+     *
+     * @param name       the display name of the data
+     * @param chunkShape the chunk shape of the full-resolution array in N5 axis order (x, y, z, ...), or null
+     */
+    public static void reportChunking(final String name, final int[] chunkShape) {
+        if (chunkShape == null || chunkShape.length < 3) return;
+        final StringBuilder cells = new StringBuilder();
+        boolean bad = false;
+        for (int d = 0; d < 3; d++) {
+            cells.append(d > 0 ? "x" : "").append(cellSizeFor(chunkShape[d]));
+            bad |= chunkShape[d] < 8 || chunkShape[d] > 256;
+        }
+        final String chunks = String.join("x", java.util.stream.IntStream.of(chunkShape).limit(3)
+                .mapToObj(String::valueOf).toArray(String[]::new));
+        SNTUtils.log(String.format("BVV: '%s' source chunks %s -> streamed cells %s", name, chunks, cells));
+        if (bad) {
+            GuiUtils.Notices.queueNotice("<HTML><b>Unfavorable chunk layout (" + chunks + ").</b><br>"
+                    + "'" + name + "' may feel sluggish in BVV. Re-saving it with ~" + CELL_SIZE + "^3 chunks "
+                    + "(e.g., via the CONVERT option) would improve navigation.", null, null,
+                    GuiUtils.Notices.PendingNotice.WARN);
+        }
+    }
+
+    /** Edge length (voxels) of the cells of the pyramids built by {@link #buildTiledPyramid} */
+    static final int PYRAMID_CELL_SIZE = CELL_SIZE;
+
+    /**
+     * Estimates the heap needed by {@link #buildTiledPyramid}: the full XYZ volume of every channel, plus ~15% for
+     * the coarser levels
+     *
+     * @param img an image with X, Y, Z leading, and optionally a channel axis
+     * @return the estimated size in bytes
+     */
+    public static long estimateTiledPyramidBytes(final ImgPlus<?> img) {
+        final int cDim = img.dimensionIndex(net.imagej.axis.Axes.CHANNEL);
+        final long nC = (cDim >= 0) ? img.dimension(cDim) : 1;
+        final long voxels = img.dimension(0) * img.dimension(1) * img.dimension(2);
+        final long bytesPerVoxel = Math.max(1, ((RealType<?>) img.firstElement()).getBitsPerPixel() / 8);
+        return (long) (voxels * nC * bytesPerVoxel * 1.15);
+    }
+
+    /**
+     * Builds one pyramid-backed {@link Source} per channel of an in-memory image, such that BVV renders it with its
+     * tile-streaming path ({@code MultiResolutionStack3D}) instead of uploading the whole volume as a single 3D
+     * texture, which is capped by {@code GL_MAX_3D_TEXTURE_SIZE}. Level 0 and every coarser level is copied into its
+     * own {@link net.imglib2.img.cell.CellImg} (see {@link ImgUtils#materializeTiled}), because BVV only streams
+     * sources backed by cell images. This costs the full volume in heap (see {@link #estimateTiledPyramidBytes}).
+     * Coarser levels are nearest-neighbor subsampled (step 2, 4, 8...)
+     * <p>
+     * Meant for view-only sessions: the returned sources are independent copies, so an image also held for tracing
+     * would be stored twice
+     *
+     * @param img     image with X, Y, Z leading, an optional channel axis, and no time axis (see
+     *                {@link ImgUtils#normalizeToXYZ})
+     * @param nLevels number of extra coarser levels
+     * @param <T>     pixel type
+     * @return one source per channel, ready for {@link sc.fiji.snt.viewer.Bvv#show(SpimDataUtils.N5Sources)}
+     * @throws IllegalArgumentException if the axes layout is not XYZ[C]
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <T extends RealType<T> & NativeType<T>> SpimDataUtils.N5Sources buildTiledPyramid(
+            final ImgPlus<T> img, final int nLevels) {
+        final int cDim = img.dimensionIndex(net.imagej.axis.Axes.CHANNEL);
+        final int nC = (cDim >= 0) ? (int) img.dimension(cDim) : 1;
+        if (!ImgUtils.hasXYZLeading(img) || img.numDimensions() != ((cDim >= 0) ? 4 : 3)) {
+            throw new IllegalArgumentException("Tiled pyramids require X, Y, Z[, C] axes: " + ImgUtils.axisReport(img));
+        }
+        final double[] cal = {img.averageScale(0), img.averageScale(1), img.averageScale(2)};
+        final String unit = (img.axis(0).unit() != null && !img.axis(0).unit().isBlank()) ? img.axis(0).unit()
+                : "pixel";
+        final String name = (img.getName() != null && !img.getName().isBlank()) ? img.getName() : "Image";
+        final AffineTransform3D transform = new AffineTransform3D();
+        transform.set(cal[0], 0, 0);
+        transform.set(cal[1], 1, 1);
+        transform.set(cal[2], 2, 2);
+        final java.util.List<bdv.viewer.SourceAndConverter<?>> sources = new java.util.ArrayList<>();
+        for (int c = 0; c < nC; c++) {
+            final long start = System.currentTimeMillis();
+            final RandomAccessibleInterval<T> channel = (cDim >= 0) ? Views.hyperSlice(img, cDim, c) : img;
+            final RandomAccessibleInterval<T>[] levels = new RandomAccessibleInterval[nLevels + 1];
+            final double[][] scales = new double[nLevels + 1][];
+            levels[0] = ImgUtils.materializeTiled(channel, PYRAMID_CELL_SIZE);
+            scales[0] = new double[]{1, 1, 1};
+            for (int l = 1; l <= nLevels; l++) {
+                final long step = 1L << l; // 2, 4, 8...
+                levels[l] = ImgUtils.materializeTiled(Views.subsample(levels[0], step, step, step),
+                        PYRAMID_CELL_SIZE);
+                scales[l] = new double[]{step, step, step};
+            }
+            final T type = img.firstElement().createVariable();
+            final RandomAccessibleIntervalMipmapSource<T> source = new RandomAccessibleIntervalMipmapSource<>(levels,
+                    type, scales, new mpicbg.spim.data.sequence.FinalVoxelDimensions(unit, cal), transform,
+                    (nC > 1) ? name + "_ch" + (c + 1) : name);
+            sources.add(new bdv.viewer.SourceAndConverter(source, bdv.BigDataViewer.createConverterToARGB(type)));
+            SNTUtils.log("BVV: tiled pyramid for channel " + (c + 1) + "/" + nC + " built in "
+                    + (System.currentTimeMillis() - start) + "ms");
+        }
+        return new SpimDataUtils.N5Sources(sources, 1, name);
     }
 
     /**
@@ -722,8 +991,271 @@ public final class BvvUtils {
                 SourceStacks.getSourceStackType(source) == SourceStacks.SourceStackType.MULTIRESOLUTION;
         final int level = multiRes ? source.getNumMipmapLevels() - 1 : 0;
         final RandomAccessibleInterval<T> rai = source.getSource(timepoint, level);
+        final long start = System.currentTimeMillis();
+        SNTUtils.log("BVV: prefetching '" + source.getName() + "' level " + level + " ("
+                + (multiRes ? "multi-resolution" : "single texture") + ", " + java.util.Arrays.toString(rai.dimensionsAsLongArray()) + ")");
         LoopBuilder.setImages(rai).multiThreaded().forEachPixel(t -> {
         });
+        SNTUtils.log("BVV: prefetch of '" + source.getName() + "' took " + (System.currentTimeMillis() - start)
+                + "ms");
+    }
+
+    /**
+     * Makes sure BVV can stream {@code soc} tile by tile. BVV only does so if level 0 of the source is backed by an
+     * {@link AbstractCellImg} (see {@link #preferMultiResolutionIfSafe}). Otherwise it uploads the entire
+     * full-resolution volume as a single texture, which fails outright for volumes beyond the texture limits.
+     * A common offender is a multichannel OME-Zarr: each channel is a {@code hyperSlice} (a plain view) of one
+     * 4D array. In that case every level is re-exposed as a lazily-filled {@link AbstractCellImg} that copies
+     * tiles from the original on demand, so the memory footprint stays bounded.
+     *
+     * @param soc the source about to be shown in BVV
+     * @return {@code soc} itself if no wrapping is needed (or possible), or an equivalent, cell-backed one
+     */
+    public static SourceAndConverter<?> ensureCellBacked(final SourceAndConverter<?> soc) {
+        return ensureCellBacked(soc, null);
+    }
+
+    /**
+     * As {@link #ensureCellBacked(SourceAndConverter)}, sizing the cells after the chunks of the underlying data
+     *
+     * @param soc        the source about to be shown in BVV
+     * @param chunkShape the chunk shape of the data in N5 axis order (x, y, z, ...), or null if unknown, in which
+     *                   case cells have {@link #CELL_SIZE} voxels per side
+     * @return {@code soc} itself if no wrapping is needed (or possible), or an equivalent, cell-backed one
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static SourceAndConverter<?> ensureCellBacked(final SourceAndConverter<?> soc, final int[] chunkShape) {
+        final Source<?> source = soc.getSpimSource();
+        final Object type = source.getType();
+        if (source.getNumMipmapLevels() <= 1 || !TileAccess.isSupportedType(type)
+                || !(type instanceof NumericType) || !(type instanceof NativeType)
+                || type instanceof net.imglib2.Volatile) {
+            return soc;
+        }
+        Object rai = source.getSource(0, 0);
+        if (rai instanceof VolatileView) rai = ((VolatileView) rai).getVolatileViewData().getImg();
+        if (rai instanceof AbstractCellImg) return soc; // already streamable
+        final RandomAccessibleInterval<?> level0 = source.getSource(0, 0);
+        for (int d = 0; d < level0.numDimensions(); d++) {
+            if (level0.min(d) != 0) { // would need a (non-cell) translation view
+                SNTUtils.log("BVV: '" + source.getName() + "' has a non-zero min; cannot make it cell-backed");
+                return soc;
+            }
+        }
+        SNTUtils.log("BVV: '" + source.getName() + "' levels are views (level 0 is a "
+                + rai.getClass().getSimpleName() + "); exposing them as lazily-loaded cell images for BVV");
+        final CellBackedSource<?> wrapped = new CellBackedSource(source, chunkShape);
+        // BVV renders the volatile twin (if any) so that tiles load asynchronously, instead of blocking its
+        // render threads on every cache miss
+        final SourceAndConverter<?> vsoc = soc.asVolatile();
+        if (vsoc == null) return new SourceAndConverter(wrapped, soc.getConverter());
+        final VolatileCellBackedSource vsource = new VolatileCellBackedSource(wrapped, vsoc.getSpimSource(),
+                loadingQueue());
+        return new SourceAndConverter(wrapped, soc.getConverter(),
+                new SourceAndConverter(vsource, vsoc.getConverter()));
+    }
+
+    /** Live cell-backed sources (weakly held), so their caches can be released on demand */
+    private static final java.util.Set<CellBackedSource<?>> LIVE =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    /**
+     * Releases the in-memory cell caches of all streamed (N5/Zarr/IMS) sources shown in BVV. Open viewers keep working:
+     * tiles are simply reloaded on demand. The GPU tile cache is not affected (it is freed when its window closes)
+     *
+     * @return the number of cells that were resident (loaded) and have now been released
+     */
+    public static long clearCaches() {
+        final java.util.List<CellBackedSource<?>> sources;
+        synchronized (LIVE) {
+            sources = new java.util.ArrayList<>(LIVE);
+        }
+        long n = 0;
+        for (final CellBackedSource<?> source : sources) n += source.invalidate();
+        SNTUtils.log("BVV: released " + n + " cached cells from " + sources.size() + " sources");
+        return n;
+    }
+
+    private static bdv.cache.SharedQueue sharedLoadingQueue;
+
+    private static synchronized bdv.cache.SharedQueue loadingQueue() {
+        if (sharedLoadingQueue == null)
+            sharedLoadingQueue = new bdv.cache.SharedQueue(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        return sharedLoadingQueue;
+    }
+
+    /** {@link Source} delegating to another one, but exposing its levels as lazily-filled cell images */
+    private static final class CellBackedSource<T extends NumericType<T> & NativeType<T>> implements Source<T> {
+        private static final java.util.concurrent.atomic.AtomicInteger IN_FLIGHT =
+                new java.util.concurrent.atomic.AtomicInteger();
+        private static final java.util.concurrent.atomic.AtomicLong LOADS =
+                new java.util.concurrent.atomic.AtomicLong();
+        /** Levels up to this many voxels (uint16: ~256 MB) are pinned in memory */
+        private static final long PIN_MAX_VOXELS = 128L * 1024 * 1024;
+        /** Cells loaded since the last {@link #invalidate()} (an upper bound if cells were evicted meanwhile) */
+        private final java.util.concurrent.atomic.AtomicLong residentCells =
+                new java.util.concurrent.atomic.AtomicLong();
+        private final Source<T> delegate;
+        private final java.util.Map<Long, RandomAccessibleInterval<T>> levels =
+                new java.util.concurrent.ConcurrentHashMap<>();
+
+        /** Chunk shape of the underlying data (N5 axis order), or null if unknown */
+        private final int[] chunkShape;
+
+        CellBackedSource(final Source<T> delegate, final int[] chunkShape) {
+            this.delegate = delegate;
+            this.chunkShape = chunkShape == null ? null : chunkShape.clone();
+            synchronized (LIVE) {
+                LIVE.add(this);
+            }
+        }
+
+        /** Drops every cached cell (they are reloaded from the delegate on demand) */
+        long invalidate() {
+            for (final RandomAccessibleInterval<T> rai : levels.values()) {
+                if (rai instanceof net.imglib2.cache.img.CachedCellImg<?, ?> img) img.getCache().invalidateAll();
+            }
+            return residentCells.getAndSet(0);
+        }
+
+        @Override
+        public boolean isPresent(final int t) {
+            return delegate.isPresent(t);
+        }
+
+        @Override
+        public RandomAccessibleInterval<T> getSource(final int t, final int level) {
+            return levels.computeIfAbsent(((long) t << 32) | level, k -> {
+                final RandomAccessibleInterval<T> rai = delegate.getSource(t, level);
+                final int[] cellDims = new int[rai.numDimensions()];
+                for (int d = 0; d < cellDims.length; d++) {
+                    final int edge = (chunkShape != null && d < 3 && chunkShape[d] > 0)
+                            ? cellSizeFor(chunkShape[d]) : CELL_SIZE;
+                    cellDims[d] = (int) Math.max(1, Math.min(edge, rai.dimension(d)));
+                }
+                final net.imglib2.cache.img.CellLoader<T> loader = cell -> {
+                    LoopBuilder.setImages(Views.interval(rai, cell), cell).forEachPixel((s, c) -> c.set(s));
+                    residentCells.incrementAndGet();
+                };
+                // Memory-only, read-only cache (no disk spill of 'dirty' cells). Levels small enough to fit in a
+                // modest memory budget are held with strong references so they are never evicted and reloaded
+                // while navigating (re-loading of evicted coarse cells produced visible flicker). Larger levels
+                // use soft references
+                long nCells = 1;
+                long nVoxels = 1;
+                for (int d = 0; d < cellDims.length; d++) {
+                    nCells *= (rai.dimension(d) + cellDims[d] - 1) / cellDims[d];
+                    nVoxels *= rai.dimension(d);
+                }
+                // pin (keep in memory) any level that fits in a fraction of the heap (2 bytes/voxel assumed)
+                final boolean pin = nVoxels <= PIN_MAX_VOXELS
+                        || nVoxels * 2L <= Runtime.getRuntime().maxMemory() / 6;
+                net.imglib2.cache.img.ReadOnlyCachedCellImgOptions opts =
+                        net.imglib2.cache.img.ReadOnlyCachedCellImgOptions.options().cellDimensions(cellDims);
+                opts = pin ? opts.cacheType(CacheOptions.CacheType.BOUNDED).maxCacheSize(nCells)
+                        : opts.cacheType(CacheOptions.CacheType.SOFTREF);
+                if (SNTUtils.isDebugMode())
+                    SNTUtils.log(String.format("BVV-DEBUG '%s' level %d: %d cells, %s", delegate.getName(), level,
+                            nCells, pin ? "pinned in memory" : "soft-referenced"));
+                return new net.imglib2.cache.img.ReadOnlyCachedCellImgFactory(opts).create(
+                        net.imglib2.util.Intervals.dimensionsAsLongArray(rai), delegate.getType().createVariable(),
+                        loader);
+            });
+        }
+
+        @Override
+        public net.imglib2.RealRandomAccessible<T> getInterpolatedSource(final int t, final int level,
+                                                                         final bdv.viewer.Interpolation method) {
+            return delegate.getInterpolatedSource(t, level, method);
+        }
+
+        @Override
+        public void getSourceTransform(final int t, final int level, final AffineTransform3D transform) {
+            delegate.getSourceTransform(t, level, transform);
+        }
+
+        @Override
+        public T getType() {
+            return delegate.getType();
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public mpicbg.spim.data.sequence.VoxelDimensions getVoxelDimensions() {
+            return delegate.getVoxelDimensions();
+        }
+
+        @Override
+        public int getNumMipmapLevels() {
+            return delegate.getNumMipmapLevels();
+        }
+    }
+
+    /**
+     * Volatile counterpart of {@link CellBackedSource}: exposes the very same (shared) cell images, but wrapped so
+     * that cells load asynchronously (see {@link VolatileViews#wrapAsVolatile}). Everything else, including the
+     * volatile pixel type, is delegated to the original volatile source
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static final class VolatileCellBackedSource implements Source {
+        private final CellBackedSource cells;
+        private final Source original;
+        private final bdv.cache.SharedQueue queue;
+        private final java.util.Map<Long, RandomAccessibleInterval> levels =
+                new java.util.concurrent.ConcurrentHashMap<>();
+
+        VolatileCellBackedSource(final CellBackedSource cells, final Source original,
+                                 final bdv.cache.SharedQueue queue) {
+            this.cells = cells;
+            this.original = original;
+            this.queue = queue;
+        }
+
+        @Override
+        public boolean isPresent(final int t) {
+            return original.isPresent(t);
+        }
+
+        @Override
+        public RandomAccessibleInterval getSource(final int t, final int level) {
+            return levels.computeIfAbsent(((long) t << 32) | level, k ->
+                    VolatileViews.wrapAsVolatile((RandomAccessibleInterval) cells.getSource(t, level), queue));
+        }
+
+        @Override
+        public net.imglib2.RealRandomAccessible getInterpolatedSource(final int t, final int level,
+                                                                      final bdv.viewer.Interpolation method) {
+            return original.getInterpolatedSource(t, level, method);
+        }
+
+        @Override
+        public void getSourceTransform(final int t, final int level, final AffineTransform3D transform) {
+            original.getSourceTransform(t, level, transform);
+        }
+
+        @Override
+        public Object getType() {
+            return original.getType();
+        }
+
+        @Override
+        public String getName() {
+            return original.getName();
+        }
+
+        @Override
+        public mpicbg.spim.data.sequence.VoxelDimensions getVoxelDimensions() {
+            return original.getVoxelDimensions();
+        }
+
+        @Override
+        public int getNumMipmapLevels() {
+            return original.getNumMipmapLevels();
+        }
     }
 
     /**
@@ -850,7 +1382,7 @@ public final class BvvUtils {
      */
     static void checkVolumeSize(final long width, final long height, final long depth) {
         final long voxels = width * height * depth;
-        if (voxels * 2L > Integer.MAX_VALUE) {
+        if (voxels > MAX_SINGLE_TEXTURE_VOXELS) {
             throw new IllegalArgumentException(String.format(
                     "Volume too large for BVV's texture manager: %dx%dx%d = %.2f Gvox/channel " +
                             "(limit ~1.07 Gvox). For tiled datasets, open the native " +

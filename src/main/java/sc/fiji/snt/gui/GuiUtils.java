@@ -2843,9 +2843,12 @@ public class GuiUtils {
 				return "Could not reach '" + cause.getMessage() + "' - check your internet connection";
 			if (cause instanceof java.net.ConnectException || cause instanceof java.net.SocketTimeoutException)
 				return "Could not connect to the remote server - check your internet connection";
+			if (cause instanceof OutOfMemoryError)
+				return "Not enough memory. Please increase the memory available to Fiji (Edit > Options > "
+						+ "Memory & Threads...), restart, and try again. Closing other images may also help";
 		}
         assert t != null;
-        return t.getMessage();
+        return (t.getMessage() == null) ? t.getClass().getSimpleName() : t.getMessage();
 	}
 
 	public static JFileChooser getDnDFileChooser() {
@@ -5903,6 +5906,30 @@ public class GuiUtils {
 			formatter.setFormat(decimalFormat);
 			formatter.setAllowsInvalid(false);
 			return spinner;
+		}
+
+		/**
+		 * Pairs {@code spinner} with a borderless "reset to default" button (undo glyph). Pressing it sets the spinner
+		 * to {@code defaultValue}, so any {@link javax.swing.event.ChangeListener} registered on the spinner fires as
+		 * if the user had typed the value. The caller keeps using {@code spinner} itself for listeners/values and only
+		 * adds the returned panel to its layout. The button is enabled only while the spinner is.
+		 *
+		 * @param spinner      the spinner (its model must be a {@link SpinnerNumberModel} or accept {@code defaultValue})
+		 * @param defaultValue the value restored by the button. It should match the model's number type
+		 * @return a panel holding the spinner and the reset button
+		 */
+		public static JPanel withDefaultButton(final JSpinner spinner, final Number defaultValue) {
+			final double d = defaultValue.doubleValue();
+			final String valueString = (d == Math.rint(d)) ? String.valueOf((long) d) : SNTUtils.formatDouble(d, 2);
+			final JButton reset = Buttons.undo("Reset to default (" + valueString + ")");
+			reset.addActionListener(e -> spinner.setValue(defaultValue));
+			reset.setEnabled(spinner.isEnabled());
+			spinner.addPropertyChangeListener("enabled", evt -> reset.setEnabled(spinner.isEnabled()));
+			final JPanel panel = new JPanel(new BorderLayout(2, 0));
+			panel.setOpaque(false);
+			panel.add(spinner, BorderLayout.CENTER);
+			panel.add(reset, BorderLayout.EAST);
+			return panel;
 		}
 
 		public static double extractDouble(final JTextField textfield) {

@@ -36,6 +36,7 @@ import org.scijava.widget.*;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.viewer.BvvUtils;
 
 import javax.swing.*;
 import java.io.BufferedReader;
@@ -96,6 +97,19 @@ public class PrefsCmd extends OptionsPlugin {
 			description="Whether Gzip compression should be use when saving .traces files")
 	private boolean compressTraces;
 
+	@Parameter(label="BVV render quality", persist = false, choices = {"Low (256x256, 15ms)", "Medium (512x512, 30ms)",
+			"High (768x768, 60ms)", "Max (1024x1024, 100ms)"},
+			description="<HTML><div WIDTH=500>Offscreen render size and max. render time per frame of BVV. Higher "
+					+ "quality is sharper but slower to navigate. Applies the next time a BVV window is opened")
+	private String bvvQuality;
+
+	@Parameter(label="BVV GPU tile cache (MB)", min = "0", persist = false,
+			description="<HTML><div WIDTH=500>Maximum GPU memory BVV may use to cache volume tiles of pyramidal data "
+					+ "(N5, OME-Zarr, IMS). 0 = automatic (about 1 GB per channel). Upper limit: 2 GB or 25% of the "
+					+ "JVM's max. memory (see Edit&gt;Options&gt;Memory &amp; Threads...), whichever is lower. "
+					+ "Too small a value causes flickering. Applies the next time a BVV window is opened")
+	private int bvvCacheMB;
+
 	@Parameter(label="Clear Cache...", callback="clearCache",
 			description="<HTML>Deletes SNT's disk-backed cache (secondary/filtered images, auto-tracing scratch files, " +
 					"stream data).<br>Safe to clear, but avoid doing so while a tracing session relying on cached/lazy-loaded data is active")
@@ -152,6 +166,8 @@ public class PrefsCmd extends OptionsPlugin {
 	 */
 	public void run() {
 		super.run();
+		BvvUtils.setCachePrefMB(Math.min(Math.max(0, bvvCacheMB), BvvUtils.maxCacheMB()));
+		BvvUtils.setRenderQuality(BvvUtils.RenderQuality.fromLabel(bvvQuality));
 		if (snt == null) return;
 
         final int somaDisplayOption = getSomaDisplayOption(somaDisplay);
@@ -220,6 +236,8 @@ public class PrefsCmd extends OptionsPlugin {
 			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
+			bvvCacheMB = BvvUtils.getCachePrefMB();
+			bvvQuality = BvvUtils.getRenderQuality().label;
             somaDisplay = getSomaDisplayChoice(PathNodeCanvas.getSomaRenderMode());
 			workspaceDirectory = snt.getPrefs().getWorkspaceDir();
 			nextImgExtensions = String.join(", ", snt.getPrefs().getNextImgExtensions());
@@ -277,8 +295,9 @@ public class PrefsCmd extends OptionsPlugin {
 				// do not call SNTUtils.getCacheDirSize() here as it may take a while to compute the cache size
 				"Clear SNT's cache?<br>"
 						+ "This removes disk-backed data (e.g., secondary/filtered images, auto-tracing "
-						+ "scratch files, streamed data). If a tracing session is currently relying on cached "
-						+ "data, clearing it now may cause errors until you restart.",
+						+ "scratch files, streamed data) as well as in-memory BVV tile caches.<br><br>" +
+						"If a tracing session is currently relying on cached data, clearing it now may cause errors " +
+						"until you restart.",
 				"Clear Cache?");
 		if (!confirm) return;
 		try {
@@ -286,9 +305,12 @@ public class PrefsCmd extends OptionsPlugin {
 			final long size = SNTUtils.getCacheDirSize();
 			final String sizeString = SNTUtils.formatBytes(size);
 			org.apache.commons.io.FileUtils.deleteDirectory(cacheDir);
+			final long bvvCells = BvvUtils.clearCaches();
 			new GuiUtils().centeredMsg(
-					(size == 0L) ? "Cache cleared but it was already empty." : "Cache cleared (" + sizeString + " removed)."
-					, "Cache Cleared");
+					String.format("<HTML><b>Disk cache</b>: Cleared %s<br><b>In-memory BVV tile cache</b>: %s",
+							((size == 0L) ? "but it was already empty." : "(" + sizeString + " removed)."),
+							((bvvCells > 0) ? bvvCells + " cached tile(s) released." : "Nothing to release.")
+					), "Cache Cleared");
 		} catch (final Throwable e) {
 			new GuiUtils().error("Could not fully clear cache:<br>" + e.getMessage());
 		}
@@ -340,6 +362,9 @@ public class PrefsCmd extends OptionsPlugin {
 			findClasses(pkg).forEach(c -> prefService.clear(c));
 		}
 		SNTPrefs.clearAll(); // Legacy (IJ1-based) preferences
+		BvvUtils.setCachePrefMB(0);
+		BvvUtils.setRenderQuality(BvvUtils.RenderQuality.MEDIUM);
+		BvvUtils.setCachePromptSuppressed(false);
 		FileChooser.resetPreferences(); // Others
 		ij.gui.PointRoi.setDefaultSize(3); // mid-size default
 	}

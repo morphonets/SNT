@@ -458,7 +458,7 @@ public class SciViewSNT {
 			OrientedBoundingBox bb = new OrientedBoundingBox(this, 0.0f, 0.0f, 0.0f,
 					0.0f, 0.0f, 0.0f);
 			for( final Node n : getChildren() ) {
-				final OrientedBoundingBox cBB = n.generateBoundingBox(true);
+				final OrientedBoundingBox cBB = n.generateBoundingBox();
 				if( cBB != null )
 					bb = bb.expand(bb, cBB);
 			}
