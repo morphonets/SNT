@@ -68,7 +68,6 @@ public class ScriptInstaller {
 	/** Pattern to match non-demo scripts (case-insensitive) */
 	public static final Pattern NON_DEMO_SCRIPT = Pattern.compile("^(?!.*demo).*$", Pattern.CASE_INSENSITIVE);
 
-	private static final Icon revealIcon = UIManager.getIcon("Tree.openIcon");
 	private final SNTUI ui;
 	private final GuiUtils guiUtils;
 	private TreeSet<ScriptInfo> scripts;
@@ -84,7 +83,6 @@ public class ScriptInstaller {
 			ui = null;
 		guiUtils = new GuiUtils(parent);
 		init();
-
 	}
 
 	private void init() {
@@ -146,11 +144,32 @@ public class ScriptInstaller {
 	}
 
 	private void addAllDiscoveredScripts() {
-		for (final ScriptInfo si : scriptService.getScripts()) {
-			final boolean pathMatch = si.getPath() != null && (si.getPath().contains(
-				"SNT") || si.getPath().toLowerCase().contains("neuroanatomy"));
-			if (pathMatch) scripts.add(si);
+		for (int attempt = 0; attempt < 3; attempt++) {
+			try {
+				scripts.addAll(findSNTScripts());
+				return;
+			} catch (final ConcurrentModificationException ex) {
+				// Script dirs can be modified by another thread (e.g., autostart macros running while Fiji is still
+				// registering them and there has been reports of weirdness in ShortcutWindowCmd: we'll retry just in case
+				SNTUtils.log("Script discovery retry " + (attempt + 1));
+				try {
+					Thread.sleep(100L * (attempt + 1));
+				} catch (final InterruptedException ie) {
+					Thread.currentThread().interrupt();
+					return;
+				}
+			}
 		}
+	}
+
+	private List<ScriptInfo> findSNTScripts() {
+		final List<ScriptInfo> found = new ArrayList<>();
+		for (final ScriptInfo si : scriptService.getScripts()) {
+			final String path = si.getPath();
+			if (path != null && (path.contains("SNT") || path.toLowerCase().contains("neuroanatomy")))
+				found.add(si);
+		}
+		return found;
 	}
 
 	private void runScript(final ScriptInfo si) {
@@ -225,7 +244,8 @@ public class ScriptInstaller {
         };
 	}
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
-		final IconActionableMenuItem mItem = new IconActionableMenuItem(getScriptLabel(si, trimExtension), revealIcon);
+		final IconActionableMenuItem mItem = new IconActionableMenuItem(getScriptLabel(si, trimExtension),
+				UIManager.getIcon("Tree.openIcon")); // not cached: tied to current L&F
 		mItem.setToolTipText("Click to run script. Click the icon to open it");
 		mItem.putClientProperty("cmdFinder-icon", getCmdFinderIcon());
 		mItem.addActionListener(e -> runScript(si));

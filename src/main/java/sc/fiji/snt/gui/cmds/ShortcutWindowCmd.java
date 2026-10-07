@@ -81,6 +81,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 
 	private JPanel getPanel() {
+		buttons.clear();
 		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
 		shortcuts.add(new Shortcut("Startup...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend.<br>" +
@@ -109,17 +110,16 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 		panel.setBorder(new EmptyBorder(8, 8, 8, 8));
+		buttons.forEach(button -> panel.add(button == null ? new JLabel("<HTML>&nbsp;") : button));
+		// Refresh UI before measuring otherwise sizes may be computed with stale metrics
+		// (e.g., dark L&F seems to use wider fonts)
+		SwingUtilities.updateComponentTreeUI(panel);
 		final Dimension prefSize = new Dimension(-1, -1);
 		buttons.forEach(button -> {
-			if (button == null) {
-				panel.add(new JLabel("<HTML>&nbsp;")); // spacer
-			} else {
+			if (button != null) {
 				final Dimension d = button.getPreferredSize();
-				if (d.width > prefSize.width)
-					prefSize.width = d.width;
-				if (d.height > prefSize.height)
-					prefSize.height = d.height;
-				panel.add(button);
+				prefSize.width = Math.max(prefSize.width, d.width);
+				prefSize.height = Math.max(prefSize.height, d.height);
 			}
 		});
 		final Dimension maxSize = new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
@@ -274,6 +274,17 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	@Override
 	public void run() {
 
+		// The frame is displayed my the auto run macro at Fiji startup, which may happen _before_ L&F assigment
+		// Build on the EDT so that L&F changes cannot interleave with construction
+		if (!SwingUtilities.isEventDispatchThread()) {
+			try {
+				SwingUtilities.invokeAndWait(this::run);
+			} catch (final Exception ex) {
+				SNTUtils.error("Could not create shortcut window", ex);
+			}
+			return;
+		}
+
 		if (frame != null) {
 			frame.setVisible(true);
 			frame.toFront();
@@ -281,10 +292,15 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		}
 
 		GuiUtils.LAF.setLookAndFeel(); // needs to be called here because frame uses swing
+		// Popup menus are not part of the frame hierarchy and menu icons bake in
+		// the L&F colors at creation: rebuild content if the L&F changes later
+		UIManager.addPropertyChangeListener(evt -> {
+			if ("lookAndFeel".equals(evt.getPropertyName()))
+				SwingUtilities.invokeLater(this::rebuildContent);
+		});
 		frame = getFrame();
 		frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-		frame.setContentPane(getPanel());
-		addFileDrop(frame.getContentPane(), new GuiUtils(frame));
+		setContent();
 		frame.pack();
 		//TODO: use ij1 for now because it detects if the location is valid. 
 		final Point loc = ij.Prefs.getLocation(WIN_LOC);
@@ -302,6 +318,16 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			}
 		});
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
+	}
+
+	private void setContent() {
+		frame.setContentPane(getPanel());
+		addFileDrop(frame.getContentPane(), new GuiUtils(frame));
+	}
+
+	private void rebuildContent() {
+		setContent();
+		frame.pack();
 	}
 
 	@SuppressWarnings("unused")
