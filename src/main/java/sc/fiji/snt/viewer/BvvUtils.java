@@ -1075,6 +1075,20 @@ public final class BvvUtils {
      * @param <T>       pixel type
      */
     public static <T> void prefetchForShow(final Source<T> source, final int timepoint) {
+        prefetchForShow(source, timepoint, null);
+    }
+
+    /**
+     * As {@link #prefetchForShow(Source, int)}, reporting progress as the data is fetched
+     *
+     * @param source    the source to warm up
+     * @param timepoint the timepoint to warm up
+     * @param progress  receives the fraction (0-1) of the data fetched so far. It is called from several threads and
+     *                  can be {@code null}, in which case the data is fetched without any reporting
+     * @param <T>       pixel type
+     */
+    public static <T> void prefetchForShow(final Source<T> source, final int timepoint,
+                                           final java.util.function.DoubleConsumer progress) {
         final boolean multiRes =
                 SourceStacks.getSourceStackType(source) == SourceStacks.SourceStackType.MULTIRESOLUTION;
         final int level = multiRes ? source.getNumMipmapLevels() - 1 : 0;
@@ -1082,8 +1096,25 @@ public final class BvvUtils {
         final long start = System.currentTimeMillis();
         SNTUtils.log("BVV: prefetching '" + source.getName() + "' level " + level + " ("
                 + (multiRes ? "multi-resolution" : "single texture") + ", " + java.util.Arrays.toString(rai.dimensionsAsLongArray()) + ")");
-        LoopBuilder.setImages(rai).multiThreaded().forEachPixel(t -> {
-        });
+        if (progress == null) {
+            LoopBuilder.setImages(rai).multiThreaded().forEachPixel(t -> {
+            });
+        } else {
+            // Touch the data one cell-sized block at a time, so that progress can be reported
+            final RandomAccessibleInterval<T> zeroMin = Views.zeroMin(rai);
+            final int[] blockSize = new int[zeroMin.numDimensions()];
+            for (int d = 0; d < blockSize.length; d++)
+                blockSize[d] = (int) Math.max(1, Math.min(CELL_SIZE, zeroMin.dimension(d)));
+            final java.util.List<net.imglib2.Interval> blocks = net.imglib2.algorithm.util.Grids
+                    .collectAllContainedIntervals(zeroMin.dimensionsAsLongArray(), blockSize);
+            final java.util.concurrent.atomic.AtomicInteger done = new java.util.concurrent.atomic.AtomicInteger();
+            final int total = blocks.size();
+            blocks.parallelStream().forEach(block -> {
+                LoopBuilder.setImages(Views.interval(zeroMin, block)).forEachPixel(t -> {
+                });
+                progress.accept((double) done.incrementAndGet() / total);
+            });
+        }
         SNTUtils.log("BVV: prefetch of '" + source.getName() + "' took " + (System.currentTimeMillis() - start)
                 + "ms");
     }

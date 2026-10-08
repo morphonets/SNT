@@ -49,7 +49,8 @@ println "Image: ${ImgUtils.axisReport(imgPlus)}"
 def img = ImgUtils.normalizeToXYZ(imgPlus)
 
 // -------- Output path (never overwrites) --------
-def baseName = inputFile.name.replaceFirst(/\.[^.]+$/, '')
+// 'x.tif', 'x.ome.tif' and 'x.nii.gz' all map to 'x.ome.zarr'
+def baseName = inputFile.name.replaceFirst(/\.[^.]+$/, '').replaceFirst(/(?i)\.(ome|nii)$/, '')
 def outDir = new File(parentDir, "${baseName}.ome.zarr")
 for (int i = 1; outDir.exists(); i++)
     outDir = new File(parentDir, "${baseName}_${i}.ome.zarr")

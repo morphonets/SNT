@@ -1133,8 +1133,18 @@ public class BigDataLoaderCmd extends ContextCommand {
         // Submitted once and waited on repeatedly below (rather than resubmitted via SNTUtils#runWithTimeout
         // on every retry), so a fetch that keeps running while the user is away from the "keep waiting?"
         // prompt is not silently abandoned and restarted from scratch once they return.
+        final long[] lastReport = {0};
+        final java.util.function.DoubleConsumer progress = fraction -> {
+            final long now = System.currentTimeMillis();
+            synchronized (lastReport) { // called from several threads: report a few times per second at most
+                if (fraction < 1 && now - lastReport[0] < 250) return;
+                lastReport[0] = now;
+            }
+            GuiUtils.setSplashMessage(String.format("Fetching '%s': %d%%", source.getName(),
+                    Math.round(100 * fraction)));
+        };
         final SNTUtils.BackgroundTask<Void> task = SNTUtils.submitBackground(() -> {
-            BvvUtils.prefetchForShow(source, 0);
+            BvvUtils.prefetchForShow(source, 0, progress);
             return null;
         }, "SNT-BVV-Prefetch");
         try {
@@ -1354,7 +1364,9 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /** The name of the OME-Zarr directory written by {@link #convertToOmeZarr} for the image at {@code path} */
     private static String omeZarrName(final String path) {
-        return new File(path).getName().replaceFirst("\\.[^.]+$", "") + ".ome.zarr";
+        // 'x.tif', 'x.ome.tif' and 'x.nii.gz' all map to 'x.ome.zarr'
+        return new File(path).getName().replaceFirst("\\.[^.]+$", "").replaceFirst("(?i)\\.(ome|nii)$", "")
+                + ".ome.zarr";
     }
 
     /** Best-effort recursive deletion of a (partial) output directory */
@@ -1380,7 +1392,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final String name = omeZarrName(path);
         File out = new File(parent, name);
         for (int i = 1; out.exists(); i++)
-            out = new File(parent, name.replace(".ome.zarr", "_" + i + ".ome.zarr"));
+            out = new File(parent, name.substring(0, name.length() - ".ome.zarr".length()) + "_" + i + ".ome.zarr");
         SNTUtils.log("BVV: converting '" + path + "' to " + out);
         GuiUtils.setSplashMessage("Converting '" + img.getName() + "' to OME-Zarr...");
         try {
