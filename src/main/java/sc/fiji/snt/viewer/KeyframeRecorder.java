@@ -31,9 +31,9 @@ import bdv.viewer.animate.SimilarityTransformAnimator;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 
 import javax.imageio.ImageIO;
-import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -162,17 +162,13 @@ final class KeyframeRecorder {
     private void showAndWait(final AffineTransform3D t, final int timepoint,
                              final Map<Integer, Keyframe.SourceDisplay> display) throws InterruptedException {
         viewer.awaitRender(() -> {
-            try {
-                SwingUtilities.invokeAndWait(() -> {
-                    viewer.getViewerState().setViewerTransform(t);
-                    if (display != null) applyDisplay(display);
-                    if (timepoint > 0 && timepoint != viewer.getCurrentTimepoint())
-                        viewer.setCurrentTimepoint(timepoint);
-                    viewer.repaint();
-                });
-            } catch (final Exception e) {
-                throw new IllegalStateException(e);
-            }
+            GuiUtils.runOnEDT(() -> {
+                viewer.getViewerState().setViewerTransform(t);
+                if (display != null) applyDisplay(display);
+                if (timepoint > 0 && timepoint != viewer.getCurrentTimepoint())
+                    viewer.setCurrentTimepoint(timepoint);
+                viewer.repaint();
+            });
         }, settleMillis);
     }
 
@@ -212,8 +208,8 @@ final class KeyframeRecorder {
         final BufferedImage bi = new BufferedImage(canvas.getWidth(), canvas.getHeight(),
                 BufferedImage.TYPE_INT_RGB);
         try {
-            SwingUtilities.invokeAndWait(() -> canvas.paint(bi.getGraphics()));
-        } catch (final Exception e) {
+            GuiUtils.runOnEDT(() -> canvas.paint(bi.getGraphics()));
+        } catch (final RuntimeException e) {
             SNTUtils.log("Screenshot failed at frame " + index);
             return false;
         }

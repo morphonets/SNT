@@ -34,7 +34,6 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.SwingSafeResult;
 import trainableSegmentation.Weka_Segmentation;
 
 import java.lang.reflect.Field;
@@ -99,7 +98,7 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			ij.IJ.run("Channels Tool...");
 		}
 		run((trainingImage.getNSlices() == 1) ? "" : "3D");
-		twsWin = SwingSafeResult.getResult(this::getTWSgui);
+		twsWin = GuiUtils.callOnEDT(this::getTWSgui);
 	}
 
 	private ImagePlus getTWSdisplayImage() {

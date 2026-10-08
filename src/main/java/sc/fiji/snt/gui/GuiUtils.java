@@ -101,10 +101,12 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1585,25 +1587,58 @@ public class GuiUtils {
 		return getOpenFileChooserResult(fileChooser);
 	}
 
+	/**
+	 * Runs {@code c} on the Event Dispatch Thread (EDT) and returns its result.
+	 * Runs immediately if already on the EDT, otherwise blocks until done.
+	 *
+	 * @param <T> the result type
+	 * @param c   the task to run
+	 * @return the result of {@code c}
+	 * @throws IllegalStateException if the calling thread was interrupted while
+	 *                               waiting (its interrupt status is restored)
+	 * @throws RuntimeException      the exception thrown by {@code c}, if any
+	 *                               (checked exceptions are wrapped)
+	 */
+	public static <T> T callOnEDT(final Callable<T> c) {
+		final FutureTask<T> ft = new FutureTask<>(c);
+		try {
+			if (SwingUtilities.isEventDispatchThread()) ft.run();
+			else SwingUtilities.invokeAndWait(ft);
+			return ft.get();
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException("Interrupted while waiting for the EDT", e);
+		} catch (final ExecutionException | java.lang.reflect.InvocationTargetException e) {
+			final Throwable cause = (e.getCause() == null) ? e : e.getCause();
+			if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+			if (cause instanceof Error) throw (Error) cause;
+			throw new RuntimeException(cause);
+		}
+	}
+
+	/**
+	 * As {@link #callOnEDT(Callable)}, for tasks that do not return a value
+	 *
+	 * @param r the task to run
+	 */
+	public static void runOnEDT(final Runnable r) {
+		callOnEDT(() -> {
+			r.run();
+			return null;
+		});
+	}
+
 	private Object showNativeOpenDialog(final String title, final int selectionMode, final boolean multiSelection,
 			final File preset, final boolean presetIsDirectory, final FileNameExtensionFilter filter) {
 		// Unlike JFileChooser.showOpenDialog(), SystemFileChooser.showOpenDialog() throws
 		// IllegalStateException if not called on the EDT
-		if (!SwingUtilities.isEventDispatchThread()) {
-			final Object[] result = new Object[1];
-			try {
-				SwingUtilities.invokeAndWait(() -> result[0] = showNativeOpenDialogOnEDT(
-						title, selectionMode, multiSelection, preset, presetIsDirectory, filter));
-			} catch (final InterruptedException e) {
-				Thread.currentThread().interrupt();
-				return null;
-			} catch (final java.lang.reflect.InvocationTargetException e) {
-				SNTUtils.error("Native file dialog failed", e.getCause());
-				return null;
-			}
-			return result[0];
+		try {
+			return callOnEDT(() -> showNativeOpenDialogOnEDT(title, selectionMode, multiSelection, preset,
+					presetIsDirectory, filter));
+		} catch (final RuntimeException e) {
+			SNTUtils.error("Native file dialog failed", e);
+			return null;
 		}
-		return showNativeOpenDialogOnEDT(title, selectionMode, multiSelection, preset, presetIsDirectory, filter);
 	}
 
 	private Object showNativeOpenDialogOnEDT(final String title, final int selectionMode,
@@ -1643,20 +1678,12 @@ public class GuiUtils {
 	private File showNativeSaveDialog(final String title, final File preset, final FileNameExtensionFilter filter) {
 		// Unlike JFileChooser.showSaveDialog(), SystemFileChooser.showSaveDialog() throws
 		// IllegalStateException if not called on the EDT
-		if (!SwingUtilities.isEventDispatchThread()) {
-			final File[] result = new File[1];
-			try {
-				SwingUtilities.invokeAndWait(() -> result[0] = showNativeSaveDialogOnEDT(title, preset, filter));
-			} catch (final InterruptedException e) {
-				Thread.currentThread().interrupt();
-				return null;
-			} catch (final java.lang.reflect.InvocationTargetException e) {
-				SNTUtils.error("Native file dialog failed", e.getCause());
-				return null;
-			}
-			return result[0];
+		try {
+			return callOnEDT(() -> showNativeSaveDialogOnEDT(title, preset, filter));
+		} catch (final RuntimeException e) {
+			SNTUtils.error("Native file dialog failed", e);
+			return null;
 		}
-		return showNativeSaveDialogOnEDT(title, preset, filter);
 	}
 
 	private File showNativeSaveDialogOnEDT(final String title, final File preset,

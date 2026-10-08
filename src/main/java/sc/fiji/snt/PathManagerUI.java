@@ -859,7 +859,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
      *         if unselected.
      */
     public List<Path> getSelectedPaths(final boolean ifNoneSelectedGetAll) {
-        return SwingSafeResult.getResult(() -> {
+        return GuiUtils.callOnEDT(() -> {
             if (ifNoneSelectedGetAll && tree.getSelectionCount() == 0) {
                 // If the view is filtered (e.g., "Hide others is toggled in navigation bar"), prefer the paths actually
                 // listed in the JTree. Detect filtering by comparing against the full model captured during last rebuild.

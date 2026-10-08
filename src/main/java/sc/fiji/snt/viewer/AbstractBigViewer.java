@@ -1114,13 +1114,9 @@ public abstract class AbstractBigViewer {
     }
 
     private static void runOnEdt(final Runnable r) {
-        if (SwingUtilities.isEventDispatchThread()) {
-            r.run();
-            return;
-        }
         try {
-            SwingUtilities.invokeAndWait(r);
-        } catch (final InterruptedException | java.lang.reflect.InvocationTargetException ex) {
+            GuiUtils.runOnEDT(r);
+        } catch (final RuntimeException ex) {
             SNTUtils.log("Settings prompt failed: " + ex);
         }
     }

@@ -136,7 +136,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -867,14 +866,10 @@ public class Viewer3D {
                     }
                 });
             };
-            if (SwingUtilities.isEventDispatchThread()) {
-                r.run();
-            } else {
-                try {
-                    SwingUtilities.invokeAndWait(r);
-                } catch (final Exception e) {
-                    SNTUtils.error("Failed to create duplicate frame", e);
-                }
+            try {
+                GuiUtils.runOnEDT(r);
+            } catch (final RuntimeException e) {
+                SNTUtils.error("Failed to create duplicate frame", e);
             }
         }
         return dup;
@@ -1584,14 +1579,10 @@ public class Viewer3D {
                 }
             }
         };
-        if (SwingUtilities.isEventDispatchThread()) {
-            r.run();
-        } else {
-            try {
-                SwingUtilities.invokeAndWait(r);
-            } catch (final Exception e) {
-                SNTUtils.error("Failed to delete manager entry", e);
-            }
+        try {
+            GuiUtils.runOnEDT(r);
+        } catch (final RuntimeException e) {
+            SNTUtils.error("Failed to delete manager entry", e);
         }
         return result[0];
     }
@@ -1826,14 +1817,10 @@ public class Viewer3D {
                 frame = (ViewerFrame) show(0, 0, dummy.getGraphicsConfiguration(), visible);
                 dummy.dispose();
             };
-            if (SwingUtilities.isEventDispatchThread()) {
-                r.run();
-            } else {
-                try {
-                    SwingUtilities.invokeAndWait(r);
-                } catch (final Exception e) {
-                    SNTUtils.error("Failed to create frame", e);
-                }
+            try {
+                GuiUtils.runOnEDT(r);
+            } catch (final RuntimeException e) {
+                SNTUtils.error("Failed to create frame", e);
             }
         }
         return frame;
@@ -1858,14 +1845,10 @@ public class Viewer3D {
             result[0] = show(width, height, dummy.getGraphicsConfiguration(), true);
             dummy.dispose();
         };
-        if (SwingUtilities.isEventDispatchThread()) {
-            r.run();
-        } else {
-            try {
-                SwingUtilities.invokeAndWait(r);
-            } catch (final Exception e) {
-                SNTUtils.error("Failed to show viewer", e);
-            }
+        try {
+            GuiUtils.runOnEDT(r);
+        } catch (final RuntimeException e) {
+            SNTUtils.error("Failed to show viewer", e);
         }
         return result[0];
     }
@@ -6838,21 +6821,17 @@ public class Viewer3D {
                         return INVALID;
                     }
                     if (promptForConfirmation && collection.size() > 10 && guiUtils != null) {
-                        final boolean[][] confirmSplitHolder = new boolean[1][];
+                        final boolean[] confirmSplit;
                         try {
-                            SwingUtilities.invokeAndWait(() -> confirmSplitHolder[0] = guiUtils().getConfirmationAndOption(
+                            confirmSplit = GuiUtils.callOnEDT(() -> guiUtils().getConfirmationAndOption(
                                     "Are you sure you would like to import " + collection.size() + " files?<br>"
                                             + "You can press 'Esc' at any time to interrupt import.",
                                     "Proceed with Batch Import?", "Import axons and dendrites separately",
                                     isSplitDendritesFromAxons()));
-                        } catch (final InterruptedException ex) {
-                            Thread.currentThread().interrupt();
-                            return ABORTED;
-                        } catch (final InvocationTargetException ex) {
+                        } catch (final RuntimeException ex) {
                             SNTUtils.error(ex.getMessage(), ex);
                             return ABORTED;
                         }
-                        final boolean[] confirmSplit = confirmSplitHolder[0];
                         if (confirmSplit == null) {
                             return ABORTED;
                         }

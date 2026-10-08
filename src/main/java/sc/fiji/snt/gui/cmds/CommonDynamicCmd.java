@@ -42,7 +42,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -149,18 +148,12 @@ public class CommonDynamicCmd extends DynamicCommand {
 	 * @return the user's choice; {@code false} if the EDT could not be reached (e.g. interrupted while waiting)
 	 */
 	protected boolean getConfirmationEdtSafe(final String msg, final String title) {
-		if (SwingUtilities.isEventDispatchThread()) {
-			return new GuiUtils().getConfirmation(msg, title);
-		}
-		final boolean[] result = { false };
 		try {
-			SwingUtilities.invokeAndWait(() -> result[0] = new GuiUtils().getConfirmation(msg, title));
-		} catch (final InterruptedException e) {
-			Thread.currentThread().interrupt();
-		} catch (final InvocationTargetException e) {
-			SNTUtils.log("getConfirmationEdtSafe failed: " + e.getCause());
+			return GuiUtils.callOnEDT(() -> new GuiUtils().getConfirmation(msg, title));
+		} catch (final RuntimeException e) {
+			SNTUtils.log("getConfirmationEdtSafe failed: " + e);
+			return false;
 		}
-		return result[0];
 	}
 
 	protected void msg(final String msg, final String title) {

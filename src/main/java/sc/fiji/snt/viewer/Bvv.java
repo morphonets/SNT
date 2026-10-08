@@ -2092,10 +2092,9 @@ public class Bvv extends AbstractBigViewer {
             final AffineTransform3D target = computeAlignTransform(vMode);
             if (target != null) {
                 try {
-                    SwingUtilities.invokeAndWait(
-                            () -> viewerPanel.state().setViewerTransform(target));
-                } catch (final Exception ex) {
-                    Thread.currentThread().interrupt();
+                    GuiUtils.runOnEDT(() -> viewerPanel.state().setViewerTransform(target));
+                } catch (final RuntimeException ex) {
+                    SNTUtils.log("Could not apply alignment transform: " + ex);
                 }
             }
         }
@@ -2103,12 +2102,12 @@ public class Bvv extends AbstractBigViewer {
         final ImagePlus result = screenshotImp();
         if (!"current".equals(vMode)) {
             try {
-                SwingUtilities.invokeAndWait(() -> {
+                GuiUtils.runOnEDT(() -> {
                     viewerPanel.state().setViewerTransform(savedTransform);
                     viewerPanel.requestRepaint();
                 });
-            } catch (final Exception ex) {
-                Thread.currentThread().interrupt();
+            } catch (final RuntimeException ex) {
+                SNTUtils.log("Could not restore viewer transform: " + ex);
             }
         }
         if (result != null) {
@@ -2178,9 +2177,9 @@ public class Bvv extends AbstractBigViewer {
         final java.awt.image.BufferedImage bi =
                 new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
         try {
-            SwingUtilities.invokeAndWait(() -> canvas.paint(bi.getGraphics()));
-        } catch (final java.lang.reflect.InvocationTargetException | InterruptedException ex) {
-            Thread.currentThread().interrupt();
+            GuiUtils.runOnEDT(() -> canvas.paint(bi.getGraphics()));
+        } catch (final RuntimeException ex) {
+            SNTUtils.log("Snapshot failed: " + ex);
             return null;
         }
         return new ImagePlus("BVV Snapshot", new ij.process.ColorProcessor(bi));
