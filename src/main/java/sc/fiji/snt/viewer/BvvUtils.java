@@ -777,8 +777,8 @@ public final class BvvUtils {
      * <p>
      * Level 0 is either a local, cell-based copy of the source (see {@link ImgUtils#materializeTiled}), or, if
      * {@code copyLocally} is false, the source itself. Each extra level doubles the previous step size along X/Y/Z,
-     * matching how a real N5/Zarr multiscale pyramid is laid out. Extra levels are nearest-neighbor subsampled and
-     * computed lazily, on demand, into a disk-backed cell cache, so they cost no heap up front
+     * matching how a real N5/Zarr multiscale pyramid is laid out. Extra levels are averaged (2x2x2) from the previous
+     * level (see {@link #averagedLevel}) and computed lazily, on demand, so they cost no heap up front
      *
      * @param source      the single-level source to wrap
      * @param nLevels     number of extra downsampled levels to synthesize
@@ -801,17 +801,11 @@ public final class BvvUtils {
         levels[0] = copyLocally ? ImgUtils.materializeTiled(base, PYRAMID_CELL_SIZE) : base;
         scales[0] = new double[]{1, 1, 1};
         final RandomAccessibleInterval<T> zeroMin0 = Views.zeroMin(levels[0]);
-        final T type = source.getType().createVariable();
+        RandomAccessibleInterval<T> previous = zeroMin0;
         for (int l = 1; l <= nLevels; l++) {
             final long step = 1L << l; // 2, 4, 8...
-            final RandomAccessibleInterval<T> sub = Views.subsample(zeroMin0, step, step, step);
-            final int[] cellDims = new int[3];
-            for (int d = 0; d < 3; d++)
-                cellDims[d] = (int) Math.max(1, Math.min(PYRAMID_CELL_SIZE, sub.dimension(d)));
-            // BVV only streams cell-backed images, which a plain subsample view is not
-            final net.imglib2.cache.img.CellLoader<T> loader = cell ->
-                    LoopBuilder.setImages(Views.interval(sub, cell), cell).forEachPixel((s, t) -> t.set(s));
-            levels[l] = sc.fiji.snt.filter.Lazy.createImg(sub, cellDims, type, loader);
+            levels[l] = averagedLevel(previous);
+            previous = levels[l];
             scales[l] = new double[]{step, step, step};
         }
         final AffineTransform3D transform = new AffineTransform3D();
@@ -893,6 +887,66 @@ public final class BvvUtils {
         }
     }
 
+    /**
+     * Whether a level of {@code nVoxels} voxels is held in memory with strong references (so its cells are never
+     * evicted and reloaded while navigating, which produced visible flicker). Levels that fit a fraction of the heap
+     * are pinned, larger ones use soft references
+     */
+    private static boolean pinInMemory(final long nVoxels) {
+        // 2 bytes/voxel assumed
+        return nVoxels <= CellBackedSource.PIN_MAX_VOXELS || nVoxels * 2L <= Runtime.getRuntime().maxMemory() / 6;
+    }
+
+    /**
+     * Creates the next, 2x coarser level of a pyramid by averaging 2x2x2 neighborhoods of {@code previous}, computed
+     * lazily cell by cell. A coarse voxel then sits half a step into its block, which is the convention of BDV's
+     * default mipmap transforms ({@link bdv.util.MipmapTransforms#getMipmapTransformDefault}); nearest-neighbor
+     * subsampling would be misregistered between levels and drops thin structures.
+     * Pixel types not supported by the block downsampler (e.g., ARGB) fall back to nearest-neighbor subsampling
+     *
+     * @param previous the finer level (any min)
+     * @param <T>      pixel type
+     * @return a cell-backed image of ceil(n/2) voxels per axis
+     */
+    private static <T extends NumericType<T> & NativeType<T>> RandomAccessibleInterval<T> averagedLevel(
+            final RandomAccessibleInterval<T> previous) {
+        final RandomAccessibleInterval<T> zeroMin = Views.zeroMin(previous);
+        final long[] dims = new long[3];
+        final int[] cellDims = new int[3];
+        long nVoxels = 1;
+        long nCells = 1;
+        for (int d = 0; d < 3; d++) {
+            dims[d] = (zeroMin.dimension(d) + 1) / 2;
+            cellDims[d] = (int) Math.max(1, Math.min(PYRAMID_CELL_SIZE, dims[d]));
+            nVoxels *= dims[d];
+            nCells *= (dims[d] + cellDims[d] - 1) / cellDims[d];
+        }
+        // The options are immutable: each call returns a new instance
+        final net.imglib2.cache.img.ReadOnlyCachedCellImgOptions base =
+                net.imglib2.cache.img.ReadOnlyCachedCellImgOptions.options().cellDimensions(cellDims);
+        final net.imglib2.cache.img.ReadOnlyCachedCellImgOptions opts = pinInMemory(nVoxels)
+                ? base.cacheType(CacheOptions.CacheType.BOUNDED).maxCacheSize(nCells)
+                : base.cacheType(CacheOptions.CacheType.SOFTREF);
+        try {
+            final net.imglib2.algorithm.blocks.BlockSupplier<T> averaged = net.imglib2.algorithm.blocks.BlockSupplier
+                    .of(Views.extendBorder(zeroMin))
+                    .andThen(net.imglib2.algorithm.blocks.downsample.Downsample.downsample(
+                            net.imglib2.algorithm.blocks.ComputationType.AUTO,
+                            net.imglib2.algorithm.blocks.downsample.Downsample.Offset.HALF_PIXEL,
+                            new boolean[]{true, true, true}))
+                    .threadSafe();
+            return new net.imglib2.cache.img.ReadOnlyCachedCellImgFactory(opts).create(dims, averaged.getType(),
+                    net.imglib2.algorithm.blocks.BlockAlgoUtils.cellLoader(averaged));
+        } catch (final RuntimeException ex) {
+            SNTUtils.log("BVV: cannot average pixel type " + zeroMin.getType().getClass().getSimpleName() + " ("
+                    + ex.getMessage() + "); using nearest-neighbor subsampling");
+            final RandomAccessibleInterval<T> sub = Views.subsample(zeroMin, 2, 2, 2);
+            final net.imglib2.cache.img.CellLoader<T> loader = cell ->
+                    LoopBuilder.setImages(Views.interval(sub, cell), cell).forEachPixel((a, b) -> b.set(a));
+            return sc.fiji.snt.filter.Lazy.createImg(sub, cellDims, zeroMin.getType().createVariable(), loader);
+        }
+    }
+
     /** Edge length (voxels) of the cells of the pyramids built by {@link #buildTiledPyramid} */
     static final int PYRAMID_CELL_SIZE = CELL_SIZE;
 
@@ -915,9 +969,10 @@ public final class BvvUtils {
      * Builds one pyramid-backed {@link Source} per channel of an in-memory image, such that BVV renders it with its
      * tile-streaming path ({@code MultiResolutionStack3D}) instead of uploading the whole volume as a single 3D
      * texture, which is capped by {@code GL_MAX_3D_TEXTURE_SIZE}. Level 0 and every coarser level is copied into its
-     * own {@link net.imglib2.img.cell.CellImg} (see {@link ImgUtils#materializeTiled}), because BVV only streams
-     * sources backed by cell images. This costs the full volume in heap (see {@link #estimateTiledPyramidBytes}).
-     * Coarser levels are nearest-neighbor subsampled (step 2, 4, 8...)
+     * own {@link net.imglib2.img.cell.CellImg}, because BVV only streams sources backed by cell images. Level 0 is
+     * copied in memory (see {@link ImgUtils#materializeTiled}), which costs the full volume in heap (see
+     * {@link #estimateTiledPyramidBytes}). Coarser levels (step 2, 4, 8...) are averaged from the previous level
+     * (see {@link #averagedLevel}) and computed lazily, on demand
      * <p>
      * Meant for view-only sessions: the returned sources are independent copies, so an image also held for tracing
      * would be stored twice
@@ -955,8 +1010,7 @@ public final class BvvUtils {
             scales[0] = new double[]{1, 1, 1};
             for (int l = 1; l <= nLevels; l++) {
                 final long step = 1L << l; // 2, 4, 8...
-                levels[l] = ImgUtils.materializeTiled(Views.subsample(levels[0], step, step, step),
-                        PYRAMID_CELL_SIZE);
+                levels[l] = averagedLevel(levels[l - 1]);
                 scales[l] = new double[]{step, step, step};
             }
             final T type = img.firstElement().createVariable();
@@ -1148,8 +1202,7 @@ public final class BvvUtils {
                     nVoxels *= rai.dimension(d);
                 }
                 // pin (keep in memory) any level that fits in a fraction of the heap (2 bytes/voxel assumed)
-                final boolean pin = nVoxels <= PIN_MAX_VOXELS
-                        || nVoxels * 2L <= Runtime.getRuntime().maxMemory() / 6;
+                final boolean pin = pinInMemory(nVoxels);
                 net.imglib2.cache.img.ReadOnlyCachedCellImgOptions opts =
                         net.imglib2.cache.img.ReadOnlyCachedCellImgOptions.options().cellDimensions(cellDims);
                 opts = pin ? opts.cacheType(CacheOptions.CacheType.BOUNDED).maxCacheSize(nCells)

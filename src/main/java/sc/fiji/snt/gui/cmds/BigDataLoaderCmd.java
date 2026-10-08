@@ -91,9 +91,9 @@ public class BigDataLoaderCmd extends ContextCommand {
             the entire file into memory.""";
 
     private static final int REACHABILITY_TIMEOUT_MS = 4000;
-    private static final String ABORT = "Abort";
+    private static final String ABORT = "Abort. I will convert/crop the file elsewhere";
     private static final String DOWNSAMPLE = "Downsample to fit";
-    private static final String FULL_RES = "Load at full resolution (tiled pyramid, needs more memory)";
+    private static final String FULL_RES = "Load at full resolution (tiled pyramid, needs more RAM)";
     private static final String CONVERT = "Convert to multi-resolution OME-Zarr and open";
 
 
@@ -516,9 +516,8 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (lowHeap) {
             msg.append("The JVM memory limit (").append(Runtime.getRuntime().maxMemory() / (1024 * 1024))
                     .append(" MB) restricts the GPU tile cache to ").append(cap).append(" MB, below the ")
-                    .append(want).append(" MB ideal for this dataset. Consider increasing Fiji's memory in ")
-                    .append("<i>Edit&gt;Options&gt;Memory &amp; Threads...</i> (or the launcher's memory setting) ")
-                    .append("and restarting.<br><br>");
+                    .append(want).append(" MB ideal for this dataset. Consider increasing the amount of memory ")
+                    .append("available to Fiji/SNT and restarting.<br><br>");
         }
         final boolean sntRunning = SNTUtils.getPluginInstance() != null;
         final java.util.List<String> buttons = new java.util.ArrayList<>();
@@ -1032,7 +1031,8 @@ public class BigDataLoaderCmd extends ContextCommand {
             return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name());
         } catch (final OutOfMemoryError oom) {
             throw new IllegalStateException("Not enough memory to build a pyramid for '" + n5Sources.name()
-                    + "'. Increase the JVM max heap, or convert the image to a multi-resolution N5.", oom);
+                    + "'. Increase the amount of memory available to Fiji/SNT, or convert the image to a multi-resolution "
+                    + "N5.", oom);
         }
     }
 
@@ -1056,7 +1056,7 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /**
      * Looks for a BDV XML descriptor next to an N5 container (same base name, e.g., written by the
-     * ConvertToN5 recipe) that describes a multi-resolution pyramid. Such a descriptor carries the
+     * former ConvertToN5 recipe) that describes a multi-resolution pyramid. Such a descriptor carries the
      * downsampling factors, which are not always discoverable from the N5 container alone
      *
      * @param n5Path the path to the {@code .n5} directory
@@ -1192,29 +1192,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                 : String.format("has more voxels per channel (%.2f G) than BVV can upload as a single texture (%.2f G)",
                 img.dimension(0) * (double) img.dimension(1) * img.dimension(2) / 1e9,
                 BvvUtils.MAX_SINGLE_TEXTURE_VOXELS / 1e9);
-        final StringBuilder message = new StringBuilder(String.format("The image '%s' %s. What would you like to do?",
-                img.getName(), reason));
-        final boolean offerFullRes = !tracing && canBuildTiledPyramid(img, message);
-        final boolean offerConvert = hasSupportedLayout(img) && canWriteBeside(path);
-        if (offerConvert) {
-            message.append(" Conversion writes a multi-resolution '").append(omeZarrName(path))
-                    .append("' next to the original image, and may take several minutes.");
-        }
-        final java.util.List<String> options = new java.util.ArrayList<>();
-        options.add(DOWNSAMPLE);
-        if (offerFullRes) options.add(FULL_RES);
-        if (offerConvert) options.add(CONVERT);
-        options.add(ABORT);
-        final String[] choices = options.toArray(new String[0]);
-        // See confirmPyramidOrAbort(): the loading splash screen can end up rendered on top of this
-        // dialog, so hide it for the duration of the prompt and restore it afterward
-        SNTUtils.setIsLoading(false, true);
-        final String choice;
-        try {
-            choice = new GuiUtils(null).getChoice(message.toString(), "BVV: Volume Too Large", choices, DOWNSAMPLE);
-        } finally {
-            SNTUtils.setIsLoading(true, true);
-        }
+        final String choice = promptOversizedImageChoice(img, reason, path, tracing);
 
         if (choice == null || ABORT.equals(choice)) {
             cancel("");
@@ -1235,30 +1213,109 @@ public class BigDataLoaderCmd extends ContextCommand {
             } catch (final OutOfMemoryError oom) {
                 SNTUtils.log("BVV: out of memory building tiled pyramid; falling back to downsampling");
                 new GuiUtils(null).error("Not enough memory to load '" + img.getName() + "' at full resolution. "
-                        + "Downsampling instead. Increase the JVM max heap to avoid this.");
+                        + "Downsampling instead. Increase the amount of memory available to Fiji/SNT to avoid this.");
             }
         }
         return ImgUtils.downsampleToFit((ImgPlus) img, maxTexSize, BvvUtils.MAX_SINGLE_TEXTURE_VOXELS);
     }
 
+    /** An option of the prompt of {@link #promptOversizedImageChoice}; {@code unavailableReason} is null if it can be chosen */
+    private record ChoiceItem(String label, String description, String unavailableReason) {
+        boolean available() {
+            return unavailableReason == null;
+        }
+    }
+
     /**
-     * Whether {@code img} can be loaded as a tiled pyramid (see {@link BvvUtils#buildTiledPyramid}): XYZ[C] layout,
-     * a numeric native type, no time series, and an estimated footprint within ~70% of the JVM's max heap. If the
-     * only obstacle is memory, a note is appended to {@code message}
+     * Asks the user how to handle an image that cannot be uploaded to the GPU as a single texture. All options are
+     * listed with a short explanation; those that cannot be chosen are struck through, together with the reason why
+     *
+     * @param img     the oversized image
+     * @param reason  why the image is too large, to complete the sentence "The image ... "
+     * @param path    the path of the image (where a converted copy would be written)
+     * @param tracing whether the image is also being used for tracing
+     * @return the label of the chosen option, or {@code null} if the prompt was dismissed
      */
-    private static boolean canBuildTiledPyramid(final ImgPlus<?> img, final StringBuilder message) {
-        if (!hasSupportedLayout(img)) return false;
+    private String promptOversizedImageChoice(final ImgPlus<?> img, final String reason, final String path,
+                                              final boolean tracing) {
+        final boolean layoutOk = hasSupportedLayout(img);
+        final String fullResDescription = layoutOk
+                ? String.format("Loads every voxel into memory as a tiled, multi-resolution pyramid. Needs ~%s of "
+                + "memory and may take a minute or so. This is only a rendering: It cannot be used for tracing.",
+                SNTUtils.formatBytes(BvvUtils.estimateTiledPyramidBytes(img)))
+                : "Loads every voxel into memory as a tiled, multi-resolution pyramid. This is only a rendering: It "
+                + "cannot be used for tracing.";
+        final List<ChoiceItem> items = List.of(
+                new ChoiceItem(DOWNSAMPLE, "Shrinks the image so that it fits in a single texture. Opens quickly, but "
+                        + "fine detail is lost.", null),
+                new ChoiceItem(FULL_RES, fullResDescription, fullResUnavailableReason(img, tracing)),
+                new ChoiceItem(CONVERT, "Writes a multi-resolution '" + GuiUtils.Text.escapeHtml(omeZarrName(path))
+                        + "' folder next to the original image and opens it. May take several minutes, but the result is "
+                        + "streamed from disk, so it opens quickly and needs little memory.",
+                        convertUnavailableReason(img, path)));
+
+        final StringBuilder message = new StringBuilder("<html><body><div style='width:520px;'>")
+                .append("The image <i>").append(GuiUtils.Text.escapeHtml(img.getName())).append("</i> ")
+                .append(GuiUtils.Text.escapeHtml(reason)).append(".<br><br>")
+                .append("What would you like to do? Your options are:<ol>");
+        for (final ChoiceItem item : items) {
+            message.append("<li>");
+            if (item.available()) {
+                message.append("<b>").append(item.label()).append("</b>: ").append(item.description());
+            } else {
+                message.append("<strike><b>").append(item.label()).append("</b></strike>: ")
+                        .append(item.description()).append(" <i>This option is not available: ")
+                        .append(item.unavailableReason()).append("</i>");
+            }
+            message.append("</li>");
+        }
+        message.append("</ol></div></body></html>");
+
+        final List<String> choices = new ArrayList<>();
+        for (final ChoiceItem item : items) {
+            if (item.available()) choices.add(item.label());
+        }
+        choices.add(ABORT);
+        // See confirmPyramidOrAbort(): the loading splash screen can end up rendered on top of this
+        // dialog, so hide it for the duration of the prompt and restore it afterward
+        SNTUtils.setIsLoading(false, true);
+        try {
+            return new GuiUtils(null).getChoice(message.toString(), "BVV: Volume Too Large",
+                    choices.toArray(new String[0]), DOWNSAMPLE);
+        } finally {
+            SNTUtils.setIsLoading(true, true);
+        }
+    }
+
+    /**
+     * Why {@code img} cannot be loaded as a tiled pyramid (see {@link BvvUtils#buildTiledPyramid}): while tracing
+     * (the image would be held in memory twice), for an unsupported layout, or if its estimated footprint exceeds
+     * ~70% of the JVM's max heap
+     *
+     * @return the reason, or {@code null} if it can
+     */
+    private static String fullResUnavailableReason(final ImgPlus<?> img, final boolean tracing) {
+        if (tracing) return "the image is also used for tracing and would be held in memory twice.";
+        if (!hasSupportedLayout(img)) return unsupportedLayoutReason();
         final long needed = BvvUtils.estimateTiledPyramidBytes(img);
         final long available = (long) (Runtime.getRuntime().maxMemory() * 0.7);
         if (needed > available) {
-            message.append(String.format(" Full-resolution loading is not offered: it needs ~%s of memory but only %s"
-                    + " can be used (increase the JVM max heap).", SNTUtils.formatBytes(needed),
-                    SNTUtils.formatBytes(available)));
-            return false;
+            return String.format("it needs ~%s of memory but only %s can be used. Please increase the amount of memory " +
+                            "available to Fiji/SNT.",
+                    SNTUtils.formatBytes(needed), SNTUtils.formatBytes(available));
         }
-        message.append(String.format(" Full-resolution loading needs ~%s of memory and may take a minute or so.",
-                SNTUtils.formatBytes(needed)));
-        return true;
+        return null;
+    }
+
+    /** Why {@code img} cannot be converted to OME-Zarr next to {@code path}, or {@code null} if it can */
+    private static String convertUnavailableReason(final ImgPlus<?> img, final String path) {
+        if (!hasSupportedLayout(img)) return unsupportedLayoutReason();
+        if (!canWriteBeside(path)) return "the folder containing the image is not a local, writable folder.";
+        return null;
+    }
+
+    private static String unsupportedLayoutReason() {
+        return "it requires X, Y, Z[, C] axes, numeric pixels and no time series.";
     }
 
     /**
