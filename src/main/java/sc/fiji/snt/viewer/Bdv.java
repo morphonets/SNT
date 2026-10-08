@@ -475,6 +475,21 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    protected void disposeViewer() {
+        SNTUtils.log("BDV: disposing viewer");
+        final ViewerFrame frame = getViewerFrame(); // resolved first: unavailable once the frame is disposed
+        if (tracer != null) tracer.dispose();
+        if (pathOverlay != null) pathOverlay.dispose();
+        if (annotationOverlay != null) annotationOverlay.dispose();
+        if (viewerPanel != null) viewerPanel.stop(); // BDV's PainterThread is not stopped by dispose() alone
+        secondaryLayerSource = null;
+        if (frame != null) {
+            if (javax.swing.SwingUtilities.isEventDispatchThread()) frame.dispose();
+            else javax.swing.SwingUtilities.invokeLater(frame::dispose);
+        }
+    }
+
+    @Override
     public ViewerFrame getViewerFrame() {
         if (bdvHandle == null) return null;
         final java.awt.Container top = bdvHandle.getSplitPanel().getTopLevelAncestor();
@@ -843,6 +858,17 @@ public class Bdv extends AbstractBigViewer {
         if (!sliceClipListenerRegistered) {
             sliceClipListenerRegistered = true;
             viewerPanel.transformListeners().add(this::updateSliceClip);
+            // Release resources when the window goes away. NB: SNTUI replaces the frame's window listeners when
+            // tethered to this viewer, and calls dispose() itself
+            final ViewerFrame frame = getViewerFrame();
+            if (frame != null) {
+                frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                    @Override
+                    public void windowClosed(final java.awt.event.WindowEvent e) {
+                        dispose();
+                    }
+                });
+            }
         }
 
         // Only ever constructed once per viewer instance: initializeOverlays() only runs the first

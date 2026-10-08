@@ -1094,16 +1094,8 @@ public class SNTUI extends JDialog {
         pathAndFillManager = null;
         guiUtils = null;
         recViewerFrame = null;
-        if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
-            // VolumeViewerFrame's own render/tile-streaming thread isn't stopped by dispose() alone
-            bvvSNT.getViewerFrame().getViewerPanel().stop();
-            bvvSNT.getViewerFrame().dispose();
-        }
-        if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
-            // BDV's own PainterThread isn't stopped by dispose() alone (see setBdvOnEDT)
-            bdvSNT.getViewerFrame().getViewerPanel().stop();
-            bdvSNT.getViewerFrame().dispose();
-        }
+        if (bvvSNT != null) bvvSNT.dispose();
+        if (bdvSNT != null) bdvSNT.dispose();
         if (sciViewSNT != null && sciViewSNT.getSciView() != null && sciViewSNT.getSciView().mainWindow != null)
             sciViewSNT.getSciView().mainWindow.close();
         if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
@@ -1408,10 +1400,7 @@ public class SNTUI extends JDialog {
                     // (e.g. a second demo/tutorial opening its own instance without closing this one first)
                     // must still close itself when its own close button is clicked, rather than reaching
                     // for whatever instance bvvSNT currently happens to hold.
-                    if (bvv.getViewerFrame() != null) {
-                        bvv.getViewerFrame().getViewerPanel().stop();
-                        bvv.getViewerFrame().dispose();
-                    }
+                    bvv.dispose();
                     if (bvvSNT == bvv) { // this window is (still) the tethered/active one; clear UI bookkeeping too
                         bvvSNT = null;
                         if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
@@ -1477,10 +1466,7 @@ public class SNTUI extends JDialog {
                     }
                     // See the twin comment in setBvvOnEDT's windowClosing: always close *this* window's own
                     // viewer, regardless of whether it is still the instance tracked in bdvSNT.
-                    if (bdv.getViewerFrame() != null) {
-                        bdv.getViewerFrame().getViewerPanel().stop();
-                        bdv.getViewerFrame().dispose();
-                    }
+                    bdv.dispose();
                     if (bdvSNT == bdv) { // this window is (still) the tethered/active one; clear UI bookkeeping too
                         bdvSNT = null;
                         if (bdvSeedHandler != null) { bdvSeedHandler.dispose(); bdvSeedHandler = null; }

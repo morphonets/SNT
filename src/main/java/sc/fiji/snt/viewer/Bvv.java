@@ -107,6 +107,11 @@ public class Bvv extends AbstractBigViewer {
     private BvvHandle bvvHandle;
     private Tracer tracer;
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
+    // Streamed sources shown by this viewer exactly as handed to BVV. The sources BVV keeps in its own state are
+    // wrapped (e.g., transformed), so their cell caches cannot be recognized from there when disposing. Held weakly,
+    // so that a source BVV has dropped (e.g., a replaced secondary layer) is not kept alive by this set
+    private final java.util.Set<SourceAndConverter<?>> streamedSources = java.util.Collections
+            .synchronizedSet(java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>()));
     // Tracks the group last added by displayData(true) (i.e. showSecondaryData()), so a reload
     // replaces it (in both the viewer and multiSources) instead of stacking a duplicate
     private BvvMultiSource secondaryLayerSource;
@@ -982,6 +987,7 @@ public class Bvv extends AbstractBigViewer {
         for (final SourceAndConverter<?> original : n5Sources.sources()) {
             // Views (e.g., one channel sliced out of a multichannel array) are not streamable by BVV
             final SourceAndConverter<?> soc = BvvUtils.ensureCellBacked(original);
+            streamedSources.add(soc);
             // NB: Each channel is a separate BvvFunctions.show(...) call, and options *without* addTo(...) always
             // opens a brand new top-level window. Deciding "attach to existing handle" once, before any
             // channel exists, meant bvvHandle was still null for the whole loop on a fresh Bvv, so
@@ -1400,6 +1406,14 @@ public class Bvv extends AbstractBigViewer {
             // Flush any markers added while annotations() was returning null (viewer not live yet)
             if (hasMarkerManager()) getMarkerManager().resyncOverlay();
             final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
+            // Release resources when the window goes away. NB: SNTUI replaces the frame's window listeners when
+            // tethered to this viewer, and calls dispose() itself
+            bvvFrame.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosed(final java.awt.event.WindowEvent e) {
+                    dispose();
+                }
+            });
             final BvvActions actions = new BvvActions(bvv);
             // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
@@ -2345,6 +2359,32 @@ public class Bvv extends AbstractBigViewer {
     protected SourceAndConverter<?> getCurrentSource() {
         final VolumeViewerPanel p = getViewerPanel();
         return p == null ? null : p.state().getCurrentSource();
+    }
+
+    @Override
+    protected void disposeViewer() {
+        SNTUtils.log("BVV: disposing viewer");
+        final VolumeViewerPanel vp = getViewerPanel();
+        final VolumeViewerFrame frame = getViewerFrame();
+        if (tracer != null) tracer.dispose();
+        if (vp != null && sceneOverlay != null) vp.getDisplay().overlays().remove(sceneOverlay);
+        if (pathOverlay != null) pathOverlay.dispose();
+        if (annotationOverlay != null) annotationOverlay.dispose();
+        if (vp != null) {
+            final List<SourceAndConverter<?>> streamed;
+            synchronized (streamedSources) {
+                streamed = new ArrayList<>(streamedSources);
+                streamedSources.clear();
+            }
+            BvvUtils.releaseSources(streamed);
+            vp.stop(); // VolumeViewerFrame#dispose() alone does not stop the render/tile-streaming thread
+        }
+        multiSources.clear();
+        secondaryLayerSource = null;
+        if (frame != null) {
+            if (SwingUtilities.isEventDispatchThread()) frame.dispose();
+            else SwingUtilities.invokeLater(frame::dispose);
+        }
     }
 
     @Override

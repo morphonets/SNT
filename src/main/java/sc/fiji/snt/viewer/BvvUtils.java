@@ -894,13 +894,66 @@ public final class BvvUtils {
     }
 
     /**
-     * Whether a level of {@code nVoxels} voxels is held in memory with strong references (so its cells are never
-     * evicted and reloaded while navigating, which produced visible flicker). Levels that fit a fraction of the heap
-     * are pinned, larger ones use soft references
+     * Total heap (bytes) reserved by levels held with strong references. A reservation is returned when its level
+     * is garbage-collected (see {@link #trackPinned}), e.g., after the viewer showing it is disposed
      */
-    private static boolean pinInMemory(final long nVoxels) {
-        // 2 bytes/voxel assumed
-        return nVoxels <= CellBackedSource.PIN_MAX_VOXELS || nVoxels * 2L <= Runtime.getRuntime().maxMemory() / 6;
+    private static final java.util.concurrent.atomic.AtomicLong PINNED_BYTES =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Whether a level of {@code nVoxels} voxels is held in memory with strong references (so its cells are never
+     * evicted and reloaded while navigating, which produced visible flicker). Pinned levels of all sources share a
+     * budget of a fraction of the heap: once it is spent, further levels use soft references
+     *
+     * @param nVoxels       number of voxels of the level
+     * @param bytesPerVoxel size of a voxel in bytes
+     * @return the number of bytes reserved (to be handed to {@link #trackPinned} once the level exists, or given
+     * back to {@link #PINNED_BYTES} if its creation fails), or 0 if the level is not to be pinned
+     */
+    private static long reservePin(final long nVoxels, final int bytesPerVoxel) {
+        final long bytes = nVoxels * bytesPerVoxel;
+        final long budget = Runtime.getRuntime().maxMemory() / 6;
+        long pinned;
+        do {
+            pinned = PINNED_BYTES.get();
+            if (pinned + bytes > budget) return 0;
+        } while (!PINNED_BYTES.compareAndSet(pinned, pinned + bytes));
+        return bytes;
+    }
+
+    /** A reservation of the pinned-heap budget, returned to the pool exactly once */
+    private static final class PinReservation {
+        private final long bytes;
+        private final java.util.concurrent.atomic.AtomicBoolean released =
+                new java.util.concurrent.atomic.AtomicBoolean();
+
+        PinReservation(final long bytes) {
+            this.bytes = bytes;
+        }
+
+        /** @return the number of bytes returned to the pool, or 0 if the reservation had already been released */
+        long release() {
+            if (!released.compareAndSet(false, true)) return 0;
+            PINNED_BYTES.addAndGet(-bytes);
+            return bytes;
+        }
+    }
+
+    /**
+     * Returns the budget reserved by {@link #reservePin} to the pool once {@code level} is garbage-collected, unless
+     * the reservation is released explicitly before (see {@link #releaseSources})
+     */
+    private static PinReservation trackPinned(final Object level, final long bytes) {
+        final PinReservation reservation = new PinReservation(bytes);
+        PIN_CLEANER.register(level, reservation::release);
+        return reservation;
+    }
+
+    private static final java.lang.ref.Cleaner PIN_CLEANER = java.lang.ref.Cleaner.create();
+
+    /** Size in bytes of a voxel of the given type (4 if it is not a {@link RealType}) */
+    private static int bytesPerVoxel(final Object type) {
+        return (type instanceof RealType<?> rt) ? Math.max(1, (rt.getBitsPerPixel() + 7) / 8) : 4;
     }
 
     /**
@@ -930,7 +983,8 @@ public final class BvvUtils {
         // The options are immutable: each call returns a new instance
         final net.imglib2.cache.img.ReadOnlyCachedCellImgOptions base =
                 net.imglib2.cache.img.ReadOnlyCachedCellImgOptions.options().cellDimensions(cellDims);
-        final net.imglib2.cache.img.ReadOnlyCachedCellImgOptions opts = pinInMemory(nVoxels)
+        final long pinnedBytes = reservePin(nVoxels, bytesPerVoxel(zeroMin.getType()));
+        final net.imglib2.cache.img.ReadOnlyCachedCellImgOptions opts = (pinnedBytes > 0)
                 ? base.cacheType(CacheOptions.CacheType.BOUNDED).maxCacheSize(nCells)
                 : base.cacheType(CacheOptions.CacheType.SOFTREF);
         try {
@@ -941,9 +995,12 @@ public final class BvvUtils {
                             net.imglib2.algorithm.blocks.downsample.Downsample.Offset.HALF_PIXEL,
                             new boolean[]{true, true, true}))
                     .threadSafe();
-            return new net.imglib2.cache.img.ReadOnlyCachedCellImgFactory(opts).create(dims, averaged.getType(),
-                    net.imglib2.algorithm.blocks.BlockAlgoUtils.cellLoader(averaged));
+            final RandomAccessibleInterval<T> level = new net.imglib2.cache.img.ReadOnlyCachedCellImgFactory(opts)
+                    .create(dims, averaged.getType(), net.imglib2.algorithm.blocks.BlockAlgoUtils.cellLoader(averaged));
+            if (pinnedBytes > 0) trackPinned(level, pinnedBytes);
+            return level;
         } catch (final RuntimeException ex) {
+            if (pinnedBytes > 0) PINNED_BYTES.addAndGet(-pinnedBytes);
             SNTUtils.log("BVV: cannot average pixel type " + zeroMin.getType().getClass().getSimpleName() + " ("
                     + ex.getMessage() + "); using nearest-neighbor subsampling");
             final RandomAccessibleInterval<T> sub = Views.subsample(zeroMin, 2, 2, 2);
@@ -1138,6 +1195,28 @@ public final class BvvUtils {
         return n;
     }
 
+    /**
+     * Releases the in-memory cell caches of the given sources (those not backed by {@link CellBackedSource} are
+     * ignored) and forgets them. Meant for when the viewer showing them is disposed. The pinned-heap budget they hold
+     * is returned right away. That of levels not owned by a source (synthesized or tiled pyramids) is returned
+     * once they are garbage-collected
+     *
+     * @param sources the sources to release
+     */
+    public static void releaseSources(final java.util.Collection<? extends SourceAndConverter<?>> sources) {
+        long freed = 0;
+        for (final SourceAndConverter<?> soc : sources) {
+            if (soc.getSpimSource() instanceof CellBackedSource<?> cells) {
+                cells.invalidate();
+                freed += cells.releasePinned();
+                synchronized (LIVE) {
+                    LIVE.remove(cells);
+                }
+            }
+        }
+        if (freed > 0) SNTUtils.log("BVV: Released " + SNTUtils.formatBytes(freed) + " of RAM");
+    }
+
     private static bdv.cache.SharedQueue sharedLoadingQueue;
 
     private static synchronized bdv.cache.SharedQueue loadingQueue() {
@@ -1152,8 +1231,6 @@ public final class BvvUtils {
                 new java.util.concurrent.atomic.AtomicInteger();
         private static final java.util.concurrent.atomic.AtomicLong LOADS =
                 new java.util.concurrent.atomic.AtomicLong();
-        /** Levels up to this many voxels (uint16: ~256 MB) are pinned in memory */
-        private static final long PIN_MAX_VOXELS = 128L * 1024 * 1024;
         /** Cells loaded since the last {@link #invalidate()} (an upper bound if cells were evicted meanwhile) */
         private final java.util.concurrent.atomic.AtomicLong residentCells =
                 new java.util.concurrent.atomic.AtomicLong();
@@ -1170,6 +1247,22 @@ public final class BvvUtils {
             synchronized (LIVE) {
                 LIVE.add(this);
             }
+        }
+
+        /** Budget reservations of the levels of this source held with strong references */
+        private final java.util.List<PinReservation> reservations =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        /**
+         * Returns the pinned-heap budget held by the levels of this source to the pool
+         *
+         * @return the number of bytes returned
+         */
+        long releasePinned() {
+            long n = 0;
+            for (final PinReservation r : reservations) n += r.release();
+            reservations.clear();
+            return n;
         }
 
         /** Drops every cached cell (they are reloaded from the delegate on demand) */
@@ -1209,8 +1302,9 @@ public final class BvvUtils {
                     nCells *= (rai.dimension(d) + cellDims[d] - 1) / cellDims[d];
                     nVoxels *= rai.dimension(d);
                 }
-                // pin (keep in memory) any level that fits in a fraction of the heap (2 bytes/voxel assumed)
-                final boolean pin = pinInMemory(nVoxels);
+                // pin (keep in memory) the level if it fits in the shared pinned-heap budget
+                final long pinnedBytes = reservePin(nVoxels, bytesPerVoxel(delegate.getType()));
+                final boolean pin = pinnedBytes > 0;
                 net.imglib2.cache.img.ReadOnlyCachedCellImgOptions opts =
                         net.imglib2.cache.img.ReadOnlyCachedCellImgOptions.options().cellDimensions(cellDims);
                 opts = pin ? opts.cacheType(CacheOptions.CacheType.BOUNDED).maxCacheSize(nCells)
@@ -1218,9 +1312,11 @@ public final class BvvUtils {
                 if (SNTUtils.isDebugMode())
                     SNTUtils.log(String.format("BVV-DEBUG '%s' level %d: %d cells, %s", delegate.getName(), level,
                             nCells, pin ? "pinned in memory" : "soft-referenced"));
-                return new net.imglib2.cache.img.ReadOnlyCachedCellImgFactory(opts).create(
-                        net.imglib2.util.Intervals.dimensionsAsLongArray(rai), delegate.getType().createVariable(),
-                        loader);
+                final RandomAccessibleInterval<T> levelRAI = new net.imglib2.cache.img.ReadOnlyCachedCellImgFactory(opts)
+                        .create(net.imglib2.util.Intervals.dimensionsAsLongArray(rai),
+                                delegate.getType().createVariable(), loader);
+                if (pin) reservations.add(trackPinned(levelRAI, pinnedBytes));
+                return levelRAI;
             });
         }
 

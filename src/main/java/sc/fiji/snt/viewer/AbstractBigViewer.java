@@ -187,6 +187,41 @@ public abstract class AbstractBigViewer {
         lastInstance = this;
     }
 
+    private volatile boolean disposed;
+
+    /** @return whether {@link #dispose()} has been called */
+    public final boolean isDisposed() {
+        return disposed;
+    }
+
+    /**
+     * Releases the resources held by this viewer (overlays, timers, cached data, ...) and closes its window. Called
+     * when the window is dismissed. Safe to call from any thread, and more than once
+     */
+    public final void dispose() {
+        synchronized (renderedTreesLock) {
+            if (disposed) return;
+            disposed = true;
+            renderedTrees.clear();
+            syncedPathManagerLabels.clear();
+        }
+        try {
+            disposeViewer();
+        } catch (final RuntimeException ex) {
+            SNTUtils.log("Viewer disposal failed: " + ex.getMessage());
+        } finally {
+            if (lastInstance == this) lastInstance = null;
+        }
+    }
+
+    /**
+     * Viewer-specific part of {@link #dispose()}, called at most once. Implementations must not call
+     * {@code dispose()} themselves, and should leave the bookkeeping of the tethered {@link sc.fiji.snt.SNTUI} to it
+     */
+    protected void disposeViewer() {
+        // nothing to do by default
+    }
+
     /**
      * Replaces the rendered trees with the current contents of the Path Manager.
      * Only available in SNT-tethered instances.
@@ -197,6 +232,7 @@ public abstract class AbstractBigViewer {
     public boolean syncPathManagerList() {
         if (snt == null)
             throw new IllegalArgumentException("Only available in SNT-tethered instances");
+        if (disposed) return false;
         final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
         // getTrees() builds each Tree from a label HashMap (PathAndFillManager#getTrees()), so within a single call
         // every Tree has a distinct, stable label - unlike renderedTrees' own keys, which are
@@ -2854,6 +2890,17 @@ public abstract class AbstractBigViewer {
 
         /** Disposes of the click-highlight overlay, if one has been initialized, and forgets it. */
         protected abstract void disposeTracingOverlay();
+
+        /** Stops pending timers and searches, and disposes of the click-highlight overlay. Called on viewer disposal */
+        protected void dispose() {
+            if (spaceHoldThresholdTimer != null) {
+                spaceHoldThresholdTimer.stop();
+                spaceHoldThresholdTimer = null;
+            }
+            final Future<?> search = currentSearchFuture;
+            if (search != null) search.cancel(true);
+            disposeTracingOverlay();
+        }
 
         /**
          * Refreshes the path overlay so a stale preview segment (from a just-discarded/finished path) is
