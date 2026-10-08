@@ -509,6 +509,8 @@ public class SpimDataUtils {
      *                                  recognized metadata is found
      */
     private static N5Sources resolveN5ToSources(final File dir) {
+        if (!sc.fiji.snt.util.ImgUtils.hasN5ZarrMetadata(dir))
+            throw new IllegalArgumentException("'" + dir.getName() + "' is not a valid N5/Zarr container (no metadata found)");
         return resolveN5ToSources(dir.getAbsolutePath(), dir.getName());
     }
 
@@ -525,13 +527,20 @@ public class SpimDataUtils {
     private static N5Sources resolveN5ToSources(final String rootPath, final String name) {
         if (rootPath.toLowerCase(Locale.ROOT).startsWith("s3://"))
             return resolveS3ToSources(rootPath, name);
+        // N5ViewerReaderFun reports failures through IJ.error() (a modal dialog) instead of throwing, and returns
+        // null. Redirect them to the log: the caller handles the exception below
+        final boolean redirecting = ij.IJ.redirectingErrorMessages();
         try {
+            ij.IJ.redirectErrorMessages(true);
             final N5Reader n5 = new N5Importer.N5ViewerReaderFun().apply(rootPath);
+            ij.IJ.redirectErrorMessages(redirecting);
             if (n5 == null)
                 throw new IllegalArgumentException("Could not open N5/Zarr container: " + rootPath);
             return discoverAndBuild(n5, rootPath, name);
         } catch (final IOException | RuntimeException e) {
             throw new IllegalArgumentException("Could not open N5/Zarr container: " + e.getMessage(), e);
+        } finally {
+            ij.IJ.redirectErrorMessages(redirecting);
         }
     }
 

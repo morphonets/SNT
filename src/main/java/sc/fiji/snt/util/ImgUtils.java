@@ -2048,6 +2048,23 @@ public class ImgUtils {
         }
     }
 
+    /** Root metadata files of N5 and Zarr (v2/v3) containers */
+    private static final List<String> CONTAINER_METADATA = List.of("zarr.json", ".zgroup", ".zarray", ".zattrs",
+            "attributes.json");
+
+    /**
+     * Checks whether a local directory has the root metadata of an N5 or Zarr (v2/v3) container, i.e., whether
+     * it can be opened as one. An empty or incomplete directory (hidden files such as {@code .DS_Store} do not
+     * count) fails this check. Does not validate the metadata's content
+     *
+     * @param dir the directory to check
+     * @return true if {@code dir} is a directory containing {@code zarr.json}, {@code .zgroup}, {@code .zarray},
+     *         {@code .zattrs} or {@code attributes.json}
+     */
+    public static boolean hasN5ZarrMetadata(final File dir) {
+        return dir != null && dir.isDirectory() && CONTAINER_METADATA.stream().anyMatch(n -> new File(dir, n).isFile());
+    }
+
     /**
      * Resolves a path to a local OME-Zarr (OME-NGFF v0.5) container directory. Accepts the directory itself or its
      * {@code zarr.json} file (as returned by some file choosers)

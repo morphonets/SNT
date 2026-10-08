@@ -237,6 +237,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             return;
         }
         if (!checkReachable(filePaths)) return; // single friendly dialog if any remote field is unreachable
+        if (!checkContainerMetadata(filePaths)) return; // before the splash screen is shown
         final boolean threeD = viewerType != null && viewerType.toLowerCase().contains("bvv");
         final boolean tracer = tracingEnabled;
 
@@ -334,8 +335,28 @@ public class BigDataLoaderCmd extends ContextCommand {
         return false;
     }
 
-    /** True if path is an existing .n5/.zarr directory, or a remote URL to one. */
-    private static boolean isN5OrZarrDir(final String path) {
+    /**
+     * Reports (and returns false for) any local N5/Zarr volume without root metadata, e.g., an empty directory
+     * (hidden files such as .DS_Store do not count). Opening such a directory fails in n5-ij, and falling back to
+     * its interactive dataset dialog does not recover
+     */
+    private boolean checkContainerMetadata(final String[] filePaths) {
+        for (int i = 0; i < Math.min(2, filePaths.length); i++) {
+            final String path = filePaths[i];
+            if (SpimDataUtils.isRemoteUrl(path) || !looksLikeN5OrZarrDir(path)) continue;
+            SNTUtils.log("BVV: checking container metadata of " + path);
+            final File dir = new File(path);
+            if (!ImgUtils.hasN5ZarrMetadata(dir)) {
+                error("<HTML>'" + GuiUtils.Text.escapeHtml(dir.getName()) + "' does not seem to be a valid "
+                        + "N5/Zarr container: no metadata found.<br>Is the directory empty or incomplete?");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** True if path is a .n5/.zarr directory (that exists), or a remote URL to one. Does not check its content */
+    private static boolean looksLikeN5OrZarrDir(final String path) {
         if (SpimDataUtils.isRemoteUrl(path)) {
             final String lower = path.toLowerCase();
             return lower.endsWith(".n5") || lower.endsWith(".n5/") || lower.endsWith(".zarr") || lower.endsWith(".zarr/");
@@ -343,6 +364,16 @@ public class BigDataLoaderCmd extends ContextCommand {
         final File f = new File(path);
         final String lower = f.getName().toLowerCase();
         return f.isDirectory() && (lower.endsWith(".n5") || lower.endsWith(".zarr"));
+    }
+
+    /**
+     * True if path is a container that the interactive dataset dialog can recover (see {@link #datasetDialog}): a
+     * remote N5/Zarr URL, or a local N5/Zarr directory with metadata. A local directory without metadata
+     * (e.g., an empty one) is not: n5-ij cannot open it and its dialog keeps retrying
+     */
+    private static boolean isN5OrZarrDir(final String path) {
+        if (!looksLikeN5OrZarrDir(path)) return false;
+        return SpimDataUtils.isRemoteUrl(path) || ImgUtils.hasN5ZarrMetadata(new File(path));
     }
 
     /**
