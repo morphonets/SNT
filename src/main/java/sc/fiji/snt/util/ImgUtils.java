@@ -1683,7 +1683,7 @@ public class ImgUtils {
      * Writes an image as a multiscale OME-Zarr (OME-NGFF v0.5, Zarr v3) directory. Level 0 is streamed from
      * {@code img} one slab of Z planes at a time (so every plane is read once), and each coarser level is computed
      * from the previous one, one block at a time, by averaging 2x2x2 neighborhoods. Peak memory is therefore a
-     * single slab plus the blocks in flight, regardless of image size. Chunks are gzip-compressed
+     * single slab plus the blocks in flight, regardless of image size. Chunks are zstd-compressed and, for larger levels, grouped into shards (one file per shard)
      * <p>
      * Levels are halved along X, Y and Z until a level fits a 3D texture (2048 voxels per side, and
      * {@link sc.fiji.snt.viewer.BvvUtils#MAX_SINGLE_TEXTURE_VOXELS}), with a minimum of 3 levels
@@ -1736,40 +1736,46 @@ public class ImgUtils {
         // dimension names in N5 order (the Zarr v3 writer reverses them to C order on write)
         final String[] dimNames = (nDim == 4) ? new String[]{"x", "y", "z", "c"} : new String[]{"x", "y", "z"};
         try {
-            // Level 0, one slab of chunk-deep Z planes at a time. Each slab is further split into XY tiles of at
-            // most OME_ZARR_TILE_SIZE voxels (a multiple of the chunk size), so memory does not grow with image width
-            createZarrV3Dataset(n5, "s0", dims0, blockSize, dataType, compression, dimNames);
+            // Level 0, one slab of unit-deep Z planes at a time, where a unit is the smallest region that can be
+            // written independently: a shard (or a chunk, if the array is not sharded). Concurrent writes into
+            // the same shard can corrupt it, so each task writes whole units only. Each slab is further split into
+            // XY tiles (a multiple of the unit edge), so memory does not grow with image width
+            final int[] shard0 = omeZarrShardShape(dims0, blockSize);
+            final int[] unit = shard0 != null ? shard0 : blockSize;
+            final int tileTarget = shard0 != null ? OME_ZARR_SHARDED_TILE_SIZE : OME_ZARR_TILE_SIZE;
+            final long tileX = (long) unit[0] * Math.max(1, tileTarget / unit[0]);
+            final long tileY = (long) unit[1] * Math.max(1, tileTarget / unit[1]);
+            final long[] unitDims = new long[nDim];
+            for (int d = 0; d < nDim; d++) unitDims[d] = unit[d];
+            createZarrV3Dataset(n5, "s0", dims0, blockSize, shard0, dataType, compression, dimNames);
             final int nCh = (nDim == 4) ? (int) dims0[3] : 1;
             for (int c = 0; c < nCh; c++) {
-                for (long z0 = 0; z0 < dims0[2]; z0 += blockSize[2]) {
-                    for (long y0 = 0; y0 < dims0[1]; y0 += OME_ZARR_TILE_SIZE) {
-                        for (long x0 = 0; x0 < dims0[0]; x0 += OME_ZARR_TILE_SIZE) {
+                for (long z0 = 0; z0 < dims0[2]; z0 += unit[2]) {
+                    for (long y0 = 0; y0 < dims0[1]; y0 += tileY) {
+                        for (long x0 = 0; x0 < dims0[0]; x0 += tileX) {
                             if (progress != null) progress.accept(String.format(Locale.US,
                                     "Converting: level 0, channel %d/%d, plane %d/%d", c + 1, nCh, z0 + 1, dims0[2]));
                             final long[] min = new long[nDim];
                             final long[] max = new long[nDim];
                             for (int d = 0; d < nDim; d++) max[d] = dims0[d] - 1;
                             min[0] = x0;
-                            max[0] = Math.min(x0 + OME_ZARR_TILE_SIZE, dims0[0]) - 1;
+                            max[0] = Math.min(x0 + tileX, dims0[0]) - 1;
                             min[1] = y0;
-                            max[1] = Math.min(y0 + OME_ZARR_TILE_SIZE, dims0[1]) - 1;
+                            max[1] = Math.min(y0 + tileY, dims0[1]) - 1;
                             min[2] = z0;
-                            max[2] = Math.min(z0 + blockSize[2], dims0[2]) - 1;
+                            max[2] = Math.min(z0 + unit[2], dims0[2]) - 1;
                             if (nDim == 4) min[3] = max[3] = c;
-                            // One read of each voxel (a single-copy local tile), chunks are then compressed in parallel
+                            // One read of each voxel (a single-copy local tile), units are then compressed in parallel
                             final Img<T> slab = materializeTiled(Views.interval(src, min, max), blockSize[0]);
-                            final long gridX = x0 / blockSize[0];
-                            final long gridY = y0 / blockSize[1];
-                            final long gridZ = z0 / blockSize[2];
                             final long gridC = c;
                             final List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
                             for (final Interval block : createIntervals(Intervals.dimensionsAsLongArray(slab),
-                                    blockDims)) {
+                                    unitDims)) {
                                 futures.add(exec.submit(() -> {
+                                    // Position in the chunk grid (not the shard grid, which is what the unit
+                                    // size would suggest): units are aligned to whole chunks by construction
                                     final long[] grid = new long[nDim];
-                                    grid[0] = gridX + block.min(0) / blockSize[0];
-                                    grid[1] = gridY + block.min(1) / blockSize[1];
-                                    grid[2] = gridZ;
+                                    for (int d = 0; d < 3; d++) grid[d] = (min[d] + block.min(d)) / blockSize[d];
                                     if (nDim == 4) grid[3] = gridC;
                                     org.janelia.saalfeldlab.n5.imglib2.N5Utils.saveBlock(
                                             Views.zeroMin(Views.interval(slab, block)), n5, "s0", grid);
@@ -1785,7 +1791,8 @@ public class ImgUtils {
             for (int l = 1; l < levelDims.size(); l++) {
                 final String dataset = "s" + l;
                 final long[] dims = levelDims.get(l);
-                createZarrV3Dataset(n5, dataset, dims, blockSize, dataType, compression, dimNames);
+                createZarrV3Dataset(n5, dataset, dims, blockSize, omeZarrShardShape(dims, blockSize), dataType, compression,
+                        dimNames);
                 final RandomAccessibleInterval<T> prev = org.janelia.saalfeldlab.n5.imglib2.N5Utils
                         .open(n5, "s" + (l - 1));
                 // Average 2x2x2 (XYZ) neighborhoods, leaving any channel axis alone. Offset.HALF_PIXEL gives
@@ -1799,20 +1806,30 @@ public class ImgUtils {
                                 net.imglib2.algorithm.blocks.downsample.Downsample.Offset.HALF_PIXEL,
                                 downsampleInDim))
                         .threadSafe();
-                final List<Interval> blocks = createIntervals(dims, blockDims);
+                // The unit of work is a shard (or a chunk, if the level is not sharded): a shard must be written by a
+                // single task, since concurrent writes into the same shard can corrupt it
+                final int[] shard = omeZarrShardShape(dims, blockSize);
+                final long[] levelUnitDims = new long[nDim];
+                for (int d = 0; d < nDim; d++) levelUnitDims[d] = shard != null ? shard[d] : blockSize[d];
+                final List<Interval> blocks = createIntervals(dims, levelUnitDims);
+                // Blocks in flight stay in memory: bound their number by their size as well as by the thread count
+                final long unitBytes = Math.max(1L, Intervals.numElements(levelUnitDims)
+                        * Math.max(1L, (long) Math.ceil(src.getType().getBitsPerPixel() / 8.0)));
+                final int maxInFlight = (int) Math.max(1L, Math.min(4L * Math.max(1, nThreads),
+                        Runtime.getRuntime().maxMemory() / 8 / unitBytes));
                 final List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
                 int done = 0;
                 for (final Interval block : blocks) {
                     futures.add(exec.submit(() -> {
                         final long[] grid = new long[nDim];
                         for (int d = 0; d < nDim; d++) grid[d] = block.min(d) / blockSize[d];
-                        org.janelia.saalfeldlab.n5.imglib2.N5Utils.saveBlock(
-                                net.imglib2.algorithm.blocks.BlockAlgoUtils.arrayImg(downsampler, block), n5, dataset,
-                                grid);
+                        final RandomAccessibleInterval<T> data = (shard == null)
+                                ? net.imglib2.algorithm.blocks.BlockAlgoUtils.arrayImg(downsampler, block)
+                                : downsampleShard(downsampler, block, blockDims, src.getType());
+                        org.janelia.saalfeldlab.n5.imglib2.N5Utils.saveBlock(data, n5, dataset, grid);
                         return null;
                     }));
-                    // Bounded backlog, so that blocks in flight stay in memory
-                    if (futures.size() >= 4 * Math.max(1, nThreads)) {
+                    if (futures.size() >= maxInFlight) {
                         awaitAll(futures);
                         futures.clear();
                     }
@@ -1835,17 +1852,110 @@ public class ImgUtils {
     /** Edge length (voxels, a multiple of {@link #OME_ZARR_CHUNK_SIZE}) of the XY tiles read into memory at once */
     private static final int OME_ZARR_TILE_SIZE = 2048;
 
+    /**
+     * Target edge length (voxels) of the XY tiles read into memory at once when the array is sharded. A tile spans
+     * a whole shard deep, so it is smaller than {@link #OME_ZARR_TILE_SIZE} to bound the slab (~512 MB for 256^3
+     * shards of 16-bit data)
+     */
+    private static final int OME_ZARR_SHARDED_TILE_SIZE = 1024;
+
     /** Zstandard compression level of exported OME-Zarr arrays */
     private static final int OME_ZARR_ZSTD_LEVEL = 3;
 
+    /**
+     * Whether exported OME-Zarr arrays are sharded (many chunks per file). The write paths of
+     * {@link #saveAsOmeZarr} are shard-aligned (one task per shard), since concurrent writes into the same shard can
+     * corrupt it
+     */
+    private static final boolean OME_ZARR_SHARDING = true;
+
+    /** Target edge length (voxels) of the shards of exported OME-Zarr arrays */
+    private static final int OME_ZARR_SHARD_SIZE = 256;
+
+    /** Arrays with fewer chunks than this are not sharded (the number of files is not a concern) */
+    private static final int OME_ZARR_MIN_CHUNKS_FOR_SHARDING = 1000;
+
+    /**
+     * Gets the shard shape for an array of the given dimensions, or {@code null} if it should not be sharded. Each
+     * edge is a whole multiple of the chunk edge (a Zarr v3 requirement), at most {@link #OME_ZARR_SHARD_SIZE}
+     * voxels rounded up to the chunk size, and may exceed the array size along small axes. The channel axis (if
+     * any) is never grouped
+     *
+     * @param dims      the array dimensions
+     * @param chunkSize the chunk shape
+     * @return the shard shape, or {@code null} for an unsharded array
+     */
+    private static int[] omeZarrShardShape(final long[] dims, final int[] chunkSize) {
+        if (!OME_ZARR_SHARDING) return null;
+        long nChunks = 1;
+        for (int d = 0; d < dims.length; d++) nChunks *= (dims[d] + chunkSize[d] - 1) / chunkSize[d];
+        if (nChunks < OME_ZARR_MIN_CHUNKS_FOR_SHARDING) return null;
+        final int[] shard = new int[dims.length];
+        for (int d = 0; d < dims.length; d++) {
+            if (d >= 3) { // channel axis
+                shard[d] = chunkSize[d];
+                continue;
+            }
+            final int edge = (int) Math.min(OME_ZARR_SHARD_SIZE, dims[d]);
+            shard[d] = ((edge + chunkSize[d] - 1) / chunkSize[d]) * chunkSize[d];
+        }
+        return shard;
+    }
+
+    /**
+     * Creates a Zarr v3 dataset
+     *
+     * @param chunkSize the chunk shape (the unit of compression and of BVV cells)
+     * @param shardSize the shard shape (a whole multiple of {@code chunkSize} per axis), or {@code null} to write
+     *                  one file per chunk
+     */
     private static void createZarrV3Dataset(final org.janelia.saalfeldlab.n5.N5Writer n5, final String path,
-                                            final long[] dims, final int[] blockSize,
+                                            final long[] dims, final int[] chunkSize, final int[] shardSize,
                                             final org.janelia.saalfeldlab.n5.DataType dataType,
                                             final org.janelia.saalfeldlab.n5.Compression compression,
                                             final String[] dimNames) {
-        n5.createDataset(path, org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3DatasetAttributes
-                .builder(dims, dataType).blockSize(blockSize).compression(compression)
-                .dimensionNames(dimNames).build());
+        // In the n5-zarr builder, blockSize is the outer (shard) size and chunkSize the inner one. With only one of
+        // them set the array is not sharded
+        final org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3DatasetAttributes.Builder builder =
+                org.janelia.saalfeldlab.n5.zarr.v3.ZarrV3DatasetAttributes.builder(dims, dataType)
+                        .compression(compression).dimensionNames(dimNames);
+        if (shardSize != null) builder.blockSize(shardSize).chunkSize(chunkSize);
+        else builder.blockSize(chunkSize);
+        n5.createDataset(path, builder.build());
+    }
+
+    /**
+     * Computes the region {@code shard} of a downsampled level into a single array, one chunk-sized piece at a time.
+     * Computing a whole shard in one go would need an input block 8x as large (2x per axis), per thread
+     *
+     * @param downsampler the supplier of downsampled blocks
+     * @param shard       the region to compute (in the coordinates of the downsampled level)
+     * @param chunkDims   the size of the pieces
+     * @param type        the pixel type
+     * @return a zero-min image of the size of {@code shard}
+     */
+    private static <T extends NativeType<T>> RandomAccessibleInterval<T> downsampleShard(
+            final net.imglib2.algorithm.blocks.BlockSupplier<T> downsampler, final Interval shard,
+            final long[] chunkDims, final T type) {
+        final Img<T> out = new net.imglib2.img.array.ArrayImgFactory<>(type).create(
+                Intervals.dimensionsAsLongArray(shard));
+        // The same data in the coordinates of the level, to copy each piece in place
+        final RandomAccessibleInterval<T> placed = Views.translate(out, shard.minAsLongArray());
+        for (final Interval piece : createIntervals(Intervals.dimensionsAsLongArray(shard), chunkDims)) {
+            // createIntervals works in zero-min space: shift the piece to the position of the shard
+            final long[] min = new long[piece.numDimensions()];
+            final long[] max = new long[piece.numDimensions()];
+            for (int d = 0; d < min.length; d++) {
+                min[d] = shard.min(d) + piece.min(d);
+                max[d] = shard.min(d) + piece.max(d);
+            }
+            final Interval region = new net.imglib2.FinalInterval(min, max);
+            final RandomAccessibleInterval<T> computed = net.imglib2.algorithm.blocks.BlockAlgoUtils
+                    .arrayImg(downsampler, region);
+            net.imglib2.loops.LoopBuilder.setImages(Views.zeroMin(computed),
+                    Views.zeroMin(Views.interval(placed, region))).forEachPixel((a, b) -> b.set(a));
+        }
+        return out;
     }
 
     private static <T extends NativeType<T>> org.janelia.saalfeldlab.n5.DataType n5DataType(final T type) {
