@@ -520,9 +520,9 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
         jmi.addActionListener( e -> deleteSelected());
         menu.add(jmi);
-        GuiUtils.addSeparator(menu, "Seed Reviews:");
+        GuiUtils.MenuItems.addSeparator(menu, "Seed Reviews:");
         menu.add(buildSendToCurationSubmenu());
-        GuiUtils.addSeparator(menu, "Table Controls:");
+        GuiUtils.MenuItems.addSeparator(menu, "Table Controls:");
 
         menu.add(GuiUtils.Tables.resetAndResizeColumnsMenuItem(
                 seedTable, () -> recordComment("Seed Manager: resizeColumns()"),
@@ -1189,7 +1189,7 @@ public class SeedManager extends JPanel {
 
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Import Seeds:");
+        GuiUtils.MenuItems.addSeparator(menu, "Import Seeds:");
         JMenuItem jmi = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         jmi.setToolTipText("Loads seeds from tabular data");
         menu.add(jmi);
@@ -1223,7 +1223,7 @@ public class SeedManager extends JPanel {
 
     private JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Export Seeds:");
+        GuiUtils.MenuItems.addSeparator(menu, "Export Seeds:");
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> exportToFile());
@@ -1249,7 +1249,7 @@ public class SeedManager extends JPanel {
     private JPopupMenu createMenu() {
         final JPopupMenu menu = new JPopupMenu();
 
-        GuiUtils.addSeparator(menu, "Create Seeds from Tracings:");
+        GuiUtils.MenuItems.addSeparator(menu, "Create Seeds from Tracings:");
         JMenuItem jmi = new JMenuItem("Detect Swellings...");
         jmi.setToolTipText("Detects boutons/varicosities along traced paths from\n" +
                 "radius (and, optionally, intensity) profiles");
@@ -1266,7 +1266,7 @@ public class SeedManager extends JPanel {
         menu.add(jmi);
         jmi.addActionListener(e -> detectRoots());
 
-        GuiUtils.addSeparator(menu, "Extract Seeds from Image:");
+        GuiUtils.MenuItems.addSeparator(menu, "Extract Seeds from Image:");
         jmi = new JMenuItem("Detect Maxima...");
         jmi.setToolTipText("Detects intensity maxima (varicosities, spines, synaptic puncta)\n" +
                 "in annular cross-sections around traced paths");
@@ -1283,7 +1283,7 @@ public class SeedManager extends JPanel {
     private JPopupMenu seedTracingMenu() {
         final JPopupMenu menu = new JPopupMenu();
 
-        GuiUtils.addSeparator(menu, "Seeds as Roots/Somata:");
+        GuiUtils.MenuItems.addSeparator(menu, "Seeds as Roots/Somata:");
         JMenuItem jmi = new JMenuItem("Grayscale Image (One Tree per Seed)...");
         jmi.addActionListener(e -> traceFromSeeds());
         jmi.setToolTipText("<HTML>Runs GWDT auto-tracing with <b>each seed as a tree root</b>.<br>" +
@@ -1301,7 +1301,7 @@ public class SeedManager extends JPanel {
                 "produces one tree per object.");
         menu.add(jmi);
 
-        GuiUtils.addSeparator(menu, "Seeds as Endpoints/Tips:");
+        GuiUtils.MenuItems.addSeparator(menu, "Seeds as Endpoints/Tips:");
         jmi = new JMenuItem("Grayscale Image (Single Cell)...");
         jmi.addActionListener(e -> traceToSeeds());
         jmi.setToolTipText("<HTML>Runs GWDT single-cell auto-tracing <b>toward seeded endpoints</b>.<br>" +
@@ -1319,7 +1319,7 @@ public class SeedManager extends JPanel {
                 "component than the soma are reported as unreachable.");
         menu.add(jmi);
 
-        GuiUtils.addSeparator(menu, "Seeds as Waypoints / Path Attractors:");
+        GuiUtils.MenuItems.addSeparator(menu, "Seeds as Waypoints / Path Attractors:");
         jmi = new JMenuItem("Grayscale Image (Single Cell, Constrained)...");
         jmi.addActionListener(e -> traceThroughSeeds());
         jmi.setToolTipText("<HTML>Runs GWDT single-cell auto-tracing with <b>seeds as soft<br>" +

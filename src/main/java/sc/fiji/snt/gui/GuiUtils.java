@@ -2546,18 +2546,6 @@ public class GuiUtils {
 		if (vgap) c.insets.top = previousTopGap;
 	}
 
-	public static void addSeparator(final JPopupMenu menu, final String header) {
-		final JLabel label = leftAlignedLabel(header, false);
-		if (menu.getComponentCount() > 0) menu.addSeparator();
-		menu.add(label);
-	}
-
-	public static void addSeparator(final JMenu menu, final String header) {
-		final JLabel label = leftAlignedLabel(header, false);
-		if (menu.getMenuComponents().length > 1) menu.addSeparator();
-		menu.add(label);
-	}
-
 	public static JLabel leftAlignedLabel(final String text, final boolean enabled) {
 		return leftAlignedLabel(text, null, enabled);
 	}
@@ -3182,7 +3170,7 @@ public class GuiUtils {
 		tabbedPane.setComponentPopupMenu(popup);
 
 		// layout
-		addSeparator(popup, "Tab Layout:");
+		MenuItems.addSeparator(popup, "Tab Layout:");
 		ButtonGroup group = new ButtonGroup();
 		for (final String option : new String[]{"Compact", "Relaxed"}) {
 			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem(option, "Compact".equals(option));
@@ -3197,7 +3185,7 @@ public class GuiUtils {
 			popup.add(jcbmi);
 		}
 		// Contrast
-		addSeparator(popup, "Tab Style:");
+		MenuItems.addSeparator(popup, "Tab Style:");
 		group = new ButtonGroup();
 		for (final String option : new String[]{"card", "underlined"}) {
 			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem(StringUtils.capitalize(option), "underlined".equals(option));
@@ -3206,7 +3194,7 @@ public class GuiUtils {
 			popup.add(jcbmi);
 		}
 		// Placement
-		addSeparator(popup, "Tab Placement:");
+		MenuItems.addSeparator(popup, "Tab Placement:");
 		group = new ButtonGroup();
 		for (final String pos : new String[]{"Top", "Left", "Bottom", "Right"}) {
 			final JCheckBoxMenuItem jcbmi2 = new JCheckBoxMenuItem(pos, "Top".equals(pos));
@@ -3562,6 +3550,37 @@ public class GuiUtils {
 
 	/** Utility methods for building and configuring {@link JMenuItem}/{@link JMenu} entries. */
 	public static class MenuItems {
+
+		public static void addSeparator(final JPopupMenu menu, final String header) {
+			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
+			if (menu.getComponentCount() > 0) menu.addSeparator();
+			menu.add(label);
+		}
+
+		public static void addSeparator(final JMenu menu, final String header) {
+			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
+			if (menu.getMenuComponents().length > 1) menu.addSeparator();
+			menu.add(label);
+		}
+
+		public static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
+			if (menu.getComponentCount() > 0) menu.addSeparator();
+			menu.add(getMenuItemSeparator(glyph, header));
+		}
+
+		public static void addSeparator(final JMenu menu, final IconFactory.GLYPH glyph, final String header) {
+			if (menu.getMenuComponents().length > 1) menu.addSeparator();
+			menu.add(getMenuItemSeparator(glyph, header));
+		}
+
+		private static JMenuItem getMenuItemSeparator(final IconFactory.GLYPH glyph, final String header) {
+			final JMenuItem sep = new JMenuItem(header);
+			sep.putClientProperty("cmdFinder-ignore", true);
+			sep.setEnabled(false);
+			sep.setIcon(IconFactory.menuIcon(glyph, IconFactory.disabledColor()));
+			sep.setDisabledIcon(IconFactory.menuIcon(glyph, IconFactory.disabledColor()));
+			return sep;
+		}
 
 		private MenuItems() {}
 
@@ -5116,7 +5135,7 @@ public class GuiUtils {
 		                                             final String[] choices, final String selected,
 		                                             final JMenuItem... extraItems) {
 			final JPopupMenu popupMenu = new JPopupMenu();
-			GuiUtils.addSeparator(popupMenu, "Color Scheme:");
+			MenuItems.addSeparator(popupMenu, "Color Scheme:");
 			final ButtonGroup bg = new ButtonGroup();
 			for (final String choice : choices) {
 				final JCheckBoxMenuItem menuItem = new JCheckBoxMenuItem(choice);

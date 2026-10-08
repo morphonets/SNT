@@ -406,9 +406,11 @@ public class IconFactory {
         // icon) so callers that sometimes pass a real entry2 and sometimes null - e.g. a JList mixing
         // single- and double-glyph rows, or a menu item whose badge glyph only applies in some state -
         // get a consistently-sized icon either way.
+        final Icon leftIcon = (entry1 == null) ? new BlankIcon(Math.round(size), Math.round(size))
+                : cachedIcon(entry1.id, size, color, entry1.solid);
         final Icon rightIcon = (entry2 == null) ? new BlankIcon(Math.round(size), Math.round(size))
                 : cachedIcon(entry2.id, size, color, entry2.solid);
-        return dropdownIcon(entry1, scalingFactor, color, rightIcon);
+        return new DropdownIcon(leftIcon, rightIcon);
     }
 
     /** Invisible {@link Icon} of a given size; used by {@link #doubleIcon} to reserve space for an absent glyph. */
@@ -530,6 +532,10 @@ public class IconFactory {
     private record DropdownIcon(Icon leftIcon, Icon rightIcon) implements Icon {
 
         static final int ICON_GAP = 2;
+
+        DropdownIcon(final DropdownIcon dropdownIcon) {
+            this(dropdownIcon.leftIcon, dropdownIcon.rightIcon);
+        }
 
         DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon, final Color color) {
             this(cachedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid), rightIcon);

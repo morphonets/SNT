@@ -1784,7 +1784,7 @@ public class Bvv extends AbstractBigViewer {
 
             // "Center scene strategy on click" options button (see AbstractBigViewer.RecenterStrategy)
             final JPopupMenu popupMenu = new JPopupMenu();
-            GuiUtils.addSeparator(popupMenu, "Center on Click:");
+            GuiUtils.MenuItems.addSeparator(popupMenu, "Center on Click:");
             final ButtonGroup buttonGroup = new ButtonGroup();
             for (final RecenterStrategy strategy : RecenterStrategy.values()) {
                 final JCheckBoxMenuItem mi = new JCheckBoxMenuItem(WordUtils.capitalize(strategy.toString().toLowerCase()),
@@ -3603,19 +3603,35 @@ public class Bvv extends AbstractBigViewer {
             return button;
         }
 
-        /** Sets the tooltip on both the spinner and its text field, which otherwise swallows hover events */
-        private static void setSpinnerToolTip(final JSpinner spinner, final String tip) {
-            spinner.setToolTipText(tip);
-            if (spinner.getEditor() instanceof JSpinner.DefaultEditor editor)
-                editor.getTextField().setToolTipText(tip);
-        }
-
         private JButton optionsButton(final BvvActions actions) {
             final JPopupMenu menu = new JPopupMenu();
             final SNTPrefs prefs = (bvvInstance.snt != null) ? bvvInstance.snt.getPrefs() : null;
             final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
 
-            addSeparator(menu, IconFactory.GLYPH.QUIT , "Render Quality & GPU Cache"); // QUIT glyph hints that these require a restart
+            GuiUtils.MenuItems.addSeparator(menu, "Render Quality & Performance:");
+
+            // maxAllowedStepInVoxels: takes effect immediately
+            final JMenuItem stepItem = new JMenuItem("Ray-Marching Step...", IconFactory.menuIcon(IconFactory.GLYPH.STAIRS));
+            stepItem.setToolTipText("<html>Ray-marching step size in voxels (range: "
+                    + SNTPrefs.BVV_MIN_MAX_STEP + " - " + SNTPrefs.BVV_MAX_MAX_STEP + ").<br>"
+                    + "Smaller = higher quality, slower. Larger = faster, lower quality");
+            stepItem.addActionListener(e -> {
+                final double curStep = SNTPrefs.getBvvMaxStep();
+                final String msg = String.format("<html>Maximum ray-marching step in voxels. Lower values improve quality but slow<br>"
+                        + "down the rendering. Larger values degrade quality but speed-up rendering.<br>"
+                        + "<b>Default is %.1f vox. Currently, this setting is %s%.1f vox.",
+                        BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS,
+                        (BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS == curStep) ? "also " : "",
+                        curStep);
+                final Double step = new GuiUtils(getViewerFrame()).getDouble(msg,
+                        "Ray-Marching Step", curStep,
+                        SNTPrefs.BVV_MIN_MAX_STEP, SNTPrefs.BVV_MAX_MAX_STEP, " vox");
+                if (step == null || step.isNaN()) return;
+                bvvInstance.getViewerFrame().getViewerPanel().setMaxAllowedStepInVoxels(step);
+                SNTPrefs.setBvvMaxStep(step);
+                bvvInstance.getViewerFrame().getViewerPanel().requestRepaint();
+            });
+            menu.add(stepItem);
 
             // Render quality preset: set in SNT's Preferences (render size cannot change once a window exists)
             final BvvUtils.RenderQuality quality = BvvUtils.getRenderQuality();
@@ -3636,23 +3652,11 @@ public class Bvv extends AbstractBigViewer {
             cacheItem.addActionListener(e -> runSNTPrefs());
             cacheItem.setEnabled(prefs != null);
             menu.add(cacheItem);
-            // maxAllowedStepInVoxels: takes effect immediately
-            addSeparator(menu, IconFactory.GLYPH.STAIRS, "Ray-Marching Step");
-            final double curStep = SNTPrefs.getBvvMaxStep();
-            final JSpinner stepSpinner = GuiUtils.Fields.doubleSpinner(curStep, SNTPrefs.BVV_MIN_MAX_STEP, SNTPrefs.BVV_MAX_MAX_STEP, 0.1, 1);
-            setSpinnerToolTip(stepSpinner, "<html>Ray-marching step size in voxels (range: 0.1 - 8.0).<br>"
-                    + "Smaller = higher quality, slower. Larger = faster, lower quality.<br>Default: 1.0");
-            stepSpinner.addChangeListener(e -> {
-                final double step = ((Number) stepSpinner.getValue()).doubleValue();
-                bvvInstance.getViewerFrame().getViewerPanel().setMaxAllowedStepInVoxels(step);
-                SNTPrefs.setBvvMaxStep(step);
-                bvvInstance.getViewerFrame().getViewerPanel().requestRepaint();
-            });
-            menu.add(GuiUtils.Fields.withDefaultButton(stepSpinner, BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS));
-            addSeparator(menu, IconFactory.GLYPH.CLOCK_ROTATE_LEFT, "Restore View");
+
+            GuiUtils.MenuItems.addSeparator(menu, "Restore View:");
             menu.add(new JMenuItem(actions.loadSettingsAction()));
             menu.add(new JMenuItem(actions.saveSettingsAction()));
-            addSeparator(menu, IconFactory.GLYPH.INFO, "Help");
+            GuiUtils.MenuItems.addSeparator(menu, "Help:");
             menu.add(new JMenuItem(actions.showHelpAction()));
             menu.add(new JMenuItem(actions.showMovieHelpAction()));
             return oButton;

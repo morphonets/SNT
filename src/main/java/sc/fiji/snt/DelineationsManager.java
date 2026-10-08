@@ -644,7 +644,7 @@ public class DelineationsManager {
 
     JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Import Delineations:");
+        GuiUtils.MenuItems.addSeparator(menu, "Import Delineations:");
         JMenuItem jmi = new JMenuItem("From Atlas Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.ATLAS));
         menu.add(jmi);
         jmi.setToolTipText("Import delineations from neuropil labels. Previous delineations will be overridden.");
@@ -723,7 +723,7 @@ public class DelineationsManager {
 
     JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Export Delineations:");
+        GuiUtils.MenuItems.addSeparator(menu, "Export Delineations:");
         JMenuItem jmi = new JMenuItem("To Labels/Mask Image", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
         jmi.setToolTipText("Rasterize delineation assignments as a tube-filled labels image using node radii.");
         jmi.addActionListener(e -> {
@@ -843,7 +843,7 @@ public class DelineationsManager {
         optionsButton.setToolTipText("Options");
         final JPopupMenu optionsMenu = new JPopupMenu();
 
-        GuiUtils.addSeparator(optionsMenu, "Rendering of Delineated Paths:");
+        GuiUtils.MenuItems.addSeparator(optionsMenu, "Rendering of Delineated Paths:");
         JMenuItem jmi = new JMenuItem("Restore Pre-Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         jmi.addActionListener(e -> removeDelineationColorsFromAllPaths(false));
         optionsMenu.add(jmi);
@@ -853,7 +853,7 @@ public class DelineationsManager {
             sntui.plugin.updateAllViewers();
         });
         optionsMenu.add(jmi);
-        GuiUtils.addSeparator(optionsMenu, "Reset:");
+        GuiUtils.MenuItems.addSeparator(optionsMenu, "Reset:");
         jmi = new JMenuItem("Rebuild Assignments", IconFactory.menuIcon(IconFactory.GLYPH.FIRST_AID));
         jmi.addActionListener(e -> {
             if (delineations.stream().allMatch(d -> d.roi == null)) {

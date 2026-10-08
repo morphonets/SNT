@@ -568,7 +568,7 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
 
-        GuiUtils.addSeparator(pMenu, "Utilities:");
+        GuiUtils.MenuItems.addSeparator(pMenu, "Utilities:");
         if (sntui != null) {
             mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
             mi.setToolTipText("Matches bookmarks across channels within a distance threshold, replacing them with centroids");
@@ -580,7 +580,7 @@ public class BookmarkManager {
         pMenu.add(mi);
         pMenu.add(sortByDistanceMenu());
 
-        GuiUtils.addSeparator(pMenu, "Table Controls:");
+        GuiUtils.MenuItems.addSeparator(pMenu, "Table Controls:");
 
         pMenu.add(GuiUtils.Tables.resetAndResizeColumnsMenuItem(
                 table, () -> recordComment("Bookmark Manager: resizeColumns()"),
@@ -971,7 +971,7 @@ public class BookmarkManager {
 
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Import:");
+        GuiUtils.MenuItems.addSeparator(menu, "Import:");
         JMenuItem jmi  = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> {
@@ -1057,7 +1057,7 @@ public class BookmarkManager {
 
     private JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Export:");
+        GuiUtils.MenuItems.addSeparator(menu, "Export:");
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> saveToUserChosenFile(null));

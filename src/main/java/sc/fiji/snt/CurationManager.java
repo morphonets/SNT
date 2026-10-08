@@ -1132,15 +1132,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Section 1: Utilities and Calibration
         // 1.1. Calibration button
         calibrationMenu = new JPopupMenu();
-        GuiUtils.addSeparator(calibrationMenu, "Auto-tuning:");
+        GuiUtils.MenuItems.addSeparator(calibrationMenu, "Auto-tuning:");
         final JMenuItem calibrateItem = new JMenuItem("Calibrate Thresholds from Traced Cells...");
         calibrateItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CALCULATOR));
         calibrateItem.setToolTipText("Infer parameter thresholds from the statistics of existing reconstructions");
         calibrateItem.addActionListener(e -> runCalibration());
         calibrationMenu.add(calibrateItem);
-        GuiUtils.addSeparator(calibrationMenu, "Built-in Presets:");
+        GuiUtils.MenuItems.addSeparator(calibrationMenu, "Built-in Presets:");
         populateBuiltInPresetEntries();
-        GuiUtils.addSeparator(calibrationMenu, "User Presets:");
+        GuiUtils.MenuItems.addSeparator(calibrationMenu, "User Presets:");
         populateUserPresetEntries();
         final JMenuItem saveItem = new JMenuItem("Create From Current Parameters...");
         saveItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.PLUS));
@@ -1247,7 +1247,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private JPopupMenu getFilterVisibilityMenu() {
         final JPopupMenu filterMenu = new JPopupMenu();
-        GuiUtils.addSeparator(filterMenu, "Show:");
+        GuiUtils.MenuItems.addSeparator(filterMenu, "Show:");
         for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
             final Color sevColor = severityColor(sev);
             final String sevLabel = severityLabel(sev);
@@ -1266,7 +1266,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         // Sort options. The TableRowSorter preserves sort keys across fireTableDataChanged, so toggling
         // this once keeps the table sorted by impact through subsequent scans and filter changes
-        GuiUtils.addSeparator(filterMenu, "Sort:");
+        GuiUtils.MenuItems.addSeparator(filterMenu, "Sort:");
         final JCheckBoxMenuItem sortByImpact = new JCheckBoxMenuItem("Sort by Descending Impact",
                 IconFactory.menuIcon(IconFactory.GLYPH.SCALE_BALANCED));
         sortByImpact.setToolTipText("<html>When enabled, the warnings table is sorted by " +
@@ -1290,11 +1290,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private JPopupMenu getToolsMenu() {
         final JPopupMenu popup = new JPopupMenu();
-        GuiUtils.addSeparator(popup, "Navigation:");
+        GuiUtils.MenuItems.addSeparator(popup, "Navigation:");
         final JMenu zMenu = visitingZoom.zoomControls("Visiting Zoom Level", "issues");
         zMenu.setEnabled(sntui != null && !sntui.plugin.isStreamMode());
         popup.add(zMenu);
-        GuiUtils.addSeparator(popup, "Color Coding:");
+        GuiUtils.MenuItems.addSeparator(popup, "Color Coding:");
         final JMenuItem colorMenuItem = new JMenuItem("Color Affected Paths by Issue Severity");
         colorMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
         popup.add(colorMenuItem);
@@ -1326,7 +1326,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         clearHeatmapItem.addActionListener(e -> clearIssueHeatmap());
         popup.add(clearHeatmapItem);
 
-        GuiUtils.addSeparator(popup, "Summaries & Reports:");
+        GuiUtils.MenuItems.addSeparator(popup, "Summaries & Reports:");
         final JMenuItem donutItem = new JMenuItem("Frequency Chart", IconFactory.menuIcon(IconFactory.GLYPH.CHART_PIE));
         donutItem.setToolTipText("Summarizes current issues (severity x impact) in a donut chart");
         donutItem.addActionListener(e -> summarizeIssuesAsDonutChart());
@@ -1336,7 +1336,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         popup.add(donutItem);
         popup.add(matrixItem);
 
-        GuiUtils.addSeparator(popup, "Seed Reviews:");
+        GuiUtils.MenuItems.addSeparator(popup, "Seed Reviews:");
         // Review-tag actions: mark the affected paths of the selected warning(s) as + / - training examples
         final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As");
         reviewMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEEDLING));

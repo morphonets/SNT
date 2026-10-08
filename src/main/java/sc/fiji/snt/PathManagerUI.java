@@ -398,7 +398,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
         jmi.addActionListener(singlePathListener);
         process.add(jmi);
-        GuiUtils.addSeparator(process, "Semantic Segmentation:");
+        GuiUtils.MenuItems.addSeparator(process, "Semantic Segmentation:");
         jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
         jmi.setToolTipText("Starts a Labkit session loaded with labels from selected paths");
         jmi.addActionListener(multiPathListener);
@@ -465,7 +465,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Multimetric Plot...\")");
         advanced.add(jmi);
-        GuiUtils.addSeparator(advanced, "Intensity Profilers:");
+        GuiUtils.MenuItems.addSeparator(advanced, "Intensity Profilers:");
         jmi = new JMenuItem(SinglePathActionListener.NODE_PROFILER, IconFactory.menuIcon(IconFactory.GLYPH.CHART_MAGNIFIED));
         jmi.setToolTipText("Cross-section profiles of single paths");
         jmi.addActionListener(singlePathListener);
@@ -585,7 +585,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         menu.setIcon(IconFactory.menuIcon('\ue29c', true));
 
         // Detection (automated)
-        GuiUtils.addSeparator(menu, "Automated Detectors:");
+        GuiUtils.MenuItems.addSeparator(menu, "Automated Detectors:");
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.DETECT_LABEL_PROXIMITY_CMD);
         jmi.setToolTipText("Detects contact points between paths and labeled surfaces from a segmentation image");
         jmi.addActionListener(multiPathListener);
@@ -603,7 +603,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         menu.add(jmi);
 
         // Post-annotation analysis (requires markers already assigned)
-        GuiUtils.addSeparator(menu, "Post-Annotation:");
+        GuiUtils.MenuItems.addSeparator(menu, "Post-Annotation:");
         jmi = new JMenuItem(MultiPathActionListener.DENSITIES_EXTRACT_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
@@ -618,7 +618,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Density Profiles...\")");
         menu.add(jmi);
-        GuiUtils.addSeparator(menu, "External Tools:");
+        GuiUtils.MenuItems.addSeparator(menu, "External Tools:");
         jmi = new JMenuItem("Start Spot Spine...");
         if (plugin.isStreamMode()) jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CROP));
         jmi.addActionListener(e -> plugin.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>()));
@@ -653,7 +653,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         menu.add(jmi);
 
         // Commands that require paths to be matched across time
-        GuiUtils.addSeparator(menu, "Neurite-based Analysis:");
+        GuiUtils.MenuItems.addSeparator(menu, "Neurite-based Analysis:");
         jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD, IconFactory.menuIcon('\ue4af', true));
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
@@ -6261,7 +6261,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             "-Intensity:", "Brightest Node", "Dimmest Node" )
                     .forEach(cmd -> {
                         if (cmd.startsWith("-")) {
-                            GuiUtils.addSeparator(menu, cmd.substring(1));
+                            GuiUtils.MenuItems.addSeparator(menu, cmd.substring(1));
                         } else {
                             final JMenuItem mi = new JMenuItem(cmd);
                             mi.addActionListener(action);
@@ -6421,7 +6421,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             List.of("-Topology:","Branch Points","End Points","Start Points","-Annotations:","Manually Tagged Nodes")
                     .forEach(cmd -> {
                         if (cmd.startsWith("-")) {
-                            GuiUtils.addSeparator(menu, cmd.substring(1));
+                            GuiUtils.MenuItems.addSeparator(menu, cmd.substring(1));
                         } else {
                             final JMenuItem mi = new JMenuItem(cmd);
                             mi.addActionListener(action);

@@ -1762,7 +1762,7 @@ public class SNTChart extends ChartPanel {
 
 		final JMenu cMenu = new JMenu("Contents & Curve Fitting");
 		popup.add(cMenu);
-        GuiUtils.addSeparator(cMenu, "General:");
+        GuiUtils.MenuItems.addSeparator(cMenu, "General:");
         final JCheckBoxMenuItem grid = new JCheckBoxMenuItem("Grid Lines", isGridlinesVisible());
         grid.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
         grid.addItemListener( e -> setGridlinesVisible(grid.isSelected()));
@@ -1794,7 +1794,7 @@ public class SNTChart extends ChartPanel {
                 // do nothing
             }
         });
-        GuiUtils.addSeparator(cMenu, "Histograms:");
+        GuiUtils.MenuItems.addSeparator(cMenu, "Histograms:");
         final JCheckBoxMenuItem fit1 = new JCheckBoxMenuItem("Gaussian");
 		fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
 		fit1.addActionListener(e -> {
@@ -1850,7 +1850,7 @@ public class SNTChart extends ChartPanel {
 			}
 		});
         cMenu.add(fit3);
-        GuiUtils.addSeparator(cMenu, "Polar Plots:");
+        GuiUtils.MenuItems.addSeparator(cMenu, "Polar Plots:");
         JMenuItem jmi = new JMenuItem("Clockwise/Counterclockwise");
         jmi.setEnabled(getChart().getPlot() instanceof PolarPlot);
         jmi.addActionListener( e -> {
@@ -1868,7 +1868,7 @@ public class SNTChart extends ChartPanel {
 		jmi = GuiUtils.MenuItems.combineCharts();
 		jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
 		utils.add(jmi);
-        GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
+        GuiUtils.MenuItems.addSeparator(utils, "Operations on All Open Charts:");
         jmi = new JMenuItem("Close...");
         utils.add(jmi);
         jmi.addActionListener( e -> {

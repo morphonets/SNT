@@ -3461,14 +3461,14 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(mi5, "snt.getUI().runCommand(\"From Labkit/TWS Model...\")");
         registerInCommandFinder(mi5, "Main tab", "Interactive tracing (II Layer)");
-        GuiUtils.addSeparator(secLayerMenu, "Create:");
+        GuiUtils.MenuItems.addSeparator(secLayerMenu, "Create:");
         secLayerMenu.add(mi1);
-        GuiUtils.addSeparator(secLayerMenu, "Load Precomputed:");
+        GuiUtils.MenuItems.addSeparator(secLayerMenu, "Load Precomputed:");
         secLayerMenu.add(mi3);
         secLayerMenu.add(mi2);
-        GuiUtils.addSeparator(secLayerMenu, "Load from Model:");
+        GuiUtils.MenuItems.addSeparator(secLayerMenu, "Load from Model:");
         secLayerMenu.add(mi5);
-        GuiUtils.addSeparator(secLayerMenu, "Dispose/Disable:");
+        GuiUtils.MenuItems.addSeparator(secLayerMenu, "Dispose/Disable:");
         secLayerMenu.add(mi4);
         secLayerMenu.addSeparator();
         final JMenuItem mi6 = GuiUtils.MenuItems.openHelpURL("Help on Secondary Layers",
@@ -3937,7 +3937,7 @@ public class SNTUI extends JDialog {
         final JMenu menu = new JMenu("Auto-trace");
 
         // Interactive: operates on images already loaded in SNT
-        GuiUtils.addSeparator(menu, "Interactive:");
+        GuiUtils.MenuItems.addSeparator(menu, "Interactive:");
         final JMenuItem jmiGray = new JMenuItem("Grayscale Image...");
         jmiGray.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGray.setToolTipText("Runs automated tracing on a grayscale image already open");
@@ -3971,7 +3971,7 @@ public class SNTUI extends JDialog {
         menu.add(jmiSoma);
 
         // From File(s): file-based / batch processing
-        GuiUtils.addSeparator(menu, "Batch Processing:");
+        GuiUtils.MenuItems.addSeparator(menu, "Batch Processing:");
         final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
         jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGrayFile.setToolTipText("Runs automated tracing on a large grayscale image file or\n" +
@@ -5187,7 +5187,7 @@ public class SNTUI extends JDialog {
         final JPopupMenu menu = new JPopupMenu();
 
         // Display Filters
-        GuiUtils.addSeparator(menu, "Path Display Filters:");
+        GuiUtils.MenuItems.addSeparator(menu, "Path Display Filters:");
         final JCheckBoxMenuItem selPaths = GuiUtils.MenuItems.checkboxMenuItem("Only Selected Paths",
                 showPathsSelected.isSelected(),
                 e -> showPathsSelected.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
@@ -5222,7 +5222,7 @@ public class SNTUI extends JDialog {
         menu.add(activeCT);
 
         // Rendering
-        GuiUtils.addSeparator(menu, "Rendering:");
+        GuiUtils.MenuItems.addSeparator(menu, "Rendering:");
         final JCheckBoxMenuItem diameters = GuiUtils.MenuItems.checkboxMenuItem("Draw Diameters",
                 diametersCheckBox.isSelected(),
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
@@ -5236,7 +5236,7 @@ public class SNTUI extends JDialog {
         }
         menu.add(diameters);
 
-        GuiUtils.addSeparator(menu, "Tracing:");
+        GuiUtils.MenuItems.addSeparator(menu, "Tracing:");
         final JCheckBoxMenuItem snap = GuiUtils.MenuItems.checkboxMenuItem("Cursor Auto-snapping",
                 useSnapWindow.isSelected(),
                 e -> {

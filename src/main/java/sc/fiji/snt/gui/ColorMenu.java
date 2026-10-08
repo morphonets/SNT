@@ -111,11 +111,10 @@ public class ColorMenu extends JMenu {
 //			customPanel.add(customColorPane);
 //			_colorPanes.put(new SNTColor(uniquePlaceHolderColor), customColorPane);
 //		}
-//		GuiUtils.addSeparator(this, "Custom (Right-click to Change)");
+//		GuiUtils.MenuItems.addSeparator(this, "Custom (Right-click to Change)");
 //		add(customPanel);
 
 		// Add Kelly distinct colors
-		addSeparator();
 		addSeparator("Contrast");
 		final JPanel kellyPanel = getGridPanel(3, 7);
 		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(21);
@@ -128,7 +127,6 @@ public class ColorMenu extends JMenu {
 		add(kellyPanel);
 
 		// Add Okabe-Ito Palette
-		addSeparator();
 		addSeparator("Colorblind-Safe (CVD)");
 		final JPanel okabeItoPanel = getGridPanel(1, 7);
 		final List<Color> okabeItoColors = new ArrayList<>(SNTColor.okabeIto6Colors());
@@ -159,12 +157,7 @@ public class ColorMenu extends JMenu {
 	}
 
 	private void addSeparator(final String header) {
-		final JMenuItem sep = new JMenuItem(header);
-		sep.putClientProperty("cmdFinder-ignore", true);
-		sep.setEnabled(false);
-		sep.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, IconFactory.disabledColor()));
-		sep.setDisabledIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, IconFactory.disabledColor()));
-		add(sep);
+		GuiUtils.MenuItems.addSeparator(this, IconFactory.GLYPH.COLOR, header);
 	}
 
 	private JPanel getGridPanel(final int rows, final int cols) {

@@ -3745,7 +3745,8 @@ public class Viewer3D {
                 super.dispose();
                 chart.viewer.dispose();
                 chart = null;
-                GuiUtils.LAF.restoreLookAndFeel();
+                if (SNTUtils.isStandaloneContext())
+                    GuiUtils.LAF.restoreLookAndFeel();
             }
         }
 
@@ -4778,25 +4779,25 @@ public class Viewer3D {
 
         private JPopupMenu sceneMenu() {
             final JPopupMenu sceneMenu = new JPopupMenu();
-            GuiUtils.addSeparator(sceneMenu, "View");
+            GuiUtils.MenuItems.addSeparator(sceneMenu, "View");
             sceneMenu.add(menuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false), GLYPH.EXPAND));
             sceneMenu.add(zoomToSelectionMenuItem());
             sceneMenu.add(menuItem(new Action(Action.RESIZE), GLYPH.RESIZE));
             sceneMenu.add(menuItem(new Action(Action.ENTER_FULL_SCREEN, KeyEvent.VK_F, false, true), GLYPH.EXPAND_ARROWS2));
 
-            GuiUtils.addSeparator(sceneMenu, "Appearance");
+            GuiUtils.MenuItems.addSeparator(sceneMenu, "Appearance");
             sceneMenu.add(squarifyMenu()); // Aspect-ratio controls
             sceneMenu.add(axesMenu());
             sceneMenu.add(scaleBarMenu());
             sceneMenu.add(menuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false), GLYPH.SUN));
 
-            GuiUtils.addSeparator(sceneMenu, "Scene");
+            GuiUtils.MenuItems.addSeparator(sceneMenu, "Scene");
             sceneMenu.add(menuItem(new Action(Action.RESET_VIEW, KeyEvent.VK_R, false, false), GLYPH.BROOM));
             sceneMenu.add(menuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true), GLYPH.REDO));
             sceneMenu.add(menuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true), GLYPH.RECYCLE));
             sceneMenu.add(menuItem("Wipe Scene...", GLYPH.DANGER, e -> wipeWithPrompt()));
 
-            GuiUtils.addSeparator(sceneMenu, "Utilities");
+            GuiUtils.MenuItems.addSeparator(sceneMenu, "Utilities");
             final JMenuItem sup = menuItem("Duplicate Scene", GLYPH.COPY, e -> {
                 class DupWorker extends SwingWorker<Viewer3D, Object> {
                     @Override
@@ -5448,14 +5449,14 @@ public class Viewer3D {
 
         private JPopupMenu measureMenu() {
             final JPopupMenu measureMenu = new JPopupMenu();
-            GuiUtils.addSeparator(measureMenu, "Tabular Results");
+            GuiUtils.MenuItems.addSeparator(measureMenu, "Tabular Results");
             JMenuItem mi = GuiUtils.MenuItems.measureOptions();
             mi.addActionListener(e -> runMeasureOptionsAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.measureQuick();
             mi.addActionListener(e -> runMeasureQuickAction());
             measureMenu.add(mi);
-            GuiUtils.addSeparator(measureMenu, "Distribution Analyses");
+            GuiUtils.MenuItems.addSeparator(measureMenu, "Distribution Analyses");
             final JMenuItem branchProps = menuItem("Branch Properties...", GLYPH.CHART,
                     e -> runBranchPropertiesAnalysisAction());
             branchProps.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
@@ -5464,7 +5465,7 @@ public class Viewer3D {
                     e -> runCellPropertiesAnalysisAction());
             cellProps.setToolTipText("Computes distributions of metrics from individual cells");
             measureMenu.add(cellProps);
-            GuiUtils.addSeparator(measureMenu, "Specialized Analyses");
+            GuiUtils.MenuItems.addSeparator(measureMenu, "Specialized Analyses");
             final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
             convexHullMenuItem.addActionListener(e -> runConvexHullAction());
             measureMenu.add(convexHullMenuItem);
@@ -5484,14 +5485,14 @@ public class Viewer3D {
             mi = GuiUtils.MenuItems.strahlerAnalysis();
             mi.addActionListener(e -> runStrahlerAnalysisAction());
             measureMenu.add(mi);
-            GuiUtils.addSeparator(measureMenu, "Atlas-based Analyses");
+            GuiUtils.MenuItems.addSeparator(measureMenu, "Atlas-based Analyses");
             mi = GuiUtils.MenuItems.createAnnotationGraph();
             mi.addActionListener(e -> runAnnotationGraphAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.brainAreaAnalysis();
             mi.addActionListener(e -> runBrainAreaAnalysisAction());
             measureMenu.add(mi);
-            GuiUtils.addSeparator(measureMenu, "Data Export");
+            GuiUtils.MenuItems.addSeparator(measureMenu, "Data Export");
             mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
             mi.addActionListener(e -> runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true));
             measureMenu.add(mi);
@@ -5587,7 +5588,7 @@ public class Viewer3D {
         }
 
         private void addCustomizeMeshCommands(final JPopupMenu menu) {
-            GuiUtils.addSeparator(menu, "Customize");
+            GuiUtils.MenuItems.addSeparator(menu, "Customize");
             menu.add(menuItem("All Parameters...", GLYPH.SLIDERS, e -> customizeSelectedMeshesAllParametersAction()));
             menu.add(menuItem("Color...", GLYPH.COLOR, e -> customizeSelectedMeshesColorAction()));
             menu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> customizeSelectedMeshesTransparencyAction()));
@@ -5786,7 +5787,7 @@ public class Viewer3D {
 
         private JPopupMenu utilsMenu() {
             final JPopupMenu utilsMenu = new JPopupMenu();
-            GuiUtils.addSeparator(utilsMenu, "Tools");
+            GuiUtils.MenuItems.addSeparator(utilsMenu, "Tools");
             utilsMenu.add(menuItem("Annotation Label...", GLYPH.PEN,
                     e -> runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, true, false)));
             utilsMenu.add(legendMenu());
@@ -5802,13 +5803,13 @@ public class Viewer3D {
                 });
                 utilsMenu.add(jmi);
             }
-            GuiUtils.addSeparator(utilsMenu, "Capture");
+            GuiUtils.MenuItems.addSeparator(utilsMenu, "Capture");
             utilsMenu.add(recordAnimationMenuItem());
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem("Show Snapshot Directory", GLYPH.OPEN_FOLDER,
                     e -> mgrGuiUtils.showDirectory(prefs.getSnapshotDir())));
-            GuiUtils.addSeparator(utilsMenu, "Resources");
+            GuiUtils.MenuItems.addSeparator(utilsMenu, "Resources");
             new Action(Action.SCENE_SHORTCUTS_NOTIFICATION, KeyEvent.VK_H, false, false); // register alternative shortcut
             utilsMenu.add(menuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false), GLYPH.KEYBOARD));
             final JMenu helpMenu = GuiUtils.MenuItems.helpMenu(cmdFinder);
@@ -5850,10 +5851,10 @@ public class Viewer3D {
 
         private JPopupMenu scriptingMenu() {
             final JPopupMenu scriptMenu = new JPopupMenu();
-            GuiUtils.addSeparator(scriptMenu, "New Script");
+            GuiUtils.MenuItems.addSeparator(scriptMenu, "New Script");
             scriptMenu.add(menuItem(new Action(Action.RECORDER, KeyEvent.VK_OPEN_BRACKET, false, false), GLYPH.CODE));
             scriptMenu.add(menuItem(new Action(Action.LOG_TO_RECORDER, KeyEvent.VK_L, false, false), GLYPH.STREAM));
-            GuiUtils.addSeparator(scriptMenu, "Resources");
+            GuiUtils.MenuItems.addSeparator(scriptMenu, "Resources");
             scriptMenu.add(GuiUtils.MenuItems.devResourceJavaAPI());
             scriptMenu.add(GuiUtils.MenuItems.devResourcePythonAPI());
             scriptMenu.add(GuiUtils.MenuItems.devResourceMain());
@@ -5862,23 +5863,23 @@ public class Viewer3D {
 
         private JPopupMenu prefsMenu() {
             final JPopupMenu prefsMenu = new JPopupMenu();
-            GuiUtils.addSeparator(prefsMenu, "Layout");
+            GuiUtils.MenuItems.addSeparator(prefsMenu, "Layout");
             prefsMenu.add(menuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true), GLYPH.TABLE_COLUMNS));
-            GuiUtils.addSeparator(prefsMenu, "Controls");
+            GuiUtils.MenuItems.addSeparator(prefsMenu, "Controls");
             prefsMenu.add(panMenu());
             prefsMenu.add(zoomMenu());
             prefsMenu.add(rotationMenu());
             prefsMenu.add(animationModeMenu());
 
-            GuiUtils.addSeparator(prefsMenu, "Neurite Rendering");
+            GuiUtils.MenuItems.addSeparator(prefsMenu, "Neurite Rendering");
             prefsMenu.add(neuriteRenderingMenu());
             prefsMenu.add(smoothingMenu());
             prefsMenu.add(depthFogMenu());
 
-            GuiUtils.addSeparator(prefsMenu, "Mesh Rendering");
+            GuiUtils.MenuItems.addSeparator(prefsMenu, "Mesh Rendering");
             prefsMenu.add(meshRenderingMenu());
 
-            GuiUtils.addSeparator(prefsMenu, "Advanced");
+            GuiUtils.MenuItems.addSeparator(prefsMenu, "Advanced");
             prefsMenu.add(getDebugCheckBox());
             if (ENGINE == Engine.JOGL) {
                 final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Hardware Acceleration",
@@ -6203,7 +6204,7 @@ public class Viewer3D {
 
         private JPopupMenu treesMenu() {
             final JPopupMenu tracesMenu = new JPopupMenu();
-            GuiUtils.addSeparator(tracesMenu, "Add");
+            GuiUtils.MenuItems.addSeparator(tracesMenu, "Add");
             final JMenuItem loadFile = menuItem("Load File...", GLYPH.IMPORT, e -> {
                 final Map<String, Object> inputs = new HashMap<>();
                 inputs.put("importDir", false);
@@ -6221,14 +6222,14 @@ public class Viewer3D {
             if (!isSNTInstance()) tracesMenu.add(loadDemoMenuItem());
             tracesMenu.add(remoteDatabaseMenu());
 
-            GuiUtils.addSeparator(tracesMenu, "Style");
+            GuiUtils.MenuItems.addSeparator(tracesMenu, "Style");
             addCustomizeTreeCommands(tracesMenu);
 
-            GuiUtils.addSeparator(tracesMenu, "Utilities");
+            GuiUtils.MenuItems.addSeparator(tracesMenu, "Utilities");
             tracesMenu.add(menuItem("Translate...", GLYPH.MOVE, e -> translateSelectedTreesAction()));
             tracesMenu.add(menuItem("Align View to Tree", GLYPH.RULER_VERTICAL, e -> makeSelectedTreeUprightAction()));
 
-            GuiUtils.addSeparator(tracesMenu, "Remove");
+            GuiUtils.MenuItems.addSeparator(tracesMenu, "Remove");
             tracesMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> {
                 final List<String> keys = getSelectedTreeLabels();
                 if (keys == null || keys.isEmpty()) {
@@ -6374,10 +6375,10 @@ public class Viewer3D {
 
         private JPopupMenu meshMenu() {
             final JPopupMenu meshMenu = new JPopupMenu();
-            GuiUtils.addSeparator(meshMenu, "Add");
+            GuiUtils.MenuItems.addSeparator(meshMenu, "Add");
             meshMenu.add(menuItem("Load OBJ File(s)...", GLYPH.IMPORT, e -> loadMeshFilesAction()));
             addCustomizeMeshCommands(meshMenu);
-            GuiUtils.addSeparator(meshMenu, "Remove");
+            GuiUtils.MenuItems.addSeparator(meshMenu, "Remove");
             meshMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedMeshesAction()));
             meshMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> removeAllMeshesAction()));
             return meshMenu;
@@ -6604,7 +6605,7 @@ public class Viewer3D {
 
         private JPopupMenu annotationsMenu() {
             final JPopupMenu annotMenu = new JPopupMenu();
-            GuiUtils.addSeparator(annotMenu, "Add");
+            GuiUtils.MenuItems.addSeparator(annotMenu, "Add");
             final JMenu treeBased = new JMenu("Tree-based");
             treeBased.setIcon(IconFactory.menuIcon(GLYPH.TREE));
             final JMenuItem cellPlane = menuItem("Tree Cross-section Plane...", GLYPH.SCISSORS,
@@ -6634,14 +6635,14 @@ public class Viewer3D {
             primitives.add(menuItem("Sphere...", GLYPH.GLOBE, e -> addPrimitiveSphereAnnotationAction()));
             primitives.add(menuItem("Vector...", GLYPH.ARROWS_LR, e -> addPrimitiveVectorAnnotationAction()));
             primitives.add(menuItem("Plane/Parallelepiped...", GLYPH.SQUARE, e -> addPrimitivePlaneAnnotationAction()));
-            GuiUtils.addSeparator(annotMenu, "Customize");
+            GuiUtils.MenuItems.addSeparator(annotMenu, "Customize");
             annotMenu.add(menuItem("Rename...", GLYPH.PEN, e -> renameSelectedAnnotationAction()));
             annotMenu.add(menuItem("Color...", GLYPH.COLOR, e -> setSelectedAnnotationsColorAction()));
             annotMenu.add(menuItem("Color Gradient...", GLYPH.COLOR2, e -> applySelectedAnnotationsGradientAction()));
             annotMenu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> setSelectedAnnotationsTransparencyAction()));
             annotMenu.add(menuItem("Size...", GLYPH.RESIZE, e -> setSelectedAnnotationsSizeAction()));
             annotMenu.add(menuItem("Surface Rendering...", GLYPH.CUBES, e -> adjustSelectedAnnotationSurfaceRenderingAction()));
-            GuiUtils.addSeparator(annotMenu, "Remove");
+            GuiUtils.MenuItems.addSeparator(annotMenu, "Remove");
             annotMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedAnnotationsAction()));
             annotMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
                 if (mgrGuiUtils.getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
@@ -6652,7 +6653,7 @@ public class Viewer3D {
 
         private JPopupMenu refBrainsMenu() {
             final JPopupMenu refMenu = new JPopupMenu("Reference Brains");
-            GuiUtils.addSeparator(refMenu, "Mouse");
+            GuiUtils.MenuItems.addSeparator(refMenu, "Mouse");
             JMenuItem mi = new JMenuItem("Allen CCF Navigator", IconFactory
                     .menuIcon(GLYPH.NAVIGATE));
             mi.addActionListener(e -> {
@@ -6688,10 +6689,10 @@ public class Viewer3D {
             });
             refMenu.add(mi);
 
-            GuiUtils.addSeparator(refMenu, "Zebrafish");
+            GuiUtils.MenuItems.addSeparator(refMenu, "Zebrafish");
             refMenu.add(menuItem("Max Planck ZBA", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_ZEBRAFISH)));
 
-            GuiUtils.addSeparator(refMenu, "Drosophila");
+            GuiUtils.MenuItems.addSeparator(refMenu, "Drosophila");
             refMenu.add(menuItem("Adult Brain: FlyCircuit", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_FCWB)));
             final JMenuItem jfrc2018 = menuItem("Adult Brain: JRC 2018 (Unisex)", GLYPH.ARCHIVE,
                     e -> loadRefBrainAction(true, MESH_LABEL_JFRC2018));

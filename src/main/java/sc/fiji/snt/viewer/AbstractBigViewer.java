@@ -1996,7 +1996,7 @@ public abstract class AbstractBigViewer {
 
             final JPopupMenu menu = new JPopupMenu();
             menu.add(allAnnotationsMenuItem);
-            GuiUtils.addSeparator(menu, "Show/Hide Independently:");
+            GuiUtils.MenuItems.addSeparator(menu, "Show/Hide Independently:");
             menu.add(pathsItem);
             menu.add(seedsItem);
             menu.add(markersItem);
@@ -2269,16 +2269,6 @@ public abstract class AbstractBigViewer {
         Prefs.showTextOverlay(true);
         toggle.setSelected(true);
         repaint();
-    }
-
-    static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
-        if (menu.getComponentCount() > 0)
-            menu.addSeparator();
-        final JMenuItem sep = new JMenuItem(header);
-        sep.setEnabled(false);
-        sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
-        sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.Colors.disabledComponentColor()));
-        menu.add(sep);
     }
 
     /**

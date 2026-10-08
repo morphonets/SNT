@@ -409,7 +409,7 @@ public class MeasureUI extends JFrame {
 					optionsButton.getFont().deriveFont(optionsButton.getFont().getSize2D()*1.1f)); // scale icon (font-based)
 			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
-			GuiUtils.addSeparator(optionsMenu, "General:");
+			GuiUtils.MenuItems.addSeparator(optionsMenu, "General:");
 			final JCheckBoxMenuItem jcmi4 = GuiUtils.MenuItems.debugMode();
 			jcmi4.addActionListener(e -> {
 				SNTUtils.setDebugMode(jcmi4.isSelected());
@@ -418,7 +418,7 @@ public class MeasureUI extends JFrame {
 				}
 			});
 			optionsMenu.add(jcmi4);
-			GuiUtils.addSeparator(optionsMenu, "Measurements Table:");
+			GuiUtils.MenuItems.addSeparator(optionsMenu, "Measurements Table:");
 			JMenuItem jmi = new JMenuItem("Clear Measurements", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
 			jmi.addActionListener(e -> wipeTable());
 			optionsMenu.add(jmi);
@@ -430,7 +430,7 @@ public class MeasureUI extends JFrame {
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
 			optionsMenu.add( GuiUtils.MenuItems.distribution(() -> table));
-			GuiUtils.addSeparator(optionsMenu, "Utilities:");
+			GuiUtils.MenuItems.addSeparator(optionsMenu, "Utilities:");
 			jmi = GuiUtils.MenuItems.renderQuick();
 			jmi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
@@ -441,7 +441,7 @@ public class MeasureUI extends JFrame {
 			jmi = new JMenuItem("List Cell(s) Being Measured...", IconFactory.menuIcon(IconFactory.GLYPH.LIST));
 			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
-			GuiUtils.addSeparator(optionsMenu, "Help:");
+			GuiUtils.MenuItems.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...", IconFactory.menuIcon(IconFactory.GLYPH.INFO));
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
@@ -630,7 +630,7 @@ public class MeasureUI extends JFrame {
 
 		private JPopupMenu listPopupMenu() {
 			final JPopupMenu pMenu = new JPopupMenu();
-			GuiUtils.addSeparator(pMenu, "Selection of Metrics:");
+			GuiUtils.MenuItems.addSeparator(pMenu, "Selection of Metrics:");
 			JMenuItem mi = new JMenuItem("Select All");
 			mi.addActionListener(e -> metricList.selectAll());
 			pMenu.add(mi);
@@ -1128,7 +1128,7 @@ public class MeasureUI extends JFrame {
 				}
 
 			});
-			GuiUtils.addSeparator(this, "Selection of Statistics:");
+			GuiUtils.MenuItems.addSeparator(this, "Selection of Statistics:");
 			JMenuItem mi = new JMenuItem("Select All");
 			mi.addActionListener(e -> setAllState(true));
 			add(mi);
