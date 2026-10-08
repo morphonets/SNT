@@ -776,7 +776,8 @@ public final class BvvUtils {
      * N5/Zarr sources that cannot be re-exported with a real pyramid.
      * <p>
      * Level 0 is either a local, cell-based copy of the source (see {@link ImgUtils#materializeTiled}), or, if
-     * {@code copyLocally} is false, the source itself. Each extra level doubles the previous step size along X/Y/Z,
+     * {@code copyLocally} is false, the source itself (as a zero-min view: a non-zero min of the source is moved into the
+     * returned source's transform, so its position in world space is unchanged). Each extra level doubles the previous step size along X/Y/Z,
      * matching how a real N5/Zarr multiscale pyramid is laid out. Extra levels are averaged (2x2x2) from the previous
      * level (see {@link #averagedLevel}) and computed lazily, on demand, so they cost no heap up front
      *
@@ -798,10 +799,11 @@ public final class BvvUtils {
         final RandomAccessibleInterval<T>[] levels = new RandomAccessibleInterval[nLevels + 1];
         final double[][] scales = new double[nLevels + 1][3];
         final RandomAccessibleInterval<T> base = source.getSource(0, 0);
-        levels[0] = copyLocally ? ImgUtils.materializeTiled(base, PYRAMID_CELL_SIZE) : base;
+        // Every level is zero-min, as the coarser ones (see #averagedLevel) are: a level 0 that kept a non-zero min
+        // would be misregistered with them. The offset is compensated in the source transform below
+        levels[0] = copyLocally ? ImgUtils.materializeTiled(base, PYRAMID_CELL_SIZE) : Views.zeroMin(base);
         scales[0] = new double[]{1, 1, 1};
-        final RandomAccessibleInterval<T> zeroMin0 = Views.zeroMin(levels[0]);
-        RandomAccessibleInterval<T> previous = zeroMin0;
+        RandomAccessibleInterval<T> previous = levels[0];
         for (int l = 1; l <= nLevels; l++) {
             final long step = 1L << l; // 2, 4, 8...
             levels[l] = averagedLevel(previous);
@@ -810,6 +812,10 @@ public final class BvvUtils {
         }
         final AffineTransform3D transform = new AffineTransform3D();
         source.getSourceTransform(0, 0, transform);
+        if (base.min(0) != 0 || base.min(1) != 0 || base.min(2) != 0) {
+            // voxel x of the zero-min level 0 is voxel x + min of the source
+            transform.concatenate(new net.imglib2.realtransform.Translation3D(base.min(0), base.min(1), base.min(2)));
+        }
         SNTUtils.log("BVV: synthetic pyramid ready for '" + source.getName() + "'");
         return new RandomAccessibleIntervalMipmapSource<>(levels, source.getType(),
                 scales, source.getVoxelDimensions(), transform, source.getName());
@@ -952,7 +958,7 @@ public final class BvvUtils {
 
     /**
      * Estimates the heap needed by {@link #buildTiledPyramid}: the full XYZ volume of every channel, plus ~15% for
-     * the coarser levels
+     * the coarser levels. Doubled if {@code img} is not lazily loaded, since it stays in memory during the copy
      *
      * @param img an image with X, Y, Z leading, and optionally a channel axis
      * @return the estimated size in bytes
@@ -962,7 +968,9 @@ public final class BvvUtils {
         final long nC = (cDim >= 0) ? img.dimension(cDim) : 1;
         final long voxels = img.dimension(0) * img.dimension(1) * img.dimension(2);
         final long bytesPerVoxel = Math.max(1, ((RealType<?>) img.firstElement()).getBitsPerPixel() / 8);
-        return (long) (voxels * nC * bytesPerVoxel * 1.15);
+        // A source that is already fully in memory stays resident while its tiled copy is made
+        final boolean lazy = img.getImg() instanceof net.imglib2.cache.img.CachedCellImg;
+        return (long) (voxels * nC * bytesPerVoxel * 1.15 * (lazy ? 1 : 2));
     }
 
     /**

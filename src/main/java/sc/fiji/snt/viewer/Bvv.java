@@ -1139,7 +1139,7 @@ public class Bvv extends AbstractBigViewer {
         final double maxStep = BvvUtils.parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS);
         final int cacheMB = BvvUtils.effectiveCacheMB(nChannels, false);
         SNTUtils.log(String.format(
-                "BVV: %d slices, %d ch → blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f cache=%dMB",
+                "BVV: %d slices, %d ch, blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f cache=%dMB",
                 nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep, cacheMB));
         return bvv.vistools.Bvv.options()
                 .preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE)
@@ -3574,26 +3574,29 @@ public class Bvv extends AbstractBigViewer {
 
         private JButton optionsButton(final BvvActions actions) {
             final JPopupMenu menu = new JPopupMenu();
-            final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
-            addSeparator(menu, IconFactory.GLYPH.QUIT, "Render Quality & GPU Cache");
-            // Render quality preset: set in SNT's Preferences (render size cannot change once a window exists)
             final SNTPrefs prefs = (bvvInstance.snt != null) ? bvvInstance.snt.getPrefs() : null;
+            final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
+
+            addSeparator(menu, IconFactory.GLYPH.QUIT , "Render Quality & GPU Cache"); // QUIT glyph hints that these require a restart
+
+            // Render quality preset: set in SNT's Preferences (render size cannot change once a window exists)
             final BvvUtils.RenderQuality quality = BvvUtils.getRenderQuality();
             final javax.swing.JMenuItem qualityItem = new javax.swing.JMenuItem("Quality: " + quality.label + "...");
             qualityItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.GAUGE));
             qualityItem.setToolTipText("<html>" + quality.description
                     + "<br>Set in SNT's Preferences. Requires a restart.");
             qualityItem.addActionListener(e -> runSNTPrefs());
+            qualityItem.setEnabled(prefs != null); // PrefsCmd requires a running SNT instance
             menu.add(qualityItem);
             // GPU tile cache budget: set in SNT's Preferences (cannot change once a window exists)
             final int prefMB = BvvUtils.getCachePrefMB();
             final javax.swing.JMenuItem cacheItem = new javax.swing.JMenuItem("Tile cache: "
                     + (prefMB > 0 ? Math.min(prefMB, BvvUtils.maxCacheMB()) + " MB..." : "Auto..."));
             cacheItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MICROCHIP));
-
             cacheItem.setToolTipText("<html>Maximum GPU memory BVV may use to cache volume tiles of pyramidal data"
                     + "<br>Set in SNT's Preferences. Requires a restart.");
             cacheItem.addActionListener(e -> runSNTPrefs());
+            cacheItem.setEnabled(prefs != null);
             menu.add(cacheItem);
             // maxAllowedStepInVoxels: takes effect immediately
             addSeparator(menu, IconFactory.GLYPH.STAIRS, "Ray-Marching Step");

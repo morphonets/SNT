@@ -117,10 +117,12 @@ public class BigDataLoaderCmd extends ContextCommand {
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction(s)", persist = false,
-            description = "Optional.\nEither a single file (TRACES, SWC, JSON, Neurolucida XML), or a\n" +
-                    "folder/.zip archive of several such files. Coordinates are assumed\n" +
-                    "to be properly scaled. If you need to apply an offset/scaling factor,\n" +
-                    "use the \"Import\" menu commands instead once tracing starts.")
+            description = """
+                    Optional.
+                    Either a single file (TRACES, SWC, JSON, Neurolucida XML), or a
+                    folder/.zip archive of several such files. Coordinates are assumed
+                    to be properly scaled. If you need to apply an offset/scaling factor,
+                    use the "Import" menu commands instead once tracing starts.""")
     File recFiles;
 
     @Parameter(required = false, label = "Markers", persist = false,
@@ -489,7 +491,6 @@ public class BigDataLoaderCmd extends ContextCommand {
         return new ResolvedSources(sources, deferredPaths);
     }
 
-    /** Adds each resolved source to {@code bvv}, and opens the interactive dialog for deferred N5/Zarr paths. */
     /**
      * Makes sure BVV's GPU tile cache is large enough for a streamed pyramid, prompting (once, unless suppressed) if
      * the user's preference is too low or if the JVM heap limits the cache below what is needed. Must run before the
@@ -519,21 +520,30 @@ public class BigDataLoaderCmd extends ContextCommand {
                     .append(want).append(" MB ideal for this dataset. Consider increasing the amount of memory ")
                     .append("available to Fiji/SNT and restarting.<br><br>");
         }
-        final boolean sntRunning = SNTUtils.getPluginInstance() != null;
-        final java.util.List<String> buttons = new java.util.ArrayList<>();
-        if (lowPref) buttons.add("Use " + recommended + " MB (this session)");
-        if (sntRunning) buttons.add("Open Preferences...");
-        buttons.add("Continue");
-        final javax.swing.JCheckBox dontAsk = new javax.swing.JCheckBox("Do not ask again");
-        final int choice = javax.swing.JOptionPane.showOptionDialog(null, new Object[]{msg.toString(), dontAsk},
-                "BVV GPU Cache", javax.swing.JOptionPane.DEFAULT_OPTION, javax.swing.JOptionPane.WARNING_MESSAGE,
-                null, buttons.toArray(), buttons.getLast());
-        if (dontAsk.isSelected()) BvvUtils.setCachePromptSuppressed(true);
-        if (choice < 0 || choice >= buttons.size()) return;
-        final String picked = buttons.get(choice);
-        if (picked.startsWith("Use ")) {
+        final boolean sntRunning = SNTUtils.getInstance() != null;
+        final String useLabel = "Use " + recommended + " MB (this session)";
+        final String prefsLabel = "Open Preferences...";
+        final String continueLabel = "Continue as is";
+        final List<String> options = new ArrayList<>();
+        if (lowPref) options.add(useLabel);
+        if (sntRunning) options.add(prefsLabel);
+        options.add(continueLabel);
+        // See confirmPyramidOrAbort(): the loading splash screen can end up rendered on top of this
+        // dialog, so hide it for the duration of the prompt and restore it afterward
+        final Object[] result;
+        SNTUtils.setIsLoading(false, true);
+        try {
+            result = new GuiUtils(null).getChoiceWithOptionAndInfo("BVV GPU Cache", msg.toString(),
+                    options.toArray(new String[0]), continueLabel, null, "Do not ask again", false);
+        } finally {
+            SNTUtils.setIsLoading(true, true);
+        }
+        if (result == null) return; // dismissed
+        if ((Boolean) result[1]) BvvUtils.setCachePromptSuppressed(true);
+        final String picked = (String) result[0];
+        if (useLabel.equals(picked)) {
             BvvUtils.setSessionCacheMB(recommended);
-        } else if (picked.startsWith("Open Preferences")) {
+        } else if (prefsLabel.equals(picked)) {
             try {
                 getContext().getService(org.scijava.command.CommandService.class).run(PrefsCmd.class, true).get();
             } catch (final InterruptedException | java.util.concurrent.ExecutionException ex) {
@@ -542,6 +552,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
     }
 
+    /** Adds each resolved source to {@code bvv}, and opens the interactive dialog for deferred N5/Zarr paths. */
     private void addSourcesToBvv(final Bvv bvv, final ResolvedSources resolved) {
         for (final Object source : resolved.sources()) {
             if (source instanceof AbstractSpimData<?> spim) {
