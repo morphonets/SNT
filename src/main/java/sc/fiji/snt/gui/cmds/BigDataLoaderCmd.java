@@ -138,6 +138,9 @@ public class BigDataLoaderCmd extends ContextCommand {
     @Parameter
     private PrefService prefService;
 
+    /** Last OME-Zarr written by {@link #convertToOmeZarr} */
+    private File convertedZarr;
+
     private static final String IMG1_KEY = "img1File";
     private static final String IMG2_KEY = "img2File";
     private static final String REC_KEY = "recFiles";
@@ -254,6 +257,10 @@ public class BigDataLoaderCmd extends ContextCommand {
                 viewer = runBvv(filePaths);
             else
                 viewer = runBdv(filePaths);
+            if (viewer != null) {
+                for (final String path : filePaths) viewer.registerOmeZarrSource(path);
+                if (convertedZarr != null) viewer.registerOmeZarrSource(convertedZarr.getAbsolutePath());
+            }
         } catch (final Exception e) {
             splashClosed = true;
             SNTUtils.setIsLoading(false, false); // hide splashscreen behind error dialog
@@ -265,13 +272,25 @@ public class BigDataLoaderCmd extends ContextCommand {
             if (viewer != null && viewer.getViewerFrame() != null && BoundingBox.UNSET_SPACING_UNIT.equals(viewer.getPhysicalUnit())) {
                 // viewer is reassigned above, so it is not effectively final: capture it for the lambda below
                 final AbstractBigViewer finalViewer = viewer;
-                GuiUtils.Notices.queueNotice(
-                        "<HTML><b>Spatial calibration values appear to be invalid.</b><br>"
-                                + "Click here to set it, or right-click the scale bar button in <i>Scene Controls</i>.",
-                        null, () -> {
-                            finalViewer.getViewerFrame().toFront();
-                            finalViewer.showCalibrationDialog(finalViewer.getViewerFrame());
-                        }, GuiUtils.Notices.PendingNotice.WARN);
+                final Runnable setUnit = () -> {
+                    finalViewer.getViewerFrame().toFront();
+                    finalViewer.showCalibrationDialog(finalViewer.getViewerFrame());
+                };
+                if (tracer) { // notification center only exists in SNT's UI
+                    GuiUtils.Notices.queueNotice(
+                            "<HTML><b>Spatial calibration values appear to be invalid.</b><br>"
+                                    + "The image reader may not have reported a unit. Click here to set it, or<br>"
+                                    + "right-click the scale bar button in <i>Scene Controls</i>.",
+                            null, setUnit, GuiUtils.Notices.PendingNotice.WARN);
+                } else {
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        if (new GuiUtils(finalViewer.getViewerFrame()).getConfirmation(
+                                "<HTML><b>Spatial calibration unit is unset.</b><br>The image reader did not report "
+                                        + "one (spacing may still be valid).<br>Distances will be in unknown units. "
+                                        + "Set it now?", "Unknown Unit", "Set Unit...", "Ignore"))
+                            setUnit.run();
+                    });
+                }
             }
         }
     }
@@ -1398,6 +1417,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         try {
             final long start = System.currentTimeMillis();
             ImgUtils.saveAsOmeZarr((ImgPlus) img, out, SNTPrefs.getThreads(), GuiUtils::setSplashMessage);
+            convertedZarr = out;
             SNTUtils.log("BVV: conversion finished in " + (System.currentTimeMillis() - start) / 1000 + "s");
             final Object resolved = SpimDataUtils.resolvePathToSource(out.getAbsolutePath());
             if (resolved instanceof SpimDataUtils.N5Sources n5

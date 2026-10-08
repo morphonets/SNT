@@ -34,6 +34,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -153,6 +154,21 @@ public abstract class AbstractBigViewer {
 
     /** Maps SpimData sources back to the file that produced them. */
     protected final Map<AbstractSpimData<?>, String> spimDataFilePaths = new IdentityHashMap<>();
+
+    /** Local OME-Zarr containers backing the loaded sources (see {@link #registerOmeZarrSource}) */
+    private final List<java.io.File> omeZarrSources = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * Registers the path of a source so that a unit set through {@link #showCalibrationDialog} can be saved to it.
+     * Ignored unless {@code path} is a local OME-Zarr (OME-NGFF v0.5) directory
+     *
+     * @param path the path of the loaded dataset
+     */
+    public void registerOmeZarrSource(final String path) {
+        final java.io.File f = ImgUtils.getLocalOmeZarrDir(path);
+        SNTUtils.log("registerOmeZarrSource: '" + path + "' " + (f != null ? "registered" : "ignored (not a local OME-Zarr v0.5)"));
+        if (f != null && !omeZarrSources.contains(f)) omeZarrSources.add(f);
+    }
 
     /** Voxel sizes [x, y, z] for the primary loaded volume, in {@link #calUnit} units. */
     protected double[] cal;
@@ -2133,6 +2149,22 @@ public abstract class AbstractBigViewer {
             snt.setImageMetadata(0, 0, 0, spacing[0], spacing[1], spacing[2], unit);
         }
         SNTUtils.log("Calibration overridden: " + spacing[0] + "x" + spacing[1] + "x" + spacing[2] + " " + unit);
+        final String ngffUnit = BoundingBox.UNSET_SPACING_UNIT.equals(unit) ? null : unit;
+        for (final java.io.File zarr : omeZarrSources) {
+            final ImgUtils.OmeZarrCalibration stored = ImgUtils.getOmeZarrCalibration(zarr.getAbsolutePath());
+            if (stored == null) continue;
+            boolean spacingChanged = false;
+            for (int d = 0; d < 3; d++)
+                spacingChanged |= Math.abs(spacing[d] - stored.spacing()[d]) > 1e-6 * Math.abs(stored.spacing()[d]);
+            final boolean unitChanged = ngffUnit != null && !BoundingBox.sanitizedUnit(ngffUnit)
+                    .equals(BoundingBox.sanitizedUnit(stored.unit()));
+            if (!spacingChanged && !unitChanged) continue;
+            if (!new GuiUtils(parent).getConfirmation("<HTML>Calibration differs from the one stored in '"
+                            + GuiUtils.Text.escapeHtml(zarr.getName()) + "'.<br>Save it so it is used next time?",
+                    "Update OME-Zarr", "Save", "No")) continue;
+            if (!ImgUtils.setOmeZarrCalibration(zarr.getAbsolutePath(), spacingChanged ? spacing : null, ngffUnit))
+                GuiUtils.errorPrompt("Could not update '" + zarr.getName() + "'. See Console for details.");
+        }
     }
 
     /**

@@ -16,8 +16,10 @@
 import java.util.function.Consumer
 import net.imagej.Dataset
 import net.imagej.ImgPlus
+import net.imagej.axis.Axes
 import sc.fiji.snt.SNTPrefs
 import sc.fiji.snt.util.ImgUtils
+
 
 // -------- Validate input and output location --------
 if (!inputFile.exists() || !inputFile.canRead()) {
@@ -44,6 +46,8 @@ def imgPlus = (opened instanceof Dataset) ? ((Dataset) opened).getImgPlus() : op
 if (!(imgPlus instanceof ImgPlus))
     throw new IllegalArgumentException("Unsupported type: " + opened.getClass().getName())
 println "Image: ${ImgUtils.axisReport(imgPlus)}"
+
+restoreSpatialUnit(imgPlus, inputFile) // TODO: may not ne needed
 
 // X, Y, Z[, C] layout: singleton axes are dropped and the others reordered, with no pixel copy
 def img = ImgUtils.normalizeToXYZ(imgPlus)
@@ -75,3 +79,36 @@ try {
 
 println "\nDone in ${(System.currentTimeMillis() - start) / 1000 as long}s! Open in BVV with:"
 println "  Bvv.open('${outDir.absolutePath}')"
+
+
+// -------- Helpers --------
+/**
+ * At least for some CZI fiels, SCIFIO may drop the spatial unit even though the spacing is correct.
+ * This sets the missing unit of the X, Y, Z axes from Bio-Formats metadata, in case they remain unset. 
+ * Spacing is left untouched.
+ */
+def restoreSpatialUnit(ImgPlus imgPlus, File file) {
+    def spatialAxes = (0..<imgPlus.numDimensions()).findAll {
+        imgPlus.axis(it).type() in [Axes.X, Axes.Y, Axes.Z]
+    }
+    if (!spatialAxes.any { !imgPlus.axis(it).unit() }) return
+    def reader = null
+    def symbol = null
+    try {
+        reader = new loci.formats.ImageReader()
+        def store = loci.formats.MetadataTools.createOMEXMLMetadata()
+        reader.setMetadataStore(store)
+        reader.setId(file.absolutePath)
+        symbol = store.getPixelsPhysicalSizeX(0)?.unit()?.getSymbol()
+    } catch (Throwable t) {
+        println "Could not read the unit from Bio-Formats: ${t}"
+    } finally {
+        reader?.close()
+    }
+    if (symbol) {
+        spatialAxes.findAll { !imgPlus.axis(it).unit() }.each { imgPlus.axis(it).setUnit(symbol) }
+        println "Spatial unit missing in source: set to '${symbol}' from Bio-Formats metadata"
+    } else {
+        println "WARNING: spatial unit unknown. The OME-Zarr will be written without units (spacing is kept)"
+    }
+}

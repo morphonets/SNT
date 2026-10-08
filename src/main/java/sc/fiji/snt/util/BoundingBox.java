@@ -195,7 +195,9 @@ public class BoundingBox implements Cloneable {
 		final String sanitizedUnit = unit.trim().toLowerCase();
 		if (sanitizedUnit.isEmpty()) {
 			return UNSET_SPACING_UNIT;
-		} else if ("um".equals(sanitizedUnit) || "micron".equals(sanitizedUnit) || "microns".equals(sanitizedUnit)) {
+		} else if ("um".equals(sanitizedUnit) || "micron".equals(sanitizedUnit) || "microns".equals(sanitizedUnit)
+				|| "micrometer".equals(sanitizedUnit) || "micrometre".equals(sanitizedUnit)
+				|| "micrometers".equals(sanitizedUnit) || "micrometres".equals(sanitizedUnit)) {
 			return GuiUtils.micrometer();
 		}
 		return unit;

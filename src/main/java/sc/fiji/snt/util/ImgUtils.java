@@ -2006,7 +2006,9 @@ public class ImgUtils {
     private static void writeOmeNgffMetadata(final org.janelia.saalfeldlab.n5.N5Writer n5, final ImgPlus<?> img,
                                               final List<long[]> levelDims, final boolean hasChannels)
             throws IOException {
-        final String unit = ngffUnit(img.axis(0).unit());
+        final String unit = spatialNgffUnit(img);
+        if (unit == null) SNTUtils.log("OME-Zarr export: unrecognized spatial unit(s) " + unitReport(img)
+                + "; axes will be written without units");
         final int nDim = hasChannels ? 4 : 3;
         final org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis[] axes =
                 new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis[nDim];
@@ -2046,12 +2048,178 @@ public class ImgUtils {
         }
     }
 
+    /**
+     * Resolves a path to a local OME-Zarr (OME-NGFF v0.5) container directory. Accepts the directory itself or its
+     * {@code zarr.json} file (as returned by some file choosers)
+     *
+     * @param path the path to check
+     * @return the container directory, or null if {@code path} is not a local OME-Zarr v0.5 container
+     */
+    public static File getLocalOmeZarrDir(final String path) {
+        if (path == null || path.isBlank() || path.contains("://")) return null;
+        File f = new File(path);
+        if (f.isFile() && "zarr.json".equals(f.getName())) f = f.getParentFile();
+        return (f != null && f.isDirectory() && new File(f, "zarr.json").isFile()) ? f : null;
+    }
+
+    /**
+     * The spatial calibration stored in the metadata of an OME-Zarr
+     *
+     * @param spacing the level 0 voxel size along X, Y and Z
+     * @param unit    the OME-NGFF unit name of the spatial axes (e.g., "micrometer"), or null if not set
+     */
+    public record OmeZarrCalibration(double[] spacing, String unit) {
+    }
+
+    private static com.google.gson.JsonObject readOmeZarrRoot(final File zarrDir) throws IOException {
+        return com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(
+                new File(zarrDir, "zarr.json").toPath(), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+    }
+
+    /** Index of the x, y, z axes (in that order) of an OME-NGFF multiscales entry, or null if any is missing */
+    private static int[] spatialAxisIndices(final com.google.gson.JsonObject multiscale) {
+        final int[] idx = {-1, -1, -1};
+        final var axes = multiscale.getAsJsonArray("axes");
+        for (int i = 0; i < axes.size(); i++) {
+            final var name = axes.get(i).getAsJsonObject().get("name");
+            if (name == null) continue;
+            final int d = "xyz".indexOf(name.getAsString().toLowerCase(Locale.ROOT));
+            if (d >= 0 && name.getAsString().length() == 1) idx[d] = i;
+        }
+        return (idx[0] < 0 || idx[1] < 0 || idx[2] < 0) ? null : idx;
+    }
+
+    /**
+     * Reads the spatial calibration from the root metadata of a local OME-Zarr (OME-NGFF v0.5) container
+     *
+     * @param path the container directory (or its {@code zarr.json}, see {@link #getLocalOmeZarrDir})
+     * @return the calibration of the first multiscale image, or null if unavailable
+     */
+    public static OmeZarrCalibration getOmeZarrCalibration(final String path) {
+        final File dir = getLocalOmeZarrDir(path);
+        if (dir == null) return null;
+        try {
+            final var ms = readOmeZarrRoot(dir).getAsJsonObject("attributes").getAsJsonObject("ome")
+                    .getAsJsonArray("multiscales").get(0).getAsJsonObject();
+            final int[] idx = spatialAxisIndices(ms);
+            if (idx == null) return null;
+            final var s0 = ms.getAsJsonArray("datasets").get(0).getAsJsonObject()
+                    .getAsJsonArray("coordinateTransformations");
+            double[] spacing = null;
+            for (final var t : s0) {
+                final var o = t.getAsJsonObject();
+                if ("scale".equals(o.get("type").getAsString())) {
+                    spacing = new double[3];
+                    for (int d = 0; d < 3; d++) spacing[d] = o.getAsJsonArray("scale").get(idx[d]).getAsDouble();
+                }
+            }
+            if (spacing == null) return null;
+            final var u = ms.getAsJsonArray("axes").get(idx[0]).getAsJsonObject().get("unit");
+            return new OmeZarrCalibration(spacing, (u == null || u.isJsonNull()) ? null : u.getAsString());
+        } catch (final Exception e) {
+            SNTUtils.log("Could not read calibration from " + path + ": " + e);
+            return null;
+        }
+    }
+
+    /**
+     * Sets the unit of the spatial axes in the root metadata of a local OME-Zarr (OME-NGFF v0.5) container. Only the
+     * metadata file is rewritten
+     *
+     * @param path the container directory (or its {@code zarr.json}, see {@link #getLocalOmeZarrDir})
+     * @param unit the unit (e.g., "um", "\u00b5m", "micrometer"). Must be recognized
+     * @return true if the metadata was updated
+     */
+    public static boolean setOmeZarrUnit(final String path, final String unit) {
+        return setOmeZarrCalibration(path, null, unit);
+    }
+
+    /**
+     * Sets the spacing and/or unit in the root metadata of a local OME-Zarr (OME-NGFF v0.5) container. Spacing is
+     * the level 0 voxel size: the scale and translation of every pyramid level are rescaled by the ratio between
+     * the new and the stored spacing, so the pyramid stays consistent. Only the metadata file is rewritten
+     *
+     * @param path    the container directory (or its {@code zarr.json}, see {@link #getLocalOmeZarrDir})
+     * @param spacing the new X, Y, Z voxel size, or null to leave it unchanged
+     * @param unit    the new unit (see {@link #setOmeZarrUnit}), or null/unrecognized to leave it unchanged
+     * @return true if the metadata was updated
+     */
+    public static boolean setOmeZarrCalibration(final String path, final double[] spacing, final String unit) {
+        final File dir = getLocalOmeZarrDir(path);
+        final String ngff = ngffUnit(unit);
+        if (dir == null || (ngff == null && spacing == null)) return false;
+        try {
+            final OmeZarrCalibration old = (spacing == null) ? null : getOmeZarrCalibration(path);
+            if (spacing != null && old == null) return false;
+            final com.google.gson.JsonObject root = readOmeZarrRoot(dir);
+            boolean changed = false;
+            for (final var msEl : root.getAsJsonObject("attributes").getAsJsonObject("ome")
+                    .getAsJsonArray("multiscales")) {
+                final var ms = msEl.getAsJsonObject();
+                final int[] idx = spatialAxisIndices(ms);
+                if (idx == null) continue;
+                final var axes = ms.getAsJsonArray("axes");
+                if (ngff != null) for (final int i : idx) {
+                    axes.get(i).getAsJsonObject().addProperty("unit", ngff);
+                    changed = true;
+                }
+                if (spacing == null) continue;
+                final var transforms = new java.util.ArrayList<com.google.gson.JsonElement>();
+                for (final var ds : ms.getAsJsonArray("datasets"))
+                    ds.getAsJsonObject().getAsJsonArray("coordinateTransformations").forEach(transforms::add);
+                if (ms.has("coordinateTransformations")) ms.getAsJsonArray("coordinateTransformations")
+                        .forEach(transforms::add);
+                for (final var t : transforms) {
+                    final var o = t.getAsJsonObject();
+                    final String type = o.get("type").getAsString();
+                    if (!"scale".equals(type) && !"translation".equals(type)) continue;
+                    final var values = o.getAsJsonArray(type);
+                    for (int d = 0; d < 3; d++) {
+                        values.set(idx[d], new com.google.gson.JsonPrimitive(
+                                values.get(idx[d]).getAsDouble() * spacing[d] / old.spacing()[d]));
+                        changed = true;
+                    }
+                }
+            }
+            if (changed) java.nio.file.Files.writeString(new File(dir, "zarr.json").toPath(),
+                    new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(root),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            return changed;
+        } catch (final Exception e) {
+            SNTUtils.error("Could not update calibration of " + path, e);
+            return false;
+        }
+    }
+
+    /**
+     * Returns the first recognized spatial unit (as an OME-NGFF name) among the X, Y and Z axes of {@code img}, or
+     * null if none is recognized. Bio-Formats readers do not always set the unit on every axis (or spell it as
+     * expected), so all spatial axes are checked, not just the first
+     *
+     * @param img the image
+     * @return the OME-NGFF unit name (e.g., "micrometer"), or null if uncalibrated/unrecognized
+     */
+    public static String spatialNgffUnit(final ImgPlus<?> img) {
+        for (int d = 0; d < Math.min(3, img.numDimensions()); d++) {
+            final String u = ngffUnit(img.axis(d).unit());
+            if (u != null) return u;
+        }
+        return null;
+    }
+
+    private static String unitReport(final ImgPlus<?> img) {
+        final StringBuilder sb = new StringBuilder();
+        for (int d = 0; d < Math.min(3, img.numDimensions()); d++)
+            sb.append(d > 0 ? ", '" : "'").append(img.axis(d).unit()).append('\'');
+        return sb.toString();
+    }
+
     /** Maps common unit spellings to the UDUNITS-2 names required by OME-NGFF, or null if unknown/uncalibrated */
     private static String ngffUnit(final String unit) {
         if (unit == null) return null;
         return switch (unit.trim().toLowerCase(Locale.ROOT)) {
-            case "um", "\u00b5m", "\u03bcm", "micron", "microns", "micrometer", "micrometre", "micrometers" ->
-                    "micrometer";
+            case "um", "\u00b5m", "\u03bcm", "micron", "microns", "micrometer", "micrometre", "micrometers",
+                 "micrometres" -> "micrometer";
             case "nm", "nanometer", "nanometre", "nanometers" -> "nanometer";
             case "mm", "millimeter", "millimetre", "millimeters" -> "millimeter";
             case "m", "meter", "metre", "meters" -> "meter";
