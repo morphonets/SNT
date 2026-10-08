@@ -1009,8 +1009,8 @@ public class Bdv extends AbstractBigViewer {
         if (cp != null) {
             cp.addCard("Scene Controls", sceneControls = buildSceneControlToolbar(), true);
             cp.addCard("SNT Controls", sntControls = sntAnnotationsCard(actions), true);
+            collapseGroupsCard(cp);
             SwingUtilities.invokeLater(() -> {
-                cp.setCardExpanded("Groups", false);
                 cp.setCardExpanded("Scene Controls", true);
                 cp.setCardExpanded("SNT Controls", true);
             });
@@ -1159,7 +1159,6 @@ public class Bdv extends AbstractBigViewer {
 
     private JToolBar buildSceneControlToolbar() {
         final JToolBar bar = buildBaseSceneControlToolbar();
-        bar.addSeparator();
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
         final JPopupMenu menu = new JPopupMenu();

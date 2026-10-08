@@ -1396,7 +1396,7 @@ public class Bvv extends AbstractBigViewer {
                 tracer = new Tracer(snt);
                 // We'll re-assign the viewer to the GUI here because only at this point the viewer frame is
                 // available and this allows snt.getUI().setBvv() to inject the window listener that monitors
-                // window closing. Innocous if viewer has been already assigned
+                // window closing. Innocuous if viewer has been already assigned
                 if (snt.getUI() != null) snt.getUI().setBvv(this);
             }
             sceneOverlay = new SceneOverlay();
@@ -1461,6 +1461,7 @@ public class Bvv extends AbstractBigViewer {
             }
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
             resizeCardPanelsAsNeeded(sceneControlsCard);
+            collapseGroupsCard(bvvFrame.getCardPanel());
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
         initBrightnessOrRestore(bvv.getViewer().state(), bvv.getViewer().getConverterSetups(), null, null, "BVV");
@@ -3577,7 +3578,6 @@ public class Bvv extends AbstractBigViewer {
             crosshairToggle.setSelected(true);
             bar.add(crosshairToggle);
             bar.add(axesButton());
-            bar.addSeparator();
             bar.add(Box.createHorizontalGlue());
             bar.addSeparator();
             bar.add(optionsButton(bvvActions));
@@ -3621,7 +3621,7 @@ public class Bvv extends AbstractBigViewer {
             // Render quality preset: set in SNT's Preferences (render size cannot change once a window exists)
             final BvvUtils.RenderQuality quality = BvvUtils.getRenderQuality();
             final javax.swing.JMenuItem qualityItem = new javax.swing.JMenuItem("Quality: " + quality.label + "...");
-            qualityItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.GAUGE));
+            IconFactory.assignIcon(qualityItem, IconFactory.GLYPH.GAUGE);
             qualityItem.setToolTipText("<html>" + quality.description
                     + "<br>Set in SNT's Preferences. Requires a restart.");
             qualityItem.addActionListener(e -> runSNTPrefs());
@@ -3631,7 +3631,7 @@ public class Bvv extends AbstractBigViewer {
             final int prefMB = BvvUtils.getCachePrefMB();
             final javax.swing.JMenuItem cacheItem = new javax.swing.JMenuItem("Tile cache: "
                     + (prefMB > 0 ? Math.min(prefMB, BvvUtils.maxCacheMB()) + " MB..." : "Auto..."));
-            cacheItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MICROCHIP));
+            IconFactory.assignIcon(cacheItem, IconFactory.GLYPH.MICROCHIP);
             cacheItem.setToolTipText("<html>Maximum GPU memory BVV may use to cache volume tiles of pyramidal data"
                     + "<br>Set in SNT's Preferences. Requires a restart.");
             cacheItem.addActionListener(e -> runSNTPrefs());

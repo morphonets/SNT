@@ -28,6 +28,7 @@ import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.*;
+import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.IconFactory;
@@ -304,6 +305,15 @@ public abstract class AbstractBigViewer {
             }
         }
         return widest;
+    }
+
+    /**
+     * Collapses the stock "Groups" card. Must be called on the EDT
+     *
+     * @param cardPanel the viewer's card panel
+     */
+    protected static void collapseGroupsCard(final bdv.ui.CardPanel cardPanel) {
+        cardPanel.setCardExpanded(bdv.ui.BdvDefaultCards.DEFAULT_SOURCEGROUPS_CARD, false);
     }
 
     void resizeCardPanelsAsNeeded(final JComponent refPanel) {
@@ -2135,9 +2145,26 @@ public abstract class AbstractBigViewer {
         panel.add(new JLabel("Unit"));
         final JTextField unitField = new JTextField(getPhysicalUnit(), 6);
         panel.add(unitField);
-        final int result = JOptionPane.showConfirmDialog(SwingUtilities.getWindowAncestor(parent), panel,
-                "Set Calibration", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        final int bgArgb = Prefs.scaleBarBgColor();
+        final ColorChooserButton fgButton = new ColorChooserButton(new Color(Prefs.scaleBarColor(), true), "Foreground");
+        final ColorChooserButton bgButton = new ColorChooserButton(new Color(bgArgb, true), "Background");
+        fgButton.setName("Scale Bar Foreground Color");
+        bgButton.setName("Scale Bar Background Color");
+        final JPanel colorRow = new JPanel(new FlowLayout());
+        colorRow.add(new JLabel("Scaler bar colors:"));
+        colorRow.add(fgButton);
+        colorRow.add(bgButton);
+        final JPanel content = new JPanel(new java.awt.GridLayout(0, 1));
+        content.add(panel);
+        content.add(colorRow);
+        final int result = JOptionPane.showConfirmDialog(SwingUtilities.getWindowAncestor(parent), content,
+                "Spatial Calibration & Scale Bar Options", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result != JOptionPane.OK_OPTION) return;
+        Prefs.scaleBarColor(fgButton.getSelectedColor().getRGB());
+        // The chooser may return opaque colors: keep the translucency of the default background
+        final Color bg = bgButton.getSelectedColor();
+        Prefs.scaleBarBgColor((bg.getAlpha() == 255) ? (bg.getRGB() & 0x00ffffff) | (bgArgb & 0xff000000) : bg.getRGB());
+        repaint();
         final double[] spacing = {
                 ((Number) spinners[0].getValue()).doubleValue(),
                 ((Number) spinners[1].getValue()).doubleValue(),
@@ -2180,7 +2207,6 @@ public abstract class AbstractBigViewer {
         bar.add(GuiUtils.Buttons.toolbarButton(actions.fitToCurrentSourceAction(),
                 "Fit view to the current (selected) source"));
         bar.add(autoBrightnessButton(actions));
-        bar.addSeparator();
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
         // Action names match those registered by BDV/BVV NavigationActions
@@ -2193,11 +2219,10 @@ public abstract class AbstractBigViewer {
             final Action a = getViewerAction(entry.getKey());
             if (a == null) continue;
             final JButton btn = GuiUtils.Buttons.toolbarButton(a, entry.getKey());
-            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .75f, null));
+            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .9f, null));
             alignGroup.add(btn);
             bar.add(btn);
         }
-        bar.addSeparator();
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
         final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
@@ -2209,13 +2234,20 @@ public abstract class AbstractBigViewer {
         final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
                 Actions.overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
                         show -> { Prefs.showTextOverlay(show); repaint(); }),
-                "Show/hide text overlay", IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
+                "Show/hide text overlay (right-click: set position)", IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
         textToggle.setSelected(Prefs.showTextOverlay());
+        textToggle.addMouseListener(new java.awt.event.MouseAdapter() {
+            private void handlePopup(final java.awt.event.MouseEvent ev) {
+                if (ev.isPopupTrigger()) { ev.consume(); promptTextOverlayPosition(textToggle); }
+            }
+            @Override public void mousePressed(final java.awt.event.MouseEvent ev)  { handlePopup(ev); }
+            @Override public void mouseReleased(final java.awt.event.MouseEvent ev) { handlePopup(ev); }
+        });
         bar.add(textToggle);
         final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
                 Actions.overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
                         show -> { Prefs.showScaleBar(show); repaint(); }),
-                "Show/hide scale bar (right-click: set calibration)",
+                "Show/hide scale bar (right-click: calibration and colors)",
                 IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
         scaleBarToggle.setSelected(Prefs.showScaleBar());
         scaleBarToggle.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -2227,6 +2259,20 @@ public abstract class AbstractBigViewer {
         });
         bar.add(scaleBarToggle);
         return bar;
+    }
+
+    private void promptTextOverlayPosition(final JToggleButton toggle) {
+        final String[] choices = {"Top center", "Top right"};
+        final String current = (Prefs.sourceNameOverlayPosition() == Prefs.OverlayPosition.TOP_RIGHT)
+                ? choices[1] : choices[0];
+        final String choice = new GuiUtils(getViewerFrame()).getChoice(
+                "Position of the source name overlay:", "Text Overlay Position", choices, current);
+        if (choice == null) return;
+        Prefs.sourceNameOverlayPosition(choices[1].equals(choice)
+                ? Prefs.OverlayPosition.TOP_RIGHT : Prefs.OverlayPosition.TOP_CENTER);
+        Prefs.showTextOverlay(true);
+        toggle.setSelected(true);
+        repaint();
     }
 
     static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
