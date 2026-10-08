@@ -349,10 +349,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                             SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
                     // Same non-pyramidal-dataset risk as resolveBvvSources(), only relevant for BVV
                     if (viewer instanceof Bvv bvv) {
-                        final SpimDataUtils.N5Sources cellBacked = cellBacked(n5Sources);
-                        if (confirmPyramidOrAbort(cellBacked, n5ZarrDir) && awaitBvvSourcesReady(cellBacked)) {
-                            bvv.show(withSyntheticPyramid(cellBacked));
-                        }
+                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir)) showN5InBvv(bvv, n5Sources);
                     } else if (viewer instanceof Bdv bdv) {
                         bdv.show(n5Sources);
                     }
@@ -496,7 +493,8 @@ public class BigDataLoaderCmd extends ContextCommand {
      * the user's preference is too low or if the JVM heap limits the cache below what is needed. Must run before the
      * first BVV window is created (the cache size cannot change afterwards)
      */
-    private void checkGpuCache(final int nChannels) {
+    private void checkGpuCache(final Bvv bvv, final int nChannels) {
+        if (bvv.getViewerFrame() != null) return; // the cache size cannot change once a window exists
         final int cap = BvvUtils.maxCacheMB();
         final int want = Math.min(nChannels * BvvUtils.CACHE_MB_PER_CHANNEL, BvvUtils.MAX_CACHE_SIZE_MB);
         final int pref = BvvUtils.getCachePrefMB();
@@ -552,20 +550,28 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
     }
 
+    /**
+     * Shows N5/Zarr sources in {@code bvv}: makes them streamable, reports unfavorable chunking, checks the GPU tile
+     * cache and builds a synthetic pyramid if they have none
+     */
+    private void showN5InBvv(final Bvv bvv, final SpimDataUtils.N5Sources n5) {
+        // Wrapped before the prefetch: the prefetch must see the final stack type, otherwise it touches
+        // every voxel of level 0
+        final SpimDataUtils.N5Sources cellBacked = cellBacked(n5);
+        BvvUtils.reportChunking(n5.name(), n5.chunkShape());
+        if (awaitBvvSourcesReady(cellBacked)) {
+            checkGpuCache(bvv, cellBacked.sources().size());
+            bvv.show(withSyntheticPyramid(cellBacked));
+        }
+    }
+
     /** Adds each resolved source to {@code bvv}, and opens the interactive dialog for deferred N5/Zarr paths. */
     private void addSourcesToBvv(final Bvv bvv, final ResolvedSources resolved) {
         for (final Object source : resolved.sources()) {
             if (source instanceof AbstractSpimData<?> spim) {
                 bvv.show(spim);
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                // Wrapped before the prefetch: the prefetch must see the final stack type, otherwise it touches
-                // every voxel of level 0
-                final SpimDataUtils.N5Sources cellBacked = cellBacked(n5);
-                BvvUtils.reportChunking(n5.name(), n5.chunkShape());
-                if (awaitBvvSourcesReady(cellBacked)) {
-                    checkGpuCache(cellBacked.sources().size());
-                    bvv.show(withSyntheticPyramid(cellBacked));
-                }
+                showN5InBvv(bvv, n5);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) img);

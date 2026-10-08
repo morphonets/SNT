@@ -1136,13 +1136,12 @@ public class Bvv extends AbstractBigViewer {
 
     private BvvOptions configureBvvOptionsForImage(final long nSlices, final int nChannels) {
         final int blockSize = nSlices <= 32 ? 32 : nSlices <= 64 ? 64 : 128;
-        // Read render quality preferences (set via Camera Controls options menu)
-        final SNTPrefs prefs = (snt != null) ? snt.getPrefs() : null;
+        // Read render quality preferences (set via SNT's Preferences)
         final BvvUtils.RenderQuality quality = BvvUtils.getRenderQuality();
         final int renderW = quality.size;
         final int renderH = quality.size;
         final int maxMillis = quality.millis;
-        final double maxStep = BvvUtils.parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS);
+        final double maxStep = SNTPrefs.getBvvMaxStep();
         final int cacheMB = BvvUtils.effectiveCacheMB(nChannels, false);
         SNTUtils.log(String.format(
                 "BVV: %d slices, %d ch, blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f cache=%dMB",
@@ -3640,14 +3639,14 @@ public class Bvv extends AbstractBigViewer {
             menu.add(cacheItem);
             // maxAllowedStepInVoxels: takes effect immediately
             addSeparator(menu, IconFactory.GLYPH.STAIRS, "Ray-Marching Step");
-            final double curStep = BvvUtils.parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, 1.0);
-            final JSpinner stepSpinner = GuiUtils.Fields.doubleSpinner(curStep, 0.1, 8.0, 0.1, 1);
+            final double curStep = SNTPrefs.getBvvMaxStep();
+            final JSpinner stepSpinner = GuiUtils.Fields.doubleSpinner(curStep, SNTPrefs.BVV_MIN_MAX_STEP, SNTPrefs.BVV_MAX_MAX_STEP, 0.1, 1);
             setSpinnerToolTip(stepSpinner, "<html>Ray-marching step size in voxels (range: 0.1 - 8.0).<br>"
                     + "Smaller = higher quality, slower. Larger = faster, lower quality.<br>Default: 1.0");
             stepSpinner.addChangeListener(e -> {
                 final double step = ((Number) stepSpinner.getValue()).doubleValue();
                 bvvInstance.getViewerFrame().getViewerPanel().setMaxAllowedStepInVoxels(step);
-                if (prefs != null) prefs.setTemp(SNTPrefs.BVV_MAX_STEP_IN_VOXELS, String.valueOf(step));
+                SNTPrefs.setBvvMaxStep(step);
                 bvvInstance.getViewerFrame().getViewerPanel().requestRepaint();
             });
             menu.add(GuiUtils.Fields.withDefaultButton(stepSpinner, BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS));

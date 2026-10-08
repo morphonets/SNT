@@ -115,41 +115,34 @@ public final class BvvUtils {
         }
     }
 
-    private static final String QUALITY_PREF_KEY = "snt.bvv.renderQuality";
-
     /** @return the persisted render quality preset (applies the next time a BVV window is opened) */
     public static RenderQuality getRenderQuality() {
+        final String name = SNTPrefs.getBvvRenderQuality();
         try {
-            return RenderQuality.valueOf(ij.Prefs.get(QUALITY_PREF_KEY, RenderQuality.MEDIUM.name()));
+            return (name == null) ? RenderQuality.MEDIUM : RenderQuality.valueOf(name);
         } catch (final IllegalArgumentException ignored) {
             return RenderQuality.MEDIUM;
         }
     }
 
     public static void setRenderQuality(final RenderQuality quality) {
-        ij.Prefs.set(QUALITY_PREF_KEY, (quality == null ? RenderQuality.MEDIUM : quality).name());
+        SNTPrefs.setBvvRenderQuality((quality == null ? RenderQuality.MEDIUM : quality).name());
     }
 
     /** Hard ceiling (MB) for the GPU tile cache */
     public static final int MAX_CACHE_SIZE_MB = 2048;
     /** Rough GPU tile budget (MB) a streamed pyramid needs per channel for a full-screen view without thrashing */
     public static final int CACHE_MB_PER_CHANNEL = 1024;
-    private static final String CACHE_PREF_KEY = "snt.bvv.cacheSizeMB";
-    private static final String CACHE_NO_ASK_KEY = "snt.bvv.cacheNoAsk";
     private static volatile int sessionCacheMB = 0;
 
     /** @return the user's GPU tile cache preference (MB). 0 means automatic */
     public static int getCachePrefMB() {
-        try {
-            return Math.max(0, Integer.parseInt(ij.Prefs.get(CACHE_PREF_KEY, "0").trim()));
-        } catch (final NumberFormatException ignored) {
-            return 0;
-        }
+        return SNTPrefs.getBvvCacheMB();
     }
 
     /** Persists the GPU tile cache preference (MB). 0 means automatic. Applies next time a BVV window is opened */
     public static void setCachePrefMB(final int mb) {
-        ij.Prefs.set(CACHE_PREF_KEY, String.valueOf(Math.max(0, mb)));
+        SNTPrefs.setBvvCacheMB(mb);
     }
 
     /** Overrides the preference for the current session only (0 clears the override) */
@@ -158,11 +151,11 @@ public final class BvvUtils {
     }
 
     public static boolean isCachePromptSuppressed() {
-        return "true".equals(ij.Prefs.get(CACHE_NO_ASK_KEY, "false"));
+        return SNTPrefs.isBvvCachePromptSuppressed();
     }
 
     public static void setCachePromptSuppressed(final boolean suppress) {
-        ij.Prefs.set(CACHE_NO_ASK_KEY, String.valueOf(suppress));
+        SNTPrefs.setBvvCachePromptSuppressed(suppress);
     }
 
     /** @return the largest GPU tile cache (MB) we allow: {@link #MAX_CACHE_SIZE_MB} or 25% of the JVM max heap */
@@ -191,7 +184,7 @@ public final class BvvUtils {
     }
 
     /** Default maximum ray-marching step size (voxels). */
-    static final double DEFAULT_MAX_STEP_IN_VOXELS = 1.0;
+    static final double DEFAULT_MAX_STEP_IN_VOXELS = SNTPrefs.BVV_DEFAULT_MAX_STEP;
 
     /**
      * Camera-to-Z-extent scaling factor. After initTransform, BDV maps the largest
@@ -230,30 +223,6 @@ public final class BvvUtils {
                     .lines().collect(Collectors.joining("\n"));
         } catch (final Exception e) {
             return "// Error loading template: " + e.getMessage();
-        }
-    }
-
-    /**
-     * Parses an integer preference from SNTPrefs, returning a default on failure.
-     */
-    static int parseIntPref(final SNTPrefs prefs, final String key, final int def) {
-        if (prefs == null) return def;
-        try {
-            return Integer.parseInt(prefs.getTemp(key, String.valueOf(def)));
-        } catch (final NumberFormatException ignored) {
-            return def;
-        }
-    }
-
-    /**
-     * Parses a double preference from SNTPrefs, returning a default on failure.
-     */
-    static double parseDoublePref(final SNTPrefs prefs, final String key, final double def) {
-        if (prefs == null) return def;
-        try {
-            return Double.parseDouble(prefs.getTemp(key, String.valueOf(def)));
-        } catch (final NumberFormatException ignored) {
-            return def;
         }
     }
 

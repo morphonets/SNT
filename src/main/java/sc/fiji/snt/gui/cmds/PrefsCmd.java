@@ -362,9 +362,6 @@ public class PrefsCmd extends OptionsPlugin {
 			findClasses(pkg).forEach(c -> prefService.clear(c));
 		}
 		SNTPrefs.clearAll(); // Legacy (IJ1-based) preferences
-		BvvUtils.setCachePrefMB(0);
-		BvvUtils.setRenderQuality(BvvUtils.RenderQuality.MEDIUM);
-		BvvUtils.setCachePromptSuppressed(false);
 		FileChooser.resetPreferences(); // Others
 		ij.gui.PointRoi.setDefaultSize(3); // mid-size default
 	}
