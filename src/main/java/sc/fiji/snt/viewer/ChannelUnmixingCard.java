@@ -74,7 +74,8 @@ class ChannelUnmixingCard {
     private static void setError(final AbstractButton toggleButton,
                                  final JLabel statusLabel, final String msg) {
         final boolean wasSelected = toggleButton.isSelected();
-        statusLabel.setText(msg);
+        final int index = msg.indexOf('(');
+        statusLabel.setText(msg.substring(0, (index>-1) ? index : msg.length()));
         toggleButton.setSelected(false);
         if (wasSelected)
             GuiUtils.errorPrompt(msg + ".");
@@ -217,13 +218,20 @@ class ChannelUnmixingCard {
 
             if (sameChannel) {
                 weightSlider.setEnabled(false);
-                setError(enableToggle, statusLabel, "Signal and background channels must differ");
+                setError(enableToggle, statusLabel, "Signal and background channels must differ.");
             } else if (needSlab && !slabActive) {
                 weightSlider.setEnabled(false);
                 setError(enableToggle, statusLabel, "Slab view required to limit memory usage. Please enable it.");
             } else if (needSlab && !slabThin) {
                 weightSlider.setEnabled(false);
-                setError(enableToggle, statusLabel, "Slab too thick for memory safety (≤" + (int) (maxSlabThickness / zCal) + " slices needed)");
+                // Floor to 1 decimal, as typed in the (1-decimal) thickness spinner, so the suggested value is valid
+                final String unit = owner.getPhysicalUnit();
+                final boolean unitKnown = unit != null && !unit.isBlank()
+                        && !sc.fiji.snt.util.BoundingBox.UNSET_SPACING_UNIT.equals(unit);
+                setError(enableToggle, statusLabel, String.format(
+                        "Slab too thick for memory safety (max. thickness should be %.1f%s, i.e., %d slices).",
+                        Math.floor(maxSlabThickness * 10) / 10, unitKnown ? " " + unit : "",
+                        (int) (maxSlabThickness / zCal)));
             } else if (enableToggle.isSelected()) {
                 weightSlider.setEnabled(true);
                 if (recomputePending) {

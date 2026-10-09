@@ -1299,7 +1299,11 @@ public class BookmarkManager {
         return new AbstractAction("GoTo", IconFactory.menuIcon('\ue4be', true)) {
             @Override
             public void actionPerformed(final ActionEvent e) {
-                if (viewer == null && sntui.plugin.getImagePlus() == null) {
+                if (viewer != null) {
+                    viewer.promptGoTo();
+                    return;
+                }
+                if (sntui.plugin.getImagePlus() == null) {
                     noImageOpenError();
                     return;
                 }
@@ -1311,22 +1315,16 @@ public class BookmarkManager {
                 if (pos == null) return;
                 try {
                     final PointInImage pim = SNTPoint.fromString(pos);
-                    // encode position in bookmark label so it is displayed in viewer (see flyTo)
                     final Bookmark b = new Bookmark(String.format("%.2f, %.2f, %.2f", pim.x, pim.y, pim.z),
                             pim.x, pim.y, pim.z, 1, 1);
-                    if (viewer != null) {
-                        flyTo(b);
-                    } else {
-                        goTo(b, sntui.plugin.getImagePlus(), SNT.XY_PLANE);
-                        if (!sntui.plugin.getSinglePane()) {
-                            final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
-                            if (zyImp != null) goTo(b, zyImp, SNT.ZY_PLANE);
-                            final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
-                            if (xzImp != null) goTo(b, xzImp, SNT.XZ_PLANE);
-                        }
-                        sntui.showStatus(String.format("Zoomed to %s", b.label), true);
-
+                    goTo(b, sntui.plugin.getImagePlus(), SNT.XY_PLANE);
+                    if (!sntui.plugin.getSinglePane()) {
+                        final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
+                        if (zyImp != null) goTo(b, zyImp, SNT.ZY_PLANE);
+                        final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
+                        if (xzImp != null) goTo(b, xzImp, SNT.XZ_PLANE);
                     }
+                    sntui.showStatus(String.format("Zoomed to %s", b.label), true);
                 } catch (final Throwable ex) {
                     getGuiUtils().error("Could not extract a valid location from \"" + pos + "\".");
                 }
@@ -1428,28 +1426,7 @@ public class BookmarkManager {
 
     private void flyTo(final Bookmark b) {
         if (viewer == null) return;
-        final net.imglib2.realtransform.AffineTransform3D current = viewer.getViewerTransform();
-        // The viewer transform maps world -> screen. To centre the bookmark on
-        // screen we keep the current rotation/scale but adjust the translation
-        // so that the bookmark's world position maps to the screen centre.
-        // screenPos = R * worldPos + t, so t_new = screenCentre - R * worldPos
-        final double[] worldPos = {b.getX(), b.getY(), b.getZ()};
-        final double[] mapped = new double[3];
-        current.apply(worldPos, mapped);
-        // mapped = R * worldPos + t_current, so R * worldPos = mapped - t_current
-        final double rx = mapped[0] - current.get(0, 3);
-        final double ry = mapped[1] - current.get(1, 3);
-        final double rz = mapped[2] - current.get(2, 3);
-        final double cX = viewer.getViewerWidth()  / 2.0;
-        final double cY = viewer.getViewerHeight() / 2.0;
-        final net.imglib2.realtransform.AffineTransform3D target = current.copy();
-        target.set(cX - rx, 0, 3);
-        target.set(cY - ry, 1, 3);
-        target.set(   - rz, 2, 3);
-        viewer.setViewerTransform(target, 300);
-        // The camera move above only handles space; jump to the marker's own timepoint too
-        if (viewer.getCurrentTimepoint() != b.t) viewer.setCurrentTimepoint(b.t);
-        viewer.showViewerMessage(String.format("Flying to %s", b.label));
+        viewer.flyTo(b.getX(), b.getY(), b.getZ(), b.t, b.label);
     }
 
     private void loadBookmarksFromFile(final File file) {

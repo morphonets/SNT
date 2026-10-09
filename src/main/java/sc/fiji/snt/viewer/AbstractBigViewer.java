@@ -652,6 +652,56 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Animates the camera so that the given world position lands at the center of the viewport,
+     * keeping the current rotation and scale, and jumps to the given timepoint if it differs
+     * from the current one.
+     *
+     * @param x     the X coordinate (world/physical units)
+     * @param y     the Y coordinate (world/physical units)
+     * @param z     the Z coordinate (world/physical units)
+     * @param t     the (1-based) timepoint to display
+     * @param label text shown in the viewer message
+     */
+    public void flyTo(final double x, final double y, final double z, final int t, final String label) {
+        final AffineTransform3D current = getViewerTransform();
+        // screenPos = R * worldPos + t, so t_new = screenCenter - R * worldPos
+        final double[] mapped = new double[3];
+        current.apply(new double[] { x, y, z }, mapped);
+        final double rx = mapped[0] - current.get(0, 3);
+        final double ry = mapped[1] - current.get(1, 3);
+        final double rz = mapped[2] - current.get(2, 3);
+        final AffineTransform3D target = current.copy();
+        target.set(getViewerWidth() / 2.0 - rx, 0, 3);
+        target.set(getViewerHeight() / 2.0 - ry, 1, 3);
+        target.set(-rz, 2, 3);
+        setViewerTransform(target, 300);
+        if (getCurrentTimepoint() != t) setCurrentTimepoint(t);
+        showViewerMessage(String.format("Flying to %s", label));
+    }
+
+    /**
+     * Prompts for an XYZ location (physical units), pre-filled with the clipboard contents if
+     * these look like coordinates, and flies to it at the current timepoint.
+     */
+    public void promptGoTo() {
+        final GuiUtils gui = new GuiUtils(getViewerFrame());
+        final String clipText = GuiUtils.Text.getClipboard();
+        final String pos = gui.getString(
+                "Location XYZ coordinates, in physical units (comma/space separated): ",
+                "Go To Location...",
+                (GuiUtils.Text.containsNumber(clipText) && GuiUtils.Text.containsSeparator(clipText))
+                        ? clipText.trim() : null);
+        if (pos == null) return;
+        try {
+            final PointInImage pim = SNTPoint.fromString(pos);
+            flyTo(pim.x, pim.y, pim.z, getCurrentTimepoint(),
+                    String.format("%.2f, %.2f, %.2f", pim.x, pim.y, pim.z));
+        } catch (final Throwable ex) {
+            gui.error("Could not extract a valid location from \"" + pos + "\".");
+        }
+    }
+
+    /**
      * The world-space point currently displayed at the center of this viewer, i.e. the inverse
      * of {@link #flyTo}'s centroid-to-screen-center mapping: applies the inverse viewer transform
      * to the viewport's center screen point, at the focal plane (viewer-space Z = 0).
@@ -832,6 +882,10 @@ public abstract class AbstractBigViewer {
         sntAMap.put(actionKey, commandFinder.getToggleVisibilityAction());
     }
 
+    /** Ctrl (Cmd on macOS) + G: prompts for a location to fly to */
+    protected static final KeyStroke GO_TO_KEYSTROKE = KeyStroke.getKeyStroke(KeyEvent.VK_G,
+            java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+
     /** Script-ready lines of the keyframes captured with the K hotkey since the last reset */
     private final List<String> capturedKeyframes = new ArrayList<>();
 
@@ -861,6 +915,8 @@ public abstract class AbstractBigViewer {
         sntAMap.put("snt-toggle-secondary-layer", actions.toggleSecondaryLayerTracingAction());
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0), "snt-pick-sigma-point");
         sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
+        sntIMap.put(GO_TO_KEYSTROKE, "snt-go-to-location");
+        sntAMap.put("snt-go-to-location", actions.goToAction());
         if (tracer == null) return;
         // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
         // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
@@ -1658,6 +1714,17 @@ public abstract class AbstractBigViewer {
             };
         }
 
+        Action goToAction() {
+            final Action a = new AbstractAction("Go to Location...", IconFactory.menuIcon('\ue4be', true)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    promptGoTo();
+                }
+            };
+            a.putValue(Action.ACCELERATOR_KEY, GO_TO_KEYSTROKE);
+            return a;
+        }
+
         Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
                 @Override
@@ -1742,6 +1809,7 @@ public abstract class AbstractBigViewer {
                     box.setOrigin(new PointInImage(minX, minY, minZ));
                     box.setOriginOpposite(new PointInImage(maxX, maxY, maxZ));
                     flyTo(box); // silently no-ops if the viewport isn't realized yet or the box is degenerate
+                    showViewerMessage("View fitted to source");
                 }
             };
         }
@@ -2147,7 +2215,7 @@ public abstract class AbstractBigViewer {
         fgButton.setName("Scale Bar Foreground Color");
         bgButton.setName("Scale Bar Background Color");
         final JPanel colorRow = new JPanel(new FlowLayout());
-        colorRow.add(new JLabel("Scaler bar colors:"));
+        colorRow.add(new JLabel("Scale bar colors:"));
         colorRow.add(fgButton);
         colorRow.add(bgButton);
         final JPanel content = new JPanel(new java.awt.GridLayout(0, 1));
@@ -2214,7 +2282,15 @@ public abstract class AbstractBigViewer {
         for (final Map.Entry<String, List<IconFactory.GLYPH>> entry : planes.entrySet()) {
             final Action a = getViewerAction(entry.getKey());
             if (a == null) continue;
-            final JButton btn = GuiUtils.Buttons.toolbarButton(a, entry.getKey());
+            final String key = entry.getKey();
+            Action modAction = new AbstractAction() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        a.actionPerformed(e);
+                        showViewerMessage(key.substring(key.indexOf(" ") + 1));
+                    }
+                };
+            final JButton btn = GuiUtils.Buttons.toolbarButton(modAction, key);
             btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .9f, null));
             alignGroup.add(btn);
             bar.add(btn);

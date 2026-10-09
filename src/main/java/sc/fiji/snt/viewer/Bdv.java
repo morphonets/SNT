@@ -1163,6 +1163,8 @@ public class Bdv extends AbstractBigViewer {
         bar.addSeparator();
         final JPopupMenu menu = new JPopupMenu();
         final Actions actions = new Actions();
+        GuiUtils.MenuItems.addSeparator(menu, "Navigation");
+        menu.add(new JMenuItem(actions.goToAction()));
         GuiUtils.MenuItems.addSeparator(menu, "Restore View");
         menu.add(new JMenuItem(actions.loadSettingsAction()));
         menu.add(new JMenuItem(actions.saveSettingsAction()));

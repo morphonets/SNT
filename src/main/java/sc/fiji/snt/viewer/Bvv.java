@@ -3103,6 +3103,7 @@ public class Bvv extends AbstractBigViewer {
                         if (slabToggle != null && slabToggle.isSelected())
                             slabToggle.doClick();
                     });
+                    showViewerMessage("View reset");
                 }
             };
         }
@@ -3201,7 +3202,7 @@ public class Bvv extends AbstractBigViewer {
                 final SlabAxis slabAxis = new SlabAxis(2); // default view: Z is the depth axis
 
                 final JSpinner thickSpinner = GuiUtils.Fields.doubleSpinner(
-                        slabAxis.defThick, slabAxis.step, slabAxis.phys, slabAxis.step, 1);
+                        slabAxis.defThick, slabAxis.step, slabAxis.phys, slabAxis.step, 1, true);
                 thickSpinner.setToolTipText("<html>Thickness of the visible slab (" + unit + ").<br>"
                         + "Controls near/far clipping symmetrically around the current position.");
                 thickSpinner.setEnabled(false);
@@ -3226,11 +3227,25 @@ public class Bvv extends AbstractBigViewer {
                 });
                 posSliderReset.setToolTipText("Reset position to mid-volume");
 
-                // Position value and unit are separate labels (col4 and col5-6)
-                final JLabel posValue = new JLabel(String.format("%.1f ", (slabAxis.nSlices / 2.0) * slabAxis.step));
-                final JLabel posUnit = new JLabel("");
-                posSlider.addChangeListener(ev ->
-                        posValue.setText(String.format("%.1f", posSlider.getValue() * slabAxis.step)));
+                // Position readout is an editable spinner kept in sync with posSlider
+                final JSpinner posValue = GuiUtils.Fields.doubleSpinner(
+                        (slabAxis.nSlices / 2) * slabAxis.step, 0, slabAxis.nSlices * slabAxis.step,
+                        slabAxis.step, 1);
+                final boolean[] syncingPos = {false};
+                posSlider.addChangeListener(ev -> {
+                    if (syncingPos[0]) return;
+                    syncingPos[0] = true;
+                    posValue.setValue(posSlider.getValue() * slabAxis.step);
+                    syncingPos[0] = false;
+                });
+                posValue.addChangeListener(ev -> {
+                    if (syncingPos[0]) return;
+                    syncingPos[0] = true;
+                    final double v = ((Number) posValue.getValue()).doubleValue();
+                    posSlider.setValue((int) Math.round(v / slabAxis.step));
+                    posValue.setValue(posSlider.getValue() * slabAxis.step);
+                    syncingPos[0] = false;
+                });
 
                 final int[] savedClip = {nearSlider.getValue(), farSlider.getValue()};
                 final boolean[] slabOn = {false};
@@ -3272,6 +3287,9 @@ public class Bvv extends AbstractBigViewer {
                 final Runnable reconfigureAndApplySlab = () -> {
                     updatingSlab[0] = true;
                     posSlider.setMaximum(slabAxis.nSlices);
+                    final SpinnerNumberModel posModel = (SpinnerNumberModel) posValue.getModel();
+                    posModel.setMaximum(slabAxis.nSlices * slabAxis.step);
+                    posModel.setStepSize(slabAxis.step);
                     final SpinnerNumberModel thickModel = (SpinnerNumberModel) thickSpinner.getModel();
                     thickModel.setMinimum(slabAxis.step);
                     thickModel.setMaximum(slabAxis.phys);
@@ -3455,7 +3473,6 @@ public class Bvv extends AbstractBigViewer {
                     slabOn[0] = slabToggle.isSelected();
                     GuiUtils.enableComponents(thickPanel, slabOn[0]);
                     GuiUtils.enableComponents(posPanel, slabOn[0]);
-                    posUnit.setEnabled(slabOn[0]);
                     posValue.setEnabled(slabOn[0]);
                     nearSlider.setEnabled(!slabOn[0]);
                     farSlider.setEnabled(!slabOn[0]);
@@ -3653,6 +3670,8 @@ public class Bvv extends AbstractBigViewer {
             cacheItem.setEnabled(prefs != null);
             menu.add(cacheItem);
 
+            GuiUtils.MenuItems.addSeparator(menu, "Navigation:");
+            menu.add(new JMenuItem(actions.goToAction()));
             GuiUtils.MenuItems.addSeparator(menu, "Restore View:");
             menu.add(new JMenuItem(actions.loadSettingsAction()));
             menu.add(new JMenuItem(actions.saveSettingsAction()));

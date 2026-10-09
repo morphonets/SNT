@@ -5937,8 +5937,39 @@ public class GuiUtils {
 		public static JSpinner doubleSpinner(final double value, final double min,
 												 final double max, final double step, final int nDecimals)
 		{
+			return doubleSpinner(value, min, max, step, nDecimals, false);
+		}
+
+		/**
+		 * Same as {@link #doubleSpinner(double, double, double, double, int)}, optionally with
+		 * proportional steps: each arrow click changes the value by the larger of {@code step} and
+		 * 10% of the current value (clamped to the range), which keeps wide ranges navigable
+		 */
+		public static JSpinner doubleSpinner(final double value, final double min,
+												 final double max, final double step, final int nDecimals,
+												 final boolean proportionalSteps)
+		{
 			final int maxDigits = SNTUtils.formatDouble(max, nDecimals).length();
-			final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
+			final SpinnerNumberModel model = (proportionalSteps)
+					? new SpinnerNumberModel(value, min, max, step) {
+						private static final long serialVersionUID = 1L;
+						private double delta(final double v) {
+							return Math.max(getStepSize().doubleValue(), 0.1 * Math.abs(v));
+						}
+						@Override
+						public Object getNextValue() {
+							final double v = getNumber().doubleValue();
+							final double mx = ((Number) getMaximum()).doubleValue();
+							return (v >= mx) ? null : Math.min(mx, v + delta(v));
+						}
+						@Override
+						public Object getPreviousValue() {
+							final double v = getNumber().doubleValue();
+							final double mn = ((Number) getMinimum()).doubleValue();
+							return (v <= mn) ? null : Math.max(mn, v - delta(v));
+						}
+					}
+					: new SpinnerNumberModel(value, min, max, step);
 			final JSpinner spinner = new JSpinner(model);
 			final JFormattedTextField textfield = ((DefaultEditor) spinner.getEditor())
 					.getTextField();
