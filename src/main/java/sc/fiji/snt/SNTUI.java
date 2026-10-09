@@ -1234,8 +1234,8 @@ public class SNTUI extends JDialog {
     private ActiveCTposHint activeCTposHint() {
         if (plugin.isMaterializedCrop()) {
             return new ActiveCTposHint(
-                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.defaultColor()),
-                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.disabledColor()),
+                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.defaultColor(), 2),
+                    IconFactory.doubleIcon(GLYPH.CROP, GLYPH.STREAM, 0.9f, IconFactory.disabledColor(), 2),
                     "Filters by timepoint on the live Bvv/Bdv scene, and by channel and timepoint on "
                             + "the materialized crop's canvas");
         }
@@ -5046,11 +5046,11 @@ public class SNTUI extends JDialog {
 
         // onboard tour buttons
         final Icon tourOnIcon = IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
-                1f, IconFactory.selectedColor());
+                1f, IconFactory.selectedColor(), 2);
         final Icon tourOffIcon = IconFactory.buttonIcon(GLYPH.PERSON_CHALKBOARD, IconFactory.secondaryColor(), 1f);
         final JButton calloutTour = new JButton(tourOffIcon);
         calloutTour.setDisabledIcon(IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
-                1f, IconFactory.disabledColor()));
+                1f, IconFactory.disabledColor(), 2));
         calloutTour.setToolTipText("<html>Start the onboarding tour of SNT's interface</html>");
 
         // Resume-pause button (hidden by default). Default (unselected) glyph is PAUSE: The button is only visible
@@ -7020,8 +7020,8 @@ public class SNTUI extends JDialog {
         static void applyStreamModeCompositeIcon(final boolean streamMode, final JMenuItem item, final GLYPH glyph) {
             if (streamMode) {
                 // Composite icon as earlier
-                item.setIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.defaultColor()));
-                item.setDisabledIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.disabledColor()));
+                item.setIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.defaultColor(), 2));
+                item.setDisabledIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.disabledColor(), 2));
                 item.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
             } else {
                 IconFactory.assignIcon(item, glyph);

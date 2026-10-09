@@ -2291,7 +2291,7 @@ public abstract class AbstractBigViewer {
                     }
                 };
             final JButton btn = GuiUtils.Buttons.toolbarButton(modAction, key);
-            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .9f, null));
+            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .9f, null, 0));
             alignGroup.add(btn);
             bar.add(btn);
         }

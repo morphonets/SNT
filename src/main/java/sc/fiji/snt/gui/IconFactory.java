@@ -370,7 +370,7 @@ public class IconFactory {
 
     /**
      * Two-glyph analog of {@link #listIcon(JList, GLYPH)}: composites {@code entry1} and {@code entry2}
-     * side by side (see {@link #doubleIcon(GLYPH, GLYPH, float, Color)}), scaled to match single-glyph
+     * side by side (see {@link #doubleIcon(GLYPH, GLYPH, float, Color, int)}), scaled to match single-glyph
      * {@code listIcon} icons in the same list, rather than {@code doubleIcon}'s own default-size-relative
      * scaling (meant for toolbar buttons, not list rows).
      */
@@ -380,7 +380,7 @@ public class IconFactory {
 
     public static Icon listIcon(final JList<?> list, final GLYPH entry1, final GLYPH entry2, final Color color) {
         final float scalingFactor = (list.getFont().getSize() * 0.9f) / FADerivedIcon.defSize();
-        return doubleIcon(entry1, entry2, scalingFactor, color);
+        return doubleIcon(entry1, entry2, scalingFactor, color, 2);
     }
 
     public static void assignTabIcon(final JTabbedPane tabbedPane, final int tabIndex, final GLYPH entry) {
@@ -400,7 +400,7 @@ public class IconFactory {
         return border;
     }
 
-    public static Icon doubleIcon(final GLYPH entry1, final GLYPH entry2, final float scalingFactor, final Color color) {
+    public static Icon doubleIcon(final GLYPH entry1, final GLYPH entry2, final float scalingFactor, final Color color, final int iconGap) {
         final float size = scalingFactor * FADerivedIcon.defSize();
         // No companion glyph: reserve its width anyway (rather than collapsing to a plain single-glyph
         // icon) so callers that sometimes pass a real entry2 and sometimes null - e.g. a JList mixing
@@ -410,7 +410,7 @@ public class IconFactory {
                 : cachedIcon(entry1.id, size, color, entry1.solid);
         final Icon rightIcon = (entry2 == null) ? new BlankIcon(Math.round(size), Math.round(size))
                 : cachedIcon(entry2.id, size, color, entry2.solid);
-        return new DropdownIcon(leftIcon, rightIcon);
+        return new DropdownIcon(leftIcon, rightIcon, iconGap);
     }
 
     /** Invisible {@link Icon} of a given size; used by {@link #doubleIcon} to reserve space for an absent glyph. */
@@ -432,7 +432,7 @@ public class IconFactory {
     }
 
     /**
-     * Creates a two-letter icon (e.g., "CT"), analogous to {@link #doubleIcon(GLYPH, GLYPH, float, Color)} but
+     * Creates a two-letter icon (e.g., "CT"), analogous to {@link #doubleIcon(GLYPH, GLYPH, float, Color, int)} but
      * built from two plain characters rather than {@link GLYPH} entries. Useful for {@link JMenuItem} icons that
      * combine single-letter tags, such as the "C"(hannel)/"T"(frame) Path Manager tags.
      *
@@ -448,7 +448,7 @@ public class IconFactory {
         final float size = scalingFactor * FADerivedIcon.defSize();
         final Icon leftIcon = cachedIcon(letter1, size, color, solid);
         final Icon rightIcon = cachedIcon(letter2, size, color, solid);
-        return new DropdownIcon(leftIcon, rightIcon);
+        return new DropdownIcon(leftIcon, rightIcon, 0);
     }
 
     /**
@@ -529,16 +529,18 @@ public class IconFactory {
         return new DropdownIcon(entry, scalingFactor, rightIcon, color);
     }
 
-    private record DropdownIcon(Icon leftIcon, Icon rightIcon) implements Icon {
-
-        static final int ICON_GAP = 2;
+    private record DropdownIcon(Icon leftIcon, Icon rightIcon, int iconGap) implements Icon {
 
         DropdownIcon(final DropdownIcon dropdownIcon) {
-            this(dropdownIcon.leftIcon, dropdownIcon.rightIcon);
+            this(dropdownIcon.leftIcon, dropdownIcon.rightIcon, 2);
         }
 
         DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon, final Color color) {
-            this(cachedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid), rightIcon);
+            this(entry, scalingFactor, rightIcon, color, 2);
+        }
+
+        DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon, final Color color, final int iconGap) {
+            this(cachedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid), rightIcon, iconGap);
         }
 
         @Override
@@ -549,12 +551,12 @@ public class IconFactory {
             final int y1 = y + mid - leftIcon.getIconHeight() / 2;
             final int y2 = y + mid - rightIcon.getIconHeight() / 2;
             leftIcon.paintIcon(c, g2, x, y1);
-            rightIcon.paintIcon(c, g2, x + leftIcon.getIconWidth() + ICON_GAP, y2);
+            rightIcon.paintIcon(c, g2, x + leftIcon.getIconWidth() + iconGap, y2);
         }
 
         @Override
         public int getIconWidth() {
-            return leftIcon.getIconWidth() + rightIcon.getIconWidth() + ICON_GAP;
+            return leftIcon.getIconWidth() + rightIcon.getIconWidth() + iconGap;
         }
 
         @Override
@@ -647,8 +649,8 @@ public class IconFactory {
     }
 
     public static void assignDoubleIcon(final JMenuItem menuItem, final GLYPH defaultIcon, final GLYPH selectedIcon, final GLYPH secondaryIcon) {
-        final Icon icon = doubleIcon(defaultIcon, secondaryIcon, .9f, defaultColor());
-        final Icon disabledIcon = doubleIcon(defaultIcon, secondaryIcon, .9f, disabledColor());
+        final Icon icon = doubleIcon(defaultIcon, secondaryIcon, .9f, defaultColor(), 2);
+        final Icon disabledIcon = doubleIcon(defaultIcon, secondaryIcon, .9f, disabledColor(), 2);
         if (selectedIcon == null) {
             menuItem.setIcon(icon);
             menuItem.setDisabledIcon(disabledIcon);
@@ -659,8 +661,8 @@ public class IconFactory {
         // selectedColor() is a background swatch (List.selectionBackground); using it here would color the glyph the
         // same as that highlight, making it disappear on hover. Keep the same foreground colors as the  default/disabled
         // icons so the swapped glyph stays legible while armed
-        final Icon rawSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, defaultColor());
-        final Icon rawDisabledSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, disabledColor());
+        final Icon rawSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, defaultColor(), 2);
+        final Icon rawDisabledSelectedIcon = doubleIcon(selectedIcon, secondaryIcon, .9f, disabledColor(), 2);
         // defaultIcon/selectedIcon glyphs (e.g., EYE vs EYE_SLASH) rarely share the same font-metrics
         final int refWidth = Math.max(icon.getIconWidth(), rawSelectedIcon.getIconWidth());
         final Icon fixedIcon = fixedWidthIcon(icon, refWidth);
