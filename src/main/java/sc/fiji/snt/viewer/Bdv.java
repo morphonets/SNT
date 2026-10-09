@@ -110,6 +110,11 @@ public class Bdv extends AbstractBigViewer {
     // replaces it instead of stacking a duplicate: see displayData(boolean)
     private BdvStackSource<?> secondaryLayerSource;
 
+    private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // channel unmixing UI
+    // Cards re-added after the unmixing one(s), so that these stay below them (see addUnmixingCard)
+    private JComponent sceneControlsCard;
+    private JComponent sntControlsCard;
+
     // Shared overlay infrastructure (same classes as BVV; dCam = MAX_VALUE => orthographic)
     private Bvv.PathOverlay pathOverlay;
     private Bvv.AnnotationOverlay annotationOverlay;
@@ -162,6 +167,7 @@ public class Bdv extends AbstractBigViewer {
             // Multichannel: show each channel as a separate BDV source.
             // Passing the full [W,H,C] RAI directly to CalibratedSource treats C as Z.
             BdvStackSource<?> firstSrc = null;
+            final List<BdvStackSource<?>> channels = new ArrayList<>();
             for (int c = 1; c <= imp.getNChannels(); c++) {
                 final ImagePlus ch = ImpUtils.getChannel(imp, c);
                 final BdvOptions chOpts = (firstSrc == null)
@@ -169,6 +175,7 @@ public class Bdv extends AbstractBigViewer {
                         : BdvOptions.options().addTo(bdvHandle);
                 final BdvStackSource<?> cs = showCalibratedBdvSource(
                         ImpUtils.toImgPlus(ch), imp.getTitle() + " [C" + c + "]", chOpts, imp.getNFrames());
+                channels.add(cs);
                 if (firstSrc == null) {
                     firstSrc = cs;
                     if (bdvHandle == null) {
@@ -181,6 +188,7 @@ public class Bdv extends AbstractBigViewer {
                 }
             }
             src = firstSrc;
+            addUnmixingCard(channels, imp.getTitle(), null);
         } else {
             src = showCalibratedBdvSource(ImpUtils.toImgPlus(imp), imp.getTitle(), baseOpts(), imp.getNFrames());
             if (bdvHandle == null) {
@@ -236,6 +244,7 @@ public class Bdv extends AbstractBigViewer {
             // BdvFunctions.show(ImgPlus) has no ImgPlus-specific overload and falls back
             // to the RAI overload, which treats the channel dim as Z regardless of axis labels.
             BdvStackSource<?> firstSrc = null;
+            final List<BdvStackSource<?>> channels = new ArrayList<>();
             final int nC = (int) img.dimension(chDim);
             for (int c = 0; c < nC; c++) {
                 final RandomAccessibleInterval<T> ch = Views.hyperSlice(img, chDim, c);
@@ -244,6 +253,7 @@ public class Bdv extends AbstractBigViewer {
                         : BdvOptions.options().addTo(bdvHandle).sourceTransform(calToTransform());
                 final BdvStackSource<?> cs = showCalibratedBdvSource(
                         ch, title + " [C" + (c + 1) + "]", chOpts, numTimepoints);
+                channels.add(cs);
                 if (firstSrc == null) {
                     firstSrc = cs;
                     if (bdvHandle == null) {
@@ -254,6 +264,7 @@ public class Bdv extends AbstractBigViewer {
                 }
             }
             src = firstSrc;
+            addUnmixingCard(channels, title, null);
         } else {
             // Single-channel: wrap in CalibratedSource so unit propagates to scale bar
             src = showCalibratedBdvSource(img, title, baseOpts(), numTimepoints);
@@ -406,7 +417,53 @@ public class Bdv extends AbstractBigViewer {
             viewerPanel = bdvHandle.getViewerPanel();
             initializeOverlays();
         }
+        restoreSidecarSettings(viewerPanel.state(), bdvHandle.getConverterSetups());
+        addUnmixingCard(sources, datasetName(sources, spimData), spimData);
         return sources;
+    }
+
+    /**
+     * Adds a Channel Unmixing card for images with 2+ channels. Called after the viewer is initialized, so that the
+     * card panel exists
+     */
+    private void addUnmixingCard(final List<BdvStackSource<?>> channels, final String name,
+                                 final Object dataset) {
+        if (channels.size() < 2 || bdvHandle == null) return;
+        final String title = unmixingCard.uniqueTitle(name);
+        final ChannelGroup group = new BdvChannelGroup(channels);
+        SwingUtilities.invokeLater(() -> {
+            final bdv.ui.CardPanel cp = bdvHandle.getCardPanel();
+            if (cp == null) return;
+            final JPanel unmixingPanel = unmixingCard.build(group, dataset, new BdvUnmixEngine(this, group));
+            cp.addCard(title, unmixingPanel, false);
+            // Reorder: keep Scene Controls and SNT Controls after the unmixing card (as in Bvv)
+            if (sceneControlsCard != null) {
+                cp.removeCard("Scene Controls");
+                cp.addCard("Scene Controls", sceneControlsCard, true);
+            }
+            if (sntControlsCard != null) {
+                cp.removeCard("SNT Controls");
+                cp.addCard("SNT Controls", sntControlsCard, true);
+            }
+            // The unmixing card can be wider than Scene Controls: size the card panel for the widest of them
+            resizeCardPanelsAsNeeded(sceneControlsCard, unmixingPanel);
+        });
+    }
+
+    /** Best-effort display name of a dataset: source name (without channel suffix), file name, or generic label */
+    private String datasetName(final List<BdvStackSource<?>> sources, final AbstractSpimData<?> spimData) {
+        String name = null;
+        try {
+            name = sources.getFirst().getSources().getFirst().getSpimSource().getName()
+                    .replaceAll("\\s*\\(Ch\\d+\\)$", "");
+        } catch (final Exception ignored) {
+            // fall through to the file name
+        }
+        if (name == null || name.isBlank()) {
+            final String path = datasetPaths.get(spimData);
+            if (path != null && !path.isBlank()) name = new java.io.File(path).getName();
+        }
+        return (name == null || name.isBlank()) ? "Dataset" : name;
     }
 
     /**
@@ -418,9 +475,21 @@ public class Bdv extends AbstractBigViewer {
      * @return list of BdvStackSources, one per setup
      */
     public List<BdvStackSource<?>> show(final AbstractSpimData<?> spimData, final String sourcePath) {
-        if (sourcePath != null && !sourcePath.isBlank())
-            spimDataFilePaths.put(spimData, sourcePath);
+        registerDatasetPath(spimData, sourcePath);
         return show(spimData);
+    }
+
+    /**
+     * Opens sources loaded from an N5 or OME-Zarr container and records the container path (see
+     * {@link #show(AbstractSpimData, String)}).
+     *
+     * @param n5Sources  the sources to display
+     * @param sourcePath the path/URL of the container; ignored if null or blank
+     * @return list of BdvStackSources, one per setup
+     */
+    public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources, final String sourcePath) {
+        registerDatasetPath(n5Sources, sourcePath);
+        return show(n5Sources);
     }
 
     /**
@@ -471,6 +540,8 @@ public class Bdv extends AbstractBigViewer {
             viewerPanel = bdvHandle.getViewerPanel();
             initializeOverlays();
         }
+        restoreSidecarSettings(viewerPanel.state(), bdvHandle.getConverterSetups());
+        addUnmixingCard(sources, n5Sources.name(), n5Sources);
         return sources;
     }
 
@@ -1007,14 +1078,15 @@ public class Bdv extends AbstractBigViewer {
         JComponent sceneControls = null;
         JComponent sntControls = null;
         if (cp != null) {
-            cp.addCard("Scene Controls", sceneControls = buildSceneControlToolbar(), true);
-            cp.addCard("SNT Controls", sntControls = sntAnnotationsCard(actions), true);
+            cp.addCard("Scene Controls", sceneControls = sceneControlsCard = buildSceneControlToolbar(), true);
+            cp.addCard("SNT Controls", sntControls = sntControlsCard = sntAnnotationsCard(actions), true);
+            installFileDrop(cp);
             collapseGroupsCard(cp);
             SwingUtilities.invokeLater(() -> {
                 cp.setCardExpanded("Scene Controls", true);
                 cp.setCardExpanded("SNT Controls", true);
             });
-            resizeCardPanelsAsNeeded(cp.getComponent());
+            resizeCardPanelsAsNeeded(cp.getComponent()); // in case the Unmixing channel card was not added
             initProgressBar(cp);
         }
 
@@ -1158,21 +1230,9 @@ public class Bdv extends AbstractBigViewer {
     }
 
     private JToolBar buildSceneControlToolbar() {
-        final JToolBar bar = buildBaseSceneControlToolbar();
-        bar.add(Box.createHorizontalGlue());
-        bar.addSeparator();
         final JPopupMenu menu = new JPopupMenu();
-        final Actions actions = new Actions();
-        GuiUtils.MenuItems.addSeparator(menu, "Navigation");
-        menu.add(new JMenuItem(actions.goToAction()));
-        GuiUtils.MenuItems.addSeparator(menu, "Restore View");
-        menu.add(new JMenuItem(actions.loadSettingsAction()));
-        menu.add(new JMenuItem(actions.saveSettingsAction()));
-        GuiUtils.MenuItems.addSeparator(menu,"Help");
-        menu.add(new JMenuItem(actions.showHelpAction()));
-        menu.add(new JMenuItem(actions.showMovieHelpAction()));
-        bar.add(GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu));
-        return bar;
+        addSharedSceneOptions(menu, new Actions());
+        return finishSceneControlToolbar(buildBaseSceneControlToolbar(), menu);
     }
 
     private class BdvActions extends Actions {

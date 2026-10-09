@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.viewer;
 
+import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.transformation.TransformedSource;
 import bdv.viewer.SourceAndConverter;
 import bvv.vistools.BvvSource;
@@ -55,7 +56,7 @@ import java.util.List;
  * dragging: It is immediately visible on all followers with no listener overhead.
  * If reflection fails, a {@code renderTransformListeners} fallback is used.</p>
  */
-public class BvvMultiSource {
+public class BvvMultiSource implements ChannelGroup {
 
     private final BvvStackSource<?> leader;
     private final List<BvvStackSource<?>> followers;
@@ -279,6 +280,16 @@ public class BvvMultiSource {
         all.add(leader);
         all.addAll(followers);
         return Collections.unmodifiableList(all);
+    }
+
+    @Override
+    public SourceAndConverter<?> channelSource(final int i) {
+        return getSources().get(i).getSources().getFirst();
+    }
+
+    @Override
+    public ConverterSetup channelSetup(final int i) {
+        return getSources().get(i).getConverterSetups().getFirst();
     }
 
     /** @return number of sources in the group (leader + followers) */

@@ -96,7 +96,7 @@ public class Bvv extends AbstractBigViewer {
         return (lastInstance instanceof Bvv b) ? b : null;
     }
 
-    // snt, cal, dims, calUnit, renderedTrees, spimDataFilePaths, markerManager: inherited from AbstractBigViewer
+    // snt, cal, dims, calUnit, renderedTrees, datasetPaths, markerManager: inherited from AbstractBigViewer
 
     private final BvvOptions options;
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
@@ -411,7 +411,9 @@ public class Bvv extends AbstractBigViewer {
             final String mixerTitle = unmixingCard.uniqueTitle(imageName);
             SwingUtilities.invokeLater(() -> {
                 final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                cp.addCard(mixerTitle, unmixingCard.build(multi), false);
+                final JPanel mixPanel = unmixingPanel(multi, null);
+                cp.addCard(mixerTitle, mixPanel, false);
+                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
                 // Reorder: move Scene Controls and SNT Annotations after the unmixing card
                 if (sceneControlsCard != null) {
                     cp.removeCard("Scene Controls");
@@ -828,10 +830,9 @@ public class Bvv extends AbstractBigViewer {
         for (final String path : paths) {
             final Object source = resolvePathToSource(path);
             if (source instanceof AbstractSpimData<?> sd) {
-                bvv.spimDataFilePaths.put(sd, path);
-                bvv.show(sd);
+                bvv.show(sd, path);
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                bvv.show(n5);
+                bvv.show(n5, path);
             } else {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) source);
@@ -951,7 +952,9 @@ public class Bvv extends AbstractBigViewer {
             final String mixerTitle = unmixingCard.uniqueTitle(datasetName);
             SwingUtilities.invokeLater(() -> {
                 final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                cp.addCard(mixerTitle, unmixingCard.build(multi, spimData), false);
+                final JPanel mixPanel = unmixingPanel(multi, spimData);
+                cp.addCard(mixerTitle, mixPanel, false);
+                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
                 if (sceneControlsCard != null) {
                     cp.removeCard("Scene Controls");
                     cp.addCard("Scene Controls", sceneControlsCard, true);
@@ -1054,7 +1057,9 @@ public class Bvv extends AbstractBigViewer {
             final String mixerTitle = unmixingCard.uniqueTitle(datasetName);
             SwingUtilities.invokeLater(() -> {
                 final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                cp.addCard(mixerTitle, unmixingCard.build(multi), false);
+                final JPanel mixPanel = unmixingPanel(multi, n5Sources);
+                cp.addCard(mixerTitle, mixPanel, false);
+                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
                 if (sceneControlsCard != null) {
                     cp.removeCard("Scene Controls");
                     cp.addCard("Scene Controls", sceneControlsCard, true);
@@ -1309,7 +1314,9 @@ public class Bvv extends AbstractBigViewer {
             final String mixerTitle = unmixingCard.uniqueTitle(imp.getTitle());
             SwingUtilities.invokeLater(() -> {
                 final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                cp.addCard(mixerTitle, unmixingCard.build(multi), false);
+                final JPanel mixPanel = unmixingPanel(multi, null);
+                cp.addCard(mixerTitle, mixPanel, false);
+                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
                 // Reorder: move Scene Controls and SNT Annotations after the unmixing card
                 if (sceneControlsCard != null) {
                     cp.removeCard("Scene Controls");
@@ -1424,6 +1431,7 @@ public class Bvv extends AbstractBigViewer {
             sntAnnotationsCard = sntToolbar(actions);
             bvvFrame.getCardPanel().addCard("SNT Controls", sntAnnotationsCard, true);
             initProgressBar(bvvFrame.getCardPanel());
+            installFileDrop(bvvFrame.getCardPanel());
             // Register shortcuts through BDV's keybindings system so they are
             // handled at the same level as BVV's own shortcuts (e.g., Shift+B).
             // Using Swing's InputMap/ActionMap directly gets shadowed by BDV's
@@ -2750,16 +2758,9 @@ public class Bvv extends AbstractBigViewer {
 
     BvvHandle getBvvHandle() { return bvvHandle; }
 
-    String getSpimDataFilePath(final AbstractSpimData<?> spimData) {
-        String filePath = spimDataFilePaths.getOrDefault(spimData, "");
-        if (filePath.isEmpty()) {
-            try {
-                if (spimData.getBasePathURI() != null) {
-                    filePath = new File(spimData.getBasePathURI()).getAbsolutePath();
-                }
-            } catch (final Exception ignored) {}
-        }
-        return filePath;
+    private JPanel unmixingPanel(final BvvMultiSource multi, final Object dataset) {
+        final AbstractSpimData<?> spimData = (dataset instanceof AbstractSpimData<?> sd) ? sd : null;
+        return unmixingCard.build(multi, dataset, new BvvUnmixEngine(this, multi, spimData));
     }
 
 
@@ -3594,10 +3595,7 @@ public class Bvv extends AbstractBigViewer {
             crosshairToggle.setSelected(true);
             bar.add(crosshairToggle);
             bar.add(axesButton());
-            bar.add(Box.createHorizontalGlue());
-            bar.addSeparator();
-            bar.add(optionsButton(bvvActions));
-            return bar;
+            return bvvInstance.finishSceneControlToolbar(bar, optionsMenu(bvvActions));
         }
 
         private JButton axesButton() {
@@ -3620,10 +3618,9 @@ public class Bvv extends AbstractBigViewer {
             return button;
         }
 
-        private JButton optionsButton(final BvvActions actions) {
+        private JPopupMenu optionsMenu(final BvvActions actions) {
             final JPopupMenu menu = new JPopupMenu();
             final SNTPrefs prefs = (bvvInstance.snt != null) ? bvvInstance.snt.getPrefs() : null;
-            final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
 
             GuiUtils.MenuItems.addSeparator(menu, "Render Quality & Performance:");
 
@@ -3670,15 +3667,8 @@ public class Bvv extends AbstractBigViewer {
             cacheItem.setEnabled(prefs != null);
             menu.add(cacheItem);
 
-            GuiUtils.MenuItems.addSeparator(menu, "Navigation:");
-            menu.add(new JMenuItem(actions.goToAction()));
-            GuiUtils.MenuItems.addSeparator(menu, "Restore View:");
-            menu.add(new JMenuItem(actions.loadSettingsAction()));
-            menu.add(new JMenuItem(actions.saveSettingsAction()));
-            GuiUtils.MenuItems.addSeparator(menu, "Help:");
-            menu.add(new JMenuItem(actions.showHelpAction()));
-            menu.add(new JMenuItem(actions.showMovieHelpAction()));
-            return oButton;
+            bvvInstance.addSharedSceneOptions(menu, actions);
+            return menu;
         }
 
         private void runSNTPrefs() {

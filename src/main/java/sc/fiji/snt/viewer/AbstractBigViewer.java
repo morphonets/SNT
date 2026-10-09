@@ -29,7 +29,9 @@ import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.ColorChooserButton;
+import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
@@ -153,8 +155,8 @@ public abstract class AbstractBigViewer {
      */
     protected final Set<String> syncedPathManagerLabels = new HashSet<>();
 
-    /** Maps SpimData sources back to the file that produced them. */
-    protected final Map<AbstractSpimData<?>, String> spimDataFilePaths = new IdentityHashMap<>();
+    /** Source file/URL of each dataset shown (keyed by identity: an {@link AbstractSpimData} or a {@link SpimDataUtils.N5Sources}) */
+    protected final Map<Object, String> datasetPaths = new IdentityHashMap<>();
 
     /** Local OME-Zarr containers backing the loaded sources (see {@link #registerOmeZarrSource}) */
     private final List<java.io.File> omeZarrSources = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -2259,6 +2261,34 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Adds the entries common to the scene-control "Options" menu of Bvv/Bdv: navigation, restore view
+     * (display settings) and help. Viewer-specific entries should be added to the menu beforehand
+     */
+    protected void addSharedSceneOptions(final JPopupMenu menu, final Actions actions) {
+        GuiUtils.MenuItems.addSeparator(menu, "Navigation:");
+        menu.add(new JMenuItem(actions.goToAction()));
+        GuiUtils.MenuItems.addSeparator(menu, "Restore View:");
+        menu.add(new JMenuItem(actions.loadSettingsAction()));
+        menu.add(new JMenuItem(actions.saveSettingsAction()));
+        GuiUtils.MenuItems.addSeparator(menu, "Help:");
+        menu.add(new JMenuItem(actions.showHelpAction()));
+        menu.add(new JMenuItem(actions.showMovieHelpAction()));
+    }
+
+    /**
+     * Completes a scene-control toolbar started with {@link #buildBaseSceneControlToolbar()} by appending
+     * the trailing "Options" button holding the given menu
+     *
+     * @return the toolbar, for chaining
+     */
+    protected JToolBar finishSceneControlToolbar(final JToolBar bar, final JPopupMenu menu) {
+        bar.add(Box.createHorizontalGlue());
+        bar.addSeparator();
+        bar.add(GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu));
+        return bar;
+    }
+
+    /**
      * Builds the shared scene-control toolbar: fit-source button, align-plane
      * buttons (XY, XZ, YZ), minimap toggle, text-overlay toggle, scale-bar toggle.
      * Subclasses call this and may prepend or append viewer-specific buttons.
@@ -2291,7 +2321,7 @@ public abstract class AbstractBigViewer {
                     }
                 };
             final JButton btn = GuiUtils.Buttons.toolbarButton(modAction, key);
-            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .9f, null, 0));
+            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .95f, null, 0));
             alignGroup.add(btn);
             bar.add(btn);
         }
@@ -3808,7 +3838,7 @@ public abstract class AbstractBigViewer {
         /**
          * Sets (or clears) {@link #toBeCombinedPath}, keeping {@link #extendPathButton} (if installed)
          * in sync: selected while a combine is pending, deselected the moment it is consumed or
-         * cancelled (successful combine, fallback to a standalone path, or discard)
+         * canceled (successful combine, fallback to a standalone path, or discard)
          */
         private void setToBeCombinedPath(final Path path) {
             toBeCombinedPath = path;

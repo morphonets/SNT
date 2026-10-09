@@ -1,0 +1,59 @@
+/*-
+ * #%L
+ * Fiji distribution of ImageJ for the life sciences.
+ * %%
+ * Copyright (C) 2010 - 2026 Fiji developers.
+ * %%
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public
+ * License along with this program. If not, see
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
+ * #L%
+ */
+
+package sc.fiji.snt.viewer;
+
+import bdv.tools.brightness.ConverterSetup;
+import bdv.util.BdvStackSource;
+import bdv.viewer.SourceAndConverter;
+
+import java.util.List;
+
+/** {@link ChannelGroup} of a BDV image: one {@link BdvStackSource} per channel */
+final class BdvChannelGroup implements ChannelGroup {
+
+    private final List<BdvStackSource<?>> sources;
+
+    BdvChannelGroup(final List<BdvStackSource<?>> sources) {
+        this.sources = List.copyOf(sources);
+    }
+
+    @Override
+    public int size() {
+        return sources.size();
+    }
+
+    @Override
+    public SourceAndConverter<?> channelSource(final int i) {
+        return sources.get(i).getSources().getFirst();
+    }
+
+    @Override
+    public ConverterSetup channelSetup(final int i) {
+        return sources.get(i).getConverterSetups().getFirst();
+    }
+
+    @Override
+    public void setActive(final boolean active) {
+        sources.forEach(src -> src.setActive(active));
+    }
+}

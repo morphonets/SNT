@@ -399,9 +399,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                             SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
                     // Same non-pyramidal-dataset risk as resolveBvvSources(), only relevant for BVV
                     if (viewer instanceof Bvv bvv) {
-                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir)) showN5InBvv(bvv, n5Sources);
+                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir)) showN5InBvv(bvv, n5Sources, n5ZarrDir);
                     } else if (viewer instanceof Bdv bdv) {
-                        bdv.show(n5Sources);
+                        bdv.show(n5Sources, n5ZarrDir);
                     }
                 } catch (final Exception e) {
                     GuiUtils.errorPrompt("Could not open '" + n5ZarrDir + "': " + e.getMessage());
@@ -473,7 +473,8 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /** Holds the outcome of {@link #resolveBvvSources(String[], int, Object, boolean)}. */
-    private record ResolvedSources(List<Object> sources, List<String> deferredPaths) {}
+    /** {@code paths} is aligned with {@code sources}: the path each source was resolved from */
+    private record ResolvedSources(List<Object> sources, List<String> paths, List<String> deferredPaths) {}
 
     /**
      * Resolves each path to a BVV-displayable source (an {@link ImgPlus}, {@link AbstractSpimData},
@@ -494,6 +495,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize,
                                                final Object cachedPrimarySource, final boolean tracing) {
         final List<Object> sources = new ArrayList<>();
+        final List<String> sourcePaths = new ArrayList<>();
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (int i = 0; i < filePaths.length; i++) {
             final String path = filePaths[i];
@@ -515,6 +517,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                 final AbstractSpimData<?> sibling = pyramidalSiblingXml(path);
                 if (sibling != null) {
                     sources.add(sibling);
+                    sourcePaths.add(path);
                     continue;
                 }
             }
@@ -530,12 +533,14 @@ public class BigDataLoaderCmd extends ContextCommand {
                     final Object handled = handleOversizedImage(img, maxTexSize, path, tracing);
                     if (handled == null) return null; // user chose Abort
                     sources.add(handled);
+                    sourcePaths.add(path);
                     continue;
                 }
             }
             sources.add(source);
+            sourcePaths.add(path);
         }
-        return new ResolvedSources(sources, deferredPaths);
+        return new ResolvedSources(sources, sourcePaths, deferredPaths);
     }
 
     /**
@@ -604,24 +609,26 @@ public class BigDataLoaderCmd extends ContextCommand {
      * Shows N5/Zarr sources in {@code bvv}: makes them streamable, reports unfavorable chunking, checks the GPU tile
      * cache and builds a synthetic pyramid if they have none
      */
-    private void showN5InBvv(final Bvv bvv, final SpimDataUtils.N5Sources n5) {
+    private void showN5InBvv(final Bvv bvv, final SpimDataUtils.N5Sources n5, final String path) {
         // Wrapped before the prefetch: the prefetch must see the final stack type, otherwise it touches
         // every voxel of level 0
         final SpimDataUtils.N5Sources cellBacked = cellBacked(n5);
         BvvUtils.reportChunking(n5.name(), n5.chunkShape());
         if (awaitBvvSourcesReady(cellBacked)) {
             checkGpuCache(bvv, cellBacked.sources().size());
-            bvv.show(withSyntheticPyramid(cellBacked));
+            bvv.show(withSyntheticPyramid(cellBacked), path);
         }
     }
 
     /** Adds each resolved source to {@code bvv}, and opens the interactive dialog for deferred N5/Zarr paths. */
     private void addSourcesToBvv(final Bvv bvv, final ResolvedSources resolved) {
-        for (final Object source : resolved.sources()) {
+        for (int i = 0; i < resolved.sources().size(); i++) {
+            final Object source = resolved.sources().get(i);
+            final String path = resolved.paths().get(i);
             if (source instanceof AbstractSpimData<?> spim) {
-                bvv.show(spim);
+                bvv.show(spim, path);
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                showN5InBvv(bvv, n5);
+                showN5InBvv(bvv, n5, path);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) img);
@@ -820,9 +827,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                 throw e;
             }
             if (source instanceof AbstractSpimData<?> spim) {
-                bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
+                bdv.show(spim, path); // path-aware overload records the dataset path
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                bdv.show(n5);
+                bdv.show(n5, path);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bdv.show((ImgPlus) img);
@@ -859,9 +866,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                 throw e;
             }
             if (source instanceof AbstractSpimData<?> spim) {
-                bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
+                bdv.show(spim, path); // path-aware overload records the dataset path
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
-                bdv.show(n5);
+                bdv.show(n5, path);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bdv.show((ImgPlus) img);
