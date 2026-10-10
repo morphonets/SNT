@@ -53,10 +53,6 @@ import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.awt.Point;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.stream.Collectors;
 
 /**
  * Package-private utility methods shared across BVV-related classes
@@ -204,27 +200,6 @@ public final class BvvUtils {
 
     private BvvUtils() {
     } // static utility class
-
-    /**
-     * Loads a Groovy recipe template from the
-     * {@code script_templates/Neuroanatomy/Recipes/} resource directory.
-     *
-     * @param scriptName the template file name (e.g. {@code "ChannelUnmixing.groovy"})
-     * @return the script contents, or a comment describing the error on failure
-     */
-    static String loadRecipeScript(final String scriptName) {
-        try {
-            final ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            final InputStream is = cl.getResourceAsStream(
-                    "script_templates/Neuroanatomy/Recipes/" + scriptName);
-            if (is == null)
-                return "// Error: " + scriptName + " template not found in resources";
-            return new BufferedReader(new InputStreamReader(is))
-                    .lines().collect(Collectors.joining("\n"));
-        } catch (final Exception e) {
-            return "// Error loading template: " + e.getMessage();
-        }
-    }
 
     /**
      * Derives the BDV {@link AxisOrder} from an ImagePlus's dimension flags.

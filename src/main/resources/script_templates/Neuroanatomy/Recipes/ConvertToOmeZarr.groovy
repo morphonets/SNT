@@ -3,7 +3,7 @@
  * info:  Converts an image to a multi-resolution OME-Zarr (Zarr v3, OME-NGFF 0.5) that SNT can stream in BVV/BDV:
  *        zstd-compressed, sharded, and with chunks matching the cells BVV loads. The image is processed one slab
  *        at a time, so it can be larger than the memory available to Fiji/SNT.
- *        Output is written next to the input image as '<name>.ome.zarr'. Existing data is never overwritten:
+ *        Output is written next to the input image as '<name>.ome.zarr'. Existing data is not overwritten:
  *        a numeric suffix is added to the name instead.
  *        Requires: SCIFIO (or Bio-Formats for proprietary formats)
  *        Run in Fiji's Script Editor (Language: Groovy)

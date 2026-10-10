@@ -229,6 +229,74 @@ final class ViewerSettingsUtils {
     }
 
     /**
+     * Returns the settings file stored next to a source, named after it, e.g.,
+     * "stack.ims" -> "stack.ims_bvv-display-settings.xml". The file may not exist.
+     *
+     * @param sourcePath the local path (or file URI) of the source, e.g., file or N5/Zarr folder
+     * @param tag        the viewer tag, e.g., "bdv" or "bvv"
+     * @return the file, or null if the source is unknown, remote, or has no existing parent folder
+     */
+    static File sidecarFile(final String sourcePath, final String tag) {
+        if (sourcePath == null || sourcePath.isBlank()) return null;
+        try {
+            final String local = sourcePath.startsWith("file:")
+                    ? new File(java.net.URI.create(sourcePath)).getPath() : sourcePath;
+            if (local.contains("://")) return null;
+            final File source = new File(local);
+            final File parent = source.getAbsoluteFile().getParentFile();
+            if (parent != null && parent.isDirectory())
+                return new File(parent, source.getName() + "_" + tag + "-display-settings.xml");
+        } catch (final Exception ignored) {
+            // not a local path
+        }
+        return null;
+    }
+
+    /**
+     * Finds an existing settings file next to a source: first the one named after the source itself
+     * (see {@link #sidecarFile}), then one named after a sibling sharing its base name, e.g., for
+     * "stack.xml" (an IMS descriptor), "stack.ims_bdv-display-settings.xml"
+     *
+     * @param sourcePath the local path (or file URI) of the source
+     * @param tag        the viewer tag, e.g., "bdv" or "bvv"
+     * @return the existing file, or null if none was found
+     */
+    static File findSidecarFile(final String sourcePath, final String tag) {
+        final File exact = sidecarFile(sourcePath, tag);
+        if (exact == null) return null;
+        if (exact.isFile()) return exact;
+        final String name = new File(sourcePath.startsWith("file:")
+                ? new File(java.net.URI.create(sourcePath)).getPath() : sourcePath).getName();
+        final int dot = name.lastIndexOf('.');
+        final String prefix = ((dot > 0) ? name.substring(0, dot) : name) + ".";
+        final String suffix = "_" + tag + "-display-settings.xml";
+        // Single extension only, so "stack.xml" does not match "stack.v2.ims_..." (a different dataset)
+        final File[] matches = exact.getParentFile().listFiles((dir, n) -> {
+            if (!n.startsWith(prefix) || !n.endsWith(suffix) || n.length() <= prefix.length() + suffix.length())
+                return false;
+            return n.substring(prefix.length(), n.length() - suffix.length()).indexOf('.') < 0;
+        });
+        if (matches == null || matches.length == 0) return null;
+        java.util.Arrays.sort(matches);
+        return matches[0];
+    }
+
+    /**
+     * Checks if a file is a BDV/BVV display settings file (as opposed to, e.g., a reconstruction
+     * or an import sidecar XML)
+     *
+     * @param f the file to be tested
+     * @return true if the file holds converter setups
+     */
+    static boolean isDisplaySettingsFile(final File f) {
+        try {
+            return f != null && f.isFile() && converterSetupNodes(readXml(f)) != null;
+        } catch (final Exception ex) {
+            return false;
+        }
+    }
+
+    /**
      * Checks if a settings file can be restored by a viewer, i.e., if it is
      * valid and holds as many setups as the viewer has sources
      *

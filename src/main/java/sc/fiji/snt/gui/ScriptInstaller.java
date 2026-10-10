@@ -517,6 +517,86 @@ public class ScriptInstaller {
 		SwingUtilities.invokeLater(() -> editor.setVisible(true));
 	}
 
+	private static final String RECIPES_DIR = "script_templates/Neuroanatomy/Recipes/";
+	// Block shown only when a recipe is opened raw (Scripts menu, Script Editor templates): removed on load
+	private static final Pattern RECIPE_NOTE = Pattern
+			.compile("(?s)[ \\t]*// >>> TEMPLATE-NOTE.*?// <<< TEMPLATE-NOTE[ \\t]*\\R?");
+	// Placeholders in recipes, e.g., #{INPUT_PATH}
+	private static final Pattern RECIPE_PLACEHOLDER = Pattern.compile("#\\{([A-Z][A-Z0-9_]*)}");
+
+	/**
+	 * Loads a recipe from the {@code script_templates/Neuroanatomy/Recipes/} resource directory. The template note
+	 * (the block delimited by {@code // >>> TEMPLATE-NOTE} and {@code // <<< TEMPLATE-NOTE}) is removed
+	 *
+	 * @param recipeName the file name, e.g., "BigViewerRecording.groovy"
+	 * @return the script contents
+	 * @throws IOException if the recipe could not be read
+	 */
+	public static String loadRecipe(final String recipeName) throws IOException {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		try (final InputStream is = classloader.getResourceAsStream(RECIPES_DIR + recipeName)) {
+			if (is == null)
+				throw new FileNotFoundException(recipeName + " not found in " + RECIPES_DIR);
+			final String script = new BufferedReader(new InputStreamReader(is)).lines()
+					.collect(Collectors.joining("\n"));
+			return RECIPE_NOTE.matcher(script).replaceAll("");
+		}
+	}
+
+	/**
+	 * Loads a recipe and replaces its {@code #{KEY}} placeholders. Numbers are inserted as is. Other values are
+	 * inserted as text escaped for a single-quoted string (backslashes and single quotes), so the template
+	 * must quote string placeholders itself
+	 *
+	 * @param recipeName the file name, e.g., "ChannelUnmixing.groovy"
+	 * @param values     the value of each placeholder
+	 * @return the script contents
+	 * @throws IOException           if the recipe could not be read
+	 * @throws IllegalStateException if the recipe has placeholders without a value
+	 */
+	public static String fillRecipe(final String recipeName, final Map<String, ?> values) throws IOException {
+		final String template = loadRecipe(recipeName);
+		final Matcher m = RECIPE_PLACEHOLDER.matcher(template);
+		final StringBuilder sb = new StringBuilder();
+		final Set<String> missing = new LinkedHashSet<>();
+		final Set<String> used = new HashSet<>();
+		while (m.find()) {
+			final String key = m.group(1);
+			final Object value = values.get(key);
+			if (value == null) {
+				missing.add(key);
+				continue;
+			}
+			used.add(key);
+			final String text = (value instanceof Number) ? value.toString()
+					: value.toString().replace("\\", "\\\\").replace("'", "\\'");
+			m.appendReplacement(sb, Matcher.quoteReplacement(text));
+		}
+		if (!missing.isEmpty())
+			throw new IllegalStateException(recipeName + ": no value for placeholder(s) " + missing);
+		m.appendTail(sb);
+		for (final String key : values.keySet()) {
+			if (!used.contains(key))
+				SNTUtils.log(recipeName + ": unused value for '" + key + "'");
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * Opens a recipe in the Script Editor after replacing its placeholders (see {@link #fillRecipe})
+	 *
+	 * @param recipeName the file name, e.g., "ChannelUnmixing.groovy"
+	 * @param values     the value of each placeholder. Null if the recipe has none
+	 * @param scriptName the name of the new script (with extension). Null to use the recipe name
+	 * @throws IOException           if the recipe could not be read
+	 * @throws IllegalStateException if the recipe has placeholders without a value
+	 */
+	public static void newRecipe(final String recipeName, final Map<String, ?> values, final String scriptName)
+			throws IOException {
+		final String script = (values == null) ? loadRecipe(recipeName) : fillRecipe(recipeName, values);
+		newScript(script, (scriptName == null) ? recipeName : scriptName);
+	}
+
 	public static String getBoilerplateScript(final String extension) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/Boilerplate/"

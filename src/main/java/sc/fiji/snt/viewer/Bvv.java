@@ -853,6 +853,31 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
+     * Opens a SpimData dataset and records its source file path (see {@link #show(AbstractSpimData)}).
+     *
+     * @param spimData   the dataset to display
+     * @param sourcePath the path/URL from which spimData was loaded; ignored if null or blank
+     * @return list containing a single {@link BvvMultiSource} grouping all setups
+     */
+    public List<BvvMultiSource> show(final AbstractSpimData<?> spimData, final String sourcePath) {
+        registerDatasetPath(spimData, sourcePath);
+        return show(spimData);
+    }
+
+    /**
+     * Opens sources loaded from an N5/OME-Zarr container and records its path (see
+     * {@link #show(SpimDataUtils.N5Sources)}).
+     *
+     * @param n5Sources  the sources to display
+     * @param sourcePath the path/URL of the container; ignored if null or blank
+     * @return list containing a single {@link BvvMultiSource} grouping all setups
+     */
+    public List<BvvMultiSource> show(final SpimDataUtils.N5Sources n5Sources, final String sourcePath) {
+        registerDatasetPath(n5Sources, sourcePath);
+        return show(n5Sources);
+    }
+
+    /**
      * Displays a {@link AbstractSpimData} dataset using BVV's pyramid-aware GPU
      * cache manager. Each setup (channel/angle) is added as a source and wrapped
      * in a {@link BvvMultiSource}. Unlike the {@link ImgPlus}/{@link ImagePlus}

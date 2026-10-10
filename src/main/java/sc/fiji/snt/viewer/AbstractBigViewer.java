@@ -318,16 +318,18 @@ public abstract class AbstractBigViewer {
         cardPanel.setCardExpanded(bdv.ui.BdvDefaultCards.DEFAULT_SOURCEGROUPS_CARD, false);
     }
 
-    void resizeCardPanelsAsNeeded(final JComponent refPanel) {
-        // Ensure the card panel is wide enough to show all controls without clipping.
-        // Use the Scene Controls panel's own preferred width since it's the widest,
-        // and its GridBagLayout has already computed the correct natural width.
-        // Toolbars built by createToolbar() report a zeroed minimum width by design (see its
-        // javadoc), so GridBagLayout's minimum-size pass never sees their real button-row width.
-        // Recover it from each toolbar's preferred width instead (glue there contributes zero)
-        // and widen cardPrefW to fit the widest one too
-        final int cardPrefW = Math.max(refPanel.getMinimumSize().width,
-                widestToolbarPreferredWidth(refPanel)) + 16; // extra padding avoids clipping at frame edge
+    void resizeCardPanelsAsNeeded(final JComponent... refPanels) {
+        // Ensure the card panel is wide enough to show all controls without clipping. Toolbars built by createToolbar()
+        // report a zeroed minimum width by design, so GridBagLayout's minimum-size pass never sees their real
+        // button-row width. Recover it from each toolbar's preferred width instead (glue there contributes zero)
+        // and widen cardPrefW to fit the widest one too. With several reference panels, the widest one wins
+        int widest = 0;
+        for (final JComponent refPanel : refPanels) {
+            if (refPanel == null) continue;
+            widest = Math.max(widest, Math.max(refPanel.getMinimumSize().width,
+                    widestToolbarPreferredWidth(refPanel)));
+        }
+        final int cardPrefW = widest + 20; // extra padding avoids clipping at frame edge
         SwingUtilities.invokeLater(() -> {
             final javax.swing.JSplitPane split = getViewerSplitPanel();
             if (split == null) return;
@@ -1115,6 +1117,74 @@ public abstract class AbstractBigViewer {
         return new File(dir, ViewerSettingsUtils.settingsFileName(title, id, names.size(), getSettingsTag()));
     }
 
+    /** Suffix of settings files saved next to their source, e.g., "bvv-display-settings.xml" */
+    private String sidecarSuffix() {
+        return getSettingsTag() + "-display-settings.xml";
+    }
+
+    /**
+     * The settings file proposed when saving/loading: named after the source dataset, e.g.,
+     * "stack.ims" -> "stack.ims_bvv-display-settings.xml", and stored next to it. If more than one
+     * source is known, the first is used. If the source is unknown or remote, falls back to
+     * {@link #getSuggestedSettingsFile()} or to a generic name in the default directory.
+     */
+    private File getProposedSettingsFile() {
+        final File sidecar = getSidecarSettingsFile();
+        if (sidecar != null && (sidecar.isFile() || sidecar.getParentFile().canWrite())) return sidecar;
+        final File suggested = getSuggestedSettingsFile();
+        return (suggested != null) ? suggested : new File(Actions.getDefaultDir(), sidecarSuffix());
+    }
+
+    /** The (possibly non-existent) settings file next to the primary source. Null if not applicable */
+    private File getSidecarSettingsFile() {
+        return ViewerSettingsUtils.sidecarFile(getPrimarySourcePath(), getSettingsTag());
+    }
+
+    /** Loads a display settings file, reporting the outcome in the viewer */
+    private void loadSettingsFile(final File f) {
+        try {
+            loadViewerSettings(f.getAbsolutePath());
+            showViewerMessage(String.format("%s loaded", f.getName()));
+            Actions.setDefaultDir(f);
+        } catch (final Exception ex) {
+            new GuiUtils(getViewerFrame()).error(ex.getMessage());
+        }
+    }
+
+    /**
+     * Allows files to be imported by dropping them onto a component (e.g., the viewer's card panel):
+     * reconstructions (SWC, TRACES, etc.) as in {@link #add(File[])}, display settings files as in
+     * {@link #loadViewerSettings(String)}, and CSV files into the {@link #getMarkerManager() marker
+     * manager}. Children added to the component later are covered as they do not define drop targets
+     */
+    protected void installFileDrop(final bdv.ui.CardPanel c) {
+        if (c == null || c.getComponent() == null) return;
+        new FileDrop(c.getComponent(), files -> {
+            final List<File> recs = new ArrayList<>();
+            final List<File> csvs = new ArrayList<>();
+            File settings = null;
+            for (final File f : files) {
+                if (ViewerSettingsUtils.isDisplaySettingsFile(f)) {
+                    if (settings == null) settings = f;
+                } else if (f.isFile() && f.getName().toLowerCase().endsWith(".csv")) {
+                    csvs.add(f);
+                } else if (f.isFile() && SNTUtils.isReconstructionFile(f, true)) {
+                    recs.add(f);
+                }
+            }
+            final File sf = settings;
+            if (sf != null) SwingUtilities.invokeLater(() -> loadSettingsFile(sf));
+            if (!csvs.isEmpty()) // marker manager is built lazily: EDT only
+                SwingUtilities.invokeLater(() -> csvs.forEach(f -> getMarkerManager().load(f)));
+            if (!recs.isEmpty()) {
+                add(recs.toArray(new File[0]));
+            } else if (sf == null && csvs.isEmpty()) {
+                SwingUtilities.invokeLater(() -> new GuiUtils(getViewerFrame())
+                        .error("None of the dropped item(s) could be imported."));
+            }
+        });
+    }
+
     /**
      * Initializes the display range of the sources. If saved settings for this dataset exist, and
      * the user agrees to restore them, they are loaded instead of computing the display range
@@ -1137,14 +1207,18 @@ public abstract class AbstractBigViewer {
 
     private boolean restoreSavedSettings(final bdv.viewer.ViewerState state, final bdv.viewer.ConverterSetups setups,
             final String title, final String id) {
-        if (snt == null || java.awt.GraphicsEnvironment.isHeadless()) return false;
+        if (java.awt.GraphicsEnvironment.isHeadless()) return false;
         final var names = ViewerSettingsUtils.idToName(state, setups);
         if (names.isEmpty()) return false;
         if (restoredSettingsCount == names.size()) return true; // do not override what was restored
         settingsTitle = (title != null) ? title : names.values().iterator().next();
         settingsId = (id != null) ? id : settingsTitle;
-        final String pref = snt.getPrefs().get(PREF_AUTOLOAD_SETTINGS, "ask");
-        if ("never".equals(pref)) return false;
+        // Standalone viewers (no SNT instance, e.g., loaded by BigDataLoaderCmd) have no prefs or workspace:
+        // only the settings file next to the source applies
+        final String pref = (snt == null) ? "never" : snt.getPrefs().get(PREF_AUTOLOAD_SETTINGS, "ask");
+        if (snt != null && "never".equals(pref)) return false;
+        if (restoreSidecar(names)) return true;
+        if (snt == null) return false;
         final File f = new File(getSettingsDir(),
                 ViewerSettingsUtils.settingsFileName(settingsTitle, settingsId, names.size(), getSettingsTag()));
         if (!f.isFile() || f.equals(promptedSettingsFile) || !ViewerSettingsUtils.isCompatible(f, names)) return false;
@@ -1169,6 +1243,47 @@ public abstract class AbstractBigViewer {
             }
         });
         return restored[0];
+    }
+
+    /**
+     * Restores the settings file stored next to the primary source, if present and compatible. Failures
+     * (e.g., a corrupt file) are logged
+     *
+     * @return true if settings were restored
+     */
+    private boolean restoreSidecar(final java.util.Map<Integer, String> names) {
+        final String src = getPrimarySourcePath();
+        File sidecar = ViewerSettingsUtils.findSidecarFile(src, getSettingsTag());
+        if (sidecar == null) // BDV and BVV share the settings format: accept the other viewer's file
+            sidecar = ViewerSettingsUtils.findSidecarFile(src, "bdv".equals(getSettingsTag()) ? "bvv" : "bdv");
+        if (sidecar == null || !sidecar.isFile() || !ViewerSettingsUtils.isCompatible(sidecar, names)) return false;
+        final File sidecarFile = sidecar;
+        final boolean[] ok = { false };
+        runOnEdt(() -> {
+            try {
+                loadViewerSettings(sidecarFile.getAbsolutePath());
+                ok[0] = true;
+            } catch (final Exception | Error ex) {
+                SNTUtils.log("Could not load " + sidecarFile.getName() + ": " + ex.getMessage());
+            }
+        });
+        if (ok[0]) {
+            restoredSettingsCount = names.size();
+            SNTUtils.log("Restored display settings from " + sidecarFile.getName());
+        }
+        return ok[0];
+    }
+
+    /**
+     * Restores the settings file stored next to the primary source, if any, without touching the display
+     * range otherwise. For viewers that rely on their own auto-brightness (e.g., BDV)
+     */
+    protected void restoreSidecarSettings(final bdv.viewer.ViewerState state, final bdv.viewer.ConverterSetups setups) {
+        try {
+            restoreSavedSettings(state, setups, null, null);
+        } catch (final Exception ex) {
+            SNTUtils.log("Could not restore saved settings (" + ex.getMessage() + ")");
+        }
     }
 
     private static void runOnEdt(final Runnable r) {
@@ -1515,7 +1630,7 @@ public abstract class AbstractBigViewer {
      * Returns the file path/URL of the primary loaded volume, for display/logging purposes
      * (e.g., a Notes entry documenting the dataset being traced).
      * <p>
-     * Only sources registered through {@link #spimDataFilePaths} (i.e., datasets opened via
+     * Only sources registered through {@link #datasetPaths} (i.e., datasets opened via
      * {@code AbstractSpimData}-based {@code show(...)} overloads, such as N5/Zarr/BDV/IMS data)
      * are tracked. There is no guaranteed order if more than one source is loaded; this simply
      * returns the first entry found.
@@ -1524,7 +1639,30 @@ public abstract class AbstractBigViewer {
      * @return the source path/URL, or null if unknown/not applicable
      */
     public String getPrimarySourcePath() {
-        return spimDataFilePaths.values().stream().findFirst().orElse(null);
+        return datasetPaths.values().stream().findFirst().orElse(null);
+    }
+
+    /**
+     * Gets the source file path/URL of a dataset shown in this viewer.
+     *
+     * @param dataset an {@link AbstractSpimData} or {@link SpimDataUtils.N5Sources} instance shown in this viewer
+     * @return the path/URL, or an empty string if unknown
+     */
+    String getDatasetPath(final Object dataset) {
+        String filePath = datasetPaths.getOrDefault(dataset, "");
+        if (filePath.isEmpty() && dataset instanceof AbstractSpimData<?> spimData) {
+            try {
+                if (spimData.getBasePathURI() != null) {
+                    filePath = new File(spimData.getBasePathURI()).getAbsolutePath();
+                }
+            } catch (final Exception ignored) {}
+        }
+        return filePath;
+    }
+
+    /** Records the source path/URL of a dataset (ignored if the path is null or blank) */
+    void registerDatasetPath(final Object dataset, final String path) {
+        if (dataset != null && path != null && !path.isBlank()) datasetPaths.put(dataset, path);
     }
 
     /**
@@ -1678,31 +1816,22 @@ public abstract class AbstractBigViewer {
         private boolean annotationsWereVisible;
 
         Action loadSettingsAction() {
-            return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
+            return new AbstractAction("Load Display Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final ActionEvent e) {
-                    final File f = getGuiUtils().getFile(new File(getDefaultDir(), ".xml"), "xml");
-                    if (SNTUtils.fileAvailable(f)) {
-                        try {
-                            loadViewerSettings(f.getAbsolutePath());
-                            showViewerMessage(String.format("%s loaded", f.getName()));
-                            setDefaultDir(f);
-                        } catch (final Exception ex) {
-                            getGuiUtils().error(ex.getMessage());
-                        }
-                    }
+                    final File proposed = getProposedSettingsFile();
+                    final File f = getGuiUtils().getFile(proposed.isFile() ? proposed
+                            : new File(proposed.getParentFile(), ".xml"), "xml");
+                    if (SNTUtils.fileAvailable(f)) loadSettingsFile(f);
                 }
             };
         }
 
         Action saveSettingsAction() {
-            return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
+            return new AbstractAction("Save Display Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
                 public void actionPerformed(final ActionEvent e) {
-                    final File suggested = getSuggestedSettingsFile();
-                    final File f = getGuiUtils().getSaveFile("Save Viewer Settings...",
-                            (suggested != null) ? suggested
-                                    : new File(getDefaultDir(), "settings-" + getSettingsTag() + ".xml"), "xml");
+                    final File f = getGuiUtils().getSaveFile("Save Display Settings...", getProposedSettingsFile(), "xml");
                     if (f != null) {
                         try {
                             saveViewerSettings(f.getAbsolutePath());
@@ -1741,8 +1870,11 @@ public abstract class AbstractBigViewer {
             return new AbstractAction("Scripted Movies...", IconFactory.menuIcon('\uf008', true)) {
                 @Override
                 public void actionPerformed(final ActionEvent e) {
-                    final String script = "BigViewerRecording.groovy";
-                    ScriptInstaller.newScript(BvvUtils.loadRecipeScript(script), script);
+                    try {
+                        ScriptInstaller.newRecipe("BigViewerRecording.groovy", null, null);
+                    } catch (final java.io.IOException ex) {
+                        GuiUtils.errorPrompt("Script could not be loaded: " + ex.getMessage());
+                    }
                 }
             };
         }

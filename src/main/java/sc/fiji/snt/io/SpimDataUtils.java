@@ -87,6 +87,88 @@ public class SpimDataUtils {
     // -- Path resolution --
 
     /**
+     * A single channel of a dataset at its highest resolution, as returned by {@link #openChannel}.
+     *
+     * @param img       the (lazy) full-resolution image of the channel
+     * @param spacing   voxel size at full resolution {@code {sx, sy, sz}} ({@code 1} if unknown)
+     * @param unit      spatial unit, or {@code null} if unknown
+     * @param name      channel name
+     * @param nChannels number of channels in the dataset
+     */
+    public record ChannelData(RandomAccessibleInterval<?> img, double[] spacing, String unit, String name,
+                              int nChannels) {}
+
+    /**
+     * Opens one channel of a dataset at full resolution, whatever its format: BDV {@code .xml} or Imaris
+     * {@code .ims} files (opened in memory, no XML sidecar is written), or N5/OME-Zarr containers (local or remote).
+     * Channels are in the order they are displayed by the viewers. Intended for scripts that operate on the full
+     * volume (see {@code ChannelUnmixing.groovy}).
+     *
+     * @param path       path or URL of the dataset
+     * @param channelIdx index of the channel (0-based)
+     * @param timepoint  index of the timepoint (0-based)
+     * @return the channel
+     * @throws IOException              if the dataset cannot be opened
+     * @throws IllegalArgumentException if the format is unsupported or the indices are out of range
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static ChannelData openChannel(final String path, final int channelIdx, final int timepoint)
+            throws IOException {
+        final String lower = path.toLowerCase(Locale.ROOT);
+        try {
+            if (lower.endsWith(".xml") || lower.endsWith(".ims")) {
+                final AbstractSpimData<?> sd = lower.endsWith(".ims") ? Imaris.openIms(path)
+                        : new XmlIoSpimDataMinimal().load(path);
+                final var seq = sd.getSequenceDescription();
+                final var setups = seq.getViewSetupsOrdered();
+                if (channelIdx < 0 || channelIdx >= setups.size())
+                    throw new IllegalArgumentException("Channel " + channelIdx + " not found: dataset has "
+                            + setups.size() + " channel(s)");
+                final var timepoints = seq.getTimePoints().getTimePointsOrdered();
+                if (timepoint < 0 || timepoint >= timepoints.size())
+                    throw new IllegalArgumentException("Timepoint " + timepoint + " not found: dataset has "
+                            + timepoints.size() + " timepoint(s)");
+                final var setup = setups.get(channelIdx);
+                if (!(seq.getImgLoader() instanceof bdv.ViewerImgLoader loader))
+                    throw new IllegalArgumentException("Unsupported image loader: " + seq.getImgLoader().getClass());
+                final RandomAccessibleInterval<?> img = loader.getSetupImgLoader(setup.getId())
+                        .getImage(timepoints.get(timepoint).getId(), 0);
+                final double[] spacing = {1, 1, 1};
+                String unit = null;
+                if (setup.hasVoxelSize()) {
+                    final VoxelDimensions vd = setup.getVoxelSize();
+                    for (int d = 0; d < 3; d++) spacing[d] = vd.dimension(d);
+                    unit = vd.unit();
+                }
+                final String name = (setup.getName() == null || setup.getName().isBlank())
+                        ? "channel" + channelIdx : setup.getName();
+                return new ChannelData(img, spacing, unit, name, setups.size());
+            }
+            final Object resolved = resolvePathToSource(path);
+            if (!(resolved instanceof N5Sources n5))
+                throw new IllegalArgumentException("Unsupported dataset (expected an .xml, .ims, N5 or OME-Zarr "
+                        + "container): " + path);
+            if (channelIdx < 0 || channelIdx >= n5.sources().size())
+                throw new IllegalArgumentException("Channel " + channelIdx + " not found: dataset has "
+                        + n5.sources().size() + " channel(s)");
+            if (timepoint < 0 || timepoint >= n5.numTimepoints())
+                throw new IllegalArgumentException("Timepoint " + timepoint + " not found: dataset has "
+                        + n5.numTimepoints() + " timepoint(s)");
+            final bdv.viewer.Source<?> src = n5.sources().get(channelIdx).getSpimSource();
+            final double[] spacing = {1, 1, 1};
+            String unit = null;
+            final VoxelDimensions vd = src.getVoxelDimensions();
+            if (vd != null) {
+                for (int d = 0; d < 3; d++) spacing[d] = vd.dimension(d);
+                unit = vd.unit();
+            }
+            return new ChannelData(src.getSource(timepoint, 0), spacing, unit, src.getName(), n5.sources().size());
+        } catch (final SpimDataException e) {
+            throw new IOException("Could not open '" + path + "': " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Resolves a file path to an {@link AbstractSpimData} (for {@code .ims} and
      * {@code .xml} files), an {@link N5Sources} (for {@code .n5}/{@code .zarr}
      * containers), or an {@link ImgPlus} (fallback).
