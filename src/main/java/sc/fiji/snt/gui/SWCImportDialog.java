@@ -238,7 +238,7 @@ public class SWCImportDialog extends JDialog {
 		void previewFileHeader(final File file) {
 			if (isVisible() && lastPreviewedFile == file && getText().startsWith("#"))
 				return;
-			if (file == null || !file.getAbsolutePath().toLowerCase().endsWith("swc")) {
+			if (!sc.fiji.snt.util.IOUtils.isSWCFile(file)) {
 				setForeground(GuiUtils.Colors.errorColor());
 				setText("File path does not contain a valid SWC extension...");
 				return;

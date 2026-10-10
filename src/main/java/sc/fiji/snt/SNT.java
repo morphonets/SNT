@@ -2429,11 +2429,12 @@ public class SNT extends MultiDThreePanes implements
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
 			return false;
 		}
-		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
+		final IOUtils.ReconstructionFormat guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
+		if (guessedType == null) return false; // unreadable file (already reported)
 		return switch (guessedType) {
-			case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML ->
+			case COMPRESSED_XML ->
 					pathAndFillManager.loadCompressedXML(file.getAbsolutePath());
-			case PathAndFillManager.TRACES_FILE_TYPE_UNCOMPRESSED_XML ->
+			case UNCOMPRESSED_XML ->
 					pathAndFillManager.loadUncompressedXML(file.getAbsolutePath());
 			default -> {
 				guiUtils.error(file.getAbsolutePath() + " is not a valid traces file.");
@@ -2449,8 +2450,8 @@ public class SNT extends MultiDThreePanes implements
 			getUI().runCommand("SWC...", file.getAbsolutePath());
 			return false; // no way to know if file was actually imported via GUI
 		}
-		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
-		if (guessedType == PathAndFillManager.TRACES_FILE_TYPE_SWC) {
+		final IOUtils.ReconstructionFormat guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
+		if (guessedType == IOUtils.ReconstructionFormat.SWC) {
 			return pathAndFillManager.importSWC(file.getAbsolutePath(), false, 0, 0, 0, 1, 1, 1, 1, false);
 		} else {
 			error(file.getAbsolutePath() + " does not seem to contain valid SWC data.");

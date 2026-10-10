@@ -7002,7 +7002,7 @@ public class SNTUI extends JDialog {
             final String filename = file.getName().toLowerCase();
             if (filename.endsWith(".traces"))
                 return ImportAction.TRACES;
-            if (filename.endsWith("swc"))
+            if (IOUtils.isSWCFile(file))
                 return ImportAction.SWC;
             if (filename.endsWith(".json"))
                 return ImportAction.JSON;

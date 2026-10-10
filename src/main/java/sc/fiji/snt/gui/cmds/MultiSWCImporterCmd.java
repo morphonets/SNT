@@ -133,9 +133,8 @@ public class MultiSWCImporterCmd extends ContextCommand {
 		if (dir == null || !dir.isDirectory() || !dir.exists()) return null;
 		final File[] files = dir.listFiles(file -> {
 			if (file.isHidden()) return false;
-			final String fName = file.getName().toLowerCase();
-			if (!fName.endsWith("swc")) return false;
-			return pattern == null || pattern.isEmpty() || fName.contains(pattern);
+			if (!sc.fiji.snt.util.IOUtils.isSWCFile(file)) return false;
+			return pattern == null || pattern.isEmpty() || file.getName().toLowerCase().contains(pattern);
 		});
 		if (files == null || files.length == 0) return null;
 		final Map<String, String> map = new HashMap<>();

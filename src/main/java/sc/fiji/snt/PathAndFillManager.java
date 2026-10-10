@@ -91,12 +91,6 @@ public class PathAndFillManager extends DefaultHandler implements
 
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-    protected static final int TRACES_FILE_TYPE_COMPRESSED_XML = 1;
-    protected static final int TRACES_FILE_TYPE_UNCOMPRESSED_XML = 2;
-    protected static final int TRACES_FILE_TYPE_SWC = 3;
-    protected static final int TRACES_FILE_TYPE_ML_JSON = 4;
-    protected static final int TRACES_FILE_TYPE_NDF = 5;
-    protected static final int TRACES_FILE_TYPE_NEUROLUCIDA = 6;
 
     private static final DecimalFormat fileIndexFormatter = new DecimalFormat("000");
 
@@ -2906,51 +2900,14 @@ public class PathAndFillManager extends DefaultHandler implements
 
     }
 
-    protected int guessTracesFileType(final String filename) {
+    /** Detects the format of a file. Returns null (and reports an error) if the file could not be read */
+    protected IOUtils.ReconstructionFormat guessTracesFileType(final String filename) {
         try {
-            return guessTracesFileType(Files.newInputStream(Paths.get(filename)), true);
-        } catch (IOException e) {
+            return IOUtils.detectFormat(new File(filename));
+        } catch (final IOException e) {
             errorStatic("The file '" + filename + "' could not be parsed.");
-            return -1;
+            return null;
         }
-    }
-
-    private int guessTracesFileType(InputStream is, final boolean closeStreamAfterGuess) throws IOException {
-        /*
-         * Look at the magic bytes at the start of the file:
-         *
-         * If this looks as if it's gzip compressed, assume it's a compressed traces
-         * file. If it begins "<?xml", check for Neurolucida's <mbf> root element;
-         * otherwise assume it's an uncompressed traces file. If it begins with '{"'
-         * assume it is a ML JSON file, otherwise assume it's an SWC file.
-         */
-        if (!headless)
-            SNTUtils.log("Guessing file type...");
-        if (is.markSupported())
-            is.mark(4096);
-        final byte[] buf = new byte[4096];
-        final int bytesRead = is.read(buf, 0, buf.length);
-        if (closeStreamAfterGuess)
-            is.close();
-        else if (is.markSupported()) {
-            is.reset();
-        }
-        if (bytesRead < 2) return TRACES_FILE_TYPE_SWC;
-        if(buf[ 0 ] == (byte) 0x1f && buf[ 1 ] == (byte) 0x8b ) { //check if matches standard gzip magic number
-            return TRACES_FILE_TYPE_COMPRESSED_XML;
-        } else if (bytesRead >= 6 && buf[0] == '<' && buf[1] == '?' && buf[2] == 'x' && buf[3] == 'm'
-                && buf[4] == 'l' && buf[5] == ' ') {
-            // XML file: distinguish SNT traces from Neurolucida by checking for <mbf> root
-            final String header = new String(buf, 0, bytesRead);
-            if (header.contains("<mbf"))
-                return TRACES_FILE_TYPE_NEUROLUCIDA;
-            return TRACES_FILE_TYPE_UNCOMPRESSED_XML;
-        } else if (((char) (buf[0] & 0xFF) == '{')) {
-            return TRACES_FILE_TYPE_ML_JSON;
-        } else if (((char) (buf[0] & 0xFF) == '/')) {
-            return TRACES_FILE_TYPE_NDF;
-        }
-        return TRACES_FILE_TYPE_SWC;
     }
 
     protected boolean loadCompressedXML(final String filename) {
@@ -3052,25 +3009,29 @@ public class PathAndFillManager extends DefaultHandler implements
     public boolean load(final String filePath, final int... swcTypes) {
         final boolean existingEnableUiUpdates = enableUIupdates;
         enableUIupdates = false;
-        final int guessedType = guessTracesFileType(filePath);
+        final IOUtils.ReconstructionFormat guessedType = guessTracesFileType(filePath);
+        if (guessedType == null) {
+            enableUIupdates = existingEnableUiUpdates;
+            return false;
+        }
         boolean result;
         switch (guessedType) {
-            case TRACES_FILE_TYPE_COMPRESSED_XML:
+            case COMPRESSED_XML:
                 result = loadCompressedXML(filePath);
                 break;
-            case TRACES_FILE_TYPE_UNCOMPRESSED_XML:
+            case UNCOMPRESSED_XML:
                 result = loadUncompressedXML(filePath);
                 break;
-            case TRACES_FILE_TYPE_ML_JSON:
+            case ML_JSON:
                 result = loadJSON(filePath, swcTypes);
                 break;
-            case TRACES_FILE_TYPE_NDF:
+            case NDF:
                 result = loadNDF(filePath);
                 break;
-            case TRACES_FILE_TYPE_NEUROLUCIDA:
+            case NEUROLUCIDA:
                 result = loadNeurolucida(filePath);
                 break;
-            case TRACES_FILE_TYPE_SWC:
+            case SWC:
                 result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, 1, true, swcTypes);
                 break;
             default:
@@ -3099,32 +3060,32 @@ public class PathAndFillManager extends DefaultHandler implements
 
     public boolean loadGuessingType(final String optionalDescription, final InputStream is) throws IOException {
         final BufferedInputStream bis = (is instanceof BufferedInputStream) ? ((BufferedInputStream)is) : new BufferedInputStream(is);
-        final int guessedType = guessTracesFileType(bis, false);
+        final IOUtils.ReconstructionFormat guessedType = IOUtils.detectFormat(bis, false);
         final boolean existingEnableUiUpdates = enableUIupdates;
         enableUIupdates = false;
         boolean result;
         switch (guessedType) {
-            case TRACES_FILE_TYPE_COMPRESSED_XML:
+            case COMPRESSED_XML:
                 SNTUtils.log("Loading gzipped file...");
                 result = load(new GZIPInputStream(bis));
                 break;
-            case TRACES_FILE_TYPE_UNCOMPRESSED_XML:
+            case UNCOMPRESSED_XML:
                 SNTUtils.log("Loading uncompressed file...");
                 result = load(bis);
                 break;
-            case TRACES_FILE_TYPE_ML_JSON:
+            case ML_JSON:
                 final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
                 final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
                 result = outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
                 break;
-            case TRACES_FILE_TYPE_SWC:
+            case SWC:
                 final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
                 result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, true);
                 break;
-            case TRACES_FILE_TYPE_NDF:
+            case NDF:
                 result = loadNDF(bis);
                 break;
-            case TRACES_FILE_TYPE_NEUROLUCIDA:
+            case NEUROLUCIDA:
                 result = loadNeurolucida(bis);
                 break;
             default:

@@ -6920,7 +6920,7 @@ public class Viewer3D {
                 try {
                     incrementProgress();
                     final ColorRGB color = colors[idx];
-                    if(SNTUtils.isReconstructionFile(file)) {
+                    if(SNTUtils.isReconstructionFile(file, true)) {
                         try {
                             final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
                             if (treesInFile.isEmpty()) {

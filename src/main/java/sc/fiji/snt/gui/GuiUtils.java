@@ -1507,8 +1507,15 @@ public class GuiUtils {
 	}
 
 	public File[] getReconstructionFiles(final File selectedFile) {
+		// NB: xml (Neurolucida) cannot be told apart by name alone. It is listed here, and validated
+		// by the importers once selected
+		final String[] extensions = java.util.stream.Stream.concat(
+				java.util.Arrays.stream(sc.fiji.snt.util.IOUtils.getReconstructionExtensions()),
+				java.util.stream.Stream.of("xml")).toArray(String[]::new);
+		final String label = java.util.Arrays.stream(extensions).map(e -> "." + e)
+				.collect(java.util.stream.Collectors.joining(", "));
 		final FileNameExtensionFilter filter = new FileNameExtensionFilter(
-				"Reconstruction files (.traces, .swc, .json, .ndf, .xml)", "traces", "swc", "json", "ndf", "xml");
+				"Reconstruction files (" + label + ")", extensions);
 		return (File[]) showOpenDialog("Choose Reconstruction File(s)", JFileChooser.FILES_ONLY, true,
 				selectedFile, false, filter);
 	}

@@ -649,7 +649,7 @@ public class SNTUtils {
 	 *         valid, readable directory.
 	 */
 	public static File[] getReconstructionFiles(final File dir, final String pattern) {
-		if (dir != null && dir.isFile() && dir.canRead() && isReconstructionFile(dir))
+		if (dir != null && dir.isFile() && dir.canRead() && isReconstructionFile(dir, true))
 			return new File[]{dir};
 		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
 			return null;
@@ -659,14 +659,33 @@ public class SNTUtils {
 			final String name = file.getName();
 			if (!name.contains(validatedPattern))
 				return false;
-			return file.canRead() && isReconstructionFile(file);
+			return file.canRead() && isReconstructionFile(file, true);
 		};
 		return dir.listFiles(filter);
 	}
 
+	/**
+	 * Checks if a file is a reconstruction file based on its extension only.
+	 *
+	 * @param file the file to be tested
+	 * @return true if the extension is that of a supported reconstruction format
+	 * @see sc.fiji.snt.util.IOUtils#isReconstructionFile(File)
+	 */
 	public static boolean isReconstructionFile(final File file) {
-		final String lName = file.getName().toLowerCase();
-		return (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json") || lName.endsWith(".ndf"));
+		return sc.fiji.snt.util.IOUtils.isReconstructionFile(file);
+	}
+
+	/**
+	 * Checks if a file is a reconstruction file, optionally inspecting the header of .xml files
+	 * (Neurolucida).
+	 *
+	 * @param file     the file to be tested
+	 * @param sniffXml whether .xml files should be inspected
+	 * @return true if the file is a supported reconstruction file
+	 * @see sc.fiji.snt.util.IOUtils#isReconstructionFile(File, boolean)
+	 */
+	public static boolean isReconstructionFile(final File file, final boolean sniffXml) {
+		return sc.fiji.snt.util.IOUtils.isReconstructionFile(file, sniffXml);
 	}
 	/**
 	 * Returns timestamped backup copies of traces files in the specified location.
