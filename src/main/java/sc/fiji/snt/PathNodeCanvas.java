@@ -238,7 +238,22 @@ public class PathNodeCanvas {
         // Reset color to avoid stale values, and check bounds before accessing
         color = (index >= 0 && index < path.size()) ? path.getNodeColor(index) : null;
         if (color == null) color = fallbackColor;
+        // Locked active node is flagged in red (as in the Bvv/Bdv editor), unless the node itself is reddish
+        if (editable && path.isEditableNodeLocked()) color = lockColor(color);
         g.setColor(color);
+    }
+
+    /**
+     * Color flagging a locked active node: red, unless {@code nodeColor} is itself reddish. Shared by all front-ends
+     * (tracing canvas, Bdv/Bvv) so that locked nodes look alike everywhere
+     *
+     * @param nodeColor the color the node would otherwise be rendered with
+     * @return the color to flag the locked node with
+     */
+    public static Color lockColor(final Color nodeColor) {
+        final float[] hsb = Color.RGBtoHSB(nodeColor.getRed(), nodeColor.getGreen(), nodeColor.getBlue(), null);
+        final boolean reddish = hsb[1] > 0.4f && hsb[2] > 0.3f && (hsb[0] < 0.07f || hsb[0] > 0.93f);
+        return reddish ? Color.CYAN : Color.RED;
     }
 
     private void assignRenderingSize() {

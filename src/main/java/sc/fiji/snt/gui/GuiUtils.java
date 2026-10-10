@@ -1971,6 +1971,24 @@ public class GuiUtils {
 	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {
+		displayBanner(msg, background, parent, SwingConstants.CENTER, true);
+	}
+
+	/**
+	 * Displays a transient banner over {@code parent}.
+	 *
+	 * @param msg            the banner text (HTML is supported)
+	 * @param background     the background color
+	 * @param parent         the component the banner is displayed over
+	 * @param position       a {@link SwingConstants} location flag (e.g.,
+	 *                       {@code NORTH_EAST}) as accepted by
+	 *                       {@link JidePopup#showPopup(int, Component)}
+	 * @param dismissOnMove  if true, the banner is dismissed by mouse
+	 *                       movements over {@code parent}. If false, only
+	 *                       clicks dismiss it (and it stays up longer)
+	 */
+	public static void displayBanner(final String msg, final Color background, final Component parent,
+			final int position, final boolean dismissOnMove) {
 		final JLabel label = new JLabel(msg);
 		label.setHorizontalAlignment(SwingConstants.CENTER);
 		if (!msg.startsWith("<HTML>"))
@@ -1982,7 +2000,7 @@ public class GuiUtils {
 		final MouseAdapter adapter = new MouseAdapter() {
 			@Override
 			public void mouseMoved(final MouseEvent e) {
-				dismiss();
+				if (dismissOnMove) dismiss();
 			}
 			@Override
 			public void mouseClicked(final MouseEvent e) {
@@ -1990,7 +2008,7 @@ public class GuiUtils {
 			}
 			@Override
 			public void mouseDragged(final MouseEvent e) {
-				dismiss();
+				if (dismissOnMove) dismiss();
 			}
 			@Override
 			public void mousePressed(final MouseEvent e) {
@@ -2016,8 +2034,8 @@ public class GuiUtils {
 		popup.setTransient(true);
 		popup.setMovable(false);
 		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
-		popup.setTimeout(4000);
-		SwingUtilities.invokeLater(() -> popup.showPopup(SwingConstants.CENTER, parent));
+		popup.setTimeout((dismissOnMove) ? 4000 : 10000);
+		SwingUtilities.invokeLater(() -> popup.showPopup(position, parent));
 	}
 
 	public static void addTooltip(final JComponent c, final String text) {

@@ -30,6 +30,7 @@ import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
+import sc.fiji.snt.gui.ContextMenuCommand;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
@@ -83,6 +84,7 @@ public abstract class AbstractBigViewer {
     protected boolean tracingEnabled;
 
     private KeyframeRecorder keyframeRecorder;
+    private GuiUtils guiUtils;
 
     /** @return SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     public SNT getSNT() { return snt; }
@@ -98,6 +100,219 @@ public abstract class AbstractBigViewer {
      */
     public boolean isTracingEnabled() { return tracingEnabled; }
 
+    // ---- Edit Mode (node-level editing of a single path; see BigViewerEditor) ----
+
+    private BigViewerEditor editor;
+    /** Key bindings id used for the (transient) Edit Mode shortcuts. See {@link #installEditKeybindings} */
+    protected static final String EDIT_KEYBINDINGS_ID = "snt-edit";
+
+    /** @return whether this viewer is currently in Edit Mode (node-level editing of a single selected path) */
+    public boolean isEditModeEnabled() {
+        return editor != null && editor.isActive();
+    }
+
+    /**
+     * Toggles Edit Mode: node-level editing of the single selected path, mirroring the Edit-path commands of the
+     * classic canvas. Only available in SNT-tethered viewers. Entering requires exactly one selected path and
+     * suspends tracing for the duration.
+     */
+    public void toggleEditMode() {
+        if (snt == null) {
+            getGuiUtils().error("Edit Mode is only available in SNT-tethered viewers");
+            return;
+        }
+        if (editor == null) editor = new BigViewerEditor(this, snt);
+        editor.toggle();
+    }
+
+    /**
+     * Called by SNT when Edit Mode is (de)activated from any front-end, including this one
+     * (see {@code SNT#enterEditMode(Path)})
+     */
+    public void onSntEditModeChanged(final boolean enabled) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> onSntEditModeChanged(enabled));
+            return;
+        }
+        if (disposed) return; // see BigViewerEditor#onViewerDisposed
+        if (editor == null) {
+            if (!enabled || snt == null) return;
+            editor = new BigViewerEditor(this, snt);
+        }
+        editor.onSntEditModeChanged(enabled);
+    }
+
+    /** Called by SNT when nodes of the path being edited were modified in place by another front-end */
+    public void onSntEditedPathModified() {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(this::onSntEditedPathModified);
+            return;
+        }
+        if (disposed) return;
+        invalidatePathGeometry();
+        if (editor != null && editor.isActive()) editor.refreshNodes();
+    }
+
+    /** Called by SNT when the active node (or its lock state) was changed by another front-end */
+    public void onSntActiveNodeChanged() {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(this::onSntActiveNodeChanged);
+            return;
+        }
+        if (!disposed && editor != null && editor.isActive()) editor.refreshActiveMarker();
+    }
+
+    /** Called by SNT when the path being edited has changed while in Edit Mode */
+    public void onSntEditingPathChanged() {
+        if (editor == null || !editor.isActive()) return;
+        if (SwingUtilities.isEventDispatchThread()) editor.refreshNodes();
+        else SwingUtilities.invokeLater(editor::refreshNodes);
+    }
+
+    /**
+     * World position of the cursor, as used by Edit Mode to place/move nodes. The default is the position reported
+     * by {@link #getGlobalMouseCoordinates(RealPoint)} (appropriate for an orthogonal slicing view); {@link Bvv}
+     * overrides it to resolve depth the same way its tracer does.
+     *
+     * @return calibrated (x,y,z) position, or null if it could not be resolved
+     */
+    protected double[] resolveCursorWorldPosition() {
+        final RealPoint pos = new RealPoint(3);
+        getGlobalMouseCoordinates(pos);
+        return pos.positionAsDoubleArray();
+    }
+
+    /**
+     * Discards cached path geometry and repaints. Needed after in-place edits of a Path (e.g., a moved node), which
+     * the structural fingerprint of the cached screen data does not detect
+     */
+    protected void invalidatePathGeometry() {
+        if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
+        syncOverlays();
+    }
+
+    private BigViewerMenu contextMenu;
+    /** The viewer's tracer (set when it is built), or null if tracing is unavailable. See {@link #menuTracer()} */
+    private AbstractTracer menuTracer;
+    /** Path rendering layer, shared by Bvv and Bdv */
+    Bvv.PathOverlay pathOverlay;
+
+    /**
+     * Attaches the context menu (see {@link BigViewerMenu}) to the viewer's display. To be called once the display
+     * exists. No-op in standalone viewers
+     */
+    protected void installContextMenu() {
+        if (snt == null) return;
+        if (editor == null) editor = new BigViewerEditor(this, snt);
+        // Joining a session that is already in Edit Mode (e.g., started from the tracing canvas)
+        if (snt.isEditModeEnabled() && !editor.isActive()) SwingUtilities.invokeLater(() -> {
+            if (!disposed) editor.onSntEditModeChanged(true);
+        });
+        if (contextMenu == null) contextMenu = new BigViewerMenu(this, snt, editor);
+        contextMenu.install();
+    }
+
+    /** @return the tracer, or null if tracing is unavailable. For use by the context menu */
+    AbstractTracer menuTracer() {
+        return menuTracer;
+    }
+
+    /**
+     * Starts a Sholl analysis centered at the node nearest to a position: as in the tracing canvas, the nearest
+     * node of the selected paths or, if none is selected, of the rendered path nearest to it
+     *
+     * @param pos the calibrated (x,y,z) position, or null if it could not be resolved
+     */
+    void startShollAtNearestNode(final double[] pos) {
+        if (snt == null) return;
+        if (pos == null) {
+            showViewerMessage("Could not resolve cursor position");
+            return;
+        }
+        // As in the tracing canvas: nearest node of the selected paths or, if none is selected, of the
+        // rendered path nearest to the position (see AbstractTracer#findNearestRenderedPath). The version in
+        // use (fitted or not) is searched, since that is the one analyzed by the Sholl command
+        final Collection<Path> selected = snt.getSelectedPaths();
+        final Collection<Path> candidates;
+        if (selected != null && !selected.isEmpty()) {
+            candidates = selected;
+        } else {
+            final Path nearest = (menuTracer == null) ? null : menuTracer.findNearestRenderedPath(pos);
+            candidates = (nearest == null) ? List.of() : List.of(nearest);
+        }
+        final PathAndFillManager.NodeRef ref = snt.getPathAndFillManager().nearestNodeInUse(candidates, pos[0],
+                pos[1], pos[2]);
+        if (ref == null) {
+            showViewerMessage("No nodes to analyze: No rendered paths near cursor");
+            return;
+        }
+        final PointInImage center = ref.path().getNode(ref.index());
+        snt.startSholl(center);
+    }
+
+    /**
+     * Places a marker (bookmark) at a position captured earlier than this call (e.g., by the context menu, since
+     * the live cursor position is unreliable once a menu is open)
+     *
+     * @param pos the calibrated (x,y,z) position, or null if it could not be resolved
+     */
+    void placeMarker(final double[] pos) {
+        if (pos == null) {
+            showViewerMessage("Could not resolve cursor position");
+            return;
+        }
+        if (snt != null && snt.getUI() != null && !snt.isStreamMode()) {
+            // Classic mode: bookmarks live in the Bookmarks tab of SNT's UI (the same used by Shift+B on the image
+            // canvas), which takes calibrated (world) coordinates
+            snt.getUI().getBookmarkManager().add(pos[0], pos[1], pos[2], snt.getChannel(), getCurrentTimepoint());
+            showViewerMessage(String.format("Bookmark added at (%.1f, %.1f, %.1f)", pos[0], pos[1], pos[2]));
+            return;
+        }
+        getMarkerManager().add(pos[0], pos[1], pos[2]);
+        showViewerMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", pos[0], pos[1], pos[2]));
+    }
+
+    /**
+     * Locks/unlocks this viewer's tracing-mode toolbar buttons to "No tracing", as for a global SNT pause. Also used
+     * to suspend tracing-by-click while in Edit Mode. Does nothing if this viewer has no tracer
+     *
+     * @param locked whether tracing is currently suspended
+     */
+    public void setTracingLockedByPause(final boolean locked) {
+        if (menuTracer != null) menuTracer.setLockedByPause(locked);
+    }
+
+    /** @return the key bindings of the viewer's frame, or null if the frame does not exist (yet) */
+    protected abstract org.scijava.ui.behaviour.util.InputActionBindings getKeybindings();
+
+    /**
+     * Adds transient key bindings (taking precedence over the viewer's own and the permanent SNT ones) for the
+     * duration of Edit Mode. Counterpart of {@link #removeEditKeybindings()}
+     */
+    protected void installEditKeybindings(final InputMap inputMap, final ActionMap actionMap) {
+        final org.scijava.ui.behaviour.util.InputActionBindings kb = getKeybindings();
+        if (kb == null) return;
+        kb.addInputMap(EDIT_KEYBINDINGS_ID, inputMap);
+        kb.addActionMap(EDIT_KEYBINDINGS_ID, actionMap);
+    }
+
+    /** Removes the bindings added by {@link #installEditKeybindings(InputMap, ActionMap)} */
+    protected void removeEditKeybindings() {
+        final org.scijava.ui.behaviour.util.InputActionBindings kb = getKeybindings();
+        if (kb == null) return;
+        kb.removeInputMap(EDIT_KEYBINDINGS_ID);
+        kb.removeActionMap(EDIT_KEYBINDINGS_ID);
+    }
+
+    protected GuiUtils getGuiUtils() {
+        // Re-create if the frame is not the one the instance was parented to (not yet available, or recreated)
+        final JFrame frame = getViewerFrame();
+        if (guiUtils == null || guiUtils.getParent() != frame) {
+            guiUtils = new GuiUtils(frame);
+        }
+        return guiUtils;
+    }
+
     /**
      * Enables tracing on this viewer, as if the user had clicked its manual/interactive
      * tracing-mode toggle button (see {@code AbstractTracer#getToggleAction(boolean)}), so a
@@ -110,7 +325,9 @@ public abstract class AbstractBigViewer {
      *               semi-automated (auto-trace) tracing
      * @see #isTracingEnabled()
      */
-    public abstract void enableTracing(boolean manual);
+    public void enableTracing(final boolean manual) {
+        if (menuTracer != null) menuTracer.enableTracingExternally(manual);
+    }
 
     /**
      * @return whether this viewer currently has a path in progress, i.e. the user has clicked to start
@@ -118,7 +335,9 @@ public abstract class AbstractBigViewer {
      *         this viewer has no tracer (see {@link #enableTracing(boolean)}).
      * @see #isTracingEnabled()
      */
-    public abstract boolean isPathInProgress();
+    public boolean isPathInProgress() {
+        return menuTracer != null && menuTracer.isPathInProgress();
+    }
 
     // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
     // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a
@@ -194,7 +413,6 @@ public abstract class AbstractBigViewer {
     protected JProgressBar tracingStatusBar;
     protected JButton tracingCancelButton;
     protected JButton tracingUndoButton;
-    protected JToggleButton tracingExtendButton;
     protected JToggleButton secondaryLayerIndicator; // Persistent indicator of SNT#isTracingOnSecondaryImageActive()
 
     protected AbstractBigViewer() {
@@ -225,6 +443,7 @@ public abstract class AbstractBigViewer {
             syncedPathManagerLabels.clear();
         }
         try {
+            if (editor != null) editor.onViewerDisposed();
             disposeViewer();
         } catch (final RuntimeException ex) {
             SNTUtils.log("Viewer disposal failed: " + ex.getMessage());
@@ -688,9 +907,8 @@ public abstract class AbstractBigViewer {
      * these look like coordinates, and flies to it at the current timepoint.
      */
     public void promptGoTo() {
-        final GuiUtils gui = new GuiUtils(getViewerFrame());
         final String clipText = GuiUtils.Text.getClipboard();
-        final String pos = gui.getString(
+        final String pos = getGuiUtils().getString(
                 "Location XYZ coordinates, in physical units (comma/space separated): ",
                 "Go To Location...",
                 (GuiUtils.Text.containsNumber(clipText) && GuiUtils.Text.containsSeparator(clipText))
@@ -701,7 +919,7 @@ public abstract class AbstractBigViewer {
             flyTo(pim.x, pim.y, pim.z, getCurrentTimepoint(),
                     String.format("%.2f, %.2f, %.2f", pim.x, pim.y, pim.z));
         } catch (final Throwable ex) {
-            gui.error("Could not extract a valid location from \"" + pos + "\".");
+            getGuiUtils().error("Could not extract a valid location from \"" + pos + "\".");
         }
     }
 
@@ -911,6 +1129,15 @@ public abstract class AbstractBigViewer {
             final Actions actions, final Action addMarker, final AbstractTracer tracer) {
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), "snt-add-marker");
         sntAMap.put("snt-add-marker", addMarker);
+        // Same shortcut as in the classic canvas
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK),
+                "snt-sholl-nearest-node");
+        sntAMap.put("snt-sholl-nearest-node", new AbstractAction("Sholl Analysis at Nearest Node") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                startShollAtNearestNode(resolveCursorWorldPosition());
+            }
+        });
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, false), "snt-hide-annotations-press");
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true), "snt-hide-annotations-release");
         sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
@@ -921,6 +1148,13 @@ public abstract class AbstractBigViewer {
         sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
         sntIMap.put(GO_TO_KEYSTROKE, "snt-go-to-location");
         sntAMap.put("snt-go-to-location", actions.goToAction());
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK), "snt-toggle-edit-mode");
+        sntAMap.put("snt-toggle-edit-mode", new AbstractAction("Toggle Edit Mode") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                toggleEditMode();
+            }
+        });
         if (tracer == null) return;
         // Grab Nearest Path/Add Nearest Path to Selection: mirrors InteractiveTracerCanvas's
         // G/Shift+G shortcuts on the classic canvas (see AbstractTracer#getSelectNearestPathAction).
@@ -1147,7 +1381,7 @@ public abstract class AbstractBigViewer {
             showViewerMessage(String.format("%s loaded", f.getName()));
             Actions.setDefaultDir(f);
         } catch (final Exception ex) {
-            new GuiUtils(getViewerFrame()).error(ex.getMessage());
+            getGuiUtils().error(ex.getMessage());
         }
     }
 
@@ -1179,7 +1413,7 @@ public abstract class AbstractBigViewer {
             if (!recs.isEmpty()) {
                 add(recs.toArray(new File[0]));
             } else if (sf == null && csvs.isEmpty()) {
-                SwingUtilities.invokeLater(() -> new GuiUtils(getViewerFrame())
+                SwingUtilities.invokeLater(() -> getGuiUtils()
                         .error("None of the dropped item(s) could be imported."));
             }
         });
@@ -1227,7 +1461,7 @@ public abstract class AbstractBigViewer {
         runOnEdt(() -> {
             boolean load = "always".equals(pref);
             if (!load) {
-                final boolean[] reply = new GuiUtils(getViewerFrame()).getConfirmationAndOption(
+                final boolean[] reply = getGuiUtils().getConfirmationAndOption(
                         "Saved display settings were found for this dataset (" + f.getName() + "). Load them?",
                         "Saved Settings Found", "Remember my choice", false, new String[] { "Load", "Skip" });
                 load = reply[0];
@@ -1713,23 +1947,6 @@ public abstract class AbstractBigViewer {
     public PathRenderingOptions getRenderingOptions() { return renderingOptions; }
 
     /**
-     * Whether {@code M}-key marker placement should be blocked in the current mode, showing a
-     * viewer message if so. True whenever SNTUI is present in "classic-mode-tracing", since the image canvas
-     * already has a fully working Bookmarks tab (Shift+B, right-click, etc.).
-     * Shared by Bvv/Bdv's own {@code M}-key bindings.
-     *
-     * @return true if placement was blocked (and a message shown); callers should return
-     * immediately without placing a marker
-     */
-    protected boolean blockMarkerPlacement() {
-        if (snt != null && snt.getUI() != null && !snt.isStreamMode()) {
-            showViewerMessage("Use Shift+B directly on the image");
-            return true;
-        }
-        return false;
-    }
-
-    /**
      * Builds the "Options" button (Import Reconstructions.../Remove All Annotations...) shared by
      * Bvv/Bdv's own SNT Annotations toolbar.
      */
@@ -1779,14 +1996,6 @@ public abstract class AbstractBigViewer {
         IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
         tracingUndoButton.setToolTipText("<HTML>Tracing: Undo last segment (or press Z)");
         tracer.updateUndoButtonState();
-        tracingExtendButton = new JToggleButton(tracer.getExtendSelectedPathAction());
-        tracingExtendButton.setText(null);
-        IconFactory.assignIcon(tracingExtendButton, IconFactory.GLYPH.CIRCLE_CHEVRON_RIGHT, IconFactory.GLYPH.CIRCLE_CHEVRON_RIGHT);
-        tracingExtendButton.setToolTipText("Continue extending the selected path");
-        // Same reasoning as b0/b1/b2 in Bvv#sntToolbar/Bdv#sntAnnotationsCard: non-focusable so
-        // Space (hold-to-toggle-tracing) isn't also captured as this button's own activation key
-        tracingExtendButton.setFocusable(false);
-        tracer.installExtendPathButton(tracingExtendButton);
         secondaryLayerIndicator = new JToggleButton();
         secondaryLayerIndicator.setEnabled(snt != null);
         secondaryLayerIndicator.setSelected(snt != null && snt.isTracingOnSecondaryImageActive());
@@ -1797,8 +2006,6 @@ public abstract class AbstractBigViewer {
         row.setFloatable(false);
         row.add(tracingUndoButton);
         row.addSeparator();
-        row.add(tracingExtendButton);
-        row.addSeparator();
         row.add(secondaryLayerIndicator);
         row.addSeparator();
         row.add(tracingStatusBar);
@@ -1808,7 +2015,6 @@ public abstract class AbstractBigViewer {
     }
 
     protected class Actions {
-        private GuiUtils guiUtils;
         // State for hide-annotations (H key) press/release tracking
         float lastClippingDistance = 100f;
         private boolean hideActive;
@@ -2301,11 +2507,6 @@ public abstract class AbstractBigViewer {
             };
         }
 
-        GuiUtils getGuiUtils() {
-            if (guiUtils == null) guiUtils = new GuiUtils(getViewerFrame());
-            return guiUtils;
-        }
-
         protected static File getDefaultDir() {
             return SNTPrefs.lastKnownDir(); // never null
         }
@@ -2499,7 +2700,7 @@ public abstract class AbstractBigViewer {
         final String[] choices = {"Top center", "Top right"};
         final String current = (Prefs.sourceNameOverlayPosition() == Prefs.OverlayPosition.TOP_RIGHT)
                 ? choices[1] : choices[0];
-        final String choice = new GuiUtils(getViewerFrame()).getChoice(
+        final String choice = getGuiUtils().getChoice(
                 "Position of the source name overlay:", "Text Overlay Position", choices, current);
         if (choice == null) return;
         Prefs.sourceNameOverlayPosition(choices[1].equals(choice)
@@ -2936,10 +3137,6 @@ public abstract class AbstractBigViewer {
         // state directly, regardless of whether a change originates from a click or from a global
         // SNT_PAUSED/TRACING_PAUSED transition (see SNT#pause/SNT#pauseTracing).
         private JToggleButton noTracingButton, manualTracingButton, interactiveTracingButton;
-        // Mirrors whether a "Continue Extending" is currently pending (see #toBeCombinedPath);
-        // kept selected for the duration and disabled outright whenever tracing is off, set via
-        // #installExtendPathButton
-        private JToggleButton extendPathButton;
 
         // Whether a global SNT_PAUSED/TRACING_PAUSED state is currently forcing "No tracing" here (see #setLockedByPause).
         // While true, manualTracingButton/interactiveTracingButton are disabled - not just deselected - so the toolbar
@@ -3000,6 +3197,7 @@ public abstract class AbstractBigViewer {
             if (snt == null || snt.getPathAndFillManager() == null) {
                 throw new IllegalArgumentException("Tracer can only be initialized with a valid SNT instance");
             }
+            menuTracer = this;
             addMouseListenerToDisplay(this);
         }
 
@@ -3015,6 +3213,7 @@ public abstract class AbstractBigViewer {
             final Point start = pressPoint;
             pressPoint = null;
             if (start == null) return; // press wasn't seen by this listener; nothing to compare against
+            if (!SwingUtilities.isLeftMouseButton(e)) return; // right-click opens the Edit Mode context menu
             if (start.distance(e.getPoint()) > CLICK_MOVE_TOLERANCE_PX) return; // a real drag, not a click
             handleClick(e);
         }
@@ -3078,7 +3277,7 @@ public abstract class AbstractBigViewer {
                 if (batchLock != null) {
                     final int[] candidate = peekActiveChannelFrame();
                     if (candidate == null || candidate[0] != batchLock[0] || candidate[1] != batchLock[1]) {
-                        new GuiUtils(getViewerFrame()).error("An A* batch re-trace is running on channel "
+                        getGuiUtils().error("An A* batch re-trace is running on channel "
                                 + batchLock[0] + " / frame " + batchLock[1] + ". Starting a new path on a "
                                 + "different channel/frame is disabled until it finishes.");
                         return;
@@ -3125,7 +3324,7 @@ public abstract class AbstractBigViewer {
                             : String.format("No point within %.2f%s of the cursor was found on the nearest path ('%s').",
                                     pickRadius, calUnit, nearestPath.getName());
                     final String mod = (renderingOptions.requireShiftToFork) ? "Alt+Shift" : "Alt";
-                    new GuiUtils(getViewerFrame()).error("<html>" + detail
+                    getGuiUtils().error("<html>" + detail
                             + "<br>Move closer to the target path, or click without " + mod + " to start an unconnected path.</html>",
                             "No Fork Point Found");
                     return;
@@ -3320,27 +3519,42 @@ public abstract class AbstractBigViewer {
          * @see #findNearestRenderedPath(double[])
          */
         protected AbstractAction getSelectNearestPathAction(final boolean addToExistingSelection) {
-            return new AbstractAction((addToExistingSelection) ? "Add Nearest Path to Selection" : "Grab Nearest Path") {
+            return new AbstractAction((addToExistingSelection) ? ContextMenuCommand.APPEND.label()
+                    : ContextMenuCommand.GRAB.label()) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (snt == null || snt.getPathAndFillManager().size() == 0) {
                         showViewerMessage("Nothing to select: There are no traced paths");
                         return;
                     }
-                    final double[] worldPos = resolveClickWorldPosition(null);
-                    if (worldPos == null) {
-                        showViewerMessage("Could not resolve cursor position");
-                        return;
-                    }
-                    final Path nearest = findNearestRenderedPath(worldPos);
-                    if (nearest == null) {
-                        showViewerMessage("No rendered paths near cursor");
-                        return;
-                    }
-                    snt.selectPath(nearest, addToExistingSelection);
-                    showViewerMessage(nearest.getName() + " selected");
+                    selectNearestPath(resolveClickWorldPosition(null), addToExistingSelection);
                 }
             };
+        }
+
+        /**
+         * Selects the rendered path nearest to a position. The core of {@link #getSelectNearestPathAction(boolean)},
+         * for callers (e.g., the context menu) that need a position captured earlier than the action's invocation
+         *
+         * @param worldPos the calibrated position, or null if it could not be resolved
+         * @param addToExistingSelection whether to add to (true) or replace (false) the current selection
+         */
+        protected void selectNearestPath(final double[] worldPos, final boolean addToExistingSelection) {
+            if (snt == null || snt.getPathAndFillManager().size() == 0) {
+                showViewerMessage("Nothing to select: There are no traced paths");
+                return;
+            }
+            if (worldPos == null) {
+                showViewerMessage("Could not resolve cursor position");
+                return;
+            }
+            final Path nearest = findNearestRenderedPath(worldPos);
+            if (nearest == null) {
+                showViewerMessage("No rendered paths near cursor");
+                return;
+            }
+            snt.selectPath(nearest, addToExistingSelection);
+            showViewerMessage(nearest.getName() + " selected");
         }
 
         /**
@@ -3434,7 +3648,7 @@ public abstract class AbstractBigViewer {
             if (newSegment.size() < 2 || dist > tolerance) {
                 snt.getPathAndFillManager().addPath(newSegment);
                 if (renderingOptions.activateFinishedPath) snt.selectPath(newSegment, false);
-                new GuiUtils(getViewerFrame()).error((newSegment.size() < 2)
+                getGuiUtils().error((newSegment.size() < 2)
                         ? "Nothing traced to extend " + base.getName() + " with; kept as a separate path"
                         : String.format("Too far from %s's end (%.2f%s); kept as a separate path",
                                 base.getName(), dist, calUnit));
@@ -3628,6 +3842,11 @@ public abstract class AbstractBigViewer {
             updateUndoButtonState(!confirmedSegmentSizes.isEmpty());
         }
 
+        /** @return whether {@link #undoLastSegment()} would currently do something */
+        protected boolean canUndoSegment() {
+            return tracingEnabled && !confirmedSegmentSizes.isEmpty();
+        }
+
         /**
          * Undoes the most recently confirmed segment, one click at a time (single-step; no redo).
          * Ported from {@code SNT#undoLastSegment()}: pops the last segment's node count off {@link
@@ -3687,27 +3906,21 @@ public abstract class AbstractBigViewer {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (snt == null || !snt.isTracingActive()) {
-                        new GuiUtils(getViewerFrame()).error("Tracing functions currently disabled.");
-                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        getGuiUtils().error("Tracing functions currently disabled.");
                         return;
                     }
                     if (!tracingEnabled) {
-                        new GuiUtils(getViewerFrame()).error("Enable tracing (manual or interactive) first.");
-                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        getGuiUtils().error("Enable tracing (manual or interactive) first.");
                         return;
                     }
                     if (previousNode != null || computing) {
-                        new GuiUtils(getViewerFrame()).error("Please finish or discard the current path first.");
-                        if (extendPathButton != null) extendPathButton.setSelected(false);
+                        getGuiUtils().error("Please finish or discard the current path first.");
                         return;
                     }
-                    final Collection<Path> selected = snt.getSelectedPaths();
-                    final Path activePath = (selected != null && selected.size() == 1)
-                            ? selected.iterator().next() : null;
+                    final Path activePath = snt.getSingleSelectedPath();
                     if (activePath == null) {
-                        new GuiUtils(getViewerFrame()).error(
+                        getGuiUtils().error(
                                 "No path selected. Please select a single path to be extended.");
-                        if (extendPathButton != null) extendPathButton.setSelected(false);
                         return;
                     }
                     setToBeCombinedPath(activePath);
@@ -3767,15 +3980,13 @@ public abstract class AbstractBigViewer {
                     final String tracingDescription = (manualTraceFlag) ? "Manual tracing" : "Semi-automated tracing";
 
                     if (!tracingPossible) {
-                        new GuiUtils(getViewerFrame()).error(tracingDescription + " is not available.");
+                        getGuiUtils().error(tracingDescription + " is not available.");
                         tracingEnabled = false;
                         AbstractTracer.this.manualTrace = true;
                         if (button != null) button.setEnabled(false);
                         if (noTracingButton != null) noTracingButton.setSelected(true);
-                        if (extendPathButton != null) extendPathButton.setEnabled(false);
                     } else {
                         showViewerMessage(tracingDescription + " enabled");
-                        if (extendPathButton != null) extendPathButton.setEnabled(true);
                     }
                 }
             };
@@ -3787,9 +3998,9 @@ public abstract class AbstractBigViewer {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (snt != null && !snt.isTracingActive()) {
-                        new GuiUtils(getViewerFrame()).error(
+                        getGuiUtils().error(
                                 "<HTML>SNT is currently paused.<br>" +
-                                        "Use the <i>Quick Toggles</i> drop-down menu to resume tracing functions.");
+                                        "Use <i>Quick Toggles</i> or the right-click menu to resume tracing functions.");
                     }
                     disableTracing();
                 }
@@ -3805,10 +4016,8 @@ public abstract class AbstractBigViewer {
         private void disableTracing() {
             if (!tracingEnabled) return;
             tracingEnabled = false;
-            if (extendPathButton != null) extendPathButton.setEnabled(false);
-            final boolean promptUser = tempPath != null && tempPath.size() > 0;
-            if (promptUser) {
-                final int ans = new GuiUtils(getViewerFrame())
+            if (isPathInProgress()) { // includes a lone first node (previousNode set, tempPath still empty)
+                final int ans = getGuiUtils()
                         .yesNoDialog("An unfinished path exists. Would you like to finish it?", "Unfinished Path",
                         "Yes. Finish Path", "No. Discard Path");
                 if (ans == JOptionPane.YES_OPTION) {
@@ -3910,7 +4119,6 @@ public abstract class AbstractBigViewer {
          */
         private void setTracingActiveForHold(final boolean active) {
             tracingEnabled = active;
-            if (extendPathButton != null) extendPathButton.setEnabled(active);
             if (active) {
                 final JToggleButton modeButton = (manualTrace) ? manualTracingButton : interactiveTracingButton;
                 if (modeButton != null) modeButton.setSelected(true);
@@ -3954,27 +4162,12 @@ public abstract class AbstractBigViewer {
         }
         
         /**
-         * Wires the "Continue Extending Path" toggle button built by the viewer's own toolbar code into
-         * this tracer: kept selected for as long as {@link #toBeCombinedPath} is set, and disabled
-         * outright while tracing is off (mirrors {@link #installTracingModeButtons}). Call once, right
-         * after adding the button to the toolbar
-         *
-         * @param button the "Continue Extending Path" toggle button
-         * @see #setToBeCombinedPath(Path)
-         */
-        protected void installExtendPathButton(final JToggleButton button) {
-            this.extendPathButton = button;
-            if (button != null) button.setEnabled(tracingEnabled);
-        }
-
-        /**
-         * Sets (or clears) {@link #toBeCombinedPath}, keeping {@link #extendPathButton} (if installed)
-         * in sync: selected while a combine is pending, deselected the moment it is consumed or
-         * canceled (successful combine, fallback to a standalone path, or discard)
+         * Sets (or clears) {@link #toBeCombinedPath}: pending from "Continue Extending Path" (see
+         * {@link #getExtendSelectedPathAction()}) until consumed or canceled (successful combine, fallback to a
+         * standalone path, or discard)
          */
         private void setToBeCombinedPath(final Path path) {
             toBeCombinedPath = path;
-            if (extendPathButton != null) extendPathButton.setSelected(path != null);
         }
 
         /**
@@ -4000,7 +4193,6 @@ public abstract class AbstractBigViewer {
                 if (noTracingButton != null) noTracingButton.setSelected(true);
                 if (manualTracingButton != null) manualTracingButton.setEnabled(false);
                 if (interactiveTracingButton != null) interactiveTracingButton.setEnabled(false);
-                if (extendPathButton != null) extendPathButton.setEnabled(false);
             } else {
                 if (manualTracingButton != null) manualTracingButton.setEnabled(true);
                 if (interactiveTracingButton != null) interactiveTracingButton.setEnabled(true);

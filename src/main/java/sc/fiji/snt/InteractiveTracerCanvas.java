@@ -25,18 +25,13 @@ package sc.fiji.snt;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Toolbar;
-import ij.measure.Calibration;
 
-import org.apache.commons.lang3.StringUtils;
-import org.jgrapht.Graphs;
-import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.PlatformUtils;
-import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
-import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
-import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.ContextMenuCommand;
+import sc.fiji.snt.gui.NodeEditCommand;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.tracing.artist.FillerThreadArtist;
@@ -103,7 +98,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private boolean clickHandledByRelease;
     private boolean popupTriggered;
     private boolean altDraggingNode;
-    private final Deque<Path> editUndoStack = new ArrayDeque<>();
     private boolean scrollRadiusUndoPushed; // true once undo is pushed for the current scroll gesture
     private Timer scrollRadiusUndoResetTimer; // resets the flag after scroll gesture ends
 
@@ -147,57 +141,58 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pMenu.setLightWeightPopupEnabled(false);
 
         final AListener listener = new AListener();
-        final JMenuItem selectNearest = menuItem(AListener.SELECT_NEAREST, listener,
-                KeyStroke.getKeyStroke(KeyEvent.VK_G, 0), '\uf076', true, IconFactory.defaultColor());
+        final JMenuItem selectNearest = menuItem(ContextMenuCommand.GRAB, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_G, 0));
         selectNearest.setToolTipText("Select nearest path to cursor");
         pMenu.add(selectNearest);
-        final JMenuItem appendNearest = menuItem(AListener.APPEND_NEAREST, listener,
-                KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK),
-                '\uf076', true, IconFactory.selectedColor());
+        final JMenuItem appendNearest = menuItem(ContextMenuCommand.APPEND, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK));
         appendNearest.setToolTipText("Add nearest path to current selection");
         pMenu.add(appendNearest);
         final JMenuItem selectByRoi = getSelectRoiMenuItem();
         pMenu.add(selectByRoi);
         pMenu.addSeparator();
-        pMenu.add(menuItem(AListener.HIDE_ALL, listener, KeyStroke.getKeyStroke(KeyEvent.VK_H, 0),
-                IconFactory.GLYPH.EYE));
-        pMenu.add(menuItem(AListener.SHOW_ARROWS, listener, KeyStroke.getKeyStroke(KeyEvent.VK_O, 0),
-                IconFactory.GLYPH.NAVIGATE));
+        pMenu.add(menuItem(ContextMenuCommand.HIDE, listener, KeyStroke.getKeyStroke(KeyEvent.VK_H, 0)));
+        pMenu.add(menuItem(ContextMenuCommand.ORIENTATION, listener, KeyStroke.getKeyStroke(KeyEvent.VK_O, 0)));
         pMenu.addSeparator();
 
-        pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener,
-                KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK),
-                '\uf02e', false, IconFactory.defaultColor()));
-        pMenu.add(menuItem(AListener.START_SHOLL, listener,
-                KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK),
-                IconFactory.GLYPH.BULLSEYE));
+        pMenu.add(menuItem(ContextMenuCommand.BOOKMARK, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK)));
+        pMenu.add(menuItem(ContextMenuCommand.SHOLL, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
         pMenu.addSeparator();
 
-        JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V, IconFactory.GLYPH.SUN);
+        JMenuItem mi = menuItem(ContextMenuCommand.BRIGHTEST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_V, 0));
         pMenu.add(mi);
-        extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener, null, IconFactory.GLYPH.TAPE);
+        extendPathMenuItem = menuItem(ContextMenuCommand.EXTEND, listener, null);
         pMenu.add(extendPathMenuItem);
-        mi = menuItem(AListener.FORK_NEAREST, listener, null,
-                '\ue13b', true, IconFactory.defaultColor());
+        mi = menuItem(ContextMenuCommand.FORK, listener, null);
         mi.setToolTipText("Branches off a child path at nearest node"); // alternative discovery text for command palette
         pMenu.add(mi);
 
         pMenu.addSeparator();
-        undoSegmentMenuItem = menuItem(AListener.UNDO_LAST_SEGMENT, listener, KeyEvent.VK_Z, IconFactory.GLYPH.UNDO);
+        undoSegmentMenuItem = menuItem(ContextMenuCommand.UNDO_SEGMENT, listener, KeyStroke.getKeyStroke(KeyEvent.VK_Z, 0));
         pMenu.add(undoSegmentMenuItem);
-        final JMenuItem finishPathMenuItem = menuItem(AListener.FINISH_PATH, listener,
-                KeyStroke.getKeyStroke(KeyEvent.VK_F, 0),
-                '\uf11e', true, IconFactory.defaultColor());
+        final JMenuItem finishPathMenuItem = menuItem(ContextMenuCommand.FINISH, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_F, 0));
         pMenu.add(finishPathMenuItem);
 
         pMenu.addSeparator();
-        toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE_FORMATTER,
+        toggleEditModeMenuItem = new JCheckBoxMenuItem(NodeEditCommand.editToggleLabel(null),
                 IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         toggleEditModeMenuItem.addItemListener(listener);
         toggleEditModeMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift E"));
         toggleEditModeMenuItem.setMnemonic(KeyEvent.VK_E);
         pMenu.add(toggleEditModeMenuItem);
 
+        // Node commands: same entries, labels and order as in the Bdv/Bvv context menu (see NodeEditCommand)
+        for (final NodeEditCommand cmd : NodeEditCommand.values()) {
+            if (cmd == NodeEditCommand.UNDO) continue; // see undoSegmentMenuItem
+            final JMenuItem item = cmd.createMenuItem(listener);
+            item.setText(AListener.INDENT + item.getText());
+            pMenu.add(item);
+        }
+        // Canvas-only commands
         pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B, null));
         connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener,
                 null, null);
@@ -205,41 +200,29 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
         pMenu.add(connectToSecondaryEditingPath);
         pMenu.add(helpOnConnectingMenuItem());
-        pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D, null));
-        pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I, null));
-        pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L, null));
-        pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M, null));
         togglePaintModeMenuItem = new JCheckBoxMenuItem(AListener.NODE_PAINT);
         togglePaintModeMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0));
         togglePaintModeMenuItem.setMnemonic(KeyEvent.VK_P);
         togglePaintModeMenuItem.addItemListener(listener);
         pMenu.add(togglePaintModeMenuItem);
-        final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_T, 0), null);
-        jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
-                + "NB: Overall rendering of path may change once tag is applied");
-        pMenu.add(jmi);
-
-        // Structural operations (require confirmation, these are not undoable)
-        pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R, null));
-        pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener, null, null));
-        pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X, null));
 
         // Pause tracing/SNT
         pMenu.addSeparator();
-        togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
-        IconFactory.assignIcon(togglePauseTracingMenuItem, '\uf04c', true, IconFactory.defaultColor());
+        togglePauseTracingMenuItem = new JCheckBoxMenuItem(ContextMenuCommand.PAUSE_TRACING.label());
+        ContextMenuCommand.PAUSE_TRACING.applyIcon(togglePauseTracingMenuItem);
         togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
         togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
         togglePauseTracingMenuItem.addItemListener(listener);
         pMenu.add(togglePauseTracingMenuItem);
-        togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE, IconFactory.menuIcon(IconFactory.GLYPH.PAUSE2));
+        togglePauseSNTMenuItem = new JCheckBoxMenuItem(ContextMenuCommand.PAUSE_SNT.label());
+        ContextMenuCommand.PAUSE_SNT.applyIcon(togglePauseSNTMenuItem);
         togglePauseSNTMenuItem.addItemListener(listener);
         pMenu.add(togglePauseSNTMenuItem);
     }
 
     private JMenuItem getSelectRoiMenuItem() {
-        final JMenuItem selectByRoi = new JMenuItem(AListener.SELECT_BY_ROI);
-        IconFactory.assignIcon(selectByRoi, '\uf5ee', true, IconFactory.defaultColor());
+        final JMenuItem selectByRoi = new JMenuItem(ContextMenuCommand.LASSO.label());
+        ContextMenuCommand.LASSO.applyIcon(selectByRoi);
         selectByRoi.addActionListener( e -> {
             if (pathAndFillManager.size() == 0) {
                 getGuiUtils().error("There are no traced paths.", "Nothing to Select");
@@ -264,9 +247,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         final boolean tracingActive = !editMode && !tracerPlugin.tracingHalted;
 
         extendPathMenuItem.setText(
-                (activePath != null) ? "Continue Extending " + getShortName(activePath) : AListener.EXTEND_SELECTED);
-        toggleEditModeMenuItem.setText(String.format(AListener.EDIT_TOGGLE_FORMATTER,
-                (activePath == null) ? " Mode" : getShortName(activePath)));
+                (activePath != null) ? "Continue Extending " + NodeEditCommand.shortName(activePath) : AListener.EXTEND_SELECTED);
+        toggleEditModeMenuItem.setText(NodeEditCommand.editToggleLabel(
+                (activePath == null) ? null : NodeEditCommand.shortName(activePath)));
         toggleEditModeMenuItem.setState(be && editMode);
         togglePaintModeMenuItem.setSelected(paintMode);
         togglePaintModeMenuItem.setEnabled(be && editMode);
@@ -303,7 +286,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 mItem.setText((editMode) ? AListener.UNDO_LAST_EDIT : AListener.UNDO_LAST_SEGMENT);
                 mItem.setEnabled(
                         tracingActive && !tracerPlugin.confirmedSegmentSizes.isEmpty() // condition 1: tracing mode
-                                || editMode && !editUndoStack.isEmpty() // condition 2: edit mode
+                                || editMode && tracerPlugin.getNodeEditor().canUndo() // condition 2: edit mode
                 );
             }
             else if (cmd.startsWith(AListener.FORK_NEAREST)) {
@@ -327,12 +310,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             else if (cmd.equals(AListener.NODE_MOVE_Z)) {
                 mItem.setEnabled(be && editMode && !tracerPlugin.is2D());
             }
-            else if (cmd.equals(AListener.NODE_DELETE) || cmd.equals(AListener.NODE_INSERT)
-                    || cmd.equals(AListener.NODE_LOCK) || cmd.equals(AListener.NODE_MOVE)
-                    || cmd.equals(AListener.NODE_SET_ROOT) || cmd.equals(AListener.NODE_SPLIT)
-                    || cmd.equals(AListener.NODE_RADIUS) || cmd.equals(AListener.NODE_COLOR)
-                    || cmd.equals(AListener.NODE_CONNECT_HELP)
+            else if (NodeEditCommand.fromActionId(cmd) != null || cmd.equals(AListener.NODE_CONNECT_HELP)
                     || cmd.equals(AListener.NODE_PAINT)) {
+                if (cmd.equals(NodeEditCommand.LOCK.actionId()))
+                    mItem.setText(AListener.INDENT + NodeEditCommand.LOCK.label(editMode && editor().isActiveNodeLocked()));
                 mItem.setEnabled(be && editMode);
             }
             // Everything else always enabled (SELECT_NEAREST, APPEND_NEAREST,
@@ -346,136 +327,45 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     protected void connectEditingPathToPreviousEditingPath(final boolean showDialog) {
-        // Validate preconditions
-        if (!editMode || //
-                tracerPlugin.getEditingPath() == null || //
-                tracerPlugin.getEditingPath().getEditableNodeIndex() == -1 || //
-                tracerPlugin.getPreviousEditingPath() == null || //
-                tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() == -1) //
-        {
+        final PathNodeEditor ed = editor();
+        if (!editMode) {
             getGuiUtils().error(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + ": No connectable node exist.",
                     "No Connectable Nodes");
             return;
         }
-        if (unsupportedOnFittedPath("Connect paths")) return;
-
-        // Default assignment: current path = child, previous path = parent
-        Path childPath = tracerPlugin.getEditingPath();
-        Path parentPath = tracerPlugin.getPreviousEditingPath();
-
-        // Check for loop creation
-        if (wouldCreateLoop(childPath, parentPath)) {
-            getGuiUtils().error("Cannot connect selected nodes: A loop would be created!",
-                    "Reconstruction Cannot Contain Loops");
-            return;
-        }
-
-        // Get connection points
-        final int childNodeIdx = childPath.getEditableNodeIndex();
-        final int parentNodeIdx = parentPath.getEditableNodeIndex();
-
-        /// Create preview path from parent to child (showing direction of connection)
-        // Use canvas (unscaled) coordinates to avoid offset issues between paths
-        final PointInCanvas parentUnscaled = parentPath.getUnscaledNodes().get(parentNodeIdx);
-        final PointInCanvas childUnscaled = childPath.getUnscaledNodes().get(childNodeIdx);
-
-        connectionPreview = new Path(tracerPlugin.x_spacing, tracerPlugin.y_spacing,
-                tracerPlugin.z_spacing, tracerPlugin.spacing_units);
-        // Convert canvas coords back to world coords for the preview (with zero offset)
-        connectionPreview.addNode(new PointInImage(
-                parentUnscaled.x * tracerPlugin.x_spacing,
-                parentUnscaled.y * tracerPlugin.y_spacing,
-                parentUnscaled.z * tracerPlugin.z_spacing));
-        connectionPreview.addNode(new PointInImage(
-                childUnscaled.x * tracerPlugin.x_spacing,
-                childUnscaled.y * tracerPlugin.y_spacing,
-                childUnscaled.z * tracerPlugin.z_spacing));
-
-        // Enable direction arrows and repaint to show preview
+        final Path childPath = ed.getPath();
+        final Path parentPath = ed.getSecondaryPath();
+        final boolean previewable = childPath != null && parentPath != null //
+                && childPath.getEditableNodeIndex() != -1 && parentPath.getEditableNodeIndex() != -1 //
+                && !tracerPlugin.isEditingFittedPath();
         final boolean previousArrowState = PathNodeCanvas.isShowDirectionArrows();
-        PathNodeCanvas.setShowDirectionArrows(true);
-        tracerPlugin.updateTracingViewers(false);
-
+        if (previewable) {
+            // Preview path from parent to child (showing direction of connection). Uses canvas (unscaled)
+            // coordinates to avoid offset issues between paths
+            final PointInCanvas parentUnscaled = parentPath.getUnscaledNodes().get(parentPath.getEditableNodeIndex());
+            final PointInCanvas childUnscaled = childPath.getUnscaledNodes().get(childPath.getEditableNodeIndex());
+            connectionPreview = new Path(tracerPlugin.x_spacing, tracerPlugin.y_spacing, tracerPlugin.z_spacing,
+                    tracerPlugin.spacing_units);
+            // Convert canvas coords back to world coords for the preview (with zero offset)
+            connectionPreview.addNode(new PointInImage(parentUnscaled.x * tracerPlugin.x_spacing,
+                    parentUnscaled.y * tracerPlugin.y_spacing, parentUnscaled.z * tracerPlugin.z_spacing));
+            connectionPreview.addNode(new PointInImage(childUnscaled.x * tracerPlugin.x_spacing,
+                    childUnscaled.y * tracerPlugin.y_spacing, childUnscaled.z * tracerPlugin.z_spacing));
+            // Enable direction arrows and repaint to show preview
+            PathNodeCanvas.setShowDirectionArrows(true);
+            tracerPlugin.updateTracingViewers(false);
+        }
         try {
-            // Auto-swap heuristics
-            boolean shouldSwap;
-            final int childMaxOrder = TreeUtils.getMaxOrder(childPath);
-            final int parentMaxOrder = TreeUtils.getMaxOrder(parentPath);
-            if (childMaxOrder != parentMaxOrder) {
-                // Deeper tree (higher max order) is likely the main structure
-                shouldSwap = childMaxOrder > parentMaxOrder;
-            } else {
-                // Same depth: larger path is likely the parent
-                shouldSwap = childPath.size() > parentPath.size();
-            }
-
-            if (showDialog) {
-                // Analyze connection for prompt
-                final boolean childAtStart = childNodeIdx == 0;
-                final boolean childAtEnd = childNodeIdx == childPath.size() - 1;
-                final boolean childAtEndpoint = childAtStart || childAtEnd;
-
-                // Build detailed prompt
-                final StringBuilder msgBuilder = new StringBuilder("<HTML>");
-                msgBuilder.append("<b>Connection Summary:</b><br>");
-                msgBuilder.append("<b>Parent:</b> ").append(StringUtils.abbreviate(parentPath.getName(), 30));
-                msgBuilder.append(" (branch at node #").append(parentNodeIdx).append(")<br>");
-                msgBuilder.append("<b>Child:</b> ").append(StringUtils.abbreviate(childPath.getName(), 30));
-                msgBuilder.append(" (connect from node #").append(childNodeIdx).append(")<br>");
-                msgBuilder.append("<b>Note:</b><br>");
-
-                if (!childAtEndpoint && childPath.size() > 2) {
-                    msgBuilder.append("&nbsp;&nbsp;- Child connects from a mid-path node<br>");
-                }
-                msgBuilder.append("&nbsp;&nbsp;- This operation cannot be undone<br><br>");
-
-                // Show dialog with checkbox for swapping
-                final boolean[] result = getGuiUtils().getConfirmationAndOption(
-                        msgBuilder.toString(),
-                        "Connect Paths",
-                        "Swap parent ↔ child",
-                        shouldSwap,
-                        new String[]{"Connect", "Cancel"});
-
-                if (result == null || !result[0]) {
-                    return; // User cancelled
-                }
-
-                if (result[1]) { // Swap if requested
-                    final Path temp = childPath;
-                    childPath = parentPath;
-                    parentPath = temp;
-                    if (wouldCreateLoop(childPath, parentPath)) {
-                        getGuiUtils().error("Cannot connect with swapped parent ↔ child: A loop would be created!",
-                                "Reconstruction Cannot Contain Loops");
-                        return;
-                    }
-                }
-            }
-            connectionPreview = null; // Clear preview before executing connection to avoid duplicate rendering
-            connectToEditingPath(childPath, parentPath);
-            // Trigger UI refresh to show updated hierarchy
-            if (tracerPlugin.getUI() != null)
-                tracerPlugin.getUI().getPathManager().setPathList(null, false);
+            // Validation, prompt and connection are handled by the shared editor
+            final PathNodeEditor.Result r = ed.connectToSecondaryPath(getGuiUtils(), showDialog);
+            connectionPreview = null; // Clear preview before updating the viewers to avoid duplicate rendering
+            report(r, true);
         } finally {
             // Always restore state and clear preview (in case of early return)
             connectionPreview = null;
             PathNodeCanvas.setShowDirectionArrows(previousArrowState);
             tracerPlugin.updateAllViewers();
         }
-    }
-
-    /**
-     * Checks if connecting child to parent would create a loop.
-     */
-    private boolean wouldCreateLoop(final Path child, final Path parent) {
-        if (child == parent) {
-            return true;
-        }
-        if (child.getChildren().isEmpty()) {
-            return false;
-        }
-        return TreeUtils.isInSubtree(parent, child);
     }
 
     private void updateConnectToSecondaryEditingPathMenuItem() {
@@ -489,193 +379,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             return;
         }
         connectToSecondaryEditingPath.setEnabled(true);
-        final String label = getShortName(tracerPlugin.getPreviousEditingPath()) + " (node "
+        final String label = NodeEditCommand.shortName(tracerPlugin.getPreviousEditingPath()) + " (node "
                 + tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() + ")";
         connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
-    }
-
-    /**
-     * Connects child path to parent path, creating physical connection segment
-     * and proper T-junction topology when needed.
-     * <p>
-     * If the child's selected node is a slab (middle) node, the child path is split
-     * at that point to create proper branching topology.
-     *
-     * @param child  The path to be connected as a child branch
-     * @param parent The path where the child will branch from
-     */
-    private void connectToEditingPath(final Path child, final Path parent) {
-        try {
-            long start = System.currentTimeMillis();
-
-            final int childNodeIdx = child.getEditableNodeIndex();
-            final int parentNodeIdx = parent.getEditableNodeIndex();
-            final PointInImage parentPoint = parent.getNode(parentNodeIdx);
-
-            // Check if child's selected node is a slab (middle) node
-            final boolean childAtStart = childNodeIdx == 0;
-            final boolean childAtEnd = childNodeIdx == child.size() - 1;
-            final boolean childAtSlab = !childAtStart && !childAtEnd && child.size() > 2;
-
-            final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
-            pathAndFillManager.enableUIupdates = false;
-
-            if (childAtSlab) {
-                // T-JUNCTION: Split child path and handle directly without graph transformation
-                connectWithTJunction(child, parent, childNodeIdx, parentNodeIdx, parentPoint);
-            } else {
-                // ENDPOINT CONNECTION: Use direct path manipulation
-                connectAtEndpoint(child, parent, childAtStart, parentNodeIdx, parentPoint);
-            }
-
-            tracerPlugin.setEditingPath(null);
-            SNTUtils.log("Finished connection in " + (System.currentTimeMillis() - start) + "ms");
-            pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
-
-        } catch (final IllegalArgumentException e) {
-            getGuiUtils().error(
-                    "<HTML>Cannot connect these paths:<br><br>" +
-                            "<i>" + e.getMessage() + "</i>",
-                    "Connection Failed");
-        }
-    }
-
-    /**
-     * Recursively updates the tree ID of a path and all its descendants.
-     */
-    private void updateTreeIDRecursively(final Path root, final int treeID) {
-        root.setIDs(root.getID(), treeID);
-        for (final Path child : root.getChildren()) {
-            updateTreeIDRecursively(child, treeID);
-        }
-    }
-
-    /**
-     * Connects child path to parent at an endpoint (start or end of child).
-     */
-    private void connectAtEndpoint(final Path child, final Path parent,
-                                   final boolean childAtStart,
-                                   final int parentNodeIdx, final PointInImage parentPoint) {
-
-        // Sync canvas offset before any operations
-        TreeUtils.syncCanvasOffset(child, parent);
-
-        // Check if we need to reverse the child to connect from its start
-        Path childToConnect = child;
-        if (!childAtStart) {
-            // Child connects from end - reverse it so it connects from start
-            childToConnect = child.reversed();
-
-            // Transfer children with updated branch points
-            for (final Path grandchild : new ArrayList<>(child.getChildren())) {
-                final int oldBranchIdx = grandchild.getBranchPointIndex();
-                final int newBranchIdx = child.size() - 1 - oldBranchIdx;
-                grandchild.detachFromParent();
-                grandchild.setBranchFrom(childToConnect, childToConnect.getNode(newBranchIdx));
-            }
-
-            // Remove original and add reversed
-            pathAndFillManager.deletePath(child);
-            pathAndFillManager.addPath(childToConnect, true, true);
-        }
-
-        // Check if we need a bridging node
-        final double distance = childToConnect.firstNode().distanceTo(parentPoint);
-        final double threshold = tracerPlugin.getMinimumSeparation() * 2;
-        if (distance > threshold) {
-            // Insert bridging node at start of child
-            final PointInImage bridgePoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
-            childToConnect.insertNode(0, bridgePoint);
-        }
-
-        // Connect child to parent
-        childToConnect.setBranchFrom(parent, parent.getNode(parentNodeIdx));
-        // Recursively update tree ID for child and all descendants
-        updateTreeIDRecursively(childToConnect, parent.getTreeID());
-    }
-
-    /**
-     * Connects child path to parent by splitting child at a mid-path node (T-junction).
-     */
-    private void connectWithTJunction(final Path child, final Path parent,
-                                      final int childNodeIdx, final int parentNodeIdx,
-                                      final PointInImage parentPoint) {
-
-        // Sync canvas offset before any operations
-        TreeUtils.syncCanvasOffset(child, parent);
-
-        // Store children info before we modify anything
-        final List<Path> grandchildren = new ArrayList<>(child.getChildren());
-        final Map<Path, Integer> grandchildBranchIndices = new HashMap<>();
-        for (final Path gc : grandchildren) {
-            grandchildBranchIndices.put(gc, gc.getBranchPointIndex());
-            gc.detachFromParent();
-        }
-
-        // Create segment 1: nodes [0, childNodeIdx]
-        final Path segment1 = child.createPath();
-        for (int i = 0; i <= childNodeIdx; i++) {
-            segment1.addNode(child.getNode(i));
-        }
-        // Create segment 2: nodes [childNodeIdx, end] - includes junction node for continuity
-        Path segment2 = null;
-        if (childNodeIdx < child.size() - 1) {
-            segment2 = child.createPath();
-            for (int i = childNodeIdx; i < child.size(); i++) {
-                segment2.addNode(child.getNode(i));
-            }
-        }
-
-        // Check if we need a bridging node for the connection to parent
-        final PointInImage junctionPoint = segment1.lastNode();
-        final double distance = junctionPoint.distanceTo(parentPoint);
-        final double threshold = tracerPlugin.getMinimumSeparation() * 2;
-        if (distance > threshold) {
-            // Add bridging node at the END of segment1 (after junction point)
-            // This extends segment1 toward the parent
-            final PointInImage bridgePoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
-            segment1.addNode(bridgePoint);
-        }
-
-        // Delete original child path
-        pathAndFillManager.deletePath(child);
-
-        // Add segment1 and connect it to parent
-        pathAndFillManager.addPath(segment1, true, true);
-        segment1.setBranchFrom(parent, parent.getNode(parentNodeIdx));
-        // Recursively update tree ID for segment1 and its subtree
-        updateTreeIDRecursively(segment1, parent.getTreeID());
-
-        // Add segment2 and connect it to segment1 at the junction (before the bridge if present)
-        if (segment2 != null) {
-            pathAndFillManager.addPath(segment2, true, true);
-            // segment2 branches from segment1 at the junction point
-            // The junction is at index childNodeIdx in segment1 (which has nodes 0..childNodeIdx, possibly + bridge)
-            segment2.setBranchFrom(segment1, segment1.getNode(childNodeIdx));
-            // Recursively update tree ID for segment2 and its subtree
-            updateTreeIDRecursively(segment2, parent.getTreeID());
-        }
-
-        // Reassign grandchildren to appropriate segment
-        for (final Path gc : grandchildren) {
-            final int origBranchIdx = grandchildBranchIndices.get(gc);
-
-            if (origBranchIdx <= childNodeIdx) {
-                // Grandchild branches from segment1 portion
-                // Index in segment1 is same as original
-                gc.setBranchFrom(segment1, segment1.getNode(origBranchIdx));
-            } else if (segment2 != null) {
-                // Grandchild branches from segment2 portion
-                // Index in segment2: origBranchIdx - childNodeIdx (since segment2 starts at childNodeIdx)
-                final int newIdx = origBranchIdx - childNodeIdx;
-                gc.setBranchFrom(segment2, segment2.getNode(newIdx));
-            }
-            // Tree ID already propagated recursively above; no need to update grandchildren here
-        }
-    }
-
-    private static String getShortName(final Path p) {
-        return StringUtils.abbreviate(p.getName(), 30);
     }
 
     private JMenuItem helpOnConnectingMenuItem() {
@@ -708,6 +414,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     });
         });
         return helpItem;
+    }
+
+    /** Menu item for a command shared with the Bdv/Bvv context menu: label and icon come from the enum */
+    private JMenuItem menuItem(final ContextMenuCommand cmd, final ActionListener lstnr, final KeyStroke keystroke) {
+        final JMenuItem mi = GuiUtils.MenuItems.menuItem(cmd.label(), lstnr, keystroke, (IconFactory.GLYPH) null);
+        cmd.applyIcon(mi);
+        return mi;
     }
 
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keycode,
@@ -857,8 +570,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             // p[] is a pane-local pixel index; correct against the active canvas offset before
             // comparing to existing paths' true-world node coordinates (see SNT#getActiveCanvasPixelOffset()).
             final PointInCanvas offset = tracerPlugin.getActiveCanvasPixelOffset();
-            final PathAndFillManager.NodeRef ref = pathAndFillManager
-                    .nearestJoinNodeRefOnSelectedPaths(p[0] - offset.x, p[1] - offset.y, p[2] - offset.z);
+            // The version in use (fitted or not) is the one displayed and analyzed by the Sholl command
+            final PathAndFillManager.NodeRef ref = pathAndFillManager.nearestNodeInUse(
+                    pathAndFillManager.getSelectedPaths(), (p[0] - offset.x) * tracerPlugin.x_spacing,
+                    (p[1] - offset.y) * tracerPlugin.y_spacing, (p[2] - offset.z) * tracerPlugin.z_spacing);
             if (ref != null) {
                 centerPath = ref.path();
                 centerIndex = ref.index();
@@ -956,7 +671,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
         final Path selectedPath = nearPoint.getPath();
         tracerPlugin.selectPath(selectedPath, addToExistingSelection);
-        canvasInfo(getShortName(selectedPath) + " selected");
+        canvasInfo(NodeEditCommand.shortName(selectedPath) + " selected");
         return selectedPath;
     }
 
@@ -1318,8 +1033,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 else
                     brushMoveNodes(editingPath);
                 repaint();
+                tracerPlugin.notifyEditingPathChanged(); // Bdv/Bvv
             } else {
-                moveEditingNodeToLastCanvasPosition(false); // silent: no tempMsg per drag event
+                moveEditingNodeToLastCanvasPosition(false, false); // silent: no tempMsg per drag event. Undo pushed once, above
             }
             return; // don't pan or do anything else
         }
@@ -1398,6 +1114,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private void redrawEditingPath(final String msg) {
         redrawEditingPath(getGraphics2D(getGraphics()));
         repaint();
+        tracerPlugin.notifyEditingPathChanged(); // Bdv/Bvv
         if (msg != null) canvasInfo(msg);
     }
 
@@ -1789,36 +1506,28 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private class AListener implements ActionListener, ItemListener {
 
         /* Listed shortcuts are specified in QueueJumpingKeyListener */
-        private static final String UNDO_LAST_SEGMENT = "Undo Last Segment";
-        private static final String UNDO_LAST_EDIT= "Undo Last Edit";
-        private static final String FINISH_PATH = "Finish Path";
-        private static final String HIDE_ALL = "Hide Paths (Hold H)";
-        private static final String SHOW_ARROWS = "Path Orientation (Hold O)";
-        private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
-        private static final String FORK_NEAREST = "Fork at Nearest Node";
-        private static final String BOOKMARK_CURSOR = "Bookmark Cursor Position";
-        private static final String SELECT_NEAREST = "Grab Nearest Path";
-        private static final String APPEND_NEAREST = "Add Nearest Path to Selection";
-        private static final String EXTEND_SELECTED = "Continue Extending Path";
-        private static final String PAUSE_SNT_TOGGLE = "Pause SNT";
-        private static final String PAUSE_TRACING_TOGGLE = "Pause Tracing";
-        private static final String EDIT_TOGGLE_FORMATTER = "Edit %s";
-        private final static String NODE_DELETE = "  Delete Active Node";
-        private final static String NODE_INSERT = "  Insert New Node at Cursor Position";
-        private final static String NODE_LOCK = "  Lock Active Node";
-        private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
-        private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
-        private final static String NODE_RADIUS = "  Set Active Node Radius...";
-        private final static String NODE_COLOR = "  Tag Active Node";
-        private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
-        private final static String NODE_SPLIT = "  Split Tree at Active Node...";
-        private final static String NODE_PAINT = "  Paint Mode";
-        private final static String NODE_CONNECT_HELP = "  Connect to Help...";
-        private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
+        private static final String UNDO_LAST_SEGMENT = ContextMenuCommand.Labels.UNDO_SEGMENT;
+        private static final String UNDO_LAST_EDIT = NodeEditCommand.UNDO_LABEL;
+        private static final String FINISH_PATH = ContextMenuCommand.Labels.FINISH;
+        private static final String HIDE_ALL = ContextMenuCommand.Labels.HIDE;
+        private static final String SHOW_ARROWS = ContextMenuCommand.Labels.ORIENTATION;
+        private static final String CLICK_AT_MAX = ContextMenuCommand.Labels.BRIGHTEST;
+        private static final String FORK_NEAREST = ContextMenuCommand.Labels.FORK;
+        private static final String BOOKMARK_CURSOR = ContextMenuCommand.Labels.BOOKMARK;
+        private static final String SELECT_NEAREST = ContextMenuCommand.Labels.GRAB;
+        private static final String APPEND_NEAREST = ContextMenuCommand.Labels.APPEND;
+        private static final String EXTEND_SELECTED = ContextMenuCommand.Labels.EXTEND;
+        private static final String PAUSE_SNT_TOGGLE = ContextMenuCommand.Labels.PAUSE_SNT;
+        private static final String PAUSE_TRACING_TOGGLE = ContextMenuCommand.Labels.PAUSE_TRACING;
+        private final static String INDENT = NodeEditCommand.MENU_INDENT;
+        private final static String NODE_MOVE_Z = INDENT + "Bring Active Node to Current Z-plane";
+        private final static String NODE_PAINT = INDENT + "Paint Mode";
+        private final static String NODE_CONNECT_HELP = INDENT + "Connect to Help...";
+        private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = INDENT + "Connect to ";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
                 + "...";
-        private final static String START_SHOLL = "Sholl Analysis at Nearest Node";
-        private final static String SELECT_BY_ROI = "Lasso Select Paths";
+        private final static String START_SHOLL = ContextMenuCommand.Labels.SHOLL;
+        private final static String SELECT_BY_ROI = ContextMenuCommand.Labels.LASSO;
 
         @Override
         public void itemStateChanged(final ItemEvent e) {
@@ -1994,45 +1703,24 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             }
 
             // Handle specific edit commands
-            return switch (command) {
-                case NODE_DELETE -> {
-                    deleteEditingNode(true);
-                    yield true;
-                }
-                case NODE_INSERT -> {
-                    appendLastCanvasPositionToEditingNode(true);
-                    yield true;
-                }
-                case NODE_LOCK -> {
-                    toggleEditingNode(true);
-                    yield true;
-                }
-                case NODE_MOVE -> {
-                    moveEditingNodeToLastCanvasPosition(true);
-                    yield true;
-                }
-                case NODE_RADIUS -> {
-                    assignRadiusToEditingNode(true);
-                    yield true;
-                }
-                case NODE_COLOR -> {
-                    assignColorToEditingNode();
-                    yield true;
-                }
-                case NODE_MOVE_Z -> {
-                    assignLastCanvasZPositionToEditNode(true);
-                    yield true;
-                }
-                case NODE_SET_ROOT -> {
-                    assignTreeRootToEditingNode(true);
-                    yield true;
-                }
-                case NODE_SPLIT -> {
-                    splitTreeAtEditingNode(true);
-                    yield true;
-                }
-                default -> false; // Command not recognized as an edit command
-            };
+            if (NODE_MOVE_Z.equals(command)) {
+                assignLastCanvasZPositionToEditNode(true);
+                return true;
+            }
+            final NodeEditCommand nec = NodeEditCommand.fromActionId(command);
+            if (nec == null) return false; // Command not recognized as an edit command
+            switch (nec) {
+                case DELETE -> deleteEditingNode(true);
+                case INSERT -> appendLastCanvasPositionToEditingNode(true);
+                case MOVE -> moveEditingNodeToLastCanvasPosition(true);
+                case LOCK -> toggleEditingNode(true);
+                case RADIUS -> assignRadiusToEditingNode(true);
+                case TAG -> assignColorToEditingNode();
+                case SET_ROOT -> assignTreeRootToEditingNode(true);
+                case SPLIT -> splitTreeAtEditingNode(true);
+                case UNDO -> undoLastEditOperation();
+            }
+            return true;
         }
     }
 
@@ -2064,7 +1752,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final String saved = tracerPlugin.getPrefs().getTemp(MANUAL_RADIUS_TEMP_KEY, "0");
             try { tracerPlugin.manualRadius = Double.parseDouble(saved); }
             catch (final NumberFormatException ignored) { tracerPlugin.manualRadius = 0; }
-            editUndoStack.clear();
             scrollRadiusUndoPushed = false;
             if (scrollRadiusUndoResetTimer != null) scrollRadiusUndoResetTimer.stop();
         }
@@ -2133,201 +1820,94 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         return paintBrushRadius;
     }
 
+    private PathNodeEditor editor() {
+        return tracerPlugin.getNodeEditor();
+    }
+
+    /**
+     * Reports the outcome of an operation of the shared node editor: redraws (and informs the Bdv/Bvv) on success,
+     * warns on failure
+     *
+     * @param r the outcome
+     * @param showMessage whether the message of a successful operation should be displayed
+     */
+    private void report(final PathNodeEditor.Result r, final boolean showMessage) {
+        if (r == null) return;
+        r.dispatch(res -> {
+            // Paths were added/removed/replaced: the editing path is no longer valid. Leave Edit Mode on all
+            // front-ends (canvas, Bdv and Bvv), as the viewers do (see BigViewerEditor#report)
+            tracerPlugin.setEditingPath(null);
+            tracerPlugin.updateAllViewers();
+            tracerPlugin.exitEditMode();
+            repaint();
+            if (res.message() != null) {
+                if (!res.ok()) getGuiUtils().error(res.message()); // failure after the path was released
+                else if (showMessage) canvasInfo(res.message());
+            }
+        }, res -> redrawEditingPath((showMessage) ? res.message() : null), res -> {
+            // Silent callers (e.g., node drags, which may fail on every mouse event) must not open dialogs
+            if (res.message() == null) return;
+            if (res.modal() && showMessage) getGuiUtils().error(res.message());
+            else canvasWarning(res.message());
+        });
+    }
+
+    /** @return the last canvas position, in the pixel grid of the nodes of {@code path} (i.e., without canvas offset) */
+    private double[] lastCanvasPositionInPathPixels(final Path path) {
+        final double[] p = new double[3];
+        tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise, last_y_in_pane_precise, plane, p);
+        final PointInCanvas offset = path.getCanvasOffset();
+        return new double[] { p[0] - offset.x, p[1] - offset.y, p[2] - offset.z };
+    }
+
+    /** Records the editing path in the undo history shared with the Bdv/Bvv, see {@link PathNodeEditor#pushUndo()} */
     private void pushEditUndo() {
         if (impossibleEdit(false)) return;
-        editUndoStack.push(tracerPlugin.getEditingPath().clone());
-        if (editUndoStack.size() > SNTPrefs.MAX_UNDO_STEPS)
-            editUndoStack.removeLast();
+        editor().pushUndo();
     }
 
     protected void undoLastEditOperation() {
-        if (editUndoStack.isEmpty()) {
-            canvasWarning("Nothing to undo");
-            return;
-        }
-        final Path editingPath = tracerPlugin.getEditingPath();
-        if (editingPath == null) {
-            editUndoStack.clear();
-            canvasWarning("Nothing to undo");
-            return;
-        }
-        editingPath.replaceNodes(editUndoStack.pop());
-        redrawEditingPath("Edit undone");
+        final PathNodeEditor.Result r = editor().undo();
+        if (r.ok()) redrawEditingPath(r.message());
+        else canvasWarning(r.message());
     }
 
     protected void toggleEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        final Path editingPath = tracerPlugin.getEditingPath();
-        if (editingPath.getEditableNodeIndex() < 0) {
-            canvasWarning("No editable node detected!");
-        } else {
-            editingPath.setEditableNodeLocked(!editingPath.isEditableNodeLocked());
-            redrawEditingPath("Lock toggled on active node");
-        }
-    }
-
-    /**
-     * Hook 4: notifies {@link PlausibilityMonitor#onNodeEdited(Path, int)} after a node has been
-     * moved, inserted, or deleted here in edit mode - the edit-mode equivalent of Hooks 1-3, which
-     * {@code SNT#startPath()}/{@code searchFinished()}/{@code finishPath()} call directly during
-     * interactive tracing (see those methods' own "Hook" comments). Without this, live monitoring
-     * would never re-check a fork after the user manually adjusts nodes near it post-tracing.
-     *
-     * @param editedPath the path whose node was just mutated
-     * @param nodeIndex the index of the affected node (before removal, for a delete)
-     */
-    private void notifyPlausibilityMonitorNodeEdited(final Path editedPath, final int nodeIndex) {
-        if (tracerPlugin.getUI() != null && tracerPlugin.getUI().getPlausibilityMonitor().isEnabled()) {
-            tracerPlugin.getUI().getPlausibilityMonitor().onNodeEdited(editedPath, nodeIndex);
-        }
+        report(editor().toggleLock(), true);
     }
 
     protected void deleteEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        if (unsupportedOnFittedPath("Delete node")) return;
-        final Path editingPath = tracerPlugin.getEditingPath();
-        final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
-        if (editingPath.size() > 2) {
-            if (editingPath.getBranchPoints().stream().anyMatch(n -> n.equals(editingNode))) {
-                canvasWarning("Cannot delete junction node. Try to split instead.");
-                return;
-            }
-            // Only push undo after validation passes
-            pushEditUndo();
-            try {
-                final int editedIndex = editingPath.getEditableNodeIndex();
-                editingPath.removeNode(editedIndex);
-                redrawEditingPath("Node deleted");
-                notifyPlausibilityMonitorNodeEdited(editingPath, editedIndex);
-            }
-            catch (final IllegalArgumentException exc) {
-                canvasWarning("Node deletion failed!");
-            }
-        }
-        else if (getGuiUtils().getConfirmation("Delete " +
-                editingPath + "?", "Delete Path?"))
-        {
-            boolean rebuild = false;
-            for (final Path p : editingPath.connectedPaths) {
-                if (p.getParentPath() == editingPath) {
-                    rebuild = true;
-                    break;
-                }
-            }
-            editingPath.disconnectFromAll(); // Fixes ghost connection at canvas origin after deleting last node
-            // in a forked path
-            tracerPlugin.getPathAndFillManager().deletePath(editingPath);
-            if (rebuild) tracerPlugin.getPathAndFillManager().rebuildRelationships();
-            tracerPlugin.setEditingPath(null);
-            tracerPlugin.updateAllViewers();
-        }
+        report(editor().deleteNodeOrPath(getGuiUtils()), true);
     }
 
     protected void appendLastCanvasPositionToEditingNode(
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
-        if (unsupportedOnFittedPath("Insert node")) return;
-        pushEditUndo();
-        final Path editingPath = tracerPlugin.getEditingPath();
-        final int editingNode = editingPath.getEditableNodeIndex();
-        final double[] p = new double[3];
-        tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
-                last_y_in_pane_precise, plane, p);
-        final PointInCanvas offset = editingPath.getCanvasOffset();
-        try {
-            editingPath.insertNode(editingNode, new PointInImage((p[0] - offset.x) *
-                    tracerPlugin.x_spacing, (p[1] - offset.y) * tracerPlugin.y_spacing,
-                    (p[2] - offset.z) * tracerPlugin.z_spacing));
-            editingPath.setEditableNode(editingNode + 1);
-            redrawEditingPath("New node inserted (N=" + editingNode + ")");
-            notifyPlausibilityMonitorNodeEdited(editingPath, editingNode);
-        }
-        catch (final IllegalArgumentException exc) {
-            canvasWarning("Node insertion failed!");
-        }
+        final double[] p = lastCanvasPositionInPathPixels(tracerPlugin.getEditingPath());
+        report(editor().insertNode(p[0] * tracerPlugin.x_spacing, p[1] * tracerPlugin.y_spacing,
+                p[2] * tracerPlugin.z_spacing), true);
     }
 
     protected void assignColorToEditingNode() {
         if (impossibleEdit(true)) return;
         if (unsupportedOnFittedPath("Tag node")) return;
-        final Path edPath = tracerPlugin.getEditingPath();
-        final int edNode = edPath.getEditableNodeIndex();
-        final JPopupMenu popup = GuiUtils.MenuItems.colorTagPopup(this, chosen -> {
-            pushEditUndo();
-            edPath.setNodeColor(chosen, edNode);
-            redrawEditingPath((chosen == null) ? String.format("Tag removed from node #%d", edNode) : null);
-            if (tracerPlugin.getUI() != null) {
-                tracerPlugin.getUI().getPathManager().update(true);
-                final BookmarkManager bm = tracerPlugin.getUI().getBookmarkManager();
-                if (chosen == null)
-                    bm.remove(edPath, edNode);
-                else
-                    bm.add(edPath, edNode);
-            }
-        });
+        final PathNodeEditor ed = editor();
+        final Path edPath = ed.getPath();
+        final int edNode = ed.getActiveNode();
+        // The active node follows the cursor while the popup is open: tagNode restores the one it was opened for
+        final JPopupMenu popup = GuiUtils.MenuItems.colorTagPopup(this,
+                chosen -> report(ed.tagNode(edPath, edNode, chosen), true));
         final Point p = MouseInfo.getPointerInfo().getLocation();
         SwingUtilities.convertPointFromScreen(p, this);
         popup.show(this, p.x, p.y);
     }
 
     protected void assignRadiusToEditingNode(final boolean warnOnFailure) {
-        if (impossibleEdit(warnOnFailure))
-            return;
-        final Path edPath = tracerPlugin.getEditingPath();
-        final int edNode = edPath.getEditableNodeIndex();
-        final boolean hasRadii = edPath.hasRadii();
-        final String[] defChoices = new String[(hasRadii) ? 5 : 3];
-        defChoices[0] = "<HTML>Assign <b>average of flanking nodes</b> (if any)";
-        defChoices[1] = "<HTML>Assign half of <b>minimum voxel separation";
-        defChoices[2] = "<HTML>Assign <b>value</b> specified below:";
-        if (hasRadii) {
-            defChoices[3] = "<HTML>Multiply existing radius by <b>multiplier<b> specified below:";
-            defChoices[4] = "<HTML>Assign <b>mean path radius</b>";
-        }
-        String msg = "<HTML>Which value should be set as radius for node #" + edNode + "?<br>";
-        if (hasRadii)
-            msg += String.format("(Current radius is %02f)", edPath.getNodeRadius(edNode));
-        else
-            msg += "NB: No nodes in <i>" + edPath.getName() + "</i> have assigned radii!";
-
-        final String prevChoice = tracerPlugin.getPrefs().getTemp("lastRadChoice", defChoices[0]);
-        final String prevDouble = tracerPlugin.getPrefs().getTemp("lastRadDouble", null);
-        final Object[] usrChoice = getGuiUtils().getChoiceAndDouble(msg, edPath.getName() + ": Ad hoc Radius",
-                defChoices, prevChoice,
-                (prevDouble == null) ? edPath.getNodeRadius(edNode) : Double.parseDouble(prevDouble));
-        if (usrChoice == null)
-            return;
-
-        double r = Double.NaN;
-        if (defChoices[0].equals(usrChoice[0])) {
-            if (edPath.size() == 1) {
-                guiUtils.error("Path has only one node. No flanking nodes exist.");
-                return;
-            } else {
-                final int n1 = Math.max(0, edNode - 1);
-                final int n2 = Math.min(edPath.size() - 1, edNode + 1);
-                r = (edPath.getNodeRadius(n1) + edPath.getNodeRadius(n2)) / 2;
-            }
-        } else if (defChoices[1].equals(usrChoice[0])) {
-            r = tracerPlugin.getMinimumSeparation() / 2;
-        } else if (defChoices[2].equals(usrChoice[0])) {
-            r = (double) usrChoice[1];
-            tracerPlugin.getPrefs().setTemp("lastRadDouble", Double.toString((double) usrChoice[1]));
-        } else if (hasRadii && defChoices[3].equals(usrChoice[0])) {
-            r = edPath.getNodeRadius(edNode) * (double) usrChoice[1];
-            tracerPlugin.getPrefs().setTemp("lastRadDouble", Double.toString((double) usrChoice[1]));
-        } else if (hasRadii && defChoices[4].equals(usrChoice[0])) {
-            r = edPath.getMeanRadius();
-        }
-        tracerPlugin.getPrefs().setTemp("lastRadChoice", (String) usrChoice[0]);
-        if (Double.isNaN(r) || r < 0d) {
-            guiUtils.error("Invalid radius. Must be a positive, floating-point value.");
-        } else {
-            pushEditUndo();
-            edPath.setRadius(r, edNode);
-            redrawEditingPath(String.format("Radius set to %02f", r));
-        }
+        if (impossibleEdit(warnOnFailure)) return;
+        report(editor().promptAndSetRadius(getGuiUtils()), true);
     }
 
     /**
@@ -2375,209 +1955,50 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         paintCursorLabel = String.format("r=%.2f %s", centerRadius, tracerPlugin.spacing_units);
     }
 
-    protected void moveEditingNodeToLastCanvasPosition(
-            final boolean warnOnFailure)
-    {
+    protected void moveEditingNodeToLastCanvasPosition(final boolean warnOnFailure) {
+        moveEditingNodeToLastCanvasPosition(warnOnFailure, true);
+    }
+
+    /**
+     * @param warnOnFailure whether to warn if there is no active node, and to display a message on success
+     * @param recordUndo false if the caller has already recorded the undo history for the gesture (e.g., a drag)
+     */
+    protected void moveEditingNodeToLastCanvasPosition(final boolean warnOnFailure, final boolean recordUndo) {
         if (impossibleEdit(warnOnFailure)) return;
         final Path editingPath = tracerPlugin.getEditingPath();
-        final int editingNode = editingPath.getEditableNodeIndex();
-        final double[] p = new double[3];
-        tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
-                last_y_in_pane_precise, plane, p);
-        final PointInCanvas offset = editingPath.getCanvasOffset();
-        try {
-            editingPath.moveNode(editingNode, new PointInImage((p[0] - offset.x) *
-                    editingPath.x_spacing, (p[1] - offset.y) * editingPath.y_spacing,
-                    (p[2] - offset.z) * editingPath.z_spacing));
-            redrawEditingPath((warnOnFailure) ? "Node moved" : null);
-            notifyPlausibilityMonitorNodeEdited(editingPath, editingNode);
-        }
-        catch (final IllegalArgumentException exc) {
-            canvasWarning("Node displacement failed!");
-        }
+        final double[] p = lastCanvasPositionInPathPixels(editingPath);
+        report(editor().moveNode(p[0] * editingPath.x_spacing, p[1] * editingPath.y_spacing,
+                p[2] * editingPath.z_spacing, recordUndo), warnOnFailure);
     }
 
     protected void assignLastCanvasZPositionToEditNode(
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
-        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final int editingNode = editingPath.getEditableNodeIndex();
         final PointInCanvas offset = editingPath.getCanvasOffset();
         final PointInImage currentNode = editingPath.getNodeWithoutChecks(editingNode);
-        double newZ = switch (plane) {
+        final double newZ = switch (plane) {
             case MultiDThreePanes.XY_PLANE -> (imp.getZ() - 1 - offset.z) * tracerPlugin.z_spacing;
             case MultiDThreePanes.XZ_PLANE -> (last_y_in_pane_precise - offset.y) * tracerPlugin.y_spacing;
             case MultiDThreePanes.ZY_PLANE -> (last_x_in_pane_precise - offset.x) * tracerPlugin.x_spacing;
             default -> currentNode.z;
         };
-        try {
-            editingPath.moveNode(editingNode, new PointInImage(
-                    currentNode.x,
-                    currentNode.y, newZ));
-            redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
-            notifyPlausibilityMonitorNodeEdited(editingPath, editingNode);
-        }
-        catch (final IllegalArgumentException exc) {
-            canvasWarning("Adjustment of Z-position failed!");
-        }
+        // Undo history, validity checks and plausibility monitoring are handled by the shared editor
+        final PathNodeEditor.Result r = editor().moveNode(currentNode.x, currentNode.y, newZ);
+        if (r.ok()) redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
+        else canvasWarning("Adjustment of Z-position failed!");
     }
 
     protected void assignTreeRootToEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        if (unsupportedOnFittedPath("Set tree root")) return;
-        if (!getGuiUtils().getConfirmation(
-                "Set active node as tree root? This operation cannot be undone.",
-                "Confirm Re-root"))
-            return;
-        final Path editingPath = tracerPlugin.getEditingPath();
-
-        try {
-            long start = System.currentTimeMillis();
-
-            // Use getConnectedTree - it gets exactly the tree containing the editing path
-            final Tree editingTree = TreeUtils.getConnectedTree(editingPath);
-
-            final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
-            pathAndFillManager.enableUIupdates = false;
-
-            final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
-            final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
-            SWCPoint newRoot = getMatchingPointInGraph(editingNode, editingGraph);
-
-            if (newRoot == null) {
-                SWCPoint nearest = getNearestPointInGraph(editingNode, editingGraph);
-                if (nearest == null) {
-                    pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
-                    getGuiUtils().error("Could not find a valid node for the new root.");
-                    return;
-                }
-                final int uniqueId = editingGraph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
-                newRoot = new SWCPoint(uniqueId, nearest.type, editingNode.x, editingNode.y, editingNode.z,
-                        editingPath.getNodeRadius(editingPath.getEditableNodeIndex()), nearest.id);
-                newRoot.setPath(editingPath);
-                editingGraph.addVertex(newRoot);
-                editingGraph.addEdge(nearest, newRoot);
-                if (editingPath.size() == 1)
-                    pathAndFillManager.deletePath(editingPath);
-                else
-                    editingPath.removeNode(editingPath.getEditableNodeIndex());
-            }
-
-            editingGraph.setRoot(newRoot);
-            final Tree newTree = editingGraph.getTreeWithSamePathStructure();
-            tracerPlugin.setEditingPath(null);
-
-            final Calibration cal = tracerPlugin.getCalibration();
-            pathAndFillManager.deletePaths(editingTree.list());
-            newTree.list().forEach(p -> {
-                p.setSpacing(cal);
-                pathAndFillManager.addPath(p, false, true);
-            });
-
-            pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
-            SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
-
-        } catch (final IllegalArgumentException e) {
-            getGuiUtils().error("<HTML>Could not re-root tree:<br><i>" + e.getMessage() + "</i>",
-                    "Re-root Failed");
-        }
+        report(editor().setActiveNodeAsRoot(getGuiUtils()), true);
     }
 
     protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        if (unsupportedOnFittedPath("Split tree")) return;
-        final Path editingPath = tracerPlugin.getEditingPath();
-
-        try {
-            long start = System.currentTimeMillis();
-
-            // Use getConnectedTree to avoid issues with disconnected paths sharing tree ID
-            final Tree editingTree = TreeUtils.getConnectedTree(editingPath);
-            // Warn user that this operation cannot be undone
-            if (!getGuiUtils().getConfirmation(
-                    "Split tree at active node? This operation cannot be undone.",
-                    "Confirm Split"))
-                return;
-            final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
-
-            if (editingTree.getRoot().equals(editingPoint)) {
-                canvasWarning("Cannot split tree at root node.");
-                return;
-            }
-
-            final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
-            final SWCPoint editingVertex = getMatchingPointInGraph(editingPoint, editingGraph);
-
-            if (editingVertex == null) {
-                getGuiUtils().error("Could not locate the selected node in the tree graph.");
-                return;
-            }
-
-            final Set<SWCWeightedEdge> incomingEdges = editingGraph.incomingEdgesOf(editingVertex);
-            if (incomingEdges.isEmpty()) {
-                getGuiUtils().error("Selected node has no incoming edges. Cannot split here.");
-                return;
-            }
-
-            editingGraph.removeEdge(incomingEdges.iterator().next());
-            final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator =
-                    editingGraph.getDepthFirstIterator(editingVertex);
-            final Set<SWCPoint> descendantVertexSet = new HashSet<>();
-            while (depthFirstIterator.hasNext()) {
-                descendantVertexSet.add(depthFirstIterator.next());
-            }
-
-            final DirectedWeightedSubgraph descendantSubgraph = editingGraph.getSubgraph(descendantVertexSet);
-            final DirectedWeightedGraph descendantGraph = new DirectedWeightedGraph();
-            Graphs.addGraph(descendantGraph, descendantSubgraph);
-            editingGraph.removeAllVertices(descendantVertexSet);
-
-            final Tree ancestorTree = editingGraph.getTreeWithSamePathStructure();
-            final Tree descendantTree = descendantGraph.getTreeWithSamePathStructure();
-
-            tracerPlugin.setEditingPath(null);
-
-            final Calibration cal = tracerPlugin.getCalibration();
-            ancestorTree.list().forEach(p -> p.setSpacing(cal));
-            descendantTree.list().forEach(p -> p.setSpacing(cal));
-
-            final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
-            pathAndFillManager.enableUIupdates = false;
-            pathAndFillManager.deletePaths(editingTree.list());
-            ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-            descendantTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-            pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
-
-            SNTUtils.log("Finished split in " + (System.currentTimeMillis() - start) + "ms");
-
-        } catch (final IllegalArgumentException e) {
-            getGuiUtils().error("<HTML>Could not split tree:<br><i>" + e.getMessage() + "</i>",
-                    "Split Failed");
-        }
-    }
-
-    private SWCPoint getNearestPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
-        double distanceSquaredToNearestParentPoint = Double.MAX_VALUE;
-        SWCPoint nearest = null;
-        for (final SWCPoint p : graph.vertexSet()) {
-            final double distanceSquared = point.distanceSquaredTo(p.x, p.y, p.z);
-            if (distanceSquared < distanceSquaredToNearestParentPoint) {
-                nearest = p;
-                distanceSquaredToNearestParentPoint = distanceSquared;
-            }
-        }
-        return nearest;
-    }
-
-    private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
-        for (final SWCPoint p : graph.vertexSet()) {
-            if (p.isSameLocation(point) && p.getPath().equals(point.getPath())) {
-                return p;
-            }
-        }
-        return null;
+        report(editor().splitTreeAtActiveNode(getGuiUtils()), true);
     }
 
     public void setLookAndFeel(final String lookAndFeelName) {

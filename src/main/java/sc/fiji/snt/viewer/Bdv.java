@@ -116,7 +116,6 @@ public class Bdv extends AbstractBigViewer {
     private JComponent sntControlsCard;
 
     // Shared overlay infrastructure (same classes as BVV; dCam = MAX_VALUE => orthographic)
-    private Bvv.PathOverlay pathOverlay;
     private Bvv.AnnotationOverlay annotationOverlay;
 
     // Guard so addTransformListener is called only once across reinits
@@ -716,25 +715,10 @@ public class Bdv extends AbstractBigViewer {
         if (viewerPanel != null) viewerPanel.showMessage(msg);
     }
 
-    /**
-     * Locks/unlocks this viewer's tracing-mode toolbar buttons to "No tracing" - see
-     * {@code AbstractTracer#setLockedByPause}. No-op if this viewer has no tracer (e.g. a standalone
-     * viewer with no attached SNT instance, or the toolbar has not been built yet).
-     *
-     * @param locked whether a global SNT_PAUSED/TRACING_PAUSED pause is currently in effect
-     */
-    public void setTracingLockedByPause(final boolean locked) {
-        if (tracer != null) tracer.setLockedByPause(locked);
-    }
-
     @Override
-    public void enableTracing(final boolean manual) {
-        if (tracer != null) tracer.enableTracingExternally(manual);
-    }
-
-    @Override
-    public boolean isPathInProgress() {
-        return tracer != null && tracer.isPathInProgress();
+    protected org.scijava.ui.behaviour.util.InputActionBindings getKeybindings() {
+        final ViewerFrame vf = getViewerFrame();
+        return (vf == null) ? null : vf.getKeybindings();
     }
 
     @Override
@@ -947,6 +931,7 @@ public class Bdv extends AbstractBigViewer {
         // so this can't leave a stale Tracer's mouse listener attached alongside a new one
         if (snt != null && tracer == null) {
             tracer = new Tracer(snt);
+            installContextMenu();
             if (snt.getUI() != null) snt.getUI().setBdv(this); // setBdv again, now that its window is available
         }
 
@@ -1047,14 +1032,9 @@ public class Bdv extends AbstractBigViewer {
         return new AbstractAction("Add Marker") {
             @Override
             public void actionPerformed(final java.awt.event.ActionEvent e) {
-                if (blockMarkerPlacement()) return;
                 final RealPoint pos = new RealPoint(3);
                 getGlobalMouseCoordinates(pos);
-                final double x = pos.getDoublePosition(0);
-                final double y = pos.getDoublePosition(1);
-                final double z = pos.getDoublePosition(2);
-                getMarkerManager().add(x, y, z);
-                showViewerMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
+                placeMarker(pos.positionAsDoubleArray());
             }
         };
     }

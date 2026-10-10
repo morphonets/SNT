@@ -387,7 +387,8 @@ public class SNT extends MultiDThreePanes implements
 	 * point.) //FIXME: this may be redundant - check that.
 	 */
 	private volatile boolean pathUnfinished = false;
-	private Path editingPath; // Path being edited when in 'Edit Mode'
+	// Holds the Path being edited when in 'Edit Mode' (see getEditingPath()). Shared by all front-ends (canvas, Bdv, Bvv)
+	private final PathNodeEditor nodeEditor = new PathNodeEditor(this);
 	private Path previousEditingPath; // reference to the 'last selected' path when in 'Edit Mode'
 
 	/* Labels */
@@ -1891,7 +1892,8 @@ public class SNT extends MultiDThreePanes implements
 		colorImage = null;
 		ctSlice3d = null;
 		currentPath = null;
-		editingPath = null;
+		if (editedPathSyncTimer != null) editedPathSyncTimer.stop();
+		nodeEditor.setPath(null); // also resets active node and lock state
 		fillerSet = null;
 		imageContent = null;
 		labelData = null;
@@ -2183,7 +2185,17 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected Path getEditingPath() {
-		return editingPath;
+		return nodeEditor.getPath();
+	}
+
+	/**
+	 * Returns the node editor shared by all front-ends of this instance (tracing canvas, Bdv and Bvv). It holds the
+	 * path being edited, its active node and the undo history of 'Edit Mode'.
+	 *
+	 * @return the node editor
+	 */
+	public PathNodeEditor getNodeEditor() {
+		return nodeEditor;
 	}
 
 	protected Path getPreviousEditingPath() {
@@ -2220,23 +2232,62 @@ public class SNT extends MultiDThreePanes implements
 	 * @return true if edit mode is allowed, false otherwise
 	 */
 	protected boolean editModeAllowed(final boolean warnUserIfNot, final Path pathToEdit) {
-		final boolean uiReady = uiReadyForModeChange() || isEditModeEnabled();
-		if (warnUserIfNot && !uiReady) {
-			showCanvasWarning("Please finish current operation before editing paths");
+		// Already editing: this is only a query. Re-attaching would swap the editing path (and drop its undo history)
+		if (isEditModeEnabled()) return getEditingPath() != null;
+		final boolean uiReady = uiReadyForModeChange();
+		if (!uiReady) {
+			if (warnUserIfNot) showCanvasWarning("Please finish current operation before editing paths");
 			return false;
 		}
 		// Use provided path or detect from selection
 		if (pathToEdit != null) {
-			editingPath = pathToEdit;
+			nodeEditor.attach(pathToEdit);
 		} else {
 			detectEditingPath();
 		}
-		final boolean pathExists = editingPath != null;
-		if (warnUserIfNot && !pathExists) {
-			showCanvasWarning("You must select a single path in order to edit it");
+		final Path p = getEditingPath();
+		if (p == null) {
+			if (warnUserIfNot) showCanvasWarning("You must select a single path in order to edit it");
 			return false;
 		}
-		return uiReady && pathExists;
+		return true;
+	}
+
+	/**
+	 * Explains why 'Edit Mode' cannot be enabled for the currently selected path. For use by front-ends other than
+	 * the tracing canvas (e.g., Bdv/Bvv) that display their own messages
+	 *
+	 * @return a user-friendly message, or null if 'Edit Mode' can be enabled
+	 */
+	public String getEditModeBlocker() {
+		if (!(uiReadyForModeChange() || isEditModeEnabled()))
+			return "Please finish the current operation before editing paths";
+		final Path p = getSingleSelectedPath();
+		return (p == null) ? "You must select a single path in order to edit it" : null;
+	}
+
+	/**
+	 * Enables 'Edit Mode' on all front-ends (tracing canvas, Bdv and Bvv)
+	 *
+	 * @param pathToEdit the path to be edited. It is selected (replacing the current selection) if not already the
+	 *                   single selected path, since all edit operations require the editing path to be selected.
+	 *                   If null, the single selected path is used
+	 * @return true if 'Edit Mode' was enabled. See {@link #getEditModeBlocker()} if not
+	 */
+	public boolean enterEditMode(final Path pathToEdit) {
+		if (isEditModeEnabled() || !uiReadyForModeChange()) return false;
+		if (pathToEdit != null && pathToEdit != getSingleSelectedPath()) {
+			selectPath(pathToEdit, false);
+			if (!pathAndFillManager.isSelected(pathToEdit)) return false; // e.g., not a selectable path
+		}
+		if (!editModeAllowed(false, pathToEdit)) return false;
+		enableEditMode(true);
+		return isEditModeEnabled();
+	}
+
+	/** Disables 'Edit Mode' on all front-ends (tracing canvas, Bdv and Bvv) */
+	public void exitEditMode() {
+		if (isEditModeEnabled()) enableEditMode(false);
 	}
 
 	/**
@@ -2249,26 +2300,69 @@ public class SNT extends MultiDThreePanes implements
 	 * @return true if the editing path is in fitted-display mode
 	 */
 	protected boolean isEditingFittedPath() {
-		return editingPath != null && editingPath.getUseFitted();
+		return getEditingPath() != null && getEditingPath().getUseFitted();
 	}
 
 	protected void setEditingPath(final Path path) {
+		// Re-selecting the path being edited must not shift the 'secondary' path, otherwise the
+		// secondary path (and its active node) would be replaced by the current one
+		if (path != null && path == getEditingPath()) {
+			if (ui != null) ui.refreshBigViewersEditNodes();
+			return;
+		}
 		if (previousEditingPath != null) {
 			previousEditingPath.setEditableNode(-1);
 			previousEditingPath.setEditableNodeLocked(false);
 		}
-		previousEditingPath = editingPath;
-		editingPath = path;
+		previousEditingPath = getEditingPath();
+		nodeEditor.attach(path);
+		if (ui != null) ui.refreshBigViewersEditNodes();
 	}
 
 	protected void detectEditingPath() {
-		editingPath = getSingleSelectedPath();
+		nodeEditor.attach(getSingleSelectedPath());
 	}
 
-	protected Path getSingleSelectedPath() {
+	public Path getSingleSelectedPath() {
 		final Collection<Path> sPaths = getSelectedPaths();
 		if (sPaths == null || sPaths.size() != 1) return null;
 		return getSelectedPaths().iterator().next();
+	}
+
+	/**
+	 * Refreshes the active-node (and lock) markers of the Bdv/Bvv viewers after the active node of the editing path
+	 * was changed or (un)locked by another front-end
+	 *
+	 * @param source the viewer that originated the change, which is not notified. null if the change was not made
+	 *               by a viewer
+	 */
+	public void notifyActiveNodeChanged(final sc.fiji.snt.viewer.AbstractBigViewer source) {
+		if (ui != null) ui.refreshBigViewersActiveNode(source);
+	}
+
+	private javax.swing.Timer editedPathSyncTimer;
+
+	/**
+	 * Refreshes the Bdv/Bvv rendering of the path being edited after it was modified by the tracing canvas.
+	 * Throttled so that continuous gestures (e.g., dragging a node) do not flood the viewers
+	 */
+	public void notifyEditingPathChanged() {
+		if (ui == null) return;
+		if (editedPathSyncTimer == null) {
+			editedPathSyncTimer = new javax.swing.Timer(40, e -> {
+				if (ui != null) ui.refreshBigViewersEditedPath();
+			});
+			editedPathSyncTimer.setRepeats(false);
+		}
+		if (!editedPathSyncTimer.isRunning()) editedPathSyncTimer.start();
+	}
+
+	/** Restores the tracing state (active/halted) that preceded 'Edit Mode' */
+	private void resetStateAfterEditMode() {
+		if (ui == null) return;
+		// ui.resetState() halts tracing if there is no resident image data, which is the case in Stream mode
+		if (isStreamMode()) pauseTracing(tracingHalted, false);
+		else ui.resetState();
 	}
 
 	protected void enableEditMode(final boolean enable) {
@@ -2276,32 +2370,35 @@ public class SNT extends MultiDThreePanes implements
 			changeUIState(SNTUI.EDITING);
 		}
 		else {
-			if (ui != null) ui.resetState();
+			resetStateAfterEditMode();
 		}
 
 		// Only re-detect editingPath if not already set (e.g., by editModeAllowed)
 		if (enable) {
-			if (editingPath == null && pathAndFillManager.getSelectedPaths().size() == 1) {
-				editingPath = getSelectedPaths().iterator().next();
+			if (getEditingPath() == null && pathAndFillManager.getSelectedPaths().size() == 1) {
+				nodeEditor.attach(getSelectedPaths().iterator().next());
 			}
 			// If still null, edit mode shouldn't be enabled
-			if (editingPath == null) {
-				if (ui != null) ui.resetState();
+			if (getEditingPath() == null) {
+				resetStateAfterEditMode();
 				return;
 			}
 		} else {
-			if (editingPath != null) editingPath.setEditableNode(-1);
-			editingPath = null;
+			nodeEditor.setPath(null); // also resets active node and lock state
 		}
 
 		setDrawCrosshairsAllPanes(!enable);
-		setLockCursorAllPanes(enable);
-		getXYCanvas().setEditMode(enable);
-		if (!single_pane) {
-			getXZCanvas().setEditMode(enable);
-			getZYCanvas().setEditMode(enable);
+		// No canvases in pure Stream mode
+		if (getXYCanvas() != null) {
+			setLockCursorAllPanes(enable);
+			getXYCanvas().setEditMode(enable);
+			if (!single_pane) {
+				getXZCanvas().setEditMode(enable);
+				getZYCanvas().setEditMode(enable);
+			}
 		}
 		updateTracingViewers(false);
+		if (ui != null) ui.setBigViewersEditMode(enable);
 	}
 
 	protected void pause(final boolean pause, final boolean hideSideViewsOnPause) {
@@ -2369,7 +2466,11 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	protected boolean isEditModeEnabled() {
+	/**
+	 * @return true if 'Edit Mode' is currently enabled, i.e., the path returned by {@link #getEditingPath()} is being
+	 *         edited on all front-ends
+	 */
+	public boolean isEditModeEnabled() {
 		return isUIready() && SNTUI.EDITING == getUIState();
 	}
 
@@ -2472,6 +2573,7 @@ public class SNT extends MultiDThreePanes implements
 		y = pd[1];
 		z = pd[2];
 
+		final Path editingPath = getEditingPath();
 		final boolean editing = isEditModeEnabled() && editingPath != null &&
 				editingPath.isSelected();
 		final boolean joining = !editing && join_modifier_down && pathAndFillManager
@@ -2495,7 +2597,10 @@ public class SNT extends MultiDThreePanes implements
 					getXYCanvas().nodeDiameter());
 			if (eNode != -1) {
 				pim = matchPath.getNodeWithoutChecks(eNode);
-				editingPath.setEditableNode(eNode);
+				if (eNode != editingPath.getEditableNodeIndex()) {
+					editingPath.setEditableNode(eNode);
+					notifyActiveNodeChanged(null); // Bdv/Bvv
+				}
 			}
 		}
 		if (pim != null) {
@@ -4157,10 +4262,15 @@ public class SNT extends MultiDThreePanes implements
 		return pathUnfinished && (currentPath.size() == 0);
 	}
 
-	protected void startSholl(final PointInImage centerScaled) {
+	public void startSholl(final PointInImage centerScaled) {
 		SwingUtilities.invokeLater(() -> {
-			setZPositionAllPanes((int) Math.round(centerScaled.x), (int) Math.round(centerScaled.y),
-					(int) Math.round(centerScaled.z));
+			if (getXYCanvas() != null) { // no canvases in pure Stream mode
+				// Panes are positioned in pixel indices of the (active) canvas: invert (pixel - offset) * spacing
+				final PointInCanvas offset = getActiveCanvasPixelOffset();
+				setZPositionAllPanes((int) Math.round(centerScaled.x / x_spacing + offset.x),
+						(int) Math.round(centerScaled.y / y_spacing + offset.y),
+						(int) Math.round(centerScaled.z / z_spacing + offset.z));
+			}
 			setShowOnlySelectedPaths(false);
 			SNTUtils.log("Starting Sholl Analysis centered at " + centerScaled);
 			final Map<String, Object> input = new HashMap<>();
@@ -4739,8 +4849,7 @@ public class SNT extends MultiDThreePanes implements
 				// does BVV/BDV Swing/OpenGL setup that. Calling it directly from a worker thread is a silent EDT/GL
 				// threading violation (no exception, just a hang), hence the explicit invokeLater() below
 				if (isStreamMode() && getUI() != null) {
-					final var viewer = getUI().getActiveBigViewer();
-					if (viewer != null) {
+					for (final var viewer : getUI().getOpenBigViewers()) { // all open viewers (Bvv and/or Bdv)
 						SwingUtilities.invokeLater(() -> {
 							try {
 								viewer.showSecondaryData();
@@ -4793,8 +4902,7 @@ public class SNT extends MultiDThreePanes implements
 			// here should remove that source toot. Same invokeLater() rationale as that hook:
 			// hideSecondaryData() touches Swing/OpenGL state and may be reached from off-EDT callers.
 			if (isStreamMode()) {
-				final var viewer = getUI().getActiveBigViewer();
-				if (viewer != null) {
+				for (final var viewer : getUI().getOpenBigViewers()) { // all open viewers (Bvv and/or Bdv)
 					SwingUtilities.invokeLater(() -> {
 						try {
 							viewer.hideSecondaryData();
@@ -5017,6 +5125,11 @@ public class SNT extends MultiDThreePanes implements
 	/** @return whether a single tree is currently isolated for display (see {@link #setIsolatedTreeID(int)}) */
 	public boolean isTreeIsolationActive() {
 		return isolatedTreeID != -1;
+	}
+
+	/** @return whether tracing functions are currently paused (see {@link SNTUI#pauseTracing(boolean)}) */
+	public boolean isTracingPaused() {
+		return tracingHalted;
 	}
 
 	/** @return whether tracing functions are currently allowed */

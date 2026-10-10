@@ -100,7 +100,6 @@ public class Bvv extends AbstractBigViewer {
 
     private final BvvOptions options;
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
-    private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
     private SceneOverlay sceneOverlay;
     private BigVolumeViewer currentBvv;
@@ -169,6 +168,9 @@ public class Bvv extends AbstractBigViewer {
     }
 
     private double[] getClickedPosition(final MouseEvent e) {
+        // A null event means "live cursor" (e.g., G key, Edit Mode): never cached, as null would otherwise match
+        // lastPositionEvent (also null) and return a stale position
+        if (e == null) return getClickedPosition();
         if (e == lastPositionEvent) return lastPosition; // same physical click, already computed
         lastPositionEvent = e;
         lastPosition = getClickedPosition();
@@ -1426,6 +1428,7 @@ public class Bvv extends AbstractBigViewer {
             registerCenterOnDoubleClickListener(currentBvv);
             if (snt != null) {
                 tracer = new Tracer(snt);
+                installContextMenu();
                 // We'll re-assign the viewer to the GUI here because only at this point the viewer frame is
                 // available and this allows snt.getUI().setBvv() to inject the window listener that monitors
                 // window closing. Innocuous if viewer has been already assigned
@@ -2497,25 +2500,16 @@ public class Bvv extends AbstractBigViewer {
         if (currentBvv != null) currentBvv.getViewer().showMessage(msg);
     }
 
-    /**
-     * Locks/unlocks this viewer's tracing-mode toolbar buttons to "No tracing" as per
-     * {@code AbstractTracer#setLockedByPause}. Does nothing if this viewer has no tracer (e.g. a standalone
-     * viewer with no attached SNT instance, or the toolbar has not been built yet).
-     *
-     * @param locked whether a global SNT_PAUSED/TRACING_PAUSED pause is currently in effect
-     */
-    public void setTracingLockedByPause(final boolean locked) {
-        if (tracer != null) tracer.setLockedByPause(locked);
+    @Override
+    protected double[] resolveCursorWorldPosition() {
+        // Same depth resolution as tracing clicks (visible-depth heuristic), instead of the focal plane
+        return (tracer != null) ? tracer.resolveClickWorldPosition(null) : super.resolveCursorWorldPosition();
     }
 
     @Override
-    public void enableTracing(final boolean manual) {
-        if (tracer != null) tracer.enableTracingExternally(manual);
-    }
-
-    @Override
-    public boolean isPathInProgress() {
-        return tracer != null && tracer.isPathInProgress();
+    protected org.scijava.ui.behaviour.util.InputActionBindings getKeybindings() {
+        final VolumeViewerFrame vf = getViewerFrame();
+        return (vf == null) ? null : vf.getKeybindings();
     }
 
     @Override
@@ -4179,17 +4173,17 @@ public class Bvv extends AbstractBigViewer {
          * Annotations, partitioned by owner. Independent features (bookmarks/markers, detector-derived
          * seeds, the legacy ownerless API) each get their own list here, so that one feature's
          * clear()/replaceAll() never wipes another's markers - all layers are still rendered together
-         * (see {@link #flatten()}/{@link #updateScene()}). LinkedHashMap for deterministic iteration
-         * order, which {@link #flatten()} relies on to keep {@link #layerRanges} stable between calls.
+         * (see {@link #flatten(Map)}/{@link #updateScene()}). LinkedHashMap for deterministic iteration
+         * order, which {@link #flatten(Map)} relies on to keep {@link #layerRanges} stable between calls.
          */
         private final Map<Object, List<Annotation>> layers = new LinkedHashMap<>();
         /**
          * [start, end) range each owner occupies in the most recently flattened list, i.e. in
-         * {@code annRenderer.screenData}/{@code annRenderer.selectedIndex} index space. Rebuilt by
-         * every {@link #flatten()} call; used to translate owner-local indices to/from the global
+         * {@code annRenderer.frame}/{@code annRenderer.selectedIndex} index space. Replaced by
+         * every {@link #updateScene()} call; used to translate owner-local indices to/from the global
          * indices {@link #hitTest(int, int)}/{@link #setSelectedIndex(int)} operate on.
          */
-        private final Map<Object, int[]> layerRanges = new LinkedHashMap<>();
+        private volatile Map<Object, int[]> layerRanges = Map.of(); // replaced, never mutated
         private final PathRenderingOptions renderingOptions;
 
         AnnotationOverlay(final BigViewerPanel viewerPanel, final Bvv viewer, final PathRenderingOptions renderingOptions) {
@@ -4284,18 +4278,17 @@ public class Bvv extends AbstractBigViewer {
 
         /**
          * Flattens every owner's layer into a single list, in stable (LinkedHashMap) owner order,
-         * and records each owner's [start, end) range in {@link #layerRanges} - the mapping the
+         * and records each owner's [start, end) range in {@code ranges} - the mapping the
          * owner-scoped {@link #hitTest(Object, int, int)}/{@link #setSelectedIndex(Object, int)}
          * need to translate between an owner-local index and the global index space
          * {@code annRenderer} actually renders/hit-tests against.
          */
-        private List<Annotation> flatten() {
+        private List<Annotation> flatten(final Map<Object, int[]> ranges) {
             final List<Annotation> flat = new ArrayList<>(getCount());
-            layerRanges.clear();
             for (final Map.Entry<Object, List<Annotation>> e : layers.entrySet()) {
                 final int start = flat.size();
                 flat.addAll(e.getValue());
-                layerRanges.put(e.getKey(), new int[]{start, flat.size()});
+                ranges.put(e.getKey(), new int[]{start, flat.size()});
             }
             return flat;
         }
@@ -4304,7 +4297,11 @@ public class Bvv extends AbstractBigViewer {
          * Ensure renderers/nodes reflect current annotation list.
          */
         public void updateScene() {
-            annRenderer.setAnnotations(flatten());
+            final Map<Object, int[]> ranges = new LinkedHashMap<>();
+            final List<Annotation> flat = flatten(ranges);
+            layerRanges = ranges;
+            // The renderer keeps its own copy of the ranges, tied to the screen data computed from this very list
+            annRenderer.setAnnotations(flat, ranges);
             viewerPanel.requestRepaint();
         }
 
@@ -4331,8 +4328,9 @@ public class Bvv extends AbstractBigViewer {
          */
         @Override
         public int hitTest(final int screenX, final int screenY) {
-            final AnnRenderer.AnnotationScreenData[] data = annRenderer.screenData;
-            if (data == null) return -1;
+            final AnnRenderer.Frame frame = annRenderer.frame;
+            if (frame == null) return -1;
+            final AnnRenderer.AnnotationScreenData[] data = frame.data();
             for (int i = 0; i < data.length; i++) {
                 if (data[i] == null || !data[i].visible) continue;
                 final double dx = screenX - data[i].screenX;
@@ -4350,10 +4348,13 @@ public class Bvv extends AbstractBigViewer {
          */
         @Override
         public int hitTest(final Object owner, final int screenX, final int screenY) {
-            final int[] range = layerRanges.get(owner);
+            // Screen data and layer ranges must come from the same flattened list: both are read from one frame,
+            // so a concurrent updateScene() cannot make an index from one list address another
+            final AnnRenderer.Frame frame = annRenderer.frame;
+            if (frame == null) return -1;
+            final AnnRenderer.AnnotationScreenData[] data = frame.data();
+            final int[] range = frame.source().ranges().get(owner);
             if (range == null) return -1;
-            final AnnRenderer.AnnotationScreenData[] data = annRenderer.screenData;
-            if (data == null) return -1;
             final int end = Math.min(range[1], data.length);
             for (int i = range[0]; i < end; i++) {
                 if (data[i] == null || !data[i].visible) continue;
@@ -4445,14 +4446,21 @@ public class Bvv extends AbstractBigViewer {
             private final double[] viewerCoords = new double[3];
             boolean hide;
             int selectedIndex = -1;
-            // Source annotations
-            private List<Annotation> annotations = new ArrayList<>();
+            /** Flattened annotations together with the owner ranges they were flattened with */
+            private record Source(List<Annotation> list, Map<Object, int[]> ranges) {}
+
+            /** Screen data and the {@link Source} it was computed from */
+            private record Frame(AnnotationScreenData[] data, Source source) {}
+
+            // Source annotations: a single volatile reference, so that readers (painter thread, hit tests on the
+            // EDT) always see a consistent list/ranges pair, and a list that does not change size mid-iteration
+            private volatile Source source = new Source(List.of(), Map.of());
             private volatile boolean cacheValid = false;
             // Cached screen data. Volatile: computeScreenData() only ever publishes a fully-built
             // local array here in a single reference store (see below), so a concurrent
             // invalidateCache() - e.g. triggered from a background-thread SeedOverlay update -
             // can only ever observe the previous complete array or null, never a partially-filled one
-            private volatile AnnotationScreenData[] screenData;
+            private volatile Frame frame;
             // Canvas dimensions cache
             private int canvasWidth, canvasHeight;
             private double centerX, centerY;
@@ -4462,19 +4470,20 @@ public class Bvv extends AbstractBigViewer {
                 this.renderingOptions = renderingOptions;
             }
 
-            void setAnnotations(final List<Annotation> list) {
-                this.annotations = (list != null) ? new ArrayList<>(list) : new ArrayList<>();
+            void setAnnotations(final List<Annotation> list, final Map<Object, int[]> ranges) {
+                this.source = new Source((list != null) ? new ArrayList<>(list) : new ArrayList<>(),
+                        (ranges != null) ? ranges : Map.of());
                 invalidateCache();
             }
 
             void invalidateCache() {
                 cacheValid = false;
-                screenData = null;
+                frame = null;
             }
 
             @Override
             public void drawOverlays(final Graphics g) {
-                if (annotations.isEmpty() || hide) return;
+                if (source.list().isEmpty() || hide) return;
 
                 // Update canvas dimensions
                 canvasWidth = viewerPanel.getDisplayWidth();
@@ -4493,15 +4502,19 @@ public class Bvv extends AbstractBigViewer {
                 }
 
                 // Compute screen data if needed
-                if (!cacheValid || screenData == null) {
+                // A frame computed from a list that has since been replaced (updateScene() racing with a
+                // computation in progress) is stale, whatever cacheValid says
+                final Frame cached = frame;
+                if (!cacheValid || cached == null || cached.source() != source) {
                     computeScreenData();
                     cacheValid = true;
                 }
 
                 // Snapshot the volatile field once for this frame: guaranteed complete or null,
                 // never partially built, even if another thread invalidates mid-frame
-                final AnnotationScreenData[] frameData = screenData;
-                if (frameData == null) return;
+                final Frame currentFrame = frame;
+                if (currentFrame == null) return;
+                final AnnotationScreenData[] frameData = currentFrame.data();
 
                 // Get clipping info
                 final boolean doClip = renderingOptions.isClippingEnabled();
@@ -4565,6 +4578,8 @@ public class Bvv extends AbstractBigViewer {
             }
 
             private void computeScreenData() {
+                final Source snapshot = source; // one list for the whole computation
+                final List<Annotation> annotations = snapshot.list();
                 final AnnotationScreenData[] local = new AnnotationScreenData[annotations.size()];
 
                 final double margin = 100.0;
@@ -4618,7 +4633,7 @@ public class Bvv extends AbstractBigViewer {
                 // Publish the fully-built array in one atomic reference store; a concurrent
                 // invalidateCache() can now only ever null the field or leave the previous
                 // complete array in place, never observe a partially-filled one
-                screenData = local;
+                frame = new Frame(local, snapshot);
             }
 
             private double[] getClipPosition() {
@@ -5065,8 +5080,18 @@ public class Bvv extends AbstractBigViewer {
                 final double minR = renderingOptions.getMinThickness() / 2.0;
                 final double maxR = renderingOptions.getMaxThickness() / 2.0;
 
+                // Path.nodes is an unsynchronized list that the EDT may shrink (edit mode) while this
+                // runs on the painter thread: if that happens skip the path. The edit triggers a
+                // cache invalidation, so the next frame is rebuilt from consistent data
+                boolean raced = false;
                 for (int i = 0; i < n; i++) {
-                    final Path.PathNode node = path.getNode(i);
+                    final Path.PathNode node;
+                    try {
+                        node = path.getNode(i);
+                    } catch (final IndexOutOfBoundsException | java.util.ConcurrentModificationException ex) {
+                        raced = true;
+                        break;
+                    }
 
                     worldCoords[0] = node.x + offX;
                     worldCoords[1] = node.y + offY;
@@ -5092,6 +5117,8 @@ public class Bvv extends AbstractBigViewer {
                     pathData.colors[i] = (nodeColor != null) ? nodeColor : color;
                     pathData.visible[i] = isOnScreen(pathData.screenX[i], pathData.screenY[i]);
                 }
+
+                if (raced) continue;
 
                 // Pre-build SegmentData for each valid segment to avoid per-frame allocation
                 for (int i = 0; i < pathData.size - 1; i++) {
@@ -5475,13 +5502,8 @@ public class Bvv extends AbstractBigViewer {
             return new AbstractAction("Add Marker") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (blockMarkerPlacement()) return;
                     final double[] pos = getClickedPosition();
-                    if (pos != null) { // warning message if null
-                        getMarkerManager().add(pos[0], pos[1], pos[2]);
-                        bvv.getViewer().showMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)",
-                                pos[0], pos[1], pos[2]));
-                    }
+                    if (pos != null) placeMarker(pos); // warning message if null
                 }
             };
         }
