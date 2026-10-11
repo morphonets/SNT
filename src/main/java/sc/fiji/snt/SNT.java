@@ -5237,9 +5237,12 @@ public class SNT extends MultiDThreePanes implements
 			}
 		}
 		if (getUI() != null && getUI().bdvSNT != null) {
-			// Bdv has no updateSelection()-equivalent yet (unlike Bvv): always do a full
-			// rebuild, even for selectionOnly changes. Hopefully this is cheap enough
-			new Thread(() -> getUI().bdvSNT.syncPathManagerList()).start();
+			if (selectionOnly) {
+				// Same rationale as for Bvv above: run on the EDT so the repaint is flushed immediately
+				SwingUtilities.invokeLater(() -> getUI().bdvSNT.updateSelection());
+			} else {
+				new Thread(() -> getUI().bdvSNT.syncPathManagerList()).start();
+			}
 		}
 		if (includeLegacy3Dviewer) update3DViewerContents();
 	}

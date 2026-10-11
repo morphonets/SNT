@@ -3177,13 +3177,8 @@ public abstract class AbstractBigViewer {
         // by the time mouseReleased(MouseEvent) fires, silently dropping a fork request (see #handleClick)
         private boolean pressAltDown, pressShiftDown;
 
-        // Screen-space pick radius for snapping a click to a fork point (see #handleClick). It gets
-        // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant
-        // across zoom levels. Safe to keep generous: the search that consumes this is a single path
-        // (findNearestRenderedPath()), so a large radius can only ever match somewhere along that one
-        // path. Manually-placed tracing waypoints can be much sparser than densely auto-traced ones: a
-        // click needs to land within this radius of *some* node for a fork point to be found at all in
-        // the first place (see NearPoint#getInsertionIndex())
+        // Screen-space pick radius for snapping a click to a fork point (see #findForkHit). Also converted
+        // to a world-space distance via pickRadiusWorld() for the "Continue Extending" end-point tolerance
         private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 150;
 
         // Wall-clock time (System.currentTimeMillis()) until which trace clicks are deferred because a
@@ -3311,40 +3306,36 @@ public abstract class AbstractBigViewer {
                 // modifier is an explicit request to attach to an existing branch, so if that request
                 // can't be honored, the click should be a clean no-op
                 showViewerMessage("Forking...");
-                // Auto-select the rendered path nearest the click, then restrict the fork-point search
-                // to just that one path, instead of scanning every path in the project
-                final Path nearestPath = findNearestRenderedPath(cc1);
-                // Pick radius is defined in screen pixels (see pickRadiusWorld()) rather than a fixed
-                // world-space distance, so "close enough to fork" stays consistent across zoom levels
-                final double pickRadius = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
-                final NearPoint nearPoint = (nearestPath == null) ? null : snt.getPathAndFillManager()
-                        .nearestPointOnAnyPath(Collections.singletonList(nearestPath), cc1[0], cc1[1], cc1[2], pickRadius);
-                if (nearPoint == null) {
-                    final String detail = (nearestPath == null) ? "No paths are currently rendered to fork from."
-                            : String.format("No point within %.2f%s of the cursor was found on the nearest path ('%s').",
-                                    pickRadius, calUnit, nearestPath.getName());
+                // Fork point search happens in viewer (screen) space: depth along the viewing axis is ignored,
+                // since the picked 3D position (slice cursor in BDV, ray-max in BVV) rarely lies exactly on the
+                // path that is visibly under the cursor. A 3D distance would reject such clicks
+                final ForkHit hit = findForkHit(cc1, FORK_POINT_PICK_RADIUS_SCREEN_PX);
+                if (hit == null) {
                     final String mod = (renderingOptions.requireShiftToFork) ? "Alt+Shift" : "Alt";
-                    getGuiUtils().error("<html>" + detail
-                            + "<br>Move closer to the target path, or click without " + mod + " to start an unconnected path.</html>",
-                            "No Fork Point Found");
+                    getGuiUtils().error(String.format("<html>No rendered path within %.0f screen pixels of the cursor."
+                            + "<br>Move closer to the target path, or click without %s to start an unconnected path.</html>",
+                            FORK_POINT_PICK_RADIUS_SCREEN_PX, mod), "No Fork Point Found");
                     return;
                 }
+                final Path nearestPath = hit.path();
 
                 // Fork point found: only now commit to starting the path
                 snt.selectPath(nearestPath, false);
                 previousNode = new Path.PathNode(cc1);
                 highlightClickedLocation(previousNode, true);
-                // Prefer the interpolated point on the path's line segments over the nearest raw node:
-                // manually-placed waypoints can be sparser than pickRadius, so the closest actual node
-                // may sit well past it even when the click lands right on the path itself. Materialize
-                // that position as a real node so the branch point is geometrically accurate and the
-                // parent path visibly gains a node at the fork location
-                final int insertionIndex = nearPoint.getInsertionIndex();
-                if (insertionIndex < 0) {
-                    previousForkPoint = nearPoint.getNode(); // already an existing node
+                // Materialize the closest position on the path's line segments as a real node, so that the
+                // branch point is geometrically accurate even when waypoints are sparse
+                if (hit.t() <= 1e-6) {
+                    previousForkPoint = nearestPath.getNode(hit.segStart());
+                } else if (hit.t() >= 1 - 1e-6) {
+                    previousForkPoint = nearestPath.getNode(hit.segStart() + 1);
                 } else {
-                    nearestPath.insertNode(insertionIndex, nearPoint.getClosestIntersectionPoint());
-                    previousForkPoint = nearestPath.getNode(insertionIndex);
+                    final Path.PathNode n1 = nearestPath.getNode(hit.segStart());
+                    final Path.PathNode n2 = nearestPath.getNode(hit.segStart() + 1);
+                    final double t = hit.t();
+                    nearestPath.insertNode(hit.segStart() + 1, new PointInImage(n1.x + t * (n2.x - n1.x),
+                            n1.y + t * (n2.y - n1.y), n1.z + t * (n2.z - n1.z)));
+                    previousForkPoint = nearestPath.getNode(hit.segStart() + 1);
                     syncOverlays(); // so the new node is reflected next repaint, not just on the next full sync
                 }
                 return;
@@ -3585,6 +3576,116 @@ public abstract class AbstractBigViewer {
             return (screenPxPerWorldUnit > 0) ? screenPx / screenPxPerWorldUnit : screenPx;
         }
 
+        // Screen-space distance within which two fork-point candidates are considered equally close, in which
+        // case the one nearer the click's depth (viewer Z) wins (see #findForkHit)
+        private static final double FORK_POINT_TIE_TOLERANCE_SCREEN_PX = 3;
+
+        private record ForkHit(Path path, int segStart, double t, double distPx, double absDz) {
+            boolean isBetterThan(final ForkHit other) {
+                if (other == null) return true;
+                if (Math.abs(distPx - other.distPx) <= FORK_POINT_TIE_TOLERANCE_SCREEN_PX)
+                    return absDz < other.absDz;
+                return distPx < other.distPx;
+            }
+        }
+
+        /**
+         * Finds the point on any rendered path closest to a world position in viewer (screen) space,
+         * i.e., ignoring depth along the viewing axis. Distances are in screen pixels
+         *
+         * @param worldPos calibrated (x,y,z) position
+         * @param maxPx    maximum accepted distance, in screen pixels
+         * @return the closest hit (segment start index and parametric position along that segment),
+         *         or {@code null} if nothing is within {@code maxPx}
+         */
+        private ForkHit findForkHit(final double[] worldPos, final double maxPx) {
+            final AffineTransform3D tf = getViewerTransform();
+            if (tf == null) return null;
+            final double[] c = new double[3];
+            tf.apply(worldPos, c);
+            ForkHit best = null;
+            final double[] a = new double[3];
+            final double[] b = new double[3];
+            final double[] w = new double[3];
+            for (final Tree tree : getRenderedTrees()) {
+                for (final Path path : tree.list()) {
+                    if (!path.isActiveVersion() || path.size() == 0) continue;
+                    Path.PathNode node = path.getNode(0);
+                    w[0] = node.x; w[1] = node.y; w[2] = node.z;
+                    tf.apply(w, a);
+                    if (path.size() == 1) {
+                        final double d = Math.hypot(a[0] - c[0], a[1] - c[1]);
+                        if (d <= maxPx) {
+                            final ForkHit h = new ForkHit(path, 0, 0, d, Math.abs(a[2] - c[2]));
+                            if (h.isBetterThan(best)) best = h;
+                        }
+                        continue;
+                    }
+                    for (int i = 1; i < path.size(); i++) {
+                        node = path.getNode(i);
+                        w[0] = node.x; w[1] = node.y; w[2] = node.z;
+                        tf.apply(w, b);
+                        final double dx = b[0] - a[0];
+                        final double dy = b[1] - a[1];
+                        final double len2 = dx * dx + dy * dy;
+                        double t = (len2 > 0) ? ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy) / len2 : 0;
+                        t = Math.max(0, Math.min(1, t));
+                        final double d = Math.hypot(a[0] + t * dx - c[0], a[1] + t * dy - c[1]);
+                        if (d <= maxPx) {
+                            final double dz = Math.abs(a[2] + t * (b[2] - a[2]) - c[2]);
+                            final ForkHit h = new ForkHit(path, i - 1, t, d, dz);
+                            if (h.isBetterThan(best)) best = h;
+                        }
+                        System.arraycopy(b, 0, a, 0, 3);
+                    }
+                }
+            }
+            return best;
+        }
+
+        private sc.fiji.snt.analysis.curation.PlausibilityMonitor liveMonitor() {
+            final sc.fiji.snt.SNTUI ui = snt.getUI();
+            if (ui == null) return null;
+            final sc.fiji.snt.analysis.curation.PlausibilityMonitor m = ui.getPlausibilityMonitor();
+            return (m != null && m.isEnabled()) ? m : null;
+        }
+
+        private void clearLiveCheckContext() {
+            final sc.fiji.snt.SNTUI ui = snt.getUI();
+            if (ui != null) ui.getPlausibilityMonitor().clearForkContext();
+        }
+
+        /**
+         * Mirrors SNT's classic hooks (fork initiated + segment completed) for the first segment of a
+         * new path: a forked segment already carries its parent path and branch point index
+         */
+        private void runLiveChecksOnFirstSegment(final Path first) {
+            final sc.fiji.snt.analysis.curation.PlausibilityMonitor m = liveMonitor();
+            if (m == null) return;
+            final Path parent = first.getParentPath();
+            if (parent == null) {
+                m.clearForkContext();
+                return;
+            }
+            m.onForkInitiated(parent, first.getBranchPointIndex());
+            reportLiveWarnings(m.onSegmentCompleted(first));
+        }
+
+        /** Mirrors SNT's classic path finalization hook */
+        private void runLiveChecksOnFinishedPath(final Path finished) {
+            final sc.fiji.snt.analysis.curation.PlausibilityMonitor m = liveMonitor();
+            if (m == null) return;
+            if (finished.getParentPath() == null) {
+                m.clearForkContext();
+                return;
+            }
+            reportLiveWarnings(m.onPathFinalized(finished));
+        }
+
+        private void reportLiveWarnings(final java.util.List<sc.fiji.snt.analysis.curation.PlausibilityCheck.Warning> w) {
+            if (w != null && !w.isEmpty()) showViewerMessage("Warning: " + w.getFirst().message());
+        }
+
         /**
          * Commits {@code tempPath} to the Path Manager and resets tracing state. Called directly
          * from {@code mouseReleased} when no segment is in flight, or deferred from {@code done()}
@@ -3619,6 +3720,7 @@ public abstract class AbstractBigViewer {
                 snt.getPathAndFillManager().addPath(tempPath);
                 if (renderingOptions.activateFinishedPath) snt.selectPath(tempPath, false);
                 showViewerMessage("Path finished");
+                runLiveChecksOnFinishedPath(tempPath);
             }
             clearTracingOverlayContents();
             syncPathManagerList();
@@ -3708,6 +3810,7 @@ public abstract class AbstractBigViewer {
             setToBeCombinedPath(null); // discard a pending "Continue Extending" request too, if any
             previousNode = null;
             tempPath = null;
+            clearLiveCheckContext();
             pendingFinish = false;
             computing = false;
             confirmedSegmentSizes.clear();
@@ -3775,6 +3878,7 @@ public abstract class AbstractBigViewer {
                             // so the in-progress segment visually pairs with the path it will extend
                             if (toBeCombinedPath != null) tempPath.setSelected(true);
                             pushConfirmedSegmentSize(result.size());
+                            runLiveChecksOnFirstSegment(result);
                         } else {
                             final int sizeBefore = tempPath.size();
                             tempPath.add(result);
@@ -3930,9 +4034,11 @@ public abstract class AbstractBigViewer {
         }
 
         private void highlightClickedLocation(final Path.PathNode node, final boolean highlightAsForkPoint) {
+            // Bdv returns null here (bookmarks use their own color cycle)
+            final Color base = (getDefaultMarkerColor() != null) ? getDefaultMarkerColor() : Color.YELLOW;
             ensureTracingOverlay().addAnnotation(node,
                     (highlightAsForkPoint) ? getDefaultMarkerSize() * 2 : getDefaultMarkerSize(),
-                    (highlightAsForkPoint) ? SNTColor.contrastHueColor(getDefaultMarkerColor(), Color.BLACK) : getDefaultMarkerColor());
+                    (highlightAsForkPoint) ? SNTColor.contrastHueColor(base, Color.BLACK) : base);
         }
 
         private void drawSegment(final Path segment) {

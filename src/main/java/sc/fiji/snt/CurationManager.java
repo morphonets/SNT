@@ -676,7 +676,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 angleCheck != null && angleCheck.isEnabled());
         branchAngleMinCheckbox.setToolTipText("Warns when a child path emerges nearly parallel to its parent");
         branchAngleMinSpinner = new JSpinner(new SpinnerNumberModel(
-                angleCheck != null ? angleCheck.getMinAngleDeg() : 10.0, 0.0, 90.0, 5.0));
+                angleCheck != null ? angleCheck.getMinAngleDeg() : 10.0, 0.0, 180.0, 5.0));
         branchAngleMinCheckbox.addActionListener(e -> {
             if (angleCheck != null) angleCheck.setEnabled(
                     branchAngleMinCheckbox.isSelected() || branchAngleMaxCheckbox.isSelected());
@@ -684,6 +684,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         branchAngleMinSpinner.addChangeListener(e -> {
             if (angleCheck != null) angleCheck.setMinAngleDeg((Double) branchAngleMinSpinner.getValue());
+            coupleBranchAngleBounds();
         });
         // Histogram button: both BranchAngle spinners share the same OUTSIDE-flagged
         // distribution. Clicking either button opens the same chart with both markers.
@@ -701,7 +702,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 angleCheck != null && angleCheck.isEnabled());
         branchAngleMaxCheckbox.setToolTipText("Warns when a child path doubles back, nearly anti-parallel to its parent");
         branchAngleMaxSpinner = new JSpinner(new SpinnerNumberModel(
-                angleCheck != null ? angleCheck.getMaxAngleDeg() : 170.0, 90.0, 180.0, 5.0));
+                angleCheck != null ? angleCheck.getMaxAngleDeg() : 170.0, 0.0, 180.0, 5.0));
         branchAngleMaxCheckbox.addActionListener(e -> {
             if (angleCheck != null) angleCheck.setEnabled(
                     branchAngleMinCheckbox.isSelected() || branchAngleMaxCheckbox.isSelected());
@@ -709,6 +710,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         branchAngleMaxSpinner.addChangeListener(e -> {
             if (angleCheck != null) angleCheck.setMaxAngleDeg((Double) branchAngleMaxSpinner.getValue());
+            coupleBranchAngleBounds();
         });
         final JButton branchAngleMaxHist = (angleCheck == null) ? null
                 : CurationHistograms.button("Fork angle", null,
@@ -718,6 +720,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 () -> ((Number) branchAngleMinSpinner.getValue()).doubleValue(),
                 CurationHistograms.Side.OUTSIDE_FLAGGED, p);
         addCheckRow(p, c, branchAngleMaxCheckbox, spinnerWithHistogram(branchAngleMaxSpinner, branchAngleMaxHist));
+        coupleBranchAngleBounds();
 
         // Direction continuity
         final PlausibilityCheck.DirectionContinuity dirCheck =
@@ -1899,6 +1902,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JComponent spinnerWithHistogram(final JSpinner spinner, final JButton histButton) {
         tightenSpinner(spinner);
         if (histButton == null) return spinner;
+        // Listeners fire last-added first: commit pending typed text before the plot reads values
+        histButton.addActionListener(e -> commitSpinnerEdit(spinner));
         final JPanel p = new JPanel(new BorderLayout(0, 0));
         p.setOpaque(false);
         p.add(spinner, BorderLayout.CENTER);
@@ -1912,11 +1917,33 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
      * default of ~9 columns wastes horizontal space and pushes the checkbox
      * label into truncation.
      */
+    /** Keeps min <= max: each fork angle spinner is bounded by the other's value */
+    private void coupleBranchAngleBounds() {
+        if (branchAngleMinSpinner == null || branchAngleMaxSpinner == null) return;
+        if (branchAngleMinSpinner.getModel() instanceof SpinnerNumberModel minModel
+                && branchAngleMaxSpinner.getModel() instanceof SpinnerNumberModel maxModel) {
+            minModel.setMaximum(((Number) maxModel.getValue()).doubleValue());
+            maxModel.setMinimum(((Number) minModel.getValue()).doubleValue());
+        }
+    }
+
+    private static void commitSpinnerEdit(final JSpinner spinner) {
+        try {
+            spinner.commitEdit();
+        } catch (final java.text.ParseException ignored) {
+            // invalid text: keep last valid value
+        }
+    }
+
     private static void tightenSpinner(final JSpinner spinner) {
         if (spinner == null) return;
         final JComponent editor = spinner.getEditor();
         if (editor instanceof JSpinner.DefaultEditor de) {
             de.getTextField().setColumns(4);
+            // Commit typed values as soon as they are valid: the histogram and
+            // Scan buttons are non-focusable, so no focus-lost commit happens
+            if (de.getTextField().getFormatter() instanceof javax.swing.text.DefaultFormatter df)
+                df.setCommitsOnValidEdit(true);
         }
     }
 

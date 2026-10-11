@@ -772,6 +772,18 @@ public class Bdv extends AbstractBigViewer {
         if (tracer != null) tracer.syncChannelFromActiveSource();
     }
 
+    /**
+     * Lightweight alternative to {@link #syncPathManagerList()} for pure selection changes: patches
+     * color/thickness in place for already-rendered trees. Mirrors {@link Bvv#updateSelection()}
+     *
+     * @throws IllegalArgumentException if this viewer is not tethered to a SNT instance
+     */
+    public void updateSelection() {
+        if (snt == null)
+            throw new IllegalArgumentException("This function is only available in snt-aware Bdv instances");
+        if (pathOverlay != null) pathOverlay.recolor();
+    }
+
     @Override
     public void syncOverlays() {
         if (pathOverlay != null) pathOverlay.updatePaths();

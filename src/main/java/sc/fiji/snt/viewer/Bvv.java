@@ -4218,10 +4218,15 @@ public class Bvv extends AbstractBigViewer {
                 final List<Annotation> list = layer(DEFAULT_LAYER);
                 for (SNTPoint p : points) {
                     final Color pColor = (p instanceof Path.PathNode pn) ? pn.getColor() : null;
-                    list.add(new Annotation(p, radius, (pColor == null) ? color : pColor));
+                    list.add(new Annotation(p, radius, nonNull((pColor == null) ? color : pColor)));
                 }
             }
             updateScene();
+        }
+
+        /** Annotations must have a color: null falls back to the rendering fallback color */
+        private Color nonNull(final Color c) {
+            return (c != null) ? c : renderingOptions.fallbackColor;
         }
 
         /**
@@ -4233,7 +4238,7 @@ public class Bvv extends AbstractBigViewer {
 
         @Override
         public void addAnnotation(final Object owner, final SNTPoint p, final float radius, final Color color) {
-            if (p != null) layer(owner).add(new Annotation(p, radius, color));
+            if (p != null) layer(owner).add(new Annotation(p, radius, nonNull(color)));
             updateScene();
         }
 
