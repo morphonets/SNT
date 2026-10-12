@@ -267,6 +267,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		if (frame == null) {
 			frame = new JFrame("SNT Commands");
 			frame.getRootPane().putClientProperty("Window.style", "small");
+			setIJMenuBarAsNeeded();
 		}
 		return frame;
 	}
@@ -316,8 +317,18 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				ij.Prefs.saveLocation(WIN_LOC, frame.getLocation());
 				super.windowClosing(e);
 			}
+			@Override
+			public void windowActivated(final WindowEvent e) {
+				setIJMenuBarAsNeeded();
+				super.windowActivated(e);
+			}
 		});
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
+	}
+
+	private void setIJMenuBarAsNeeded() {
+		if (ij.IJ.isMacOSX() && ij.IJ.getInstance() != null && ij.Menus.getMenuBar() != null)
+			frame.setMenuBar(ij.Menus.getMenuBar());
 	}
 
 	private void setContent() {

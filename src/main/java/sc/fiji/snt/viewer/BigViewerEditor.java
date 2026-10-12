@@ -311,7 +311,7 @@ final class BigViewerEditor {
 			ann.clear(SecondaryLayer.class);
 			return;
 		}
-		ann.replaceAll(SecondaryLayer.class, List.<SNTPoint>of(sec.getNode(idx)),
+		ann.replaceAll(SecondaryLayer.class, List.of(sec.getNode(idx)),
 				List.of(viewer.getDefaultMarkerSize() * ACTIVE_SCALE), List.of(SECONDARY_COLOR));
 	}
 
@@ -324,7 +324,7 @@ final class BigViewerEditor {
 			ann.clear(ActiveLayer.class);
 			return;
 		}
-		ann.replaceAll(ActiveLayer.class, List.<SNTPoint>of(p.getNode(idx)), List.of(viewer.getDefaultMarkerSize() * ACTIVE_SCALE),
+		ann.replaceAll(ActiveLayer.class, List.of(p.getNode(idx)), List.of(viewer.getDefaultMarkerSize() * ACTIVE_SCALE),
 				List.of(ed.isActiveNodeLocked() ? lockedColor() : activeColor()));
 	}
 
