@@ -121,7 +121,7 @@ final class BigViewerMenu {
 
 		// Display
 		final JMenuItem hide = item(ContextMenuCommand.HIDE, KeyEvent.VK_H, 0, true,
-				ev -> viewer.showViewerMessage("Press and hold H to temporarily hide paths and annotations"));
+				ev -> viewer.getGuiUtils().showKeyTip(snt.getPrefs(), "H", ContextMenuCommand.HIDE_KEY_TIP));
 		menu.add(hide);
 		menu.add(cropOnlyItem(ContextMenuCommand.ORIENTATION.label(), KeyEvent.VK_O));
 		menu.addSeparator();
@@ -143,8 +143,15 @@ final class BigViewerMenu {
 				(tracer == null) ? null : tracer.getExtendSelectedPathAction());
 		if (single != null) extend.setText("Continue Extending " + NodeEditCommand.shortName(single));
 		menu.add(extend);
-		final JMenuItem fork = item(ContextMenuCommand.FORK, 0, 0, false, null);
-		fork.setToolTipText("In Bvv/Bdv: Alt+Click on a path while tracing");
+		final JMenuItem fork = item(ContextMenuCommand.FORK, 0, 0,
+				tracingAvailable && viewer.isTracingEnabled() && hasPaths && !viewer.isPathInProgress(),
+				(tracer == null) ? null : tracer.getForkAction(clickPos));
+		// NB: mouse gestures cannot be Swing accelerators, so the shortcut is documented in the label only
+		// (same as InteractiveTracerCanvas)
+		fork.setText(ContextMenuCommand.FORK.label() + (viewer.getRenderingOptions().requireShiftToFork
+				? " (or Alt+Shift+Click)" : " (or Alt+Click)"));
+		fork.setToolTipText("In Bvv/Bdv: " + ((viewer.getRenderingOptions().requireShiftToFork)
+				? "Alt+Shift+Click" : "Alt+Click") + " on a path while tracing");
 		menu.add(fork);
 		menu.addSeparator();
 		final JMenuItem undo = (editing)
@@ -216,7 +223,12 @@ final class BigViewerMenu {
 	 */
 	static JMenuItem cropOnlyItem(final String label, final int keyCode) {
 		final JMenuItem item = item(label, keyCode, 0, false, null);
-		IconFactory.assignIcon(item, IconFactory.GLYPH.CROP);
+		if (label.startsWith(NodeEditCommand.MENU_INDENT)) {
+			// indented icon needed
+			IconFactory.assignDoubleIcon(item, null, null, IconFactory.GLYPH.CROP);
+		} else {
+			IconFactory.assignIcon(item, IconFactory.GLYPH.CROP);
+		}
 		item.setToolTipText(CROP_ONLY_TIP);
 		return item;
 	}

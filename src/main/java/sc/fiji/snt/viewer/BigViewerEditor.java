@@ -278,7 +278,9 @@ final class BigViewerEditor {
 		final Path p = ed.getPath();
 		final AbstractBigViewer.AnnotationOverlay ann = viewer.annotations();
 		if (ann == null) return;
-		if (p == null) {
+		// As in the tracing canvas, a deselected editing path is not shown as being edited: the node markers
+		// use the color of selected paths and would otherwise make it look selected
+		if (p == null || !p.isSelected()) {
 			ann.clear(NodesLayer.class);
 			ann.clear(ActiveLayer.class);
 			ann.clear(SecondaryLayer.class);
@@ -318,7 +320,7 @@ final class BigViewerEditor {
 		if (ann == null) return;
 		final Path p = ed.getPath();
 		final int idx = ed.getActiveNode();
-		if (p == null || idx < 0 || idx >= p.size()) {
+		if (p == null || !p.isSelected() || idx < 0 || idx >= p.size()) {
 			ann.clear(ActiveLayer.class);
 			return;
 		}
@@ -414,6 +416,7 @@ final class BigViewerEditor {
 
 	/** Connects the active node to the active node of the secondary path (the one edited previously) */
 	private void connect() {
+		if (editingPathDeselected()) return;
 		report(ed.connectToSecondaryPath(viewer.getGuiUtils(), true));
 	}
 
@@ -461,6 +464,7 @@ final class BigViewerEditor {
 	 * @param tag opens the tag chooser at the appropriate location
 	 */
 	private void run(final NodeEditCommand cmd, final Supplier<double[]> pos, final Runnable tag) {
+		if (editingPathDeselected()) return;
 		switch (cmd) {
 			case DELETE -> doDelete();
 			case INSERT -> doInsert(pos.get());
@@ -472,6 +476,18 @@ final class BigViewerEditor {
 			case SPLIT -> doSplit();
 			case UNDO -> undo();
 		}
+	}
+
+	/**
+	 * Whether the editing path is not selected (e.g., deselected in Path Manager): its node markers are hidden (see
+	 * {@link #refreshNodes()}), so node commands are no-ops rather than acting on a path that is not shown as edited.
+	 * Edit Mode is kept so that the path can be re-selected, or another one grabbed (e.g., when connecting paths)
+	 */
+	private boolean editingPathDeselected() {
+		final Path p = ed.getPath();
+		if (p == null || p.isSelected()) return false;
+		viewer.showViewerMessage("The path being edited is not selected");
+		return true;
 	}
 
 	private static AbstractAction action(final String name, final Runnable r) {
@@ -516,26 +532,24 @@ final class BigViewerEditor {
 			if (picked >= 0) ed.setActiveNode(picked); // no-op if locked. Otherwise keeps the previous active node
 			refreshActiveMarker();
 		}
-		final double[] cursor = clickPos;
 		final boolean hasNode = active && ed.getActiveNode() >= 0;
 		final Component source = (Component) e.getSource();
 		final Path single = snt.getSingleSelectedPath();
 		final JCheckBoxMenuItem toggle = new JCheckBoxMenuItem(NodeEditCommand.editToggleLabel((single == null) ? null : NodeEditCommand.shortName(single)), active);
-		toggle.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.PEN));
+		IconFactory.assignIcon(toggle, IconFactory.GLYPH.PEN);
 		toggle.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK));
 		final String blocker = (active) ? null : entryBlocker();
 		toggle.setEnabled(blocker == null);
 		if (blocker != null) toggle.setToolTipText(blocker);
 		toggle.addActionListener(ev -> toggle());
 		menu.add(toggle);
-		menu.addSeparator();
 		NodeEditCommand.addMenuItems(menu,
 				new NodeEditCommand.MenuState(hasNode, active && ed.isActiveNodeLocked(), active && ed.canUndo()),
-				cmd -> run(cmd, () -> cursor, () -> doTag(source, e.getX(), e.getY())));
+				cmd -> run(cmd, () -> clickPos, () -> doTag(source, e.getX(), e.getY())));
 		// Canvas-only commands
-		menu.addSeparator();
 		menu.add(BigViewerMenu.cropOnlyItem(NodeEditCommand.MENU_INDENT + "Bring Active Node to Current Z-plane", KeyEvent.VK_B));
 		menu.add(connectMenuItem());
+		menu.add(GuiUtils.MenuItems.connectHelp(viewer::getGuiUtils, null, null));
 		menu.add(BigViewerMenu.cropOnlyItem(NodeEditCommand.MENU_INDENT + "Paint Mode", KeyEvent.VK_P));
 		menu.addPopupMenuListener(popupStateListener);
 		popup = menu;

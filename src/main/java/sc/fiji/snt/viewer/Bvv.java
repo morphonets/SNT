@@ -2896,6 +2896,7 @@ public class Bvv extends AbstractBigViewer {
         if (snt == null)
             throw new IllegalArgumentException("This function is only available in snt-aware Bvv instances");
         if (pathOverlay != null) pathOverlay.recolor();
+        refreshEditNodesOnSelectionChange();
     }
 
     /**

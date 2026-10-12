@@ -142,6 +142,11 @@ public abstract class AbstractBigViewer {
         editor.onSntEditModeChanged(enabled);
     }
 
+    /** Re-evaluates the Edit Mode markers after a selection change (they are only shown for a selected path) */
+    protected void refreshEditNodesOnSelectionChange() {
+        if (editor != null && editor.isActive()) editor.refreshNodes();
+    }
+
     /** Called by SNT when nodes of the path being edited were modified in place by another front-end */
     public void onSntEditedPathModified() {
         if (!SwingUtilities.isEventDispatchThread()) {
@@ -3263,21 +3268,7 @@ public abstract class AbstractBigViewer {
             }
 
             if (previousNode == null) {
-                // If a background A* batch re-trace is running (PathManagerUI's "Re-trace with A*..."),
-                // its workers are reading this SNT instance's shared image-data fields concurrently.
-                // Refuse to start a new path on a *different* channel/frame than the batch is using.
-                // That would trigger the resync below and race with it
-                assert snt != null;
-                final int[] batchLock = snt.getBatchRetraceChannelFrame();
-                if (batchLock != null) {
-                    final int[] candidate = peekActiveChannelFrame();
-                    if (candidate == null || candidate[0] != batchLock[0] || candidate[1] != batchLock[1]) {
-                        getGuiUtils().error("An A* batch re-trace is running on channel "
-                                + batchLock[0] + " / frame " + batchLock[1] + ". Starting a new path on a "
-                                + "different channel/frame is disabled until it finishes.");
-                        return;
-                    }
-                }
+                if (startNewPathBlocked()) return;
 
                 confirmedSegmentSizes.clear(); // just in case of abnormal prior state
                 updateUndoButtonState();
@@ -3302,42 +3293,7 @@ public abstract class AbstractBigViewer {
                     return;
                 }
 
-                // Fork requested: resolve it *before* committing to starting a path at all. The fork
-                // modifier is an explicit request to attach to an existing branch, so if that request
-                // can't be honored, the click should be a clean no-op
-                showViewerMessage("Forking...");
-                // Fork point search happens in viewer (screen) space: depth along the viewing axis is ignored,
-                // since the picked 3D position (slice cursor in BDV, ray-max in BVV) rarely lies exactly on the
-                // path that is visibly under the cursor. A 3D distance would reject such clicks
-                final ForkHit hit = findForkHit(cc1, FORK_POINT_PICK_RADIUS_SCREEN_PX);
-                if (hit == null) {
-                    final String mod = (renderingOptions.requireShiftToFork) ? "Alt+Shift" : "Alt";
-                    getGuiUtils().error(String.format("<html>No rendered path within %.0f screen pixels of the cursor."
-                            + "<br>Move closer to the target path, or click without %s to start an unconnected path.</html>",
-                            FORK_POINT_PICK_RADIUS_SCREEN_PX, mod), "No Fork Point Found");
-                    return;
-                }
-                final Path nearestPath = hit.path();
-
-                // Fork point found: only now commit to starting the path
-                snt.selectPath(nearestPath, false);
-                previousNode = new Path.PathNode(cc1);
-                highlightClickedLocation(previousNode, true);
-                // Materialize the closest position on the path's line segments as a real node, so that the
-                // branch point is geometrically accurate even when waypoints are sparse
-                if (hit.t() <= 1e-6) {
-                    previousForkPoint = nearestPath.getNode(hit.segStart());
-                } else if (hit.t() >= 1 - 1e-6) {
-                    previousForkPoint = nearestPath.getNode(hit.segStart() + 1);
-                } else {
-                    final Path.PathNode n1 = nearestPath.getNode(hit.segStart());
-                    final Path.PathNode n2 = nearestPath.getNode(hit.segStart() + 1);
-                    final double t = hit.t();
-                    nearestPath.insertNode(hit.segStart() + 1, new PointInImage(n1.x + t * (n2.x - n1.x),
-                            n1.y + t * (n2.y - n1.y), n1.z + t * (n2.z - n1.z)));
-                    previousForkPoint = nearestPath.getNode(hit.segStart() + 1);
-                    syncOverlays(); // so the new node is reflected next repaint, not just on the next full sync
-                }
+                beginFork(cc1);
                 return;
             }
 
@@ -3604,6 +3560,7 @@ public abstract class AbstractBigViewer {
             final double[] c = new double[3];
             tf.apply(worldPos, c);
             ForkHit best = null;
+            final double maxPxSq = maxPx * maxPx; // compare squared distances: sqrt only for actual candidates
             final double[] a = new double[3];
             final double[] b = new double[3];
             final double[] w = new double[3];
@@ -3614,9 +3571,9 @@ public abstract class AbstractBigViewer {
                     w[0] = node.x; w[1] = node.y; w[2] = node.z;
                     tf.apply(w, a);
                     if (path.size() == 1) {
-                        final double d = Math.hypot(a[0] - c[0], a[1] - c[1]);
-                        if (d <= maxPx) {
-                            final ForkHit h = new ForkHit(path, 0, 0, d, Math.abs(a[2] - c[2]));
+                        final double d2 = (a[0] - c[0]) * (a[0] - c[0]) + (a[1] - c[1]) * (a[1] - c[1]);
+                        if (d2 <= maxPxSq) {
+                            final ForkHit h = new ForkHit(path, 0, 0, Math.sqrt(d2), Math.abs(a[2] - c[2]));
                             if (h.isBetterThan(best)) best = h;
                         }
                         continue;
@@ -3630,10 +3587,12 @@ public abstract class AbstractBigViewer {
                         final double len2 = dx * dx + dy * dy;
                         double t = (len2 > 0) ? ((c[0] - a[0]) * dx + (c[1] - a[1]) * dy) / len2 : 0;
                         t = Math.max(0, Math.min(1, t));
-                        final double d = Math.hypot(a[0] + t * dx - c[0], a[1] + t * dy - c[1]);
-                        if (d <= maxPx) {
+                        final double ex = a[0] + t * dx - c[0];
+                        final double ey = a[1] + t * dy - c[1];
+                        final double d2 = ex * ex + ey * ey;
+                        if (d2 <= maxPxSq) {
                             final double dz = Math.abs(a[2] + t * (b[2] - a[2]) - c[2]);
-                            final ForkHit h = new ForkHit(path, i - 1, t, d, dz);
+                            final ForkHit h = new ForkHit(path, i - 1, t, Math.sqrt(d2), dz);
                             if (h.isBetterThan(best)) best = h;
                         }
                         System.arraycopy(b, 0, a, 0, 3);
@@ -4029,6 +3988,103 @@ public abstract class AbstractBigViewer {
                     }
                     setToBeCombinedPath(activePath);
                     showViewerMessage(activePath.getName() + ": click to extend, Enter to finish");
+                }
+            };
+        }
+
+        /**
+         * Whether starting a new path is currently disallowed: a background A* batch re-trace is reading
+         * this SNT instance's shared image-data fields, and the active channel/frame differs from the one
+         * it uses. An error message is displayed in that case
+         */
+        private boolean startNewPathBlocked() {
+            assert snt != null;
+            // If a background A* batch re-trace is running (PathManagerUI's "Re-trace with A*..."),
+            // its workers are reading this SNT instance's shared image-data fields concurrently.
+            // Refuse to start a new path on a *different* channel/frame than the batch is using.
+            // That would trigger the resync below and race with it
+            final int[] batchLock = snt.getBatchRetraceChannelFrame();
+            if (batchLock != null) {
+                final int[] candidate = peekActiveChannelFrame();
+                if (candidate == null || candidate[0] != batchLock[0] || candidate[1] != batchLock[1]) {
+                    getGuiUtils().error("An A* batch re-trace is running on channel "
+                            + batchLock[0] + " / frame " + batchLock[1] + ". Starting a new path on a "
+                            + "different channel/frame is disabled until it finishes.");
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Starts a new path forked off the rendered path closest to a (calibrated) position, or displays
+         * an error if there is none
+         */
+        private void beginFork(final double[] cc1) {
+            // Fork requested: resolve it *before* committing to starting a path at all. The fork modifier is an
+            // explicit request to attach to an existing branch, so if that request can't be honored, the click should
+            // be a clean no-op
+            showViewerMessage("Forking...");
+            // Fork point search happens in viewer (screen) space: depth along the viewing axis is ignored,
+            // since the picked 3D position (slice cursor in BDV, ray-max in BVV) rarely lies exactly on the
+            // path that is visibly under the cursor. A 3D distance would reject such clicks
+            final ForkHit hit = findForkHit(cc1, FORK_POINT_PICK_RADIUS_SCREEN_PX);
+            if (hit == null) {
+                getGuiUtils().error(String.format("<html>No rendered path within %.0f pixels of the cursor."
+                        + "<br>Move closer to the path you want to branch off.</html>",
+                        FORK_POINT_PICK_RADIUS_SCREEN_PX), "No Fork Point Found");
+                return;
+            }
+            final Path nearestPath = hit.path();
+
+            // Fork point found: only now commit to starting the path
+            snt.selectPath(nearestPath, false);
+            previousNode = new Path.PathNode(cc1);
+            highlightClickedLocation(previousNode, true);
+            // Materialize the closest position on the path's line segments as a real node, so that the
+            // branch point is geometrically accurate even when waypoints are sparse
+            if (hit.t() <= 1e-6) {
+                previousForkPoint = nearestPath.getNode(hit.segStart());
+            } else if (hit.t() >= 1 - 1e-6) {
+                previousForkPoint = nearestPath.getNode(hit.segStart() + 1);
+            } else {
+                final Path.PathNode n1 = nearestPath.getNode(hit.segStart());
+                final Path.PathNode n2 = nearestPath.getNode(hit.segStart() + 1);
+                final double t = hit.t();
+                nearestPath.insertNode(hit.segStart() + 1, new PointInImage(n1.x + t * (n2.x - n1.x),
+                        n1.y + t * (n2.y - n1.y), n1.z + t * (n2.z - n1.z)));
+                previousForkPoint = nearestPath.getNode(hit.segStart() + 1);
+                syncOverlays(); // so the new node is reflected next repaint, not just on the next full sync
+            }
+        }
+
+        /**
+         * Builds the "Fork at nearest point" action for a position captured earlier than the action's
+         * invocation (e.g., where the context menu was opened). Same outcome as an Alt+Click while tracing
+         *
+         * @param worldPos the calibrated position, or null if it could not be resolved
+         */
+        protected AbstractAction getForkAction(final double[] worldPos) {
+            return new AbstractAction(ContextMenuCommand.FORK.label()) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (snt == null || !snt.isTracingActive() || !tracingEnabled) {
+                        getGuiUtils().error("Tracing functions currently disabled.");
+                        return;
+                    }
+                    if (previousNode != null || computing) {
+                        getGuiUtils().error("Please finish or discard the current path first.");
+                        return;
+                    }
+                    if (worldPos == null) {
+                        showViewerMessage("Could not resolve cursor position");
+                        return;
+                    }
+                    if (startNewPathBlocked()) return;
+                    confirmedSegmentSizes.clear();
+                    updateUndoButtonState();
+                    syncChannelFromActiveSource();
+                    beginFork(worldPos);
                 }
             };
         }

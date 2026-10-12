@@ -385,35 +385,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     private JMenuItem helpOnConnectingMenuItem() {
-        final String msg = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>" +
-                "  <li>Press <tt>Shift+E</tt> to enter Edit Mode</li>" +
-                "  <li>Select the <b>parent</b> path using <tt>G</tt> (<u>G</u>roup paths around cursor)</li>" +
-                "  <li>Hover over the node where the child should branch from</li>" +
-                "  <li>Press <tt>G</tt> to switch to the <b>child</b> path</li>" +
-                "  <li>Select the child's connection node (typically a start or end node)</li>" +
-                "  <li>Press <tt>C</tt> to <u>C</u>onnect</li>" +
-                "</ol>Notes:<ul>" +
-                "  <li>A confirmation dialog shows the parent/child assignment with option to swap roles</li>" +
-                "  <li>Child paths are automatically re-oriented to maintain proper tree structure</li>" +
-                "  <li>If connection points are distant, a bridging segment is created automatically</li>" +
-                "  <li>If child's selected node is mid-path, a T-junction is created</li>" +
-                "  <li>Loop-forming connections are not allowed</li>" +
-                "  <li>To concatenate or combine paths end-to-end, use Path Manager's Edit menu</li>" +
-                "</ul>";
-        final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_HELP);
-        helpItem.addActionListener(e -> {
-            final boolean canvasActivationState = tracerPlugin.getPrefs().isCanvasAutoActivationEnabled();
-            tracerPlugin.getPrefs().setCanvasAutoActivation(false); // this will not update the checkbox state in SNTUI, but
-            // ensures the help dialog will maintain its frontmost state
-            getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_HELP, false)
-                    .addWindowListener(new WindowAdapter() {
-                        @Override
-                        public void windowClosing(final WindowEvent e) {
-                            tracerPlugin.getPrefs().setCanvasAutoActivation(canvasActivationState);
-                        }
-                    });
-        });
-        return helpItem;
+        final boolean[] canvasActivationState = new boolean[1];
+        return GuiUtils.MenuItems.connectHelp(this::getGuiUtils, () -> {
+            canvasActivationState[0] = tracerPlugin.getPrefs().isCanvasAutoActivationEnabled();
+            // this will not update the checkbox state in SNTUI, but ensures the help dialog will maintain its
+            // frontmost state
+            tracerPlugin.getPrefs().setCanvasAutoActivation(false);
+        }, () -> tracerPlugin.getPrefs().setCanvasAutoActivation(canvasActivationState[0]));
     }
 
     /** Menu item for a command shared with the Bdv/Bvv context menu: label and icon come from the enum */
@@ -1454,7 +1432,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         toggleEditModeMenuItem.doClick();
     }
 
-
     private void toggleKeyWarning(final String key, final String msg) {
         final Timer timer = new Timer(500, ae -> {
             // Restore state after delay
@@ -1473,12 +1450,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             PathNodeCanvas.setShowDirectionArrows(true);
             tracerPlugin.repaintAllPanes();
         }
-        // Show tip if not suppressed
-        if (!tracerPlugin.getPrefs().getTemp("key-skipnag" + key, false)) {
-            final Boolean skipNag = getGuiUtils().getPersistentWarning(
-                    "Tip: Hold \"" + key + "\" to " + msg + ".", "Keyboard Operation");
-            if (skipNag != null) tracerPlugin.getPrefs().setTemp("key-skipnag" + key, skipNag);
-        }
+        getGuiUtils().showKeyTip(tracerPlugin.getPrefs(), key, msg);
 
         timer.start();
     }
@@ -1522,7 +1494,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private final static String INDENT = NodeEditCommand.MENU_INDENT;
         private final static String NODE_MOVE_Z = INDENT + "Bring Active Node to Current Z-plane";
         private final static String NODE_PAINT = INDENT + "Paint Mode";
-        private final static String NODE_CONNECT_HELP = INDENT + "Connect to Help...";
+        private final static String NODE_CONNECT_HELP = GuiUtils.MenuItems.CONNECT_HELP_LABEL;
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = INDENT + "Connect to ";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
                 + "...";
@@ -1604,10 +1576,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private boolean handleGeneralCommands(final String command, final ActionEvent e) {
             switch (command) {
                 case SHOW_ARROWS:
-                    toggleKeyWarning("O", "show path orientation (start → end)");
+                    toggleKeyWarning("O", ContextMenuCommand.ORIENTATION_KEY_TIP);
                     return true;
                 case HIDE_ALL:
-                    toggleKeyWarning("H", "temporarily hide paths");
+                    toggleKeyWarning("H", ContextMenuCommand.HIDE_KEY_TIP);
                     return true;
                 case BOOKMARK_CURSOR:
                     bookmarkCursorLocation();

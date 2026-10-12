@@ -873,6 +873,21 @@ public class GuiUtils {
 	}
 
 	/**
+	 * Displays the "Hold [key] to..." keyboard tip (shared by the InteractiveTracerCanvas and Bdv/Bvv context
+	 * menus), unless the user opted out of it. The opt-out is remembered for the session
+	 *
+	 * @param prefs the preferences holding the opt-out flag
+	 * @param key   the key to be held, e.g., "H"
+	 * @param msg   what the key does, e.g., "temporarily hide paths"
+	 */
+	public void showKeyTip(final SNTPrefs prefs, final String key, final String msg) {
+		final String pref = "key-skipnag" + key;
+		if (prefs.getTemp(pref, false)) return;
+		final Boolean skipNag = getPersistentWarning("Tip: Hold \"" + key + "\" to " + msg + ".", "Keyboard Operation");
+		if (skipNag != null) prefs.setTemp(pref, skipNag);
+	}
+
+	/**
 	 * Displays a dialog with radio button choices, optional info text, and an optional checkbox.
 	 * Useful for operations that require a selection with additional context and options.
 	 *
@@ -3575,6 +3590,52 @@ public class GuiUtils {
 
 	/** Utility methods for building and configuring {@link JMenuItem}/{@link JMenu} entries. */
 	public static class MenuItems {
+
+		/** Label of the item returned by {@link #connectHelp(Supplier, Runnable, Runnable)} */
+		public static final String CONNECT_HELP_LABEL = NodeEditCommand.MENU_INDENT + "Connect to Help...";
+
+		private static final String CONNECT_HELP_HTML = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>"
+				+ "  <li>Press <tt>Shift+E</tt> to enter Edit Mode</li>"
+				+ "  <li>Select the <b>parent</b> path using <tt>G</tt> (<u>G</u>rab path around cursor)</li>"
+				+ "  <li>Hover over the node where the child should branch from</li>"
+				+ "  <li>Press <tt>G</tt> to switch to the <b>child</b> path</li>"
+				+ "  <li>Select the child's connection node (typically a start or end node)</li>"
+				+ "  <li>Press <tt>C</tt> to <u>C</u>onnect</li>"
+				+ "</ol>Notes:<ul>"
+				+ "  <li>A confirmation dialog shows the parent/child assignment with option to swap roles</li>"
+				+ "  <li>Child paths are automatically re-oriented to maintain proper tree structure</li>"
+				+ "  <li>If connection points are distant, a bridging segment is created automatically</li>"
+				+ "  <li>If child's selected node is mid-path, a T-junction is created</li>"
+				+ "  <li>Loop-forming connections are not allowed</li>"
+				+ "  <li>To concatenate or combine paths end-to-end, use Path Manager's Edit menu</li>"
+				+ "</ul>";
+
+		/**
+		 * Menu item that opens the "how to connect two paths in Edit Mode" help dialog (shared by the
+		 * InteractiveTracerCanvas and Bdv/Bvv context menus)
+		 *
+		 * @param gui     supplies the GuiUtils used to display the dialog (evaluated when the item is activated)
+		 * @param onOpen  optional task run right before the dialog is displayed (may be null)
+		 * @param onClose optional task run when the dialog is closed (may be null)
+		 * @return the menu item
+		 */
+		public static JMenuItem connectHelp(final Supplier<GuiUtils> gui, final Runnable onOpen,
+				final Runnable onClose) {
+			final JMenuItem helpItem = new JMenuItem(CONNECT_HELP_LABEL);
+			helpItem.addActionListener(e -> {
+				if (onOpen != null) onOpen.run();
+				final JDialog dialog = gui.get().showHTMLDialog(CONNECT_HELP_HTML, CONNECT_HELP_LABEL, false);
+				if (onClose != null) {
+					dialog.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent we) {
+							onClose.run();
+						}
+					});
+				}
+			});
+			return helpItem;
+		}
 
 		public static void addSeparator(final JPopupMenu menu, final String header) {
 			final JLabel label = GuiUtils.leftAlignedLabel(header, false);

@@ -178,7 +178,6 @@ public enum NodeEditCommand {
 			final Consumer<NodeEditCommand> handler) {
 		for (final NodeEditCommand cmd : values()) {
 			if (cmd == UNDO) continue; // shared with the tracing 'Undo Last Segment' entry (mode-aware)
-			if (cmd == RADIUS || cmd == SET_ROOT) menu.addSeparator();
 			final JMenuItem item = cmd.createMenuItem(e -> handler.accept(cmd));
 			item.setText(MENU_INDENT + cmd.label(state.nodeLocked()));
 			item.setEnabled(state.isEnabled(cmd));

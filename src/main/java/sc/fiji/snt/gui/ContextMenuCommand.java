@@ -51,6 +51,10 @@ public enum ContextMenuCommand {
 	PAUSE_TRACING(Labels.PAUSE_TRACING, '\uf04c', true, false),
 	PAUSE_SNT(Labels.PAUSE_SNT, IconFactory.GLYPH.PAUSE2);
 
+	/** Hold-key descriptions used by {@link GuiUtils#showKeyTip(sc.fiji.snt.SNTPrefs, String, String)} */
+	public static final String HIDE_KEY_TIP = "temporarily hide paths";
+	public static final String ORIENTATION_KEY_TIP = "show path orientation (start \u2192 end)";
+
 	/** The labels as compile-time constants, for front-ends that dispatch on them (e.g., in a {@code switch}) */
 	public static final class Labels {
 		public static final String GRAB = "Grab Nearest Path";
