@@ -666,7 +666,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 				return tree.subTree(filteredTypes.stream().mapToInt(Integer::intValue).toArray());
 			} catch (final IllegalArgumentException ex) {
 				logger.info("Connectivity problem detected! The reconstruction is not a valid Tree!?");
-				ex.printStackTrace();
+				SNTUtils.error(ex);
 				return null;
 			}
 		}
@@ -793,7 +793,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 				parser.parse();
 			} catch (IllegalArgumentException ex) {
 				SwingUtilities.invokeLater(() -> cancelAndFreezeUI(ex.getMessage(), "Exception Occurred"));
-				ex.printStackTrace();
+				SNTUtils.error(ex);
 				return;
 			}
             final Profile profile = parser.getProfile();

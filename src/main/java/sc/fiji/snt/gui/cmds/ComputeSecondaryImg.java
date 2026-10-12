@@ -372,8 +372,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			final CommandService cmdService = getContext().getService(CommandService.class);
 			cmdService.run(LocalThicknessCmd.class, true, (Map<String, Object>)null);
 		} catch (final Exception e) {
-			e.printStackTrace();
-			new GuiUtils(getPrompt()).error(e.getMessage()+". See Console for details.");
+			SNTUtils.error(e);
+			new GuiUtils(getPrompt()).error(e.getMessage()+". " + GuiUtils.consoleHint() + ".");
 		}
 	}
 

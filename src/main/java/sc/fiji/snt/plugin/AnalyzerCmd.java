@@ -38,6 +38,7 @@ import sc.fiji.snt.analysis.ShollAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.SNTUtils;
 
 import java.io.File;
 import java.util.*;
@@ -423,8 +424,8 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 				analyzer.measure(metrics, splitByType); // will display table
 			}
 		} catch (final IllegalArgumentException | ArithmeticException | IllegalStateException ex) {
-			error("An error occurred while computing metric(s). See Console for details.");
-			ex.printStackTrace();
+			error("An error occurred while computing metric(s). " + GuiUtils.consoleHint() + ".");
+			SNTUtils.error(ex);
 		} finally {
 			resetUI();
 		}

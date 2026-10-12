@@ -137,9 +137,9 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
 
         // Report results
         if (failures > 0 && successes == 0) {
-            error("Restore failed. See Console for details.");
+            error("Restore failed. " + GuiUtils.consoleHint() + ".");
         } else if (failures > 0) {
-            msg(String.format("Restored %d item(s), %d failed. See Console for details.",
+            msg(String.format("Restored %d item(s), %d failed. " + GuiUtils.consoleHint() + ".",
                     successes, failures), "Partial Restore");
         } else if (successes > 0) {
             msg("Session restored successfully.", "Restore Complete");

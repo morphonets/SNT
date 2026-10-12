@@ -87,7 +87,7 @@ public class GraphEditor extends JPanel {
 		try {
 			mxResources.add("geditor/editor"); // load editor.properties
 		} catch (Exception e) {
-			e.printStackTrace(); // ignore
+			SNTUtils.error(e); // ignore
 		}
 	}
 
@@ -604,10 +604,10 @@ public class GraphEditor extends JPanel {
 						// Needs to assign the key bindings again
 						keyboardHandler = new EditorKeyboardHandler(graphComponent);
 					} catch (final Exception e2) {
-						e2.printStackTrace();
+						SNTUtils.error(e2);
 					}
 			} catch (final Exception e1) {
-				e1.printStackTrace();
+				SNTUtils.error(e1);
 			}
 		}
 	}

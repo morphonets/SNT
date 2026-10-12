@@ -1540,7 +1540,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
             } catch (Exception ex) {
                 SNTUtils.error("Error handling action event: " + ex.getMessage());
-                ex.printStackTrace();
+                SNTUtils.error(ex);
             }
         }
 

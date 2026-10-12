@@ -718,7 +718,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         try {
             snt.startUI(true); // self-dispatches to the EDT as needed; do not wrap in invokeAndWait here
         } catch (Exception ex) {
-            ex.printStackTrace();
+            SNTUtils.error(ex);
         }
         return new TracingSetup(snt, primarySource);
     }

@@ -364,7 +364,7 @@ public class SNTService extends AbstractService implements ImageJService {
 						plugin.getPrefs().isSaveCompressedTraces());
 				plugin.setUnsavedChanges(false);
 			} catch (final IOException ioe) {
-				ioe.printStackTrace();
+				SNTUtils.error(ioe);
 				return false;
 			}
 		}

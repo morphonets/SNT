@@ -548,7 +548,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
 
         } catch (final Exception e) {
             SNTUtils.log("MSRefiner: FAILED '" + path.getName() + "': " + e.getMessage());
-            e.printStackTrace();
+            SNTUtils.error(e);
             succeeded = false;
             return null;
         }

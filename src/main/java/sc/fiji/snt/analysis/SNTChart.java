@@ -1726,8 +1726,8 @@ public class SNTChart extends ChartPanel {
 			try {
 				exportAsCSV(file);
 			} catch (final IllegalStateException ise) {
-				new GuiUtils(frame).error("Could not save data. See Console for details.");
-				ise.printStackTrace();
+				new GuiUtils(frame).error("Could not save data. " + GuiUtils.consoleHint() + ".");
+				SNTUtils.error(ise);
 			}
 		});
 		final JMenu saveAs = getMenu(popupMenu, "Save as");

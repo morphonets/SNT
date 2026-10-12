@@ -32,6 +32,7 @@ import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.TreeUtils;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.List;
 
@@ -244,8 +245,8 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
             SNTUtils.log("Multi-soma GWDT tracing cancelled: " + ce.getMessage());
             resetUI();
         } catch (final Throwable ex) {
-            ex.printStackTrace();
-            error("An exception occurred. See Console for details.");
+            SNTUtils.error(ex);
+            error("An exception occurred. " + GuiUtils.consoleHint() + ".");
         } finally {
             setStatus(null);
         }

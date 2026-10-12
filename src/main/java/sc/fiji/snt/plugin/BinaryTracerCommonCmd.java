@@ -491,8 +491,8 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                         "image) may not allow for this option.");
             }
         } catch (final Throwable ex) {
-            ex.printStackTrace();
-            error("An exception occurred. See Console for details.");
+            SNTUtils.error(ex);
+            error("An exception occurred. " + GuiUtils.consoleHint() + ".");
         } finally {
             setStatus(null);
         }

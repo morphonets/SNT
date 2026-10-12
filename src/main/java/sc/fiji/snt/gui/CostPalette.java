@@ -154,7 +154,7 @@ public class CostPalette extends Thread {
                 }
             }
         } catch (final Throwable t) {
-            t.printStackTrace();
+            SNTUtils.error(t);
             SNTUtils.log("Cost-function wizard failed: " + t.getMessage());
         }
     }

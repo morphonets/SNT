@@ -39,6 +39,7 @@ import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.viewer.Annotation3D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
+import sc.fiji.snt.SNTUtils;
 
 import java.util.*;
 
@@ -224,7 +225,7 @@ public class ConvexHullCmd extends ContextCommand {
 			}
 
 		} catch (final IndexOutOfBoundsException | IllegalArgumentException ex) {
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		}
 	}
 

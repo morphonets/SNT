@@ -37,6 +37,7 @@ import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.util.ColorMaps;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
@@ -117,8 +118,8 @@ public class TwoDHistCmd extends CommonDynamicCmd {
             javax.swing.SwingUtilities.invokeLater(() -> hist.setTitle(String.format("2D Hist %s-%s", measurementChoice1, measurementChoice2)));
         } catch (final IllegalArgumentException | NullPointerException | InterruptedException |
                        InvocationTargetException ex) {
-            error("It was not possible to retrieve valid histogram data. See Console for details");
-            ex.printStackTrace();
+            error("It was not possible to retrieve valid histogram data. " + GuiUtils.consoleHint());
+            SNTUtils.error(ex);
         } finally {
             resetUI();
         }

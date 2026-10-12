@@ -30,6 +30,7 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.SNTUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -196,7 +197,7 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
                 centerSource();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            SNTUtils.error(e);
         } finally {
             model.endUpdate();
         }

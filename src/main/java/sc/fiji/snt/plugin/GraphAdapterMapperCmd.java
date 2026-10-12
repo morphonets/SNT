@@ -124,7 +124,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
 
         } catch (final Exception exc) {
             cancel(exc.getMessage());
-            exc.printStackTrace();
+            SNTUtils.error(exc);
             return;
         }
         switch (mappedState) {
@@ -199,7 +199,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
             if (lutChoice == null) lutChoice = "Ice.lut";
             colorTable = lutService.loadLUT(luts.get(lutChoice));
         } catch (final IOException e) {
-            e.printStackTrace();
+            SNTUtils.error(e);
         }
     }
 

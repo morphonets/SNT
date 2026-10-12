@@ -209,6 +209,17 @@ public class SNTUtils {
 		return plugin;
 	}
 
+	/**
+	 * Logs a failure and its stack trace, without notification-center mirroring.
+	 * Intended as a drop-in replacement for {@code Throwable#printStackTrace()}
+	 * in catch blocks, ensuring the stack trace reaches the SciJava log
+	 *
+	 * @param t the exception
+	 */
+	public static synchronized void error(final Throwable t) {
+		error(GuiUtils.describeFailure(t), t, false);
+	}
+
 	public static synchronized void error(final String string, final Throwable t)  {
 		error(string, t, true);
 	}
@@ -1090,7 +1101,7 @@ public class SNTUtils {
 			try {
 				javax.swing.SwingUtilities.invokeAndWait(snt::startUI);
 			} catch (final InvocationTargetException | InterruptedException e) {
-				e.printStackTrace();
+				SNTUtils.error(e);
 			}
 			return snt;
 		}

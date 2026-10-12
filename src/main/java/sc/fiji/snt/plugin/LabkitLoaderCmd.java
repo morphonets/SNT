@@ -45,6 +45,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.SNTUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -155,8 +156,8 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 			});
 
 		} catch (final Throwable t) {
-			error("An error occurred. See Console for details");
-			t.printStackTrace();
+			error("An error occurred. " + GuiUtils.consoleHint());
+			SNTUtils.error(t);
 		} finally {
 			resetUI();
 		}

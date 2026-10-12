@@ -679,7 +679,7 @@ public class DelineationsManager {
             if (n < 0)
                 sntui.guiUtils.error("The selected image does not appear to be a valid "
                         + "labels/masks image. Expected: integer values with 0 as "
-                        + "background. See Console for details.");
+                        + "background. " + GuiUtils.consoleHint() + ".");
             else if (n == 0)
                 sntui.guiUtils.error("No non-zero labels found in the image.");
             else
@@ -802,7 +802,7 @@ public class DelineationsManager {
                                 : "SNT ran out of memory. Increase voxel size and retry.");
                         SNTUtils.error("SNT ran out of memory", cause);
                     } else {
-                        sntui.guiUtils.error("An error occurred. See Console for details");
+                        sntui.guiUtils.error("An error occurred. " + GuiUtils.consoleHint());
                         SNTUtils.error("Rasterization of delineation labels failed", cause);
                     }
                     sntui.showStatus("Label rasterization failed.", true);

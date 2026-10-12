@@ -47,6 +47,7 @@ import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.SNTUtils;
 
 import java.awt.*;
 import java.util.*;
@@ -223,7 +224,7 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
             error(e.getMessage());
         } catch (final Exception e) {
             error("Analysis failed: " + e.getMessage());
-            e.printStackTrace();
+            SNTUtils.error(e);
         } finally {
             resetUI();
         }

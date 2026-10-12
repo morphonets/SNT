@@ -232,7 +232,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 		} catch (final Exception ex) {
 			if (ex instanceof ArrayIndexOutOfBoundsException)
 				error("Profile could not be retrieved. Do Path nodes lay outside image bounds?");
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		} finally {
 			resetUI();
 		}

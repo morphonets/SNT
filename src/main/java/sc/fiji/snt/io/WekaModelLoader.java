@@ -138,7 +138,7 @@ public class WekaModelLoader extends CommonDynamicCmd {
 			} else {
 				error(t.getClass().getSimpleName() + ": An error occurred. See Console" + ((tws) ? "/Log window" : "")
 						+ " for details.");
-				t.printStackTrace();
+				SNTUtils.error(t);
 			}
 		} finally {
 			status("Loading complete", true);

@@ -202,8 +202,8 @@ public class NotesUI {
             }
         } catch (final IOException ex) {
             sntui.showStatus("I/O error. Notes not saved.", true);
-            sntui.guiUtils.error("Notes could not be saved. See Console for details.");
-            ex.printStackTrace();
+            sntui.guiUtils.error("Notes could not be saved. " + GuiUtils.consoleHint() + ".");
+            SNTUtils.error(ex);
         } finally {
             noRecordComment();
         }

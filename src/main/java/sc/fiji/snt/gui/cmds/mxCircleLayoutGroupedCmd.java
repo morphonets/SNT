@@ -39,6 +39,7 @@ import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
 import sc.fiji.snt.viewer.geditor.mxCircleLayoutGrouped;
+import sc.fiji.snt.SNTUtils;
 
 import java.io.IOException;
 import java.net.URL;
@@ -175,7 +176,7 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
             if (lutChoice == null) lutChoice = "Ice.lut";
             colorTable = lutService.loadLUT(luts.get(lutChoice));
         } catch (final IOException e) {
-            e.printStackTrace();
+            SNTUtils.error(e);
         }
     }
 

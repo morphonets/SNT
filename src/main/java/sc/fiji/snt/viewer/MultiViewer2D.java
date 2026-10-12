@@ -203,7 +203,7 @@ public class MultiViewer2D {
 				ChartUtils.writeChartAsPNG(out, cPanel.getChart(), cPanel.getWidth(), cPanel.getHeight());
 				i++;
 			} catch (final IOException ex) {
-				ex.printStackTrace();
+				SNTUtils.error(ex);
 			}
 		}
 	}

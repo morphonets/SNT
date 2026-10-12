@@ -162,7 +162,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 				if (imp.getTitle().equals(title)) return imp;
 			}
 		} catch (final NullPointerException npe) {
-			npe.printStackTrace();
+			SNTUtils.error(npe);
 		}
 		return null;
 	}

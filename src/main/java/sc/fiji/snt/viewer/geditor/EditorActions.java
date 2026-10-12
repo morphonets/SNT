@@ -56,6 +56,7 @@ import sc.fiji.snt.gui.cmds.AnnotationGraphRecViewerCmd;
 import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
 import sc.fiji.snt.gui.cmds.TreeGraphRecViewerCmd;
 import sc.fiji.snt.gui.cmds.mxOrganicLayoutPrefsCmd;
+import sc.fiji.snt.SNTUtils;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -530,7 +531,7 @@ class EditorActions {
                         }
                     }
                 } catch (Throwable ex) {
-                    ex.printStackTrace();
+                    SNTUtils.error(ex);
                     JOptionPane.showMessageDialog(graphComponent,
                             ex.toString(), mxResources.get("error"),
                             JOptionPane.ERROR_MESSAGE);
@@ -707,7 +708,7 @@ class EditorActions {
                         }
                     }
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    SNTUtils.error(ex);
                 }
             }
 
@@ -886,7 +887,7 @@ class EditorActions {
                                         : "<i>") + text + ((bold) ? "</b>" : "</i>"),
                                 0, 0, (bold) ? HTML.Tag.B : HTML.Tag.I);
                     } catch (Exception ex) {
-                        ex.printStackTrace();
+                        SNTUtils.error(ex);
                     }
 
                     editorPane.requestFocus();
@@ -1073,7 +1074,7 @@ class EditorActions {
                                     resetEditor(editor);
                                 }
                             } catch (IOException ex) {
-                                ex.printStackTrace();
+                                SNTUtils.error(ex);
                                 JOptionPane.showMessageDialog(
                                         editor.getGraphComponent(),
                                         ex.toString(),
@@ -1490,7 +1491,7 @@ class EditorActions {
                     AnnotationGraph newGraph = new AnnotationGraph(trees, metric, threshold, depth);
                     return new AnnotationGraphAdapter(newGraph);
                 } catch (final InterruptedException | ExecutionException e1) {
-                    e1.printStackTrace();
+                    SNTUtils.error(e1);
                 }
                 return null;
             }
@@ -1505,14 +1506,14 @@ class EditorActions {
                         new mxCircleLayout(adapter).execute(adapter.getDefaultParent());
                         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
                     } catch (Exception ex) {
-                        ex.printStackTrace();
+                        SNTUtils.error(ex);
                     } finally {
                         adapter.getModel().endUpdate();
                     }
                     graphComponent.replaceGraph(adapter, true);
                     System.out.printf("New Graph computed: %s, %.2f, %s%n", metric, threshold, depth);
                 } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
+                    SNTUtils.error(e);
                 }
             }
         }

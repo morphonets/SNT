@@ -29,6 +29,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.SNTUtils;
 
 import java.io.File;
 
@@ -82,12 +83,12 @@ public class OpenDatasetCmd extends CommonDynamicCmd {
 			}
 		}
 		catch (final NullPointerException ex) {
-			error("Loading of image failed (see Console for details)... "
+			error("Loading of image failed. " + GuiUtils.consoleHint() + ". "
 					+ "File may not be valid or may encode a proprietary format "
 					+ "not immediately recognized. Please open the image using "
 					+ "Bioformats (if not yet open). Then, load it in SNT using "
 					+ "'Choose Tracing Image -> From Open Image...'.");
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		} finally {
 			resetUI();
 		}

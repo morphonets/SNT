@@ -144,8 +144,8 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				ij.IJ.runPlugIn(sc.fiji.snt.plugin.ij1.Strahler.class.getCanonicalName(), "");
 			}
 			catch (final Exception ex) {
-				new GuiUtils(getFrame()).error("An error occurred. See Console for details.");
-				ex.printStackTrace();
+				new GuiUtils(getFrame()).error("An error occurred. " + GuiUtils.consoleHint() + ".");
+				SNTUtils.error(ex);
 			}
 		});
 		popup.add(jmi);
@@ -459,7 +459,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 								((Viewer3D)viewer).show();
 						} catch (final Exception e) {
 							// TODO Auto-generated catch block
-							e.printStackTrace();
+							SNTUtils.error(e);
 						}
 					}
 				}

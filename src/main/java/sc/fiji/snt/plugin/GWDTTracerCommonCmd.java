@@ -51,6 +51,7 @@ import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.TreeUtils;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -546,8 +547,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             SNTUtils.log("GWDT tracing cancelled: " + ce.getMessage());
             resetUI();
         } catch (final Throwable ex) {
-            ex.printStackTrace();
-            error("An exception occurred. See Console for details.");
+            SNTUtils.error(ex);
+            error("An exception occurred. " + GuiUtils.consoleHint() + ".");
         } finally {
             setStatus(null);
         }

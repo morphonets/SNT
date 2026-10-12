@@ -748,7 +748,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         return !cm.isCanceled();
                     }
                     catch (final InterruptedException | ExecutionException e1) {
-                        e1.printStackTrace();
+                        SNTUtils.error(e1);
                     }
                     return false;
                 }
@@ -759,7 +759,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         assembleSWCtypeMenu(get());
                     }
                     catch (final InterruptedException | ExecutionException exc) {
-                        exc.printStackTrace();
+                        SNTUtils.error(exc);
                     }
                 }
             }
@@ -1445,15 +1445,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             // isCancelled() is true here this interruption came from our own cancel()
                             // (e.g. PathManagerUI#dispose() during shutdown)
                             if (!isCancelled()) {
-                                guiUtils.error("An exception occurred. See Console for details.");
-                                e.printStackTrace();
+                                guiUtils.error("An exception occurred. " + GuiUtils.consoleHint() + ".");
+                                SNTUtils.error(e);
                             } else {
                                 SNTUtils.log(statusMessage(0, 0) + " cancelled");
                             }
                         } catch (final ExecutionException | RuntimeException e) {
                             msg.dispose();
-                            guiUtils.error("An exception occurred. See Console for details.");
-                            e.printStackTrace();
+                            guiUtils.error("An exception occurred. " + GuiUtils.consoleHint() + ".");
+                            SNTUtils.error(e);
                         } finally {
                             cleanup();
                             // shutdownNow(), not shutdown(): the latter only stops new submissions and lets
@@ -1680,7 +1680,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             SNTUtils.log("A* re-trace: " + count + "/" + workers.size() + " path(s) re-traced");
             if (count < workers.size()) {
                 guiUtils.centeredMsg((workers.size() - count) + "/" + workers.size()
-                        + " path(s) could not be re-traced. See Console for details.", "Some Paths Not Re-traced");
+                        + " path(s) could not be re-traced. " + GuiUtils.consoleHint() + ".", "Some Paths Not Re-traced");
             }
         }
 
@@ -2942,8 +2942,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     } catch (InterruptedException | ExecutionException
                              | RuntimeException e) {
                         guiUtils.error(
-                                "Unfortunately an exception occurred. See Console for details");
-                        e.printStackTrace();
+                                "Unfortunately an exception occurred. " + GuiUtils.consoleHint());
+                        SNTUtils.error(e);
                     }
                     return "";
                 }
@@ -2963,7 +2963,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             promptForExploreFitManual();
                         }
                     } catch (final InterruptedException | ExecutionException e) {
-                        e.printStackTrace();
+                        SNTUtils.error(e);
                     } finally {
                         setEnabledCommands(true);
                     }
@@ -3009,8 +3009,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             straightener.straighten().show();
         } catch (final Exception ex) {
             guiUtils.error("An exception occurred during straightening. This typically happens when "
-                    + "decomposed polyline(s) of small paths become too short. See Console for details.");
-            ex.printStackTrace();
+                    + "decomposed polyline(s) of small paths become too short. " + GuiUtils.consoleHint() + ".");
+            SNTUtils.error(ex);
         }
     }
 

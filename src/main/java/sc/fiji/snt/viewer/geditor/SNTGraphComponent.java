@@ -33,6 +33,7 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.w3c.dom.Document;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.SNTUtils;
 
 import javax.imageio.ImageIO;
 import javax.xml.transform.*;
@@ -187,8 +188,8 @@ public class SNTGraphComponent extends mxGraphComponent {
             guiUtils.tempMsg(file.getAbsolutePath() + " saved");
 
         } catch (IOException | TransformerException e) {
-            guiUtils.error("An exception occurred while saving file. See Console for details");
-            e.printStackTrace();
+            guiUtils.error("An exception occurred while saving file. " + GuiUtils.consoleHint());
+            SNTUtils.error(e);
         }
     }
 

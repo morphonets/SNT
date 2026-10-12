@@ -1930,7 +1930,7 @@ public class SNT extends MultiDThreePanes implements
 					SNTUtils.log("Failed to terminate search within " + timeout + "ms");
 				}
 			} catch (InterruptedException e) {
-				e.printStackTrace();
+				SNTUtils.error(e);
 			} finally {
 				tracerThreadPool = null;
 			}

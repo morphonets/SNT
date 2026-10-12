@@ -34,6 +34,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.SNTUtils;
 import trainableSegmentation.Weka_Segmentation;
 
 import java.lang.reflect.Field;
@@ -107,7 +108,7 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			f.setAccessible(true);
 			return (ImagePlus) f.get(this);
 		} catch (final NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 		}
 		return null;
 	}
@@ -118,7 +119,7 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			f.setAccessible(true);
 			return (StackWindow) f.get(this);
 		} catch (final NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 		}
 		return null;
 	}
@@ -217,7 +218,7 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			displayReport(counter, multidImg);
 		} catch (final Throwable t) {
 			error(t.getClass().getSimpleName() + ": An error occurred. See Console/Log window for details.");
-			t.printStackTrace();
+			SNTUtils.error(t);
 		} finally {
 			exit();
 		}

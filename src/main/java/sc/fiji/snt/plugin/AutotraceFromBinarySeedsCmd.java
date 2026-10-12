@@ -34,6 +34,7 @@ import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.tracing.auto.AutoTracer;
 import sc.fiji.snt.tracing.auto.BinaryTracer;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.*;
 
@@ -221,7 +222,7 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
                 }
             }
 
-            for (final String f : failures) SNTUtils.log(LOG_PREFIX + f);
+            for (final String f : failures) SNTUtils.warn(LOG_PREFIX + f);
             if (allTrees.isEmpty()) {
                 error("No traces could be produced from any of the " + filtered.size()
                         + " seed(s). " + failures.size() + " failure(s) logged to console.");
@@ -233,10 +234,10 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
             handleTracedTrees(allTrees);
             status(String.format("Traced %,d of %,d seed(s); %,d failure(s)%s.",
                     succeeded, filtered.size(), failures.size(),
-                    failures.isEmpty() ? "" : " — see Console"), true);
+                    failures.isEmpty() ? "" : " - see Console"), true);
         } catch (final Throwable ex) {
-            ex.printStackTrace();
-            error("An exception occurred. See Console for details.");
+            SNTUtils.error(ex);
+            error("An exception occurred. " + GuiUtils.consoleHint() + ".");
         } finally {
             setStatus(null);
         }

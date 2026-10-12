@@ -429,7 +429,7 @@ public class MouseLightLoader {
 			writer.close();
 			return true;
 		} catch (IOException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 			return false;
 		}
 	}
@@ -640,11 +640,11 @@ public class MouseLightLoader {
 			try (BufferedReader br = new BufferedReader(reader)) {
 				br.lines().forEach(out::println);
 			} catch (final IOException e) {
-				e.printStackTrace();
+				SNTUtils.error(e);
 			}
 			out.println("# End of Tree ");
 		} catch (final IOException | IllegalArgumentException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 		}
 		System.out.println("# All done");
 		System.out.println("Saving bogus id: " + new MouseLightLoader("AA01").saveAsSWC(dir));

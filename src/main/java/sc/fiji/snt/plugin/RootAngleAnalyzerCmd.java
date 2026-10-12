@@ -141,7 +141,7 @@ public class RootAngleAnalyzerCmd extends CommonDynamicCmd {
 				colorTable = lutService.loadLUT(luts.get(lutChoice));
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 		}
 	}
 

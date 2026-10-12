@@ -254,7 +254,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 		}
 		logger.info("Done.");
 		if (commonSummaryTable == null || commonSummaryTable.isEmpty() || commonSummaryTable.getRowCount() < 1) {
-			cancel("Options were likely invalid and no files were parsed. See Console for details.");
+			cancel("Options were likely invalid and no files were parsed. " + GuiUtils.consoleHint() + ".");
 		} else if (commonSummaryTable.hasUnsavedData() && !saveSummaryTable()) {
 			cancel("An Error occurred while saving summary table. Please save it manually.");
 		}

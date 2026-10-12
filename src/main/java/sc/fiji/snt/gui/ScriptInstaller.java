@@ -206,7 +206,7 @@ public class ScriptInstaller {
 				getTextEditor().createNewDocument(getScriptLabel(si), stringBuffer.toString());
 			}
 			catch (final IOException e) {
-				e.printStackTrace();
+				SNTUtils.error(e);
 			}
 		}
 		getTextEditor().getTextArea().setCaretPosition(0); // scroll to top

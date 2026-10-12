@@ -45,6 +45,7 @@ import org.scijava.Priority;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -240,11 +241,11 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
             Thread.currentThread().interrupt();
 
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            SNTUtils.error(e);
 
         } catch (OutOfMemoryError e) {
             System.err.println("Out of memory computing Tubeness. Try Lazy processing instead.");
-            e.printStackTrace();
+            SNTUtils.error(e);
         }
 
     }

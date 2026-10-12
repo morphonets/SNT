@@ -2904,8 +2904,8 @@ public class SNTUI extends JDialog {
                     showStatus("3D Viewer enabled: " + selectedKey, true);
 
                 } catch (final Throwable ex) {
-                    guiError("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
-                    ex.printStackTrace();
+                    guiError("An error occurred. Legacy 3D viewer may not be available. " + GuiUtils.consoleHint() + ".");
+                    SNTUtils.error(ex);
                 } finally {
                     resetChoice();
                 }
@@ -2942,8 +2942,8 @@ public class SNTUI extends JDialog {
                     univChoice.addItem(iw3d.getTitle());
                 }
             } catch (final Throwable ex) {
-                guiError("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
-                ex.printStackTrace();
+                guiError("An error occurred. Legacy 3D viewer may not be available. " + GuiUtils.consoleHint() + ".");
+                SNTUtils.error(ex);
             }
             showStatus("Viewers list updated...", true);
         });
@@ -2968,7 +2968,7 @@ public class SNTUI extends JDialog {
                 } catch (final Exception exc) {
                     guiError("Could not open " + imageFile.getAbsolutePath() + ". Maybe it is not a valid image?",
                             "IO Error");
-                    exc.printStackTrace();
+                    SNTUtils.error(exc);
                 }
             }
         }
@@ -3401,7 +3401,7 @@ public class SNTUI extends JDialog {
     private void no3DCapabilitiesError(final String viewer) {
         SwingUtilities.invokeLater(() -> guiError(viewer + " could not be initialized. Your installation seems "
                 + "to be missing essential 3D libraries. Please use the updater to install any "
-                + "missing files. See Console for details.", "Error: Dependencies Missing"));
+                + "missing files. " + GuiUtils.consoleHint() + ".", "Error: Dependencies Missing"));
     }
 
     private void registerInCommandFinder(final AbstractButton button, final String recordedString,
@@ -3681,14 +3681,14 @@ public class SNTUI extends JDialog {
                     return ("Could not load " + file.getAbsolutePath() + ":<br>"
                             + e1.getMessage());
                 } catch (final IOException e2) {
-                    e2.printStackTrace();
-                    return ("Loading of image failed. See Console for details.");
+                    SNTUtils.error(e2);
+                    return ("Loading of image failed. " + GuiUtils.consoleHint() + ".");
                 } catch (final OutOfMemoryError e3) {
-                    e3.printStackTrace();
-                    return ("It seems there is not enough memory to proceed. See Console for details.");
+                    SNTUtils.error(e3);
+                    return ("It seems there is not enough memory to proceed. " + GuiUtils.consoleHint() + ".");
                 } catch (final Exception e4) {
-                    e4.printStackTrace();
-                    return ("An unknown error occurred. See Console for details.");
+                    SNTUtils.error(e4);
+                    return ("An unknown error occurred. " + GuiUtils.consoleHint() + ".");
                 }
                 return null;
             }
@@ -4398,9 +4398,9 @@ public class SNTUI extends JDialog {
                 pathAndFillManager.exportToCSV(saveFile);
             } catch (final IOException ioe) {
                 showStatus("Exporting failed.", true);
-                guiError("Writing traces to '" + savePath + "' failed. See Console for details.");
+                guiError("Writing traces to '" + savePath + "' failed. " + GuiUtils.consoleHint() + ".");
                 changeState(preExportingState);
-                ioe.printStackTrace();
+                SNTUtils.error(ioe);
                 return;
             }
             showStatus("Export complete.", true);
@@ -6910,8 +6910,8 @@ public class SNTUI extends JDialog {
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(cmd, true, inputs);
             } catch (final OutOfMemoryError e) {
-                e.printStackTrace();
-                guiError("There is not enough memory to complete command. See Console for details.");
+                SNTUtils.error(e);
+                guiError("There is not enough memory to complete command. " + GuiUtils.consoleHint() + ".");
             } finally {
                 if (preRunState != getState())
                     changeState(preRunState);
@@ -6987,8 +6987,8 @@ public class SNTUI extends JDialog {
                 // NB: A NPE seems to happen if command is DynamicCommand
                 return ""; // do nothing
             } catch (final IllegalArgumentException | CancellationException | InterruptedException | ExecutionException e2) {
-                e2.printStackTrace();
-                return "Unfortunately an error occurred. See console for details.";
+                SNTUtils.error(e2);
+                return "Unfortunately an error occurred. " + GuiUtils.consoleHint() + ".";
             }
 
         }
@@ -7449,10 +7449,10 @@ public class SNTUI extends JDialog {
             plugin.setUnsavedChanges(false);
         } catch (final IOException ioe) {
             showStatus("Saving failed.", true);
-            guiError(String.format("File could not be saved: %s. See Console for details.", ioe.getMessage()));
+            guiError(String.format("File could not be saved: %s. " + GuiUtils.consoleHint() + ".", ioe.getMessage()));
             changeState(preSavingState);
             plugin.setUnsavedChanges(true);
-            ioe.printStackTrace();
+            SNTUtils.error(ioe);
             return false;
         }
         changeState(preSavingState);

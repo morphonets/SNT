@@ -131,7 +131,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
 
         // Report results
         if (failures > 0) {
-            error(String.format("%d item(s) could not be saved. See Console for details.", failures));
+            error(String.format("%d item(s) could not be saved. " + GuiUtils.consoleHint() + ".", failures));
         } else {
             final GuiUtils gUtils = new GuiUtils(ui);
             if (gUtils.getConfirmation("Session saved to:\n" + sessionDir.getAbsolutePath(),

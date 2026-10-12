@@ -4240,7 +4240,7 @@ public class Viewer3D {
                 return true;
             } catch (final Exception ex) {
                 guiUtils().error("Invalid parameter(s).");
-                ex.printStackTrace();
+                SNTUtils.error(ex);
             }
             return false;
         }
@@ -6283,7 +6283,7 @@ public class Viewer3D {
                         addTrees(choice.getTrees(), "unique");
                 } catch (final Throwable ex) {
                     mgrGuiUtils.error(ex.getMessage());
-                    ex.printStackTrace();
+                    SNTUtils.error(ex);
                 }
             });
             return mi;
@@ -6736,8 +6736,8 @@ public class Viewer3D {
                     try {
                         return loadRefBrainInternal(label) != null;
                     } catch (final NullPointerException | IllegalArgumentException ex) {
-                        mgrGuiUtils.error("An error occurred and mesh could not be retrieved. See Console for details.");
-                        ex.printStackTrace();
+                        mgrGuiUtils.error("An error occurred and mesh could not be retrieved. " + GuiUtils.consoleHint() + ".");
+                        SNTUtils.error(ex);
                         return false;
                     } catch (final RuntimeException e2) {
                         SNTUtils.error(e2.getMessage(), e2);
@@ -6863,7 +6863,7 @@ public class Viewer3D {
                             }
                         }
                     } catch (InterruptedException | ExecutionException e) {
-                        e.printStackTrace();
+                        SNTUtils.error(e);
                     } finally {
                         setSceneUpdatesEnabled(true);
                         abortCurrentOperation = false;
@@ -9223,10 +9223,10 @@ public class Viewer3D {
             }
             catch (final InterruptedException | ExecutionException e2) {
                 if (gUtils != null) {
-                    gUtils.error("Unfortunately an exception occurred. See console for details.");
+                    gUtils.error("Unfortunately an exception occurred. " + GuiUtils.consoleHint() + ".");
                     if (indeterminateProgress) getManagerPanel().showProgress(0, 0);
                 }
-                e2.printStackTrace();
+                SNTUtils.error(e2);
                 return false;
             }
         }
@@ -9427,7 +9427,7 @@ public class Viewer3D {
                 chart.setViewMode(currentView.next());
                 displayMsg("View Mode: " + currentView.description);
             } catch (final Throwable t) {
-                t.printStackTrace();
+                SNTUtils.error(t);
             }
         }
 

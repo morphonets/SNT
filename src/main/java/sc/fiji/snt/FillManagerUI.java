@@ -850,7 +850,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
                     final String msg = (plugin.isStreamMode())
                             ? "An error occurred: This operation likely requires the entire image to be loaded into memory (RAM)."
                             : "An error occurred.";
-                    gUtils.error(msg + " See Console for details.");
+                    gUtils.error(msg + " " + GuiUtils.consoleHint() + ".");
                     if (plugin.getUI() != null) plugin.getUI().setEnableDebugMode(true);
                     SNTUtils.error(action.getMenuText(), ex);
                 }
@@ -909,7 +909,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         }
         catch (final IOException ioe) {
             gUtils.error("Saving to " + saveFile.getAbsolutePath() +
-                    " failed. See console for details");
+                    " failed. " + GuiUtils.consoleHint());
             SNTUtils.error("IO Error", ioe);
         }
     }
@@ -946,8 +946,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
             final int exitReason = ((SearchThread) source).getExitReason();
             if (exitReason != SearchThread.CANCELLED) {
                 final String reason = SearchThread.EXIT_REASONS_STRINGS[((SearchThread) source).getExitReason()];
+                SNTUtils.error("Filling thread exited prematurely (Error code: '" + reason + "')", null, false);
                 new GuiUtils(this).error("Filling thread exited prematurely (Error code: '" + reason + "'). "
-                        + "With debug mode on, see Console for details.", "Filling Error");
+                        + GuiUtils.consoleHint() + ".", "Filling Error");
             } else {
                 changeState(State.STOPPED);
             }

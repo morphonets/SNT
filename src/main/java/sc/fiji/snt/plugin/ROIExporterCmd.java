@@ -37,6 +37,8 @@ import org.scijava.ui.UIService;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.RoiConverter;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -173,7 +175,7 @@ public class ROIExporterCmd implements Command {
 		} catch ( final Exception ex) {
 			warn("Branches could not be converted. Please make sure that paths selected for conversion " +
 					"reflect a single valid tree.");
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		}
 		if (overlay.size() == 0) {
 			warnUser("None of the input paths could be converted to ROIs.");
@@ -193,7 +195,7 @@ public class ROIExporterCmd implements Command {
 		statusService.clearStatus();
 
 		if (warningsExist) {
-			warnUser("ROIs generated but some warnings occurred.\nPlease see Console for details.");
+			warnUser("ROIs generated but some warnings occurred.\n" + GuiUtils.consoleHint() + ".");
 		}
 
 	}

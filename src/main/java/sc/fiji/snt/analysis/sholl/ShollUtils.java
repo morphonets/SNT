@@ -33,6 +33,7 @@ import java.util.stream.IntStream;
 import net.imglib2.display.ColorTable8;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.analysis.sholl.parsers.TabularParser;
+import sc.fiji.snt.SNTUtils;
 
 import org.scijava.table.DoubleTable;
 import org.scijava.table.TableLoader;
@@ -92,7 +93,7 @@ public class ShollUtils {
 			// NB: this will fail for headings containing whitespace[
 			return loader.valuesFromTextFile(url);
 		} catch (final IOException exc) {
-			exc.printStackTrace();
+			SNTUtils.error(exc);
 			return null;
 		}
 	}

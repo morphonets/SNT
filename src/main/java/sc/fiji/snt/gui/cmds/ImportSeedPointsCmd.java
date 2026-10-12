@@ -107,7 +107,8 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
         try {
             parsed = SeedOverlay.parseCsv(csvFile);
         } catch (final IOException ex) {
-            error("Could not read " + csvFile.getName() + " (see Console for details).");
+            SNTUtils.error(ex);
+            error("Could not read " + csvFile.getName() + ". " + GuiUtils.consoleHint() + ".");
             return;
         } catch (final SeedOverlay.CsvHeaderException ex) {
             error(ex.getMessage());

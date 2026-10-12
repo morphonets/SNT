@@ -182,7 +182,7 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 		}
 		catch (final Throwable t) {
 			System.out.println("Got an exception from call to ITK code: " + t);
-			t.printStackTrace();
+			SNTUtils.error(t);
 			IJ.error("There was an error in calling to ITK code: " + t);
 		}
 	}
@@ -281,7 +281,7 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 		}
 		catch (final Throwable t) {
 			System.out.println("Got an exception from call to ITK code: " + t);
-			t.printStackTrace();
+			SNTUtils.error(t);
 			IJ.error("There was an error in calling to ITK code: " + t);
 		}
 	}

@@ -1024,7 +1024,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			try {
 				runAnalysis();
 			} catch (final InterruptedException e) {
-				e.printStackTrace();
+				SNTUtils.error(e);
 			}
 		} else if (twoD) {
 			attemptToLoadDemoImage("Initial image is no longer available");

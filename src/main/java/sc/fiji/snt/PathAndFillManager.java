@@ -556,8 +556,8 @@ public class PathAndFillManager extends DefaultHandler implements
             }
             catch (final IOException ioe) {
                 error(ioe.getClass().getSimpleName() + ": Could not save " + swcFile.getAbsolutePath()
-                        + ". See Console for details.");
-                ioe.printStackTrace();
+                        + ". " + GuiUtils.consoleHint() + ".");
+                SNTUtils.error(ioe);
                 return false;
             }
         }
@@ -2385,7 +2385,6 @@ public class PathAndFillManager extends DefaultHandler implements
 
             clear();
             SNTUtils.error("FileNotFoundException", e);
-            e.printStackTrace();
             return false;
 
         }
@@ -2393,8 +2392,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
             clear();
             error(
-                    "There was an IO exception while reading the file. See console for details");
-            e.printStackTrace();
+                    "There was an IO exception while reading the file. " + GuiUtils.consoleHint());
+            SNTUtils.error(e);
             return false;
 
         } finally {

@@ -214,7 +214,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 			colorTable = lutService.loadLUT(luts.get(lutChoice));
 		}
 		catch (final IOException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 		}
 	}
 

@@ -53,7 +53,7 @@ public class ReconstructionViewerCmd extends ContextCommand {
 			SNTUtils.setIsLoading(true, false);
 			new Viewer3D(getContext()).show();
 		} catch (final NoClassDefFoundError e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 		} finally {
 			SNTUtils.setIsLoading(false, false);
 		}

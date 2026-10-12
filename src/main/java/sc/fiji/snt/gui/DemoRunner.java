@@ -648,7 +648,8 @@ public class DemoRunner {
 						bvv.resetView();
 						new GuiUtils(bvv.getViewerFrame()).infoMsg(
 								"All done! You are now a tracing expert! ☺ These tracing operations are common to all viewers," +
-										"including traditional images and streamed data. Feel free to keep exploring, or run other tutorials.",
+										"including traditional images and streamed data. Feel free to keep exploring, or run other tutorials." +
+										"<br><br><b>Tip:</b> Use the right-click menu for editing options and other actions.",
 								"Tutorial Complete");
 					}
 				})
@@ -656,8 +657,8 @@ public class DemoRunner {
 	}
 
 	private void error(final Throwable ex) {
-		ui.error("Loading of data failed (" + ex.getMessage() + " error). See Console for details.");
-		ex.printStackTrace();
+		ui.error("Loading of data failed (" + ex.getMessage() + " error). " + GuiUtils.consoleHint() + ".");
+		SNTUtils.error(ex);
 	}
 
 	private void exit() {

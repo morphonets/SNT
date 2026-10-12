@@ -37,6 +37,7 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.SNTUtils;
 
 /**
  * Convenience command for running Fiji's "Local Thickness" plugin from SNT, enabling
@@ -186,8 +187,8 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			imp.setCalibration(cal);
 			displayHistogram(imp);
 		} catch (final RuntimeException ex) {
-			error("An exception occurred while calling the Local Thickness plugin. See Console for details");
-			ex.printStackTrace();
+			error("An exception occurred while calling the Local Thickness plugin. " + GuiUtils.consoleHint());
+			SNTUtils.error(ex);
 		} finally {
 			resetUI();
 		}

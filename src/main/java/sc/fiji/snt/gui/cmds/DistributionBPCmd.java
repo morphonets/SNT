@@ -170,7 +170,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 						+ "Please rerun the command with a valid selection.";
 			}
 			error(error);
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		}
 	}
 

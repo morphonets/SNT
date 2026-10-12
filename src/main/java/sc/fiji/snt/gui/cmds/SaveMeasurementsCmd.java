@@ -242,7 +242,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
         }
 
         if (failures > 0) {
-            error(String.format("%d of %d item(s) could not be saved. See Console for details.",
+            error(String.format("%d of %d item(s) could not be saved. " + GuiUtils.consoleHint() + ".",
                     failures, saved + failures));
         } else if (saved > 0) {
             msg(String.format("%d item(s) saved to: %s", saved, outputDir.getAbsolutePath()), "Done");

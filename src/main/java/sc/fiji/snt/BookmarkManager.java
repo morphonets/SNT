@@ -1109,7 +1109,7 @@ public class BookmarkManager {
                 if (sntui != null) sntui.showStatus("Export complete.", true);
             } else {
                 if (sntui != null) sntui.showStatus("Exporting failed.", true);
-                getGuiUtils().error("Exporting failed. See Console for details.");
+                getGuiUtils().error("Exporting failed. " + GuiUtils.consoleHint() + ".");
             }
         }
     }

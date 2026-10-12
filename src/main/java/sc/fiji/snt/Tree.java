@@ -1587,7 +1587,7 @@ public class Tree implements TreeProperties, Cloneable {
 		try {
 			pafm.writeXML(file.getAbsolutePath(), true);
 		} catch (final IOException e) {
-			e.printStackTrace();
+			SNTUtils.error(e);
 			return false;
 		}
 		return true;

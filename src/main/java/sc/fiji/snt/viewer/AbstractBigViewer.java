@@ -2594,7 +2594,7 @@ public abstract class AbstractBigViewer {
                             + GuiUtils.Text.escapeHtml(zarr.getName()) + "'.<br>Save it so it is used next time?",
                     "Update OME-Zarr", "Save", "No")) continue;
             if (!ImgUtils.setOmeZarrCalibration(zarr.getAbsolutePath(), spacingChanged ? spacing : null, ngffUnit))
-                GuiUtils.errorPrompt("Could not update '" + zarr.getName() + "'. See Console for details.");
+                GuiUtils.errorPrompt("Could not update '" + zarr.getName() + "'. " + GuiUtils.consoleHint() + ".");
         }
     }
 

@@ -182,7 +182,7 @@ public class GuiUtils {
 			SNTUtils.error("Out of memory", cause, false);
 			error("Out of Memory: There is not enough RAM to complete the operation. Please allocate more "
 					+ "memory to Fiji (<i>Edit>Options>Memory & Threads...</i>) or try a smaller input. "
-					+ "See Console for details.");
+					+ consoleHint() + ".");
 			return;
 		}
 		String msg = describeFailure(cause);
@@ -192,7 +192,7 @@ public class GuiUtils {
 		if (isMissingClass(cause)) {
 			msg += "<br>Some files may be missing. Please use the updater to (re)install any missing files.";
 		}
-		error(msg + " See Console for details.");
+		error(msg + " " + consoleHint() + ".");
 	}
 
 	/**
@@ -231,6 +231,19 @@ public class GuiUtils {
 
 	private static boolean looksLikeClassPath(final String msg) {
 		return msg != null && msg.matches("[\\w$]+([/.][\\w$]+)*/[\\w$]+");
+	}
+
+	/**
+	 * Gets a short pointer to the Console, for use in error messages. The hint
+	 * refers to SNT's View menu when SNT's UI is available, and to Fiji's own
+	 * command otherwise.
+	 *
+	 * @return the hint, without trailing period
+	 */
+	public static String consoleHint() {
+		final var snt = SNTUtils.getInstance();
+		return (snt != null && snt.getUI() != null) ? "See View>Toggle Fiji Console for details"
+				: "See Window>Console for details";
 	}
 
 	public void warning(final String msg) {

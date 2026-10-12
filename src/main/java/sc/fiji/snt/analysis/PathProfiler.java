@@ -285,7 +285,7 @@ public class PathProfiler extends CommonDynamicCmd {
 			resolveInput("dataset");
 		} catch (final Exception ex) {
 			// command initialized without context!?
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		}
 		updateMsg();
 	}
@@ -415,7 +415,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		} catch (final Exception ex) {
 			if (ex instanceof ArrayIndexOutOfBoundsException)
 				error("Profile could not be retrieved. Do Path nodes lay outside image bounds?");
-			ex.printStackTrace();
+			SNTUtils.error(ex);
 		} finally {
 			super.resetUI();
 		}
