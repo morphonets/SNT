@@ -30,7 +30,10 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import javax.swing.AbstractAction;
@@ -46,12 +49,14 @@ import javax.swing.event.PopupMenuListener;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathNodeCanvas;
+import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.PathNodeEditor;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.NodeEditCommand;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
@@ -83,6 +88,17 @@ final class BigViewerEditor {
 	/** Annotation layer holding the active node of the secondary editing path (see {@link #connect()}) */
 	private static final class SecondaryLayer {}
 
+	/** Annotation layer holding the node 'Quick Connect' would connect to (see {@link #beginConnect(Point)}) */
+	private static final class TargetLayer {}
+
+	private static final Color TARGET_COLOR = new Color(0, 200, 120, 230);
+	private static final Color BLOCKED_COLOR = SNTColor.alphaColor(GuiUtils.Colors.errorColor(), 90);
+	private static final Color RUBBER_BAND_COLOR = new Color(0, 200, 120, 140);
+	private static final int RUBBER_BAND_DOTS = 12;
+	/** Distance (pixels) by which the current target is favored over nodes that are about as close to the cursor */
+	private static final double TARGET_STICKY_PX = 6;
+	/** Distance (pixels) within which the cursor is considered to be 'over' a path that cannot be connected to */
+	private static final double BLOCKED_RADIUS_PX = 20;
 	private static final float NODE_SCALE = 0.5f;
 	private static final float ACTIVE_SCALE = 1.2f;
 	private static final double NODE_ALPHA_PERCENT = 80;
@@ -111,6 +127,20 @@ final class BigViewerEditor {
 	private JPopupMenu popup;
 	private String exitMessage;
 
+	// 'Quick Connect' state: the editing path is the child and its active node stays fixed, while the
+	// cursor snaps to the closest node of any other rendered path (the target)
+	private boolean connecting;
+	private Path connectingPath;
+	private Set<Path> connectExcluded;
+	private Path targetPath;
+	private int targetIdx = -1;
+	private Bvv.OverlayRenderer.NodeHit targetHit; // as displayed (may be the fitted copy of targetPath)
+	private String lastHint; // last hint shown while connecting, so that it is not repeated on every mouse move
+	private boolean cursorBlocked; // whether the 'forbidden' cursor is set (see setBlockedCursor)
+	private java.awt.Cursor savedCursor; // the cursor of the canvas before it was set to 'forbidden' (null if none)
+	private int lastHoverX = Integer.MIN_VALUE;
+	private int lastHoverY = Integer.MIN_VALUE;
+
 	/** Tracks whether one of our popups is showing: active node picking is suspended while it is */
 	private final PopupMenuListener popupStateListener = new PopupMenuListener() {
 		@Override
@@ -135,6 +165,14 @@ final class BigViewerEditor {
 		public void mouseMoved(final MouseEvent e) {
 			onHover(e);
 		}
+
+		@Override
+		public void mouseClicked(final MouseEvent e) {
+			if (connecting && e.getButton() == MouseEvent.BUTTON1 && !popupShowing) {
+				updateTarget(e.getX(), e.getY(), true);
+				commitConnect();
+			}
+		}
 	};
 
 	BigViewerEditor(final AbstractBigViewer viewer, final SNT snt) {
@@ -151,22 +189,41 @@ final class BigViewerEditor {
 	 * @return a message explaining why Edit Mode cannot be entered from this viewer at the moment, or null
 	 */
 	private String entryBlocker() {
-		final String blocker = snt.getEditModeBlocker();
+		final String blocker = snt.getEditModeBlocker(true); // path nearest to the cursor is selected if needed
 		if (blocker != null) return blocker;
 		if (viewer.annotations() == null || viewer.getViewerCanvas() == null) return "Edit Mode unavailable: no annotation layer";
 		if (viewer.isPathInProgress()) return "Edit Mode: Finish or discard the current path first";
 		return null;
 	}
 
-	/** Checks viewer-specific prerequisites, and asks SNT to enable Edit Mode (see {@link #onSntEditModeChanged}) */
-	private void requestEnter() {
+	/**
+	 * Checks viewer-specific prerequisites, and asks SNT to enable Edit Mode (see {@link #onSntEditModeChanged}).
+	 * As in the tracing canvas, the path nearest to the cursor is selected if there is no single selected path
+	 *
+	 * @param pos the cursor position (calibrated coordinates), or null to resolve it
+	 */
+	private void requestEnter(final double[] pos) {
 		final String blocker = entryBlocker();
 		if (blocker != null) {
 			viewer.getGuiUtils().error(blocker);
 			return;
 		}
-		final Path single = snt.getSingleSelectedPath();
-		if (single != null) snt.enterEditMode(single);
+		Path toEdit = snt.getSingleSelectedPath();
+		if (toEdit == null) {
+			if (snt.getPathAndFillManager().size() == 0) {
+				viewer.showViewerMessage("Nothing to select: There are no traced paths");
+				return;
+			}
+			final double[] p = (pos != null) ? pos : viewer.resolveCursorWorldPosition();
+			final AbstractBigViewer.AbstractTracer tracer = viewer.menuTracer();
+			final Path nearest = (p == null || tracer == null) ? null : tracer.findNearestRenderedPath(p);
+			if (nearest == null) {
+				viewer.showViewerMessage((p == null) ? "Could not resolve cursor position" : "No rendered paths near cursor");
+				return;
+			}
+			toEdit = ed.resolvePath(nearest); // the topology is held by the un-fitted original
+		}
+		snt.enterEditMode(toEdit);
 		// On success, SNT calls onSntEditModeChanged(true)
 	}
 
@@ -177,8 +234,13 @@ final class BigViewerEditor {
 	}
 
 	void toggle() {
+		toggle(null);
+	}
+
+	/** @param pos the cursor position (calibrated coordinates) used to select the path to edit, or null to resolve it */
+	void toggle(final double[] pos) {
 		if (snt.isEditModeEnabled()) exit(null);
-		else requestEnter();
+		else requestEnter(pos);
 	}
 
 	private void activate() {
@@ -190,6 +252,7 @@ final class BigViewerEditor {
 		if (canvas == null || viewer.annotations() == null) return;
 		active = true;
 		canvas.addMouseMotionListener(hoverHandler);
+		canvas.addMouseListener(hoverHandler);
 		viewer.installEditKeybindings(buildInputMap(), buildActionMap());
 		refreshNodes();
 	}
@@ -217,9 +280,11 @@ final class BigViewerEditor {
 	private void deactivate(final boolean notify) {
 		if (!active) return;
 		active = false;
+		endConnect(notify);
 		final Component canvas = viewer.getViewerCanvas();
 		if (canvas != null) {
 			canvas.removeMouseMotionListener(hoverHandler);
+			canvas.removeMouseListener(hoverHandler);
 		}
 		if (popup != null) popup.setVisible(false);
 		if (!notify) return;
@@ -229,6 +294,7 @@ final class BigViewerEditor {
 			ann.clear(NodesLayer.class);
 			ann.clear(ActiveLayer.class);
 			ann.clear(SecondaryLayer.class);
+			ann.clear(TargetLayer.class);
 		}
 		viewer.showViewerMessage((exitMessage == null) ? "Edit Mode off" : exitMessage);
 		exitMessage = null;
@@ -251,6 +317,10 @@ final class BigViewerEditor {
 // picking and markers
 
 	private void onHover(final MouseEvent e) {
+		if (connecting) { // active node is fixed
+			if (!popupShowing) updateTarget(e.getX(), e.getY(), false);
+			return;
+		}
 		if (!active || popupShowing || ed.isActiveNodeLocked()) return;
 		// Like the classic canvas, the active node persists when the cursor moves away from it
 		// (so that 'Move' and 'Insert' can target a cursor position away from the node)
@@ -284,6 +354,7 @@ final class BigViewerEditor {
 			ann.clear(NodesLayer.class);
 			ann.clear(ActiveLayer.class);
 			ann.clear(SecondaryLayer.class);
+			ann.clear(TargetLayer.class);
 			return;
 		}
 		final float size = viewer.getDefaultMarkerSize() * NODE_SCALE;
@@ -299,6 +370,249 @@ final class BigViewerEditor {
 		ann.replaceAll(NodesLayer.class, points, sizes, colors);
 		refreshActiveMarker();
 		refreshSecondaryMarker();
+	}
+
+	// quick connect
+
+	/**
+	 * Enters 'Quick Connect': the cursor snaps to the closest node of any other rendered path, which is
+	 * highlighted. A click (or the shortcut again) connects the active node of the editing path to it, and the
+	 * editing path becomes the child (no confirmation). The active node is fixed while snapping
+	 */
+	private void beginConnect(final Point screenPos) {
+		if (editingPathDeselected()) return;
+		selectNearestNode(screenPos);
+		if (ed.getActiveNode() < 0) {
+			viewer.showViewerMessage("No node to connect from");
+			return;
+		}
+		connectingPath = ed.getPath();
+		connectExcluded = Collections.newSetFromMap(new IdentityHashMap<>());
+		collectSubtree(connectingPath, connectExcluded); // connecting to a descendant would create a loop
+		connecting = true;
+		lastHint = null;
+		clearTarget();
+		dimUnconnectable();
+		viewer.showViewerMessage("Quick Connect: Click a node to connect to (Esc to cancel)");
+		final Component c = viewer.getViewerCanvas();
+		final Point mouse = (c == null) ? null : c.getMousePosition();
+		if (mouse != null) updateTarget(mouse.x, mouse.y, true);
+	}
+
+	/**
+	 * Makes the node of the editing path that is nearest to a screen position the active node (unless it is locked)
+	 *
+	 * @param screenPos the position in viewer-display pixels, or null to keep the active node
+	 */
+	private void selectNearestNode(final Point screenPos) {
+		final Bvv.PathOverlay po = viewer.pathOverlay;
+		final Path editing = ed.getPath();
+		if (screenPos == null || po == null || editing == null || ed.isActiveNodeLocked()) return;
+		final Bvv.OverlayRenderer.NodeHit hit = po.overlayRenderer.nearestNode(screenPos.x, screenPos.y,
+				Double.MAX_VALUE, p -> ed.resolvePath(p) == editing, null, 0);
+		if (hit == null) return;
+		final int idx = ed.resolveNode(hit.path(), hit.index()).index();
+		if (idx == ed.getActiveNode()) return;
+		ed.setActiveNode(idx);
+		refreshActiveMarker();
+		syncActiveNode();
+	}
+
+	private static void collectSubtree(final Path root, final Set<Path> into) {
+		into.add(root);
+		for (final Path child : root.getChildren()) collectSubtree(child, into);
+	}
+
+	/** Leaves 'Quick Connect' without connecting. No-op if not connecting */
+	private void endConnect() {
+		endConnect(true);
+	}
+
+	/** @param notify false if the viewer is being disposed */
+	private void endConnect(final boolean notify) {
+		if (!connecting) return;
+		connecting = false;
+		connectingPath = null;
+		connectExcluded = null;
+		clearTarget();
+		releaseConnectVisuals();
+		if (notify) viewer.showViewerMessage("Quick Connect canceled");
+	}
+
+	/** Draws the branches of the editing path (which cannot be connected to: it would create a loop) dimmed */
+	private void dimUnconnectable() {
+		final Bvv.PathOverlay po = viewer.pathOverlay;
+		if (po == null) return;
+		final List<Path> dimmed = new ArrayList<>();
+		for (final Path p : connectExcluded) {
+			if (p == connectingPath) continue; // the path being edited keeps its appearance
+			dimmed.add(p);
+			if (p.getFitted() != null) dimmed.add(p.getFitted()); // the version displayed may be the fitted copy
+		}
+		if (!dimmed.isEmpty()) po.overlayRenderer.setDimmedPaths(dimmed);
+	}
+
+	/**
+	 * Shows the 'forbidden' cursor while the cursor is over a path that cannot be connected to, and restores the
+	 * previous one otherwise
+	 */
+	private void setBlockedCursor(final boolean blocked) {
+		if (blocked == cursorBlocked) return;
+		final Component c = viewer.getViewerCanvas();
+		if (c == null) return;
+		if (blocked) {
+			savedCursor = c.isCursorSet() ? c.getCursor() : null;
+			c.setCursor(java.awt.dnd.DragSource.DefaultMoveNoDrop);
+		} else {
+			c.setCursor(savedCursor); // null: inherited from the parent
+			savedCursor = null;
+		}
+		cursorBlocked = blocked;
+	}
+
+	/** Restores the regular appearance of paths and the cursor */
+	private void releaseConnectVisuals() {
+		final Bvv.PathOverlay po = viewer.pathOverlay;
+		if (po != null) po.overlayRenderer.setDimmedPaths(null);
+		setBlockedCursor(false);
+	}
+
+	/** Displays a hint, unless it is the one displayed last */
+	private void showHint(final String msg) {
+		if (msg.equals(lastHint)) return;
+		lastHint = msg;
+		viewer.showViewerMessage(msg);
+	}
+
+	private void clearTarget() {
+		targetPath = null;
+		targetIdx = -1;
+		targetHit = null;
+		lastHoverX = lastHoverY = Integer.MIN_VALUE;
+		final AbstractBigViewer.AnnotationOverlay ann = viewer.annotations();
+		if (ann != null) ann.clear(TargetLayer.class);
+	}
+
+	/**
+	 * Snaps to the closest node (screen space) of the rendered paths
+	 *
+	 * @param force if false, tiny cursor movements are ignored (this runs on every mouse move)
+	 */
+	private void updateTarget(final int x, final int y, final boolean force) {
+		if (ed.getPath() != connectingPath) { // another path was grabbed meanwhile
+			endConnect();
+			return;
+		}
+		if (!force && lastHoverX != Integer.MIN_VALUE
+				&& Math.abs(x - lastHoverX) + Math.abs(y - lastHoverY) < 2) return;
+		lastHoverX = x;
+		lastHoverY = y;
+		final Bvv.PathOverlay po = viewer.pathOverlay;
+		final Bvv.OverlayRenderer.NodeHit hit = (po == null) ? null
+				: po.overlayRenderer.nearestNode(x, y, SNTPrefs.getBigViewerPickRadius(),
+						p -> !connectExcluded.contains(ed.resolvePath(p)), // p may be a fitted copy
+						targetHit, TARGET_STICKY_PX);
+		// Cursor over a path that cannot be connected to: nothing to snap to (rather than snapping to a more distant
+		// valid node, which would not be what the cursor is pointing at)
+		final Bvv.OverlayRenderer.NodeHit blocker = (po == null) ? null
+				: po.overlayRenderer.nearestNode(x, y, BLOCKED_RADIUS_PX,
+						p -> connectExcluded.contains(ed.resolvePath(p)), null, 0);
+		if (blocker != null && (hit == null || blocker.distPx() <= hit.distPx())) {
+			clearTarget();
+			lastHoverX = x;
+			lastHoverY = y;
+			setBlockedCursor(true);
+			final AbstractBigViewer.AnnotationOverlay ann = viewer.annotations();
+			if (ann != null) { // flag the node the cursor is over
+				ann.replaceAll(TargetLayer.class, List.of(blocker.path().getNode(blocker.index())),
+						List.of(viewer.getDefaultMarkerSize() * ACTIVE_SCALE), List.of(BLOCKED_COLOR));
+			}
+			showHint((ed.resolvePath(blocker.path()) == connectingPath)
+					? "Cannot connect a path to itself"
+					: "Cannot connect to a branch of the path being edited (loop)");
+			return;
+		}
+		if (hit == null) {
+			if (targetPath != null) {
+				clearTarget();
+				lastHoverX = x;
+				lastHoverY = y;
+			}
+			setBlockedCursor(false);
+			showHint(String.format("No node within %.0f pixels of the cursor", SNTPrefs.getBigViewerPickRadius()));
+			return;
+		}
+		lastHint = null;
+		setBlockedCursor(false);
+		// The topology lives in the un-fitted original, but the node shown is the displayed one
+		final PathAndFillManager.NodeRef ref = ed.resolveNode(hit.path(), hit.index());
+		if (ref.path() == targetPath && ref.index() == targetIdx) return;
+		targetPath = ref.path();
+		targetIdx = ref.index();
+		targetHit = hit;
+		final Path.PathNode targetNode = hit.path().getNode(hit.index());
+		final int activeIdx = ed.getActiveNode();
+		final Path shown = connectingPath.getVersionInUse(); // the child as displayed
+		final Path.PathNode source = ((activeIdx < shown.size()) ? shown : connectingPath).getNode(activeIdx);
+		drawTarget(source, targetNode);
+		final boolean slab = activeIdx > 0 && activeIdx < connectingPath.size() - 1 && connectingPath.size() > 2;
+		viewer.showViewerMessage(String.format("Connect to %s (node %d), gap %.2f%s%s",
+				NodeEditCommand.shortName(targetPath), targetIdx, source.distanceTo(targetNode),
+				(viewer.calUnit == null) ? "" : " " + viewer.calUnit,
+				(slab) ? ", splitting at node " + activeIdx : ""));
+	}
+
+	/** Highlights the target and draws a dotted line to it from the active node of the editing path */
+	private void drawTarget(final SNTPoint source, final SNTPoint target) {
+		final AbstractBigViewer.AnnotationOverlay ann = viewer.annotations();
+		if (ann == null) return;
+		final List<SNTPoint> points = new ArrayList<>(RUBBER_BAND_DOTS + 1);
+		final List<Float> sizes = new ArrayList<>(RUBBER_BAND_DOTS + 1);
+		final List<Color> colors = new ArrayList<>(RUBBER_BAND_DOTS + 1);
+		final float dotSize = viewer.getDefaultMarkerSize() * NODE_SCALE * 0.5f;
+		for (int k = 1; k <= RUBBER_BAND_DOTS; k++) {
+			final double t = k / (RUBBER_BAND_DOTS + 1d);
+			points.add(new PointInImage(source.getX() + t * (target.getX() - source.getX()),
+					source.getY() + t * (target.getY() - source.getY()),
+					source.getZ() + t * (target.getZ() - source.getZ())));
+			sizes.add(dotSize);
+			colors.add(RUBBER_BAND_COLOR);
+		}
+		points.add(target); // last: drawn on top of the dots
+		sizes.add(viewer.getDefaultMarkerSize() * ACTIVE_SCALE);
+		colors.add(TARGET_COLOR);
+		ann.replaceAll(TargetLayer.class, points, sizes, colors);
+	}
+
+	/** Connects to the current target, or reports that there is none (staying in 'Quick Connect') */
+	private void commitConnect() {
+		if (targetPath == null) {
+			viewer.getGuiUtils().error(String.format("<html>No connectable node within %.0f pixels of the cursor."
+					+ "<br>Move closer to the path you want to connect to.</html>",
+					SNTPrefs.getBigViewerPickRadius()),
+					"No Connectable Node");
+			return;
+		}
+		final Path parent = targetPath;
+		final int idx = targetIdx;
+		connecting = false; // connected (or failed): do not announce a cancellation
+		connectingPath = null;
+		connectExcluded = null;
+		clearTarget();
+		releaseConnectVisuals();
+		report(ed.connectToNode(parent, idx, viewer.getGuiUtils()));
+	}
+
+	/** Shortcut/menu action: starts 'Quick Connect' or, if active, connects to the node under the cursor */
+	private void toggleQuickConnect() {
+		final Component c = viewer.getViewerCanvas();
+		final Point mouse = (c == null) ? null : c.getMousePosition();
+		if (!connecting) {
+			beginConnect(mouse);
+			return;
+		}
+		if (mouse != null) updateTarget(mouse.x, mouse.y, true);
+		commitConnect();
 	}
 
 	/** Highlights the active node of the secondary path: the target of {@link #connect()} */
@@ -443,6 +757,8 @@ final class BigViewerEditor {
 	private InputMap buildInputMap() {
 		final InputMap im = NodeEditCommand.inputMap();
 		im.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0), "snt-edit-connect");
+		im.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.SHIFT_DOWN_MASK), "snt-edit-connect-quick");
+		im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "snt-edit-connect-commit");
 		im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "snt-edit-exit");
 		im.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK), "snt-edit-exit");
 		return im;
@@ -452,7 +768,14 @@ final class BigViewerEditor {
 		final ActionMap am = NodeEditCommand.actionMap(
 				cmd -> run(cmd, viewer::resolveCursorWorldPosition, this::doTagAtCursor));
 		am.put("snt-edit-connect", action("Connect", this::connect));
-		am.put("snt-edit-exit", action("Exit", () -> exit(null)));
+		am.put("snt-edit-connect-quick", action("Quick Connect", this::toggleQuickConnect));
+		am.put("snt-edit-connect-commit", action("Quick Connect", () -> {
+			if (connecting) toggleQuickConnect(); // while connecting, this commits
+		}));
+		am.put("snt-edit-exit", action("Exit", () -> {
+			if (connecting) endConnect();
+			else exit(null);
+		}));
 		return am;
 	}
 
@@ -501,13 +824,24 @@ final class BigViewerEditor {
 
 	// context menu
 
-	/** The 'Connect' entry: enabled if the editing and secondary paths each have an active node */
+	/** The 'Quick Connect' entry: enabled in Edit Mode, unless already connecting */
+	private JMenuItem quickConnectMenuItem(final Point screenPos) {
+		final JMenuItem item = new JMenuItem(NodeEditCommand.MENU_INDENT + "Quick Connect...");
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.SHIFT_DOWN_MASK));
+		item.setEnabled(active && ed.getPath() != null && !connecting);
+		item.setToolTipText("<html>Connects the node of the editing path nearest to the cursor to another path:<br>"
+				+ "move the cursor over the node to connect to and click (or press Enter). Esc cancels");
+		item.addActionListener(ev -> beginConnect(screenPos));
+		return item;
+	}
+
+	/** The 'Connect' entry: enabled in Edit Mode if the secondary path has an active node (as in the tracing canvas) */
 	private JMenuItem connectMenuItem() {
 		final Path sec = ed.getSecondaryPath();
-		final boolean enabled = active && ed.getPath() != null && ed.getActiveNode() >= 0 && ed.hasSecondaryNode();
+		final boolean enabled = active && ed.getPath() != null && ed.hasSecondaryNode(); // as in InteractiveTracerCanvas
 		final String label = (active && sec != null && sec.getEditableNodeIndex() != -1)
-				? "Connect to " + NodeEditCommand.shortName(sec) + " (node " + sec.getEditableNodeIndex() + ")"
-				: "Connect to Secondary Editing Path...";
+				? "Connect To " + NodeEditCommand.shortName(sec) + " (Node " + sec.getEditableNodeIndex() + ")"
+				: "Connect To...";
 		final JMenuItem item = new JMenuItem(NodeEditCommand.MENU_INDENT + label);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0));
 		item.setEnabled(enabled);
@@ -541,7 +875,7 @@ final class BigViewerEditor {
 		final String blocker = (active) ? null : entryBlocker();
 		toggle.setEnabled(blocker == null);
 		if (blocker != null) toggle.setToolTipText(blocker);
-		toggle.addActionListener(ev -> toggle());
+		toggle.addActionListener(ev -> toggle(clickPos));
 		menu.add(toggle);
 		NodeEditCommand.addMenuItems(menu,
 				new NodeEditCommand.MenuState(hasNode, active && ed.isActiveNodeLocked(), active && ed.canUndo()),
@@ -549,7 +883,10 @@ final class BigViewerEditor {
 		// Canvas-only commands
 		menu.add(BigViewerMenu.cropOnlyItem(NodeEditCommand.MENU_INDENT + "Bring Active Node to Current Z-plane", KeyEvent.VK_B));
 		menu.add(connectMenuItem());
-		menu.add(GuiUtils.MenuItems.connectHelp(viewer::getGuiUtils, null, null));
+		menu.add(quickConnectMenuItem(new Point(e.getX(), e.getY())));
+		final JMenuItem helpItem = GuiUtils.MenuItems.connectHelp(viewer::getGuiUtils, null, null);
+		helpItem.setEnabled(active); // as in the tracing canvas
+		menu.add(helpItem);
 		menu.add(BigViewerMenu.cropOnlyItem(NodeEditCommand.MENU_INDENT + "Paint Mode", KeyEvent.VK_P));
 		menu.addPopupMenuListener(popupStateListener);
 		popup = menu;

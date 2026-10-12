@@ -379,7 +379,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             return;
         }
         connectToSecondaryEditingPath.setEnabled(true);
-        final String label = NodeEditCommand.shortName(tracerPlugin.getPreviousEditingPath()) + " (node "
+        final String label = NodeEditCommand.shortName(tracerPlugin.getPreviousEditingPath()) + " (Node "
                 + tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() + ")";
         connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
     }
@@ -1494,7 +1494,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private final static String NODE_MOVE_Z = INDENT + "Bring Active Node to Current Z-plane";
         private final static String NODE_PAINT = INDENT + "Paint Mode";
         private final static String NODE_CONNECT_HELP = GuiUtils.MenuItems.CONNECT_HELP_LABEL;
-        private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = INDENT + "Connect to ";
+        private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = INDENT + "Connect To ";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
                 + "...";
         private final static String START_SHOLL = ContextMenuCommand.Labels.SHOLL;

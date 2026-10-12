@@ -2260,10 +2260,20 @@ public class SNT extends MultiDThreePanes implements
 	 * @return a user-friendly message, or null if 'Edit Mode' can be enabled
 	 */
 	public String getEditModeBlocker() {
+		return getEditModeBlocker(false);
+	}
+
+	/**
+	 * As {@link #getEditModeBlocker()}, for front-ends that select the path to be edited themselves (e.g., the one
+	 * nearest to the cursor) when no single path is selected
+	 *
+	 * @param autoSelect if true, not having a single selected path is not considered a blocker
+	 * @return a user-friendly message, or null if 'Edit Mode' can be enabled
+	 */
+	public String getEditModeBlocker(final boolean autoSelect) {
 		if (!(uiReadyForModeChange() || isEditModeEnabled()))
 			return "Please finish the current operation before editing paths";
-		final Path p = getSingleSelectedPath();
-		return (p == null) ? "You must select a single path in order to edit it" : null;
+		return (!autoSelect && getSingleSelectedPath() == null) ? "You must select a single path in order to edit it" : null;
 	}
 
 	/**
@@ -2277,8 +2287,10 @@ public class SNT extends MultiDThreePanes implements
 	public boolean enterEditMode(final Path pathToEdit) {
 		if (isEditModeEnabled() || !uiReadyForModeChange()) return false;
 		if (pathToEdit != null && pathToEdit != getSingleSelectedPath()) {
+			if (pathAndFillManager.getPathFromID(pathToEdit.getID()) != pathToEdit) return false; // not registered
+			// The selection is applied asynchronously by the Path Manager (see PathManagerUI#setSelectedPaths), so
+			// it cannot be verified here: Edit Mode attaches to the path regardless (see #editModeAllowed)
 			selectPath(pathToEdit, false);
-			if (!pathAndFillManager.isSelected(pathToEdit)) return false; // e.g., not a selectable path
 		}
 		if (!editModeAllowed(false, pathToEdit)) return false;
 		enableEditMode(true);

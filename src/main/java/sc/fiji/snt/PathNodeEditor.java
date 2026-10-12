@@ -592,9 +592,6 @@ public final class PathNodeEditor {
 			gui.error("Connect to Secondary Editing Path: No connectable node exist.", "No Connectable Nodes");
 			return Result.fail(null);
 		}
-		final Result unsupported = unsupportedIfFitted("Connect paths");
-		if (unsupported != null) return unsupported;
-
 		// Default assignment: current path = child, previous path = parent
 		Path childPath = path;
 		Path parentPath = secondary;
@@ -645,7 +642,70 @@ public final class PathNodeEditor {
 				}
 			}
 		}
-		final Result r = connectToEditingPath(childPath, parentPath, gui);
+		return connectAndRelease(childPath, parentPath, gui);
+	}
+
+	/**
+	 * Connects the active node of the editing path to a node of another path (e.g., the node snapped to by a
+	 * 'magnetic' cursor). The editing path is always the child, i.e., it branches from {@code parent}. Unlike
+	 * {@link #connectToSecondaryPath(GuiUtils, boolean)}, no confirmation is asked. On success the editing path
+	 * is released: Callers must re-sync and leave edit mode.
+	 *
+	 * @param parent  the path to branch from
+	 * @param nodeIdx the index of the node of {@code parent} to branch from
+	 * @param gui     used to display errors
+	 * @return the outcome. A failure with no message means the operation was reported to the user
+	 * @see #canConnectTo(Path)
+	 */
+	public Result connectToNode(final Path parent, final int nodeIdx, final GuiUtils gui) {
+		final Result r = notReady(true);
+		if (r != null) return r;
+		if (parent == null || nodeIdx < 0 || nodeIdx >= parent.size()) return Result.fail("No node to connect to");
+		if (!canConnectTo(parent)) return Result.abort("Cannot connect to " + parent.getName()
+				+ ": A loop would be created!");
+		parent.setEditableNode(nodeIdx);
+		return connectAndRelease(path, parent, gui);
+	}
+
+	/**
+	 * Resolves a node of a displayed path to the node that connections must refer to. The paths displayed in the
+	 * viewers are the versions in use: A path displayed as its fitted version is a copy that does not hold the
+	 * topology, so it is resolved to its un-fitted original (see {@link PathAndFillManager#getVersionInUse(Path)})
+	 *
+	 * @param displayed the displayed path
+	 * @param index     the index of a node of {@code displayed}
+	 * @return the equivalent node of the path holding the topology. It is the same node if {@code displayed} is not
+	 *         a fitted copy
+	 */
+	public PathAndFillManager.NodeRef resolveNode(final Path displayed, final int index) {
+		final Path original = resolvePath(displayed);
+		if (original == displayed) return new PathAndFillManager.NodeRef(displayed, index);
+		if (original.size() == displayed.size()) return new PathAndFillManager.NodeRef(original, index);
+		final PointInImage n = displayed.getNode(index);
+		return new PathAndFillManager.NodeRef(original, original.indexNearestTo(n.x, n.y, n.z, Double.MAX_VALUE));
+	}
+
+	/**
+	 * @param displayed the displayed path
+	 * @return the path holding the topology: the un-fitted original if {@code displayed} is a fitted copy,
+	 *         otherwise {@code displayed}
+	 */
+	public Path resolvePath(final Path displayed) {
+		if (!displayed.isFittedVersionOfAnotherPath() || snt.getPathAndFillManager().isDeFactoPath(displayed))
+			return displayed;
+		return displayed.getUnfitted();
+	}
+
+	/**
+	 * @param other the path to be tested
+	 * @return whether the editing path could branch from {@code other} without creating a loop
+	 */
+	public boolean canConnectTo(final Path other) {
+		return path != null && other != null && !wouldCreateLoop(path, other);
+	}
+
+	private Result connectAndRelease(final Path child, final Path parent, final GuiUtils gui) {
+		final Result r = connectToEditingPath(child, parent, gui);
 		if (r.pathsChanged()) {
 			setPath(null);
 			releaseSecondaryPath();
@@ -691,17 +751,20 @@ public final class PathNodeEditor {
             final boolean childAtEnd = childNodeIdx == child.size() - 1;
             final boolean childAtSlab = !childAtStart && !childAtEnd && child.size() > 2;
 
+            final String childName = child.getName();
+            final boolean[] fitKept = { true };
             runWithoutUiUpdates(pafm, () -> {
                 if (childAtSlab) {
                     // T-JUNCTION: Split child path and handle directly without graph transformation
-                    connectWithTJunction(child, parent, childNodeIdx, parentNodeIdx, parentPoint);
+                    fitKept[0] = connectWithTJunction(child, parent, childNodeIdx, parentNodeIdx, parentPoint);
                 } else {
                     // ENDPOINT CONNECTION: Use direct path manipulation
-                    connectAtEndpoint(child, parent, childAtStart, parentNodeIdx, parentPoint);
+                    fitKept[0] = connectAtEndpoint(child, parent, childAtStart, parentNodeIdx, parentPoint);
                 }
             });
             SNTUtils.log("Finished connection in " + (System.currentTimeMillis() - start) + "ms");
-            return new Result(true, "Paths connected", true);
+            return new Result(true, fitKept[0] ? "Paths connected"
+                    : "Paths connected. Fit of " + StringUtils.abbreviate(childName, 30) + " discarded", true);
 
         } catch (final IllegalArgumentException e) {
             gui.error("<HTML>Cannot connect these paths:<br><br><i>" + e.getMessage() + "</i>", "Connection Failed");
@@ -720,9 +783,25 @@ public final class PathNodeEditor {
     }
 
     /**
-     * Connects child path to parent at an endpoint (start or end of child).
+     * Re-links the fitted counterparts of a path and its descendants to the (new) topology, and syncs their IDs
      */
-    private void connectAtEndpoint(final Path child, final Path parent,
+    private void refreshFittedCounterparts(final Path root) {
+        if (root.isFittedVersionOfAnotherPath()) return; // fitted copies are also listed as children
+        final Path fit = root.getFitted();
+        if (fit != null) {
+            root.rebuildConnectionsOfFittedVersion();
+            fit.setIDs(-root.getID(), root.getTreeID());
+        }
+        for (final Path child : new ArrayList<>(root.getChildren())) refreshFittedCounterparts(child);
+    }
+
+    /**
+     * Connects child path to parent at an endpoint (start or end of child). The fitted version of the child (if
+     * any) undergoes the same changes, so that the fit is preserved
+     *
+     * @return true if the fit of the child (if any) was preserved
+     */
+    private boolean connectAtEndpoint(final Path child, final Path parent,
                                    final boolean childAtStart,
                                    final int parentNodeIdx, final PointInImage parentPoint) {
         final PathAndFillManager pafm = snt.getPathAndFillManager();
@@ -730,11 +809,18 @@ public final class PathNodeEditor {
         // Sync canvas offset before any operations
         TreeUtils.syncCanvasOffset(child, parent);
 
+        final Path childFit = child.getFitted();
+        final boolean useFit = child.getUseFitted();
+
         // Check if we need to reverse the child to connect from its start
         Path childToConnect = child;
         if (!childAtStart) {
             // Child connects from end - reverse it so it connects from start
             childToConnect = child.reversed();
+            if (childFit != null) {
+                childToConnect.setFitted(childFit.reversed());
+                childToConnect.setUseFitted(useFit);
+            }
 
             // Transfer children with updated branch points
             for (final Path grandchild : new ArrayList<>(child.getChildren())) {
@@ -756,24 +842,39 @@ public final class PathNodeEditor {
             // Insert bridging node at start of child
             final PointInImage bridgePoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
             childToConnect.insertNode(0, bridgePoint);
+            if (childToConnect.getFitted() != null) {
+                childToConnect.getFitted().insertNode(0, new PointInImage(bridgePoint.x, bridgePoint.y, bridgePoint.z));
+            }
         }
 
-        // Connect child to parent
+        // Connect child to parent. A child that already branches from another path is re-attached
+        // (setBranchFrom does not replace existing connections)
+        if (childToConnect.getParentPath() != null) childToConnect.detachFromParent();
         childToConnect.setBranchFrom(parent, parent.getNode(parentNodeIdx));
         // Recursively update tree ID for child and all descendants
         updateTreeIDRecursively(childToConnect, parent.getTreeID());
+        refreshFittedCounterparts(childToConnect);
+        return true;
     }
 
     /**
-     * Connects child path to parent by splitting child at a mid-path node (T-junction).
+     * Connects child path to parent by splitting child at a mid-path node (T-junction). The fitted version of the
+     * child (if any) is split accordingly, so that the fit is preserved
+     *
+     * @return true if the fit of the child (if any) was preserved. Fits that cannot be mirrored (a different number
+     *         of nodes than the child) are discarded
      */
-    private void connectWithTJunction(final Path child, final Path parent,
+    private boolean connectWithTJunction(final Path child, final Path parent,
                                       final int childNodeIdx, final int parentNodeIdx,
                                       final PointInImage parentPoint) {
         final PathAndFillManager pafm = snt.getPathAndFillManager();
 
         // Sync canvas offset before any operations
         TreeUtils.syncCanvasOffset(child, parent);
+
+        final Path childFit = child.getFitted();
+        final boolean useFit = child.getUseFitted();
+        final boolean mirrorFit = childFit != null && childFit.size() == child.size();
 
         // Store children info before we modify anything
         final List<Path> grandchildren = new ArrayList<>(child.getChildren());
@@ -797,6 +898,15 @@ public final class PathNodeEditor {
             }
         }
 
+        if (mirrorFit) {
+            segment1.setFitted(childFit.getSection(0, childNodeIdx));
+            segment1.setUseFitted(useFit);
+            if (segment2 != null) {
+                segment2.setFitted(childFit.getSection(childNodeIdx, child.size() - 1));
+                segment2.setUseFitted(useFit);
+            }
+        }
+
         // Check if we need a bridging node for the connection to parent
         final PointInImage junctionPoint = segment1.lastNode();
         final double distance = junctionPoint.distanceTo(parentPoint);
@@ -806,6 +916,9 @@ public final class PathNodeEditor {
             // This extends segment1 toward the parent
             final PointInImage bridgePoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
             segment1.addNode(bridgePoint);
+            if (segment1.getFitted() != null) {
+                segment1.getFitted().addNode(new PointInImage(bridgePoint.x, bridgePoint.y, bridgePoint.z));
+            }
         }
 
         // Delete original child path
@@ -843,6 +956,8 @@ public final class PathNodeEditor {
             }
             // Tree ID already propagated recursively above; no need to update grandchildren here
         }
+        refreshFittedCounterparts(segment1);
+        return childFit == null || mirrorFit;
     }
 
 

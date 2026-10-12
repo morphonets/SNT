@@ -1372,6 +1372,11 @@ public class Path implements Comparable<Path>, Cloneable {
 		PathNode node = new PathNode(point);
 		node.onPath = this;
 		nodes.add(index, node);
+
+		// Nodes at or after the insertion point moved one position: keep children attached to the same nodes
+		for (final Path child : children) {
+			if (child.branchPointIndex >= index) child.branchPointIndex++;
+		}
 	}
 
 	/**

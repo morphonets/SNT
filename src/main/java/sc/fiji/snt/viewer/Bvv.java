@@ -4455,8 +4455,8 @@ public class Bvv extends AbstractBigViewer {
             /** Flattened annotations together with the owner ranges they were flattened with */
             private record Source(List<Annotation> list, Map<Object, int[]> ranges) {}
 
-            /** Screen data and the {@link Source} it was computed from */
-            private record Frame(AnnotationScreenData[] data, Source source) {}
+            /** Screen data and the {@link AnnotationOverlay.AnnRenderer.Source} it was computed from */
+            private record Frame(AnnotationScreenData[] data, AnnotationOverlay.AnnRenderer.Source source) {}
 
             // Source annotations: a single volatile reference, so that readers (painter thread, hit tests on the
             // EDT) always see a consistent list/ranges pair, and a list that does not change size mid-iteration
@@ -4859,7 +4859,7 @@ public class Bvv extends AbstractBigViewer {
                     pathData.screenRadius[i] = Math.max(0.5,
                             Math.min(r * renderingOptions.getThicknessMultiplier() * selectedBoost, maxR) * avgScale * pf);
                     final Color nodeColor = hasNodeColors ? node.getColor() : null;
-                    pathData.colors[i] = (nodeColor != null) ? nodeColor : color;
+                    pathData.colors[i] = dimmedOrSame(path, (nodeColor != null) ? nodeColor : color);
                 }
                 for (int i = 0; i < pathData.size - 1; i++) {
                     final SegmentData seg = pathData.segments[i];
@@ -5120,7 +5120,7 @@ public class Bvv extends AbstractBigViewer {
                             Math.min(r * renderingOptions.getThicknessMultiplier() * selectedBoost, maxR) * avgScale * pf);
 
                     final Color nodeColor = hasNodeColors ? node.getColor() : null;
-                    pathData.colors[i] = (nodeColor != null) ? nodeColor : color;
+                    pathData.colors[i] = dimmedOrSame(path, (nodeColor != null) ? nodeColor : color);
                     pathData.visible[i] = isOnScreen(pathData.screenX[i], pathData.screenY[i]);
                 }
 
@@ -5355,6 +5355,117 @@ public class Bvv extends AbstractBigViewer {
                             viewerTransform.get(2, 1) * viewerTransform.get(2, 1)
             );
             return (scaleX + scaleY) / 2.0;
+        }
+
+        /** A path node found by {@link #nearestNode} */
+        record NodeHit(Path path, int index, double distPx) {}
+
+        // Screen-space distance within which two nodes are considered equally close, in which case the one
+        // nearer the camera wins
+        private static final double NODE_TIE_TOLERANCE_PX = 3;
+
+        /**
+         * Finds the node of the rendered paths closest to a screen position. Projects nodes exactly as the
+         * renderer does (perspective included), but does not rely on the painter thread's cached screen data,
+         * so it is safe to call from the EDT
+         *
+         * @param screenX x coordinate in viewer-display pixels
+         * @param screenY y coordinate in viewer-display pixels
+         * @param maxPx   maximum accepted distance, in screen pixels
+         * @param accept  filters the paths to be considered
+         * @param sticky  a node (e.g., the previous result) that is favored, so that the result does not flicker
+         *                between nodes that are almost equidistant from the cursor. Null for none
+         * @param stickyBonusPx the distance (pixels) subtracted from the distance of {@code sticky}
+         * @return the closest node, or null if none is within {@code maxPx}
+         */
+        NodeHit nearestNode(final int screenX, final int screenY, final double maxPx,
+                            final java.util.function.Predicate<Path> accept, final NodeHit sticky,
+                            final double stickyBonusPx) {
+            if (hide) return null;
+            final Collection<Tree> snapshot = trees; // swapped, never mutated, by updatePaths()
+            final AffineTransform3D t = new AffineTransform3D();
+            viewerPanel.getViewerTransform(t);
+            final double cx = viewerPanel.getDisplayWidth() / 2.0;
+            final double cy = viewerPanel.getDisplayHeight() / 2.0;
+            final SNTPoint off = renderingOptions.pathOffset;
+            final double offX = (off != null) ? off.getX() : 0;
+            final double offY = (off != null) ? off.getY() : 0;
+            final double offZ = (off != null) ? off.getZ() : 0;
+            final boolean filterByCTpos = viewer.snt != null && viewer.snt.isShowOnlyActiveCTposPaths();
+            final int currentFrame = viewerPanel.getCurrentTimepoint() + 1; // Path#getFrame() is 1-based
+            final double maxSq = maxPx * maxPx;
+            final double[] w = new double[3];
+            final double[] v = new double[3];
+            Path bestPath = null;
+            int bestIdx = -1;
+            double bestDist = Double.MAX_VALUE;
+            double bestEff = Double.MAX_VALUE; // distance after the bonus of the sticky node
+            double bestZ = Double.MAX_VALUE;
+            for (final Tree tree : snapshot) {
+                for (final Path path : tree.list()) {
+                    if (!path.isActiveVersion() || (filterByCTpos && path.getFrame() != currentFrame)
+                            || !accept.test(path)) continue;
+                    final int n = path.size();
+                    for (int i = 0; i < n; i++) {
+                        final Path.PathNode node;
+                        try {
+                            node = path.getNode(i);
+                        } catch (final IndexOutOfBoundsException | ConcurrentModificationException ex) {
+                            break; // path being edited: skip it
+                        }
+                        w[0] = node.x + offX;
+                        w[1] = node.y + offY;
+                        w[2] = node.z + offZ;
+                        t.apply(w, v);
+                        final double denom = dCam + v[2];
+                        if (denom <= 0) continue; // behind the camera
+                        final double pf = dCam / denom;
+                        final double dx = cx + (v[0] - cx) * pf - screenX;
+                        final double dy = cy + (v[1] - cy) * pf - screenY;
+                        final double d2 = dx * dx + dy * dy;
+                        if (d2 > maxSq) continue;
+                        final double dist = Math.sqrt(d2);
+                        final double eff = (sticky != null && path == sticky.path() && i == sticky.index())
+                                ? dist - stickyBonusPx : dist;
+                        final boolean tie = Math.abs(eff - bestEff) <= NODE_TIE_TOLERANCE_PX;
+                        if (bestPath == null || (tie ? v[2] < bestZ : eff < bestEff)) {
+                            bestPath = path;
+                            bestIdx = i;
+                            bestDist = dist;
+                            bestEff = eff;
+                            bestZ = v[2];
+                        }
+                    }
+                }
+            }
+            return (bestPath == null) ? null : new NodeHit(bestPath, bestIdx, bestDist);
+        }
+
+        // Paths drawn dimmed, e.g., those that cannot be connected to in the editor's 'Quick Connect'.
+        // Identity set that is replaced, never mutated. Fitted copies must be listed explicitly
+        private volatile Set<Path> dimmedPaths = Collections.newSetFromMap(new IdentityHashMap<>());
+        private static final double DIMMED_ALPHA_PERCENT = 20;
+
+        private Color dimmedOrSame(final Path path, final Color c) {
+            if (c == null || !dimmedPaths.contains(path)) return c;
+            return SNTColor.alphaColor(c, DIMMED_ALPHA_PERCENT * c.getAlpha() / 255d);
+        }
+
+        /**
+         * Draws the specified paths dimmed (translucent)
+         *
+         * @param paths the paths (as rendered: the fitted copy of a path displayed as fitted), or null/empty to
+         *              restore the regular colors
+         */
+        void setDimmedPaths(final Collection<Path> paths) {
+            final Set<Path> previous = dimmedPaths;
+            final Set<Path> next = Collections.newSetFromMap(new IdentityHashMap<>());
+            if (paths != null) next.addAll(paths);
+            dimmedPaths = next;
+            for (final Tree tree : trees) {
+                if (tree.list().stream().anyMatch(p -> previous.contains(p) || next.contains(p))) recolor(tree);
+            }
+            viewerPanel.requestRepaint();
         }
 
         private boolean isOnScreen(final double x, final double y) {

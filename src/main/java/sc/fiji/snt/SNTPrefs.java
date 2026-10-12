@@ -597,6 +597,17 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(BVV_CACHE_NO_ASK_KEY, suppress);
 	}
 
+	/**
+	 * Screen-space radius (pixels) within which Bdv/Bvv interactions snap to existing paths: fork points, "Continue
+	 * Extending" end-points and 'Quick Connect'. Not user-adjustable (yet)
+	 */
+	public static final double BIG_VIEWER_PICK_RADIUS_PX = 150;
+
+	/** @return the screen-space radius (pixels) within which Bdv/Bvv interactions snap to existing paths */
+	public static double getBigViewerPickRadius() {
+		return BIG_VIEWER_PICK_RADIUS_PX;
+	}
+
 	/** @return the persisted BVV maximum ray-marching step (voxels), within its limits */
 	public static double getBvvMaxStep() {
 		final double step = Prefs.get(BVV_MAX_STEP_KEY, BVV_DEFAULT_MAX_STEP);

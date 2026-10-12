@@ -3182,10 +3182,6 @@ public abstract class AbstractBigViewer {
         // by the time mouseReleased(MouseEvent) fires, silently dropping a fork request (see #handleClick)
         private boolean pressAltDown, pressShiftDown;
 
-        // Screen-space pick radius for snapping a click to a fork point (see #findForkHit). Also converted
-        // to a world-space distance via pickRadiusWorld() for the "Continue Extending" end-point tolerance
-        private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 150;
-
         // Wall-clock time (System.currentTimeMillis()) until which trace clicks are deferred because a
         // recenter animation is either still running or has just finished (tiles for the new focal
         // region may still be streaming in). 0 (or already elapsed) means the scene is considered
@@ -3693,7 +3689,7 @@ public abstract class AbstractBigViewer {
          * Appends {@code newSegment} directly onto {@link #toBeCombinedPath}'s last node instead of
          * registering it as an independent path, then clears {@link #toBeCombinedPath}. Mirrors
          * InteractiveTracerCanvas's "Continue Extending Path", restricted to the strict last-node case:
-         * if the two don't meet there within {@link #FORK_POINT_PICK_RADIUS_SCREEN_PX} of each other
+         * if the two don't meet there within {@link SNTPrefs#getBigViewerPickRadius()} of each other
          * (the same pick tolerance the Alt+Click fork gesture already uses), nothing is merged and
          * {@code newSegment} is registered as an ordinary standalone path instead, leaving the pending
          * path untouched either way
@@ -3705,7 +3701,7 @@ public abstract class AbstractBigViewer {
             setToBeCombinedPath(null);
             final double dist = (newSegment.size() == 0) ? Double.MAX_VALUE
                     : base.lastNode().distanceTo(newSegment.getNode(0));
-            final double tolerance = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
+            final double tolerance = pickRadiusWorld(SNTPrefs.getBigViewerPickRadius());
             if (newSegment.size() < 2 || dist > tolerance) {
                 snt.getPathAndFillManager().addPath(newSegment);
                 if (renderingOptions.activateFinishedPath) snt.selectPath(newSegment, false);
@@ -4028,11 +4024,11 @@ public abstract class AbstractBigViewer {
             // Fork point search happens in viewer (screen) space: depth along the viewing axis is ignored,
             // since the picked 3D position (slice cursor in BDV, ray-max in BVV) rarely lies exactly on the
             // path that is visibly under the cursor. A 3D distance would reject such clicks
-            final ForkHit hit = findForkHit(cc1, FORK_POINT_PICK_RADIUS_SCREEN_PX);
+            final ForkHit hit = findForkHit(cc1, SNTPrefs.getBigViewerPickRadius());
             if (hit == null) {
                 getGuiUtils().error(String.format("<html>No rendered path within %.0f pixels of the cursor."
                         + "<br>Move closer to the path you want to branch off.</html>",
-                        FORK_POINT_PICK_RADIUS_SCREEN_PX), "No Fork Point Found");
+                        SNTPrefs.getBigViewerPickRadius()), "No Fork Point Found");
                 return;
             }
             final Path nearestPath = hit.path();

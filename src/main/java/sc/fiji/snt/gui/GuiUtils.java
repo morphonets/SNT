@@ -3605,20 +3605,32 @@ public class GuiUtils {
 	public static class MenuItems {
 
 		/** Label of the item returned by {@link #connectHelp(Supplier, Runnable, Runnable)} */
-		public static final String CONNECT_HELP_LABEL = NodeEditCommand.MENU_INDENT + "Connect to Help...";
+		public static final String CONNECT_HELP_LABEL = NodeEditCommand.MENU_INDENT + "Connect To Help...";
 
-		private static final String CONNECT_HELP_HTML = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>"
-				+ "  <li>Press <tt>Shift+E</tt> to enter Edit Mode</li>"
+		private static final String CONNECT_HELP_HTML = "<HTML><b>Quick Connect</b> (BDV/BVV), in <i>Edit Mode</i>:"
+				+ "<ol>"
+				//+ "  <li>Select the <b>parent</b> path using <tt>G</tt> (<u>G</u>rab path around cursor)</li>"
+				+ "  <li>Hover near the node of the <b>child</b> path to connect from (typically a start or end node)<br>"
+				+ "      and press <tt>Shift+C</tt>: The nearest node is picked</li>"
+				+ "  <li>Move the cursor to the <b>parent</b> path: Its nearest node is highlighted and previewed<br>"
+				+ "      by a dotted line. Paths that cannot be connected to (e.g., the child's own branches)<br>"
+				+ "      are dimmed and flagged in red</li>"
+				+ "  <li>Click (or press <tt>Enter</tt>) to connect. <tt>Esc</tt> cancels</li>"
+				+ "</ol><b>Two-Step Connect</b> (All Tracing Canvas), in <i>Edit Mode</i>:<ol>"
 				+ "  <li>Select the <b>parent</b> path using <tt>G</tt> (<u>G</u>rab path around cursor)</li>"
 				+ "  <li>Hover over the node where the child should branch from</li>"
 				+ "  <li>Press <tt>G</tt> to switch to the <b>child</b> path</li>"
 				+ "  <li>Select the child's connection node (typically a start or end node)</li>"
 				+ "  <li>Press <tt>C</tt> to <u>C</u>onnect</li>"
 				+ "</ol>Notes:<ul>"
-				+ "  <li>A confirmation dialog shows the parent/child assignment with option to swap roles</li>"
+				+ "  <li>Quick connect: The path being edited becomes the child without confirmation</li>"
+				+ "  <li>Two-step connect: A confirmation dialog shows the parent/child assignment, with<br>"
+				+        "options to swap roles</li>"
 				+ "  <li>Child paths are automatically re-oriented to maintain proper tree structure</li>"
 				+ "  <li>If connection points are distant, a bridging segment is created automatically</li>"
-				+ "  <li>If child's selected node is mid-path, a T-junction is created</li>"
+				+ "  <li>If the child's selected node is mid-path, a T-junction is created</li>"
+				+ "  <li>Fitted paths are supported: their fits are preserved whenever possible, otherwise<br>"
+				+ "      discarded</li>"
 				+ "  <li>Loop-forming connections are not allowed</li>"
 				+ "  <li>To concatenate or combine paths end-to-end, use Path Manager's Edit menu</li>"
 				+ "</ul>";
