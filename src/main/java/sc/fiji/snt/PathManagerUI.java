@@ -5407,7 +5407,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             if (plugin.accessToValidImageData()) {
                 final double maxZ = plugin.depth - 1;
                 for (final Path p : selectedPaths) {
-                    final Path pathToUse = p.getUseFitted() ? p.getFitted() : p;
+                    final Path pathToUse = p.getVersionInUse();
                     for (int node = 0; node < pathToUse.size(); node++) {
                         final double newZ = pathToUse.getNodeWithoutChecks(node).z * factor;
                         if (newZ < 0 || newZ > maxZ) oobNodes++;
@@ -5420,7 +5420,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             for (final Path p : selectedPaths) {
-                final Path pathToUse = p.getUseFitted() ? p.getFitted() : p;
+                final Path pathToUse = p.getVersionInUse();
                 for (int node = 0; node < pathToUse.size(); node++) {
                     final PointInImage current = pathToUse.getNodeWithoutChecks(node);
                     pathToUse.moveNode(node, current.x, current.y, current.z * factor);
@@ -5678,11 +5678,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return;
             }
             for (final Path p : selectedPaths) {
-                Path pathToUse = p;
-                if (p.getUseFitted()) {
-                    pathToUse = p.getFitted();
-                }
-                pathToUse.downsample(maxDeviation);
+                p.getVersionInUse().downsample(maxDeviation);
             }
             // Make sure that the 3D viewer and the stacks are redrawn:
             if (plugin.univ != null) {

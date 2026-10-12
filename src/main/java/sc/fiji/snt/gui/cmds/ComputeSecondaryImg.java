@@ -718,7 +718,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			// represent the actual structure the user is tracing
 			final List<Path> resolvedPaths = new ArrayList<>(selectedPaths.size());
 			for (final Path p : selectedPaths) {
-				resolvedPaths.add(p.getUseFitted() && p.getFitted() != null ? p.getFitted() : p);
+				resolvedPaths.add(p.getVersionInUse());
 			}
 			// See computeAndDisplayAverageColor() for why getActiveCanvasPixelOffset() is needed here
 			final sc.fiji.snt.util.PointInCanvas offset = snt.getActiveCanvasPixelOffset();

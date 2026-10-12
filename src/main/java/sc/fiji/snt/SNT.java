@@ -2592,7 +2592,7 @@ public class SNT extends MultiDThreePanes implements
 			// then activate the Z-slice of the retrieved node.
 			// When the fitted version is displayed, match against fitted nodes
 			// so the user clicks on what they see
-			final Path matchPath = editingPath.getUseFitted() ? editingPath.getFitted() : editingPath;
+			final Path matchPath = editingPath.getVersionInUse();
 			final int eNode = matchPath.indexNearestToCanvasPosition2D(x, y,
 					getXYCanvas().nodeDiameter());
 			if (eNode != -1) {
@@ -6368,7 +6368,7 @@ public class SNT extends MultiDThreePanes implements
 			// See PathAndFillManager#isDeFactoPath(Path): only skip a fitted-version path when
 			// its un-fitted counterpart is also registered here to be drawn in its place
 			if (p == null || !pathAndFillManager.isDeFactoPath(p)) continue;
-			final Path drawPath = (p.getUseFitted() && p.getFitted() != null) ? p.getFitted() : p;
+			final Path drawPath = p.getVersionInUse();
 			drawPath.drawPathAsPoints(g, canvas, this);
 		}
 		// this is taken from ImagePlus.flatten()

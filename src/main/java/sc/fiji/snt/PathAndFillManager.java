@@ -676,7 +676,7 @@ public class PathAndFillManager extends DefaultHandler implements
     public Collection<Tree> getTrees() {
         final HashMap<String, Tree> map = new HashMap<>();
         allPaths.forEach(p->{
-            final Path pathToUse = (p.getUseFitted()) ? p.getFitted() : p;
+            final Path pathToUse = getVersionInUse(p);
             String treeID = pathToUse.getTreeLabel();
             if (map.get(treeID) == null) {
                 final Tree tree = new Tree();
@@ -704,7 +704,7 @@ public class PathAndFillManager extends DefaultHandler implements
     public Tree getTree(final String treeLabel) {
         final Tree tree = new Tree();
         allPaths.forEach(p->{
-            final Path pathToUse = (p.getUseFitted()) ? p.getFitted() : p;
+            final Path pathToUse = getVersionInUse(p);
             if (treeLabel.equals(pathToUse.getTreeLabel()))
                 tree.add(pathToUse);
         });
@@ -724,7 +724,7 @@ public class PathAndFillManager extends DefaultHandler implements
     public Tree getTree(final int treeId) {
         final Tree tree = new Tree();
         allPaths.forEach(p->{
-            final Path pathToUse = (p.getUseFitted()) ? p.getFitted() : p;
+            final Path pathToUse = getVersionInUse(p);
             if (treeId == pathToUse.getTreeID())
                 tree.add(pathToUse);
         });
@@ -1971,9 +1971,7 @@ public class PathAndFillManager extends DefaultHandler implements
                 // never registered) is itself the de facto path and must still be added
                 if (!isDeFactoPath(p) || p.size() < 2)
                     continue;
-                Path pathToAdd;
-                if (p.getUseFitted()) pathToAdd = p.getFitted();
-                else pathToAdd = p;
+                final Path pathToAdd = p.getVersionInUse();
                 pathToAdd.addTo3DViewer(plugin.univ, SNTPrefs.deselectedPathColor(), plugin.colorImage);
             }
         }
@@ -2015,6 +2013,7 @@ public class PathAndFillManager extends DefaultHandler implements
                     final Integer fittedID = fittedFields.get(p.getID());
                     final Integer fittedVersionOfID = fittedVersionOfFields.get(p.getID());
                     final Boolean useFitted = useFittedFields.get(p.getID());
+                    boolean fitDiscarded = false;
 
                     if (startID != null) {
                         final Path startPath = getPathFromID(startID);
@@ -2056,6 +2055,20 @@ public class PathAndFillManager extends DefaultHandler implements
 
                             pReversed.setBranchFrom(endPath, endJoinPoint);
 
+                            // reversed() does not carry over the fit: discard it (and its
+                            // registration) so that no dangling fitted links remain
+                            if (fittedID != null) {
+                                final Path fit = getPathFromID(fittedID);
+                                if (fit != null) {
+                                    allPaths.remove(fit);
+                                    pathIdMap.remove(fit.getID(), fit);
+                                    pathNameMap.remove(fit.getName(), fit);
+                                }
+                                fitDiscarded = true;
+                                SNTUtils.log("End-joined path " + p.getID() + " ('" + p.getName()
+                                        + "') was fitted: fit discarded");
+                            }
+
                             for (final Path join : new ArrayList<>(p.connectedPaths)) {
                                 if (join.getParentPath() == p) {
                                     final PointInImage joinPoint = join.getBranchPoint();
@@ -2065,9 +2078,16 @@ public class PathAndFillManager extends DefaultHandler implements
                             }
                         } // end null-check else
                     }
-                    if (fittedID != null) {
-                        p.fitted = getPathFromID(fittedID);
-                        p.setUseFitted(useFitted);
+                    if (fittedID != null && !fitDiscarded) {
+                        final Path fit = getPathFromID(fittedID);
+                        if (fit == null) {
+                            SNTUtils.log("Malformed traces file: fitted=" + fittedID
+                                    + " referenced by path " + p.getID() + " ('" + p.getName()
+                                    + "') does not exist. Fit skipped.");
+                        } else {
+                            p.fitted = fit;
+                            p.setUseFitted(useFitted);
+                        }
                     }
                     if (fittedVersionOfID != null) {
                         p.fittedVersionOf = getPathFromID(fittedVersionOfID);
@@ -2091,10 +2111,6 @@ public class PathAndFillManager extends DefaultHandler implements
                         else if (p != p.fittedVersionOf.getFitted())
                             throw new TracesFileFormatException(
                                     "Malformed traces file: p didn't match p.fittedVersionOf.fitted");
-                    }
-                    else if (p.getUseFitted()) {
-                        throw new TracesFileFormatException(
-                                "Malformed traces file: p.useFitted was true but p.fitted was null");
                     }
                 }
 
@@ -3156,10 +3172,7 @@ public class PathAndFillManager extends DefaultHandler implements
         for (final Path topologyPath : paths) {
             if (pixelIntensity == -1)
                 actualPixelIntensity = (short) ++label;
-            Path p = topologyPath;
-            if (topologyPath.getUseFitted()) {
-                p = topologyPath.getFitted();
-            }
+            final Path p = topologyPath.getVersionInUse();
             final int n = p.size();
 
             final ArrayList<Bresenham3D.IntegerPoint> pointsToJoin =
@@ -3266,7 +3279,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
     /**
      * Returns the version of a path that is in use, i.e., the one that is displayed and analyzed: its fitted
-     * flavor if {@link Path#getUseFitted()}, otherwise the path itself. Same rule as {@link Tree#Tree(Collection)}.
+     * flavor if {@link Path#getUseFitted()}, otherwise the path itself. Same rule as
+     * {@link Tree#Tree(Collection)}, which uses the collection itself as registry.
      * A fitted copy whose original is registered with this manager is first resolved to that original (see
      * {@link #isDeFactoPath(Path)}), so that both flavors of a path always resolve to the same version.
      *
@@ -3276,7 +3290,7 @@ public class PathAndFillManager extends DefaultHandler implements
     public synchronized Path getVersionInUse(final Path p) {
         if (p == null) return null;
         final Path base = (p.isFittedVersionOfAnotherPath() && !isDeFactoPath(p)) ? p.getUnfitted() : p;
-        return base.getUseFitted() ? base.getFitted() : base;
+        return base.getVersionInUse();
     }
 
     /**
@@ -3680,10 +3694,7 @@ public class PathAndFillManager extends DefaultHandler implements
         }
         pw.print("\r\n");
         for (final Path p : allPaths) {
-            Path pForLengthAndName = p;
-            if (p.getUseFitted()) {
-                pForLengthAndName = p.getFitted();
-            }
+            final Path pForLengthAndName = p.getVersionInUse();
             if (p.fittedVersionOf != null) continue;
             SNTUtils.csvQuoteAndPrint(pw, p.getID()); //col1: PathID
             pw.print(",");
@@ -3766,7 +3777,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
             // If path is being rendered with its own custom color, highlight it
             // somehow if is being selected
-            if (p.getUseFitted()) p = p.getFitted();
+            p = p.getVersionInUse();
             if (p.content3D != null) p.content3D.setShaded(!(customColor &&
                     selected));
 

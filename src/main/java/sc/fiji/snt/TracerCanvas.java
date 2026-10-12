@@ -115,13 +115,8 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 
 				if (p.fittedVersionOf != null) continue;
 
-				Path drawPath = p;
-
-				// If the path suggests using the fitted version, draw that
-				// instead:
-				if (p.getUseFitted()) {
-					drawPath = p.getFitted();
-				}
+				// Draw the version in use (fitted if flagged)
+				final Path drawPath = p.getVersionInUse();
 
 				// Selection state is always tracked on the main (unfitted) path,
 				// not the fitted copy, so test against p rather than drawPath

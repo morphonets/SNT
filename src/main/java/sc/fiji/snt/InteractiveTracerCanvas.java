@@ -1111,9 +1111,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // what the user sees. The editableNodeIndex lives on editingPath
         // (always the main/unfitted path), so we temporarily propagate
         // it to the fitted copy for rendering, then clear it afterwards.
-        Path drawPath = editingPath;
-        if (editingPath.getUseFitted() && editingPath.getFitted() != null) {
-            drawPath = editingPath.getFitted();
+        final Path drawPath = editingPath.getVersionInUse();
+        if (drawPath != editingPath) {
             drawPath.setEditableNode(editingPath.getEditableNodeIndex());
             drawPath.setEditableNodeLocked(editingPath.isEditableNodeLocked());
         }
@@ -1745,8 +1744,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Auto-select nearest node if none is active yet (e.g., user pressed P
         // right after Shift+E without moving the mouse over the path)
         if (editingPath.getEditableNodeIndex() == -1) {
-            final Path matchPath = editingPath.getUseFitted()
-                    ? editingPath.getFitted() : editingPath;
+            final Path matchPath = editingPath.getVersionInUse();
             int nearest = matchPath.indexNearestToCanvasPosition2D(
                     last_x_in_pane_precise, last_y_in_pane_precise, nodeDiameter());
             if (nearest == -1) nearest = 0; // fallback to first node
@@ -1890,8 +1888,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private void brushMoveNodes(final Path editingPath) {
         // Resolve fitted path for nearest-node lookup (no distance threshold
         // so fast drags don't outrun the nodes and stall painting)
-        final Path matchPath = editingPath.getUseFitted()
-                ? editingPath.getFitted() : editingPath;
+        final Path matchPath = editingPath.getVersionInUse();
         final int centerNode = matchPath.indexNearestToCanvasPosition2D(
                 last_x_in_pane_precise, last_y_in_pane_precise, Double.MAX_VALUE);
         if (centerNode == -1 || centerNode >= editingPath.size()) return;
@@ -1916,7 +1913,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     private void brushBlendRadii(final Path editingPath) {
-        final Path matchPath = editingPath.getUseFitted() ? editingPath.getFitted() : editingPath;
+        final Path matchPath = editingPath.getVersionInUse();
         final int centerNode = matchPath.indexNearestToCanvasPosition2D(
                 last_x_in_pane_precise, last_y_in_pane_precise, Double.MAX_VALUE);
         if (centerNode == -1 || centerNode >= editingPath.size()) return;

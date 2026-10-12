@@ -381,8 +381,8 @@ public class TreeStatistics extends ContextCommand {
         tree = new Tree(paths);
         tree.setLabel(label);
         for (final Path p : tree.list()) {
-            // If fitted flavor of path exists use it instead
-            if (p.getUseFitted()) {
+            // tree.list() holds the versions in use: fitted flavors are fitted copies
+            if (p.isFittedVersionOfAnotherPath()) {
                 fittedPathsCounter++;
             }
         }

@@ -2541,6 +2541,17 @@ public class Path implements Comparable<Path>, Cloneable {
 	}
 
 	/**
+	 * Returns the version of this path that is in use, i.e., the one that is displayed and analyzed: its fitted
+	 * flavor if {@link #getUseFitted()}, otherwise this path. This is the registry-free rule: for the
+	 * registry-aware one see {@link PathAndFillManager#getVersionInUse(Path)}
+	 *
+	 * @return the version in use. Never null
+	 */
+	public Path getVersionInUse() {
+		return getUseFitted() ? fitted : this;
+	}
+
+	/**
 	 * Single source of truth for the "should this fitted-version path be treated as redundant/standalone" decision
 	 * used throughout listings, filters, and measurements.
 	 * <p>

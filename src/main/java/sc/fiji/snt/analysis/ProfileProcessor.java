@@ -87,7 +87,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 	}
 
 	public ProfileProcessor(final RandomAccessibleInterval<T> rai, final Path path) {
-		this.path = (path.getUseFitted()) ? path.getFitted() : path;
+		this.path = path.getVersionInUse();
 		this.rai = rai;
 		this.intervalMin = Intervals.minAsLongArray(rai);
 		this.intervalMax = Intervals.maxAsLongArray(rai);
