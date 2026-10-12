@@ -179,6 +179,7 @@ public class SNTUI extends JDialog {
 
     /* AbstractBigViewers */
     protected Bvv bvvSNT;
+    private AbstractBigViewer lastActiveViewer;
     protected Bdv bdvSNT;
     /** Bridges SeedOverlay into bvvSNT/bdvSNT's AnnotationOverlay; see setBvvOnEDT/setBdvOnEDT */
     private SeedOverlayBigViewerHandler bvvSeedHandler;
@@ -189,7 +190,25 @@ public class SNTUI extends JDialog {
      * particular, Stream mode's own viewer or {@code null} if neither is open.
      */
     public AbstractBigViewer getActiveBigViewer() {
+        // With both viewers open, the most recently activated one (see setBvvOnEDT/setBdvOnEDT)
+        final AbstractBigViewer last = lastActiveViewer;
+        if (last != null && !last.isDisposed() && (last == bvvSNT || last == bdvSNT)) return last;
         return (bvvSNT != null) ? bvvSNT : bdvSNT;
+    }
+
+    /** @return all tethered Bvv/Bdv viewers (zero, one or two), for operations that must reach every open viewer */
+    public java.util.List<AbstractBigViewer> getOpenBigViewers() {
+        final java.util.List<AbstractBigViewer> viewers = new java.util.ArrayList<>(2);
+        if (bvvSNT != null && !bvvSNT.isDisposed()) viewers.add(bvvSNT);
+        if (bdvSNT != null && !bdvSNT.isDisposed()) viewers.add(bdvSNT);
+        return viewers;
+    }
+
+    /** Flags a viewer as the one the user is currently working with (matters when both Bvv and Bdv are open) */
+    private void setLastActiveViewer(final AbstractBigViewer viewer) {
+        if (viewer == null || lastActiveViewer == viewer) return;
+        lastActiveViewer = viewer;
+        syncBookmarksTabContent();
     }
 
     /**
@@ -205,6 +224,36 @@ public class SNTUI extends JDialog {
     void setBigViewersLockedByPause(final boolean locked) {
         if (bvvSNT != null) bvvSNT.setTracingLockedByPause(locked);
         if (bdvSNT != null) bdvSNT.setTracingLockedByPause(locked);
+    }
+
+    /** Bvv/Bdv counterpart of {@link SNT#enableEditMode(boolean)}: (de)activates their Edit Mode interaction layer */
+    void setBigViewersEditMode(final boolean enabled) {
+        for (final AbstractBigViewer v : getOpenBigViewers()) v.onSntEditModeChanged(enabled);
+    }
+
+    /** @return whether a Bvv/Bdv other than {@code viewer} is still open and in Edit Mode */
+    public boolean isOtherBigViewerEditing(final AbstractBigViewer viewer) {
+        for (final AbstractBigViewer v : getOpenBigViewers()) {
+            if (v != viewer && v.isEditModeEnabled()) return true;
+        }
+        return false;
+    }
+
+    /** Re-renders the edited path in Bvv/Bdv after in-place changes made elsewhere (e.g., by the tracing canvas) */
+    void refreshBigViewersEditedPath() {
+        for (final AbstractBigViewer v : getOpenBigViewers()) v.onSntEditedPathModified();
+    }
+
+    /** Updates the active-node markers of Bvv/Bdv, except {@code source}, after the active node has changed */
+    void refreshBigViewersActiveNode(final AbstractBigViewer source) {
+        for (final AbstractBigViewer v : getOpenBigViewers()) {
+            if (v != source) v.onSntActiveNodeChanged();
+        }
+    }
+
+    /** Notifies Bvv/Bdv that the path being edited has changed while in Edit Mode */
+    void refreshBigViewersEditNodes() {
+        for (final AbstractBigViewer v : getOpenBigViewers()) v.onSntEditingPathChanged();
     }
 
     /**
@@ -1367,6 +1416,7 @@ public class SNTUI extends JDialog {
 
     private void setBvvOnEDT(final Bvv bvv) {
         this.bvvSNT = bvv;
+        if (bvv != null) lastActiveViewer = bvv;
         // Re-tether the seed overlay bridge to whichever viewer (if any) is now active
         if (bvvSeedHandler != null) { bvvSeedHandler.dispose(); bvvSeedHandler = null; }
         if (bvv != null) bvvSeedHandler = SeedOverlayBigViewerHandler.install(bvv, plugin.getSeedOverlay());
@@ -1388,6 +1438,10 @@ public class SNTUI extends JDialog {
                         final DialogLayout layout = arrangeCoreDialogs(false);
                         if (layout != null) arrangeStreamViewer(layout);
                     }
+                }
+                @Override
+                public void windowActivated(final WindowEvent e) {
+                    if (bvvSNT == bvv) setLastActiveViewer(bvv);
                 }
                 @Override
                 public void windowClosing(final WindowEvent e) {
@@ -1439,6 +1493,7 @@ public class SNTUI extends JDialog {
 
     private void setBdvOnEDT(final Bdv bdv) {
         this.bdvSNT = bdv;
+        if (bdv != null) lastActiveViewer = bdv;
         // Re-tether the seed overlay bridge to whichever viewer (if any) is now active
         if (bdvSeedHandler != null) { bdvSeedHandler.dispose(); bdvSeedHandler = null; }
         if (bdv != null) bdvSeedHandler = SeedOverlayBigViewerHandler.install(bdv, plugin.getSeedOverlay());
@@ -1457,6 +1512,10 @@ public class SNTUI extends JDialog {
                         final DialogLayout layout = arrangeCoreDialogs(false);
                         if (layout != null) arrangeStreamViewer(layout);
                     }
+                }
+                @Override
+                public void windowActivated(final WindowEvent e) {
+                    if (bdvSNT == bdv) setLastActiveViewer(bdv);
                 }
                 @Override
                 public void windowClosing(final WindowEvent e) {
@@ -3326,8 +3385,10 @@ public class SNTUI extends JDialog {
                     return;
                 }
                 // Only promote to field once show() succeeded
-                bvvSNT = isBvv ? (Bvv) viewer : null;
-                bdvSNT = isBvv ? null : (Bdv) viewer;
+                // NB: the other viewer type, if open, must remain tracked (it still needs to follow Edit Mode, pauses, etc.)
+                if (isBvv) bvvSNT = (Bvv) viewer;
+                else bdvSNT = (Bdv) viewer;
+                setLastActiveViewer(viewer);
                 // NB: WindowListener added in Bvv#attachControlPanel()
                 viewer.syncPathManagerList();
             }
@@ -6445,8 +6506,7 @@ public class SNTUI extends JDialog {
         showStatus("Tracing on secondary layer enabled", true);
         updateSecLayerActionButtonIcon(enable);
         if (plugin.isStreamMode()) {
-            final AbstractBigViewer viewer = getActiveBigViewer();
-            if (viewer != null) viewer.updateSecondaryLayerIndicator();
+            for (final AbstractBigViewer viewer : getOpenBigViewers()) viewer.updateSecondaryLayerIndicator();
         }
     }
 

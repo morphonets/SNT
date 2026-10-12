@@ -3232,35 +3232,75 @@ public class PathAndFillManager extends DefaultHandler implements
      * which Path/node index the resolved point corresponds to.
      */
     synchronized NodeRef nearestJoinNodeRefOnSelectedPaths(final double x, final double y, final double z) {
+        return nearestNodeOnPaths(selectedPathsSet, x * x_spacing, y * y_spacing, z * z_spacing);
+    }
+
+    /**
+     * Finds the node nearest to a position, across the given paths as they are (no fitted/unfitted resolution:
+     * see {@link #nearestNodeInUse(Collection, double, double, double)}).
+     *
+     * @param paths the paths to be searched. Empty paths are skipped
+     * @param x     the x-coordinate (calibrated/world units)
+     * @param y     the y-coordinate (calibrated/world units)
+     * @param z     the z-coordinate (calibrated/world units)
+     * @return the nearest node, or null if the paths hold no nodes
+     */
+    public synchronized NodeRef nearestNodeOnPaths(final Collection<Path> paths, final double x, final double y,
+                                                   final double z) {
         Path resultPath = null;
         int resultIndex = -1;
         double minimumDistanceSquared = Double.MAX_VALUE;
-
-        for (final Path p : allPaths) {
-
-            if (!selectedPathsSet.contains(p)) continue;
-
-            if (0 == p.size()) continue;
-
-            final int i = p.indexNearestTo(x * x_spacing, y * y_spacing, z * z_spacing);
-
-            final PointInImage nearestOnPath = p.getNodeWithoutChecks(i);
-
-            final double distanceSquared = nearestOnPath.distanceSquaredTo(x *
-                    x_spacing, y * y_spacing, z * z_spacing);
-
+        for (final Path p : paths) {
+            if (p == null || p.size() == 0) continue;
+            final int i = p.indexNearestTo(x, y, z);
+            if (i < 0) continue;
+            final double distanceSquared = p.getNodeWithoutChecks(i).distanceSquaredTo(x, y, z);
             if (distanceSquared < minimumDistanceSquared) {
                 resultPath = p;
                 resultIndex = i;
                 minimumDistanceSquared = distanceSquared;
             }
         }
-
         return (resultPath == null) ? null : new NodeRef(resultPath, resultIndex);
     }
 
+    /**
+     * Returns the version of a path that is in use, i.e., the one that is displayed and analyzed: its fitted
+     * flavor if {@link Path#getUseFitted()}, otherwise the path itself. Same rule as {@link Tree#Tree(Collection)}.
+     * A fitted copy whose original is registered with this manager is first resolved to that original (see
+     * {@link #isDeFactoPath(Path)}), so that both flavors of a path always resolve to the same version.
+     *
+     * @param p the path
+     * @return the version in use. null if {@code p} is null
+     */
+    public synchronized Path getVersionInUse(final Path p) {
+        if (p == null) return null;
+        final Path base = (p.isFittedVersionOfAnotherPath() && !isDeFactoPath(p)) ? p.getUnfitted() : p;
+        return base.getUseFitted() ? base.getFitted() : base;
+    }
+
+    /**
+     * As {@link #nearestNodeOnPaths(Collection, double, double, double)}, but searching the version in use of each
+     * path (see {@link #getVersionInUse(Path)}). The returned {@link NodeRef#path()} is that version.
+     *
+     * @param paths the paths to be searched
+     * @param x     the x-coordinate (calibrated/world units)
+     * @param y     the y-coordinate (calibrated/world units)
+     * @param z     the z-coordinate (calibrated/world units)
+     * @return the nearest node, or null if the paths hold no nodes
+     */
+    public synchronized NodeRef nearestNodeInUse(final Collection<Path> paths, final double x, final double y,
+                                                 final double z) {
+        final Set<Path> inUse = new LinkedHashSet<>();
+        for (final Path p : paths) {
+            final Path v = getVersionInUse(p);
+            if (v != null) inUse.add(v);
+        }
+        return nearestNodeOnPaths(inUse, x, y, z);
+    }
+
     /** Immutable reference to a specific node of a specific Path. */
-    record NodeRef(Path path, int index) {}
+    public record NodeRef(Path path, int index) {}
 
     /**
      * Returns the "main" paths managed by this PathAndFillManager. This is a

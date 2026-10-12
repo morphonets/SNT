@@ -441,7 +441,8 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 
 		noFocalPointSpecified = center == null; // we'll use pre-determined centers;
 		if (snt != null) {
-			if (noFocalPointSpecified)
+			// Shell previews are drawn on the image: unavailable in Stream mode without a (materialized) image
+			if (noFocalPointSpecified || snt.getImagePlus() == null)
 				resolveInput("previewShells");
 			else
 				previewOverlay = new PreviewOverlay(snt.getImagePlus(), center.getUnscaledPoint());
@@ -702,7 +703,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 
 	/* Callback for stepSize && previewShells */
 	private void overlayShells() {
-		threadService.run(previewOverlay);
+		if (previewOverlay != null) threadService.run(previewOverlay);
 	}
 
 	@SuppressWarnings("unused")
@@ -902,7 +903,9 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 
 			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {
 
-				if (annotationsDescription.contains("labels image")) {
+				if (annotationsDescription.contains("labels image") && snt.getImagePlus() == null) {
+					helper.error("A labels image requires an image, which is not available.", "Image Not Available");
+				} else if (annotationsDescription.contains("labels image")) {
 					showStatus("Creating labels image...");
 					final ImagePlus labelsImage = parser.getLabelsImage(snt.getImagePlus(), lutTable);
 					outputs.add(labelsImage);

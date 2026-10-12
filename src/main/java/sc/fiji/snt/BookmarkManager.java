@@ -451,17 +451,14 @@ public class BookmarkManager {
             // viewer mode: animate camera to marker world position
             flyTo(tableRow);
         } else {
+            // Classic mode: move the image windows and any open Bvv/Bdv viewer
+            final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(tableRow));
+            final int nViewers = flyOpenViewers(b);
             final ImagePlus imp = sntui.plugin.getImagePlus();
             if (imp == null) {
-                noImageOpenError();
+                if (nViewers == 0) noImageOpenError();
             } else {
-                goTo(tableRow, imp);
-                if (!sntui.plugin.getSinglePane()) {
-                    final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
-                    if (zyImp != null) goTo(tableRow, zyImp, SNT.ZY_PLANE);
-                    final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
-                    if (xzImp != null) goTo(tableRow, xzImp, SNT.XZ_PLANE);
-                }
+                goToAllPlanes(sntui.plugin, b, false);
             }
         }
     }
@@ -1303,7 +1300,7 @@ public class BookmarkManager {
                     viewer.promptGoTo();
                     return;
                 }
-                if (sntui.plugin.getImagePlus() == null) {
+                if (sntui.plugin.getImagePlus() == null && sntui.getOpenBigViewers().isEmpty()) {
                     noImageOpenError();
                     return;
                 }
@@ -1317,13 +1314,8 @@ public class BookmarkManager {
                     final PointInImage pim = SNTPoint.fromString(pos);
                     final Bookmark b = new Bookmark(String.format("%.2f, %.2f, %.2f", pim.x, pim.y, pim.z),
                             pim.x, pim.y, pim.z, 1, 1);
-                    goTo(b, sntui.plugin.getImagePlus(), SNT.XY_PLANE);
-                    if (!sntui.plugin.getSinglePane()) {
-                        final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
-                        if (zyImp != null) goTo(b, zyImp, SNT.ZY_PLANE);
-                        final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
-                        if (xzImp != null) goTo(b, xzImp, SNT.XZ_PLANE);
-                    }
+                    flyOpenViewers(b);
+                    goToAllPlanes(sntui.plugin, b, false);
                     sntui.showStatus(String.format("Zoomed to %s", b.label), true);
                 } catch (final Throwable ex) {
                     getGuiUtils().error("Could not extract a valid location from \"" + pos + "\".");
@@ -1367,11 +1359,14 @@ public class BookmarkManager {
         return false;
     }
 
-    private void goTo(final int row, final ImagePlus imp, final int plane) {
-        goTo(model.getDataList().get(table.convertRowIndexToModel(row)), imp, plane);
-    }
 
-    private void goTo(final Bookmark b, final ImagePlus imp, final int plane) {
+    /**
+     * Moves the display of an image to a bookmark
+     *
+     * @param silent if true, no error is displayed if the bookmark lies outside the image
+     * @return true if the bookmark is within the image (and the display was moved)
+     */
+    private boolean goTo(final Bookmark b, final ImagePlus imp, final int plane, final boolean silent) {
         assert imp != null;
 
         // Bookmark coordinates are always world/calibrated; convert to pixel space, which is
@@ -1400,12 +1395,19 @@ public class BookmarkManager {
             }
         };
 
-        if (viewX > imp.getWidth() || viewY > imp.getHeight()) {
+        final boolean outsideXY = viewX < 0 || viewY < 0 || viewX > imp.getWidth() || viewY > imp.getHeight();
+        // Z is only checked on the main XY plane: side views show all Z by definition
+        final boolean outsideZ = plane == SNT.XY_PLANE && (pz < 0 || pz >= imp.getNSlices());
+        if (outsideXY || outsideZ) {
             // Only show error for the main XY plane
-            if (plane == SNT.XY_PLANE) {
-                sntui.guiUtils.error("Location is outside image XY dimensions");
+            if (plane == SNT.XY_PLANE && !silent) {
+                final SNT snt = snt();
+                final String what = (snt != null && snt.isMaterializedCrop()) ? "the materialized crop" : "image";
+                getGuiUtils().error((outsideXY && outsideZ) ? "Location is outside " + what + " bounds"
+                        : (outsideXY) ? "Location is outside " + what + " XY dimensions"
+                        : "Location is outside " + what + " Z range");
             }
-            return;
+            return false;
         }
         if (plane == SNT.XY_PLANE) {
             // NB: ImagePlus#setPosition uses 1-based slice indices; pz is 0-based (see worldToPixel)
@@ -1413,10 +1415,37 @@ public class BookmarkManager {
         }
         // Side views don't need setPosition - they show all Z by definition
         ImpUtils.zoomTo(imp, visitingZoom.fraction(), (int) viewX, (int) viewY);
+        return true;
     }
 
-    private void goTo(final int row, final ImagePlus imp) {
-        goTo(row, imp, SNT.XY_PLANE);
+    /**
+     * Viewer mode: moves the image windows of a materialized crop (Stream mode), if any, to a bookmark. Bookmarks
+     * outside the crop, which is only a portion of the streamed data, are skipped with a notice in the viewer
+     */
+    private void goToMaterializedCrop(final Bookmark b) {
+        final SNT snt = snt();
+        if (snt == null || !snt.isStreamMode() || !snt.isMaterializedCrop()) return;
+        if (snt.getImagePlus() == null) return;
+        if (!goToAllPlanes(snt, b, true)) viewer.showViewerMessage("Bookmark is outside the materialized crop");
+    }
+
+    /**
+     * Moves the image of the main (XY) view and, if displayed, the side views to a bookmark. Side views are only
+     * moved if the bookmark lies within the main view
+     *
+     * @param silent if true, no error is displayed if the bookmark lies outside the image
+     * @return true if the bookmark is within the image (and the displays were moved). False if there is no image
+     */
+    private boolean goToAllPlanes(final SNT snt, final Bookmark b, final boolean silent) {
+        final ImagePlus imp = snt.getImagePlus();
+        if (imp == null || !goTo(b, imp, SNT.XY_PLANE, silent)) return false;
+        if (!snt.getSinglePane()) {
+            final ImagePlus zyImp = snt.getImagePlus(SNT.ZY_PLANE);
+            if (zyImp != null) goTo(b, zyImp, SNT.ZY_PLANE, silent);
+            final ImagePlus xzImp = snt.getImagePlus(SNT.XZ_PLANE);
+            if (xzImp != null) goTo(b, xzImp, SNT.XZ_PLANE, silent);
+        }
+        return true;
     }
 
     /** Viewer mode: animates the camera to the world position of the selected marker row. */
@@ -1424,9 +1453,22 @@ public class BookmarkManager {
         flyTo(model.getDataList().get(table.convertRowIndexToModel(row)));
     }
 
+    /**
+     * SNT mode: animates every open Bvv/Bdv viewer to the location of the bookmark
+     *
+     * @return the number of viewers that were moved
+     */
+    private int flyOpenViewers(final Bookmark b) {
+        if (sntui == null) return 0;
+        final java.util.List<AbstractBigViewer> viewers = sntui.getOpenBigViewers();
+        for (final AbstractBigViewer v : viewers) v.flyTo(b.getX(), b.getY(), b.getZ(), b.t, b.label);
+        return viewers.size();
+    }
+
     private void flyTo(final Bookmark b) {
         if (viewer == null) return;
         viewer.flyTo(b.getX(), b.getY(), b.getZ(), b.t, b.label);
+        goToMaterializedCrop(b); // Stream mode only
     }
 
     private void loadBookmarksFromFile(final File file) {

@@ -873,6 +873,21 @@ public class GuiUtils {
 	}
 
 	/**
+	 * Displays the "Hold [key] to..." keyboard tip (shared by the InteractiveTracerCanvas and Bdv/Bvv context
+	 * menus), unless the user opted out of it. The opt-out is remembered for the session
+	 *
+	 * @param prefs the preferences holding the opt-out flag
+	 * @param key   the key to be held, e.g., "H"
+	 * @param msg   what the key does, e.g., "temporarily hide paths"
+	 */
+	public void showKeyTip(final SNTPrefs prefs, final String key, final String msg) {
+		final String pref = "key-skipnag" + key;
+		if (prefs.getTemp(pref, false)) return;
+		final Boolean skipNag = getPersistentWarning("Tip: Hold \"" + key + "\" to " + msg + ".", "Keyboard Operation");
+		if (skipNag != null) prefs.setTemp(pref, skipNag);
+	}
+
+	/**
 	 * Displays a dialog with radio button choices, optional info text, and an optional checkbox.
 	 * Useful for operations that require a selection with additional context and options.
 	 *
@@ -1971,6 +1986,24 @@ public class GuiUtils {
 	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {
+		displayBanner(msg, background, parent, SwingConstants.CENTER, true);
+	}
+
+	/**
+	 * Displays a transient banner over {@code parent}.
+	 *
+	 * @param msg            the banner text (HTML is supported)
+	 * @param background     the background color
+	 * @param parent         the component the banner is displayed over
+	 * @param position       a {@link SwingConstants} location flag (e.g.,
+	 *                       {@code NORTH_EAST}) as accepted by
+	 *                       {@link JidePopup#showPopup(int, Component)}
+	 * @param dismissOnMove  if true, the banner is dismissed by mouse
+	 *                       movements over {@code parent}. If false, only
+	 *                       clicks dismiss it (and it stays up longer)
+	 */
+	public static void displayBanner(final String msg, final Color background, final Component parent,
+			final int position, final boolean dismissOnMove) {
 		final JLabel label = new JLabel(msg);
 		label.setHorizontalAlignment(SwingConstants.CENTER);
 		if (!msg.startsWith("<HTML>"))
@@ -1982,7 +2015,7 @@ public class GuiUtils {
 		final MouseAdapter adapter = new MouseAdapter() {
 			@Override
 			public void mouseMoved(final MouseEvent e) {
-				dismiss();
+				if (dismissOnMove) dismiss();
 			}
 			@Override
 			public void mouseClicked(final MouseEvent e) {
@@ -1990,7 +2023,7 @@ public class GuiUtils {
 			}
 			@Override
 			public void mouseDragged(final MouseEvent e) {
-				dismiss();
+				if (dismissOnMove) dismiss();
 			}
 			@Override
 			public void mousePressed(final MouseEvent e) {
@@ -2016,8 +2049,8 @@ public class GuiUtils {
 		popup.setTransient(true);
 		popup.setMovable(false);
 		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
-		popup.setTimeout(4000);
-		SwingUtilities.invokeLater(() -> popup.showPopup(SwingConstants.CENTER, parent));
+		popup.setTimeout((dismissOnMove) ? 4000 : 10000);
+		SwingUtilities.invokeLater(() -> popup.showPopup(position, parent));
 	}
 
 	public static void addTooltip(final JComponent c, final String text) {
@@ -3557,6 +3590,52 @@ public class GuiUtils {
 
 	/** Utility methods for building and configuring {@link JMenuItem}/{@link JMenu} entries. */
 	public static class MenuItems {
+
+		/** Label of the item returned by {@link #connectHelp(Supplier, Runnable, Runnable)} */
+		public static final String CONNECT_HELP_LABEL = NodeEditCommand.MENU_INDENT + "Connect to Help...";
+
+		private static final String CONNECT_HELP_HTML = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>"
+				+ "  <li>Press <tt>Shift+E</tt> to enter Edit Mode</li>"
+				+ "  <li>Select the <b>parent</b> path using <tt>G</tt> (<u>G</u>rab path around cursor)</li>"
+				+ "  <li>Hover over the node where the child should branch from</li>"
+				+ "  <li>Press <tt>G</tt> to switch to the <b>child</b> path</li>"
+				+ "  <li>Select the child's connection node (typically a start or end node)</li>"
+				+ "  <li>Press <tt>C</tt> to <u>C</u>onnect</li>"
+				+ "</ol>Notes:<ul>"
+				+ "  <li>A confirmation dialog shows the parent/child assignment with option to swap roles</li>"
+				+ "  <li>Child paths are automatically re-oriented to maintain proper tree structure</li>"
+				+ "  <li>If connection points are distant, a bridging segment is created automatically</li>"
+				+ "  <li>If child's selected node is mid-path, a T-junction is created</li>"
+				+ "  <li>Loop-forming connections are not allowed</li>"
+				+ "  <li>To concatenate or combine paths end-to-end, use Path Manager's Edit menu</li>"
+				+ "</ul>";
+
+		/**
+		 * Menu item that opens the "how to connect two paths in Edit Mode" help dialog (shared by the
+		 * InteractiveTracerCanvas and Bdv/Bvv context menus)
+		 *
+		 * @param gui     supplies the GuiUtils used to display the dialog (evaluated when the item is activated)
+		 * @param onOpen  optional task run right before the dialog is displayed (may be null)
+		 * @param onClose optional task run when the dialog is closed (may be null)
+		 * @return the menu item
+		 */
+		public static JMenuItem connectHelp(final Supplier<GuiUtils> gui, final Runnable onOpen,
+				final Runnable onClose) {
+			final JMenuItem helpItem = new JMenuItem(CONNECT_HELP_LABEL);
+			helpItem.addActionListener(e -> {
+				if (onOpen != null) onOpen.run();
+				final JDialog dialog = gui.get().showHTMLDialog(CONNECT_HELP_HTML, CONNECT_HELP_LABEL, false);
+				if (onClose != null) {
+					dialog.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent we) {
+							onClose.run();
+						}
+					});
+				}
+			});
+			return helpItem;
+		}
 
 		public static void addSeparator(final JPopupMenu menu, final String header) {
 			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
