@@ -5404,7 +5404,64 @@ public class SNT extends MultiDThreePanes implements
 		if (addToExistingSelection) {
 			pathsToSelect.addAll(ui.getPathManager().getSelectedPaths(false));
 		}
+		trackSelectionOrder(pathsToSelect, pathsToSelect.contains(p) ? p : p.fittedVersionOf);
 		if (ui != null) ui.getPathManager().setSelectedPaths(pathsToSelect, this);
+	}
+
+	// Selection history, oldest first. Selection itself is an unordered set, so
+	// this is what allows deselectLastPath() to know what was selected last
+	private final LinkedHashSet<Path> selectionOrder = new LinkedHashSet<>();
+
+	private synchronized void trackSelectionOrder(final Collection<Path> selected, final Path last) {
+		selectionOrder.retainAll(selected);
+		selectionOrder.addAll(selected);
+		if (last != null && selected.contains(last)) {
+			selectionOrder.remove(last);
+			selectionOrder.add(last);
+		}
+	}
+
+	/**
+	 * Removes the most recently selected path from the current selection (so
+	 * nothing remains selected if only one path was selected). Does nothing in
+	 * edit mode, in which a single path is always selected
+	 *
+	 * @return the path that was deselected, or null if there was nothing to
+	 *         deselect
+	 */
+	public Path deselectLastPath() {
+		if (ui == null || ui.getPathManager() == null || isEditModeEnabled()) return null;
+		final Collection<Path> current = getSelectedPaths();
+		if (current.isEmpty()) return null;
+		final Path last;
+		synchronized (this) {
+			// Selections made elsewhere (e.g., Path Manager) are not tracked until reported
+			trackSelectionOrder(current, null);
+			Path candidate = null;
+			for (final Path p : selectionOrder) candidate = p;
+			last = candidate;
+			selectionOrder.remove(last);
+		}
+		if (last == null) return null;
+		final HashSet<Path> remaining = new HashSet<>(current);
+		remaining.remove(last);
+		ui.getPathManager().setSelectedPaths(remaining, this);
+		return last;
+	}
+
+	/**
+	 * Clears the current path selection. Does nothing in edit mode
+	 *
+	 * @return true if any path was deselected
+	 */
+	public boolean selectNone() {
+		if (ui == null || ui.getPathManager() == null || isEditModeEnabled()) return false;
+		if (getSelectedPaths().isEmpty()) return false;
+		synchronized (this) {
+			selectionOrder.clear();
+		}
+		ui.getPathManager().setSelectedPaths(new HashSet<>(), this);
+		return true;
 	}
 
 	public Collection<Path> getSelectedPaths() {
@@ -5428,6 +5485,7 @@ public class SNT extends MultiDThreePanes implements
 								 final Object source)
 	{
 		if (source == this) return;
+		trackSelectionOrder(selectedPathsSet, null);
 		for (int i = 0; i < pathAndFillManager.size(); ++i) {
 			final Path p = pathAndFillManager.getPath(i);
 			p.setSelected(selectedPathsSet.contains(p));

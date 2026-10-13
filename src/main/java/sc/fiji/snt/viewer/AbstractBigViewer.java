@@ -1168,6 +1168,11 @@ public abstract class AbstractBigViewer {
         sntAMap.put("snt-select-nearest-path", tracer.getSelectNearestPathAction(false));
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.SHIFT_DOWN_MASK), "snt-append-nearest-path");
         sntAMap.put("snt-append-nearest-path", tracer.getSelectNearestPathAction(true));
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.ALT_DOWN_MASK), "snt-deselect-last-path");
+        sntAMap.put("snt-deselect-last-path", tracer.getDeselectPathAction(false));
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK),
+                "snt-select-none");
+        sntAMap.put("snt-select-none", tracer.getDeselectPathAction(true));
         // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is
         // itself a click, and its first (clickCount==1) event is indistinguishable from an ordinary
         // "extend path" click, so it lands a spurious node right next to the previous. Enter/Esc avoids
@@ -3473,6 +3478,38 @@ public abstract class AbstractBigViewer {
                     selectNearestPath(resolveClickWorldPosition(null), addToExistingSelection);
                 }
             };
+        }
+
+        /**
+         * Builds the Alt+G/Shift+Alt+G action: removes the last selected path from the selection, or clears it
+         *
+         * @param clearAll {@code true} for Shift+Alt+G (select none), {@code false} for Alt+G (deselect last)
+         * @see SNT#deselectLastPath()
+         * @see SNT#selectNone()
+         */
+        protected AbstractAction getDeselectPathAction(final boolean clearAll) {
+            return new AbstractAction((clearAll) ? ContextMenuCommand.SELECT_NONE.label()
+                    : ContextMenuCommand.DESELECT_LAST.label()) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    deselectPaths(clearAll);
+                }
+            };
+        }
+
+        /**
+         * Deselects the last selected path, or all paths
+         *
+         * @param clearAll whether to clear the whole selection (true) or only its last path (false)
+         */
+        protected void deselectPaths(final boolean clearAll) {
+            if (snt == null || snt.getPathAndFillManager().size() == 0) {
+                showViewerMessage("Nothing to deselect: There are no traced paths");
+            } else if (clearAll) {
+                if (!snt.selectNone()) showViewerMessage("Nothing selected");
+            } else if (snt.deselectLastPath() == null) {
+                showViewerMessage("Nothing selected");
+            }
         }
 
         /**

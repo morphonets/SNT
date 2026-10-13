@@ -116,6 +116,11 @@ final class BigViewerMenu {
 				tracer != null && hasPaths && !editing, ev -> tracer.selectNearestPath(clickPos, true));
 		append.setToolTipText("Add nearest path to current selection");
 		menu.add(append);
+		menu.add(item(ContextMenuCommand.DESELECT_LAST, KeyEvent.VK_G, InputEvent.ALT_DOWN_MASK,
+				tracer != null && hasPaths && !editing, ev -> tracer.deselectPaths(false)));
+		menu.add(item(ContextMenuCommand.SELECT_NONE, KeyEvent.VK_G,
+				InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK, tracer != null && hasPaths && !editing,
+				ev -> tracer.deselectPaths(true)));
 		menu.add(cropOnlyItem(ContextMenuCommand.LASSO.label(), 0));
 		menu.addSeparator();
 

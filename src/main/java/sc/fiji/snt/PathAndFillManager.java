@@ -3521,7 +3521,7 @@ public class PathAndFillManager extends DefaultHandler implements
                 distanceLimit, false);
     }
 
-    protected List<Path> getUnSelectedPathsRenderedInViewPort(
+    protected List<Path> getDeselectedPathsRenderedInViewPort(
             final TracerCanvas canvas)
     {
         final List<Path> paths = new ArrayList<>();

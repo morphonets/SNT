@@ -149,6 +149,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK));
         appendNearest.setToolTipText("Add nearest path to current selection");
         pMenu.add(appendNearest);
+        pMenu.add(menuItem(ContextMenuCommand.DESELECT_LAST, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.ALT_DOWN_MASK)));
+        pMenu.add(menuItem(ContextMenuCommand.SELECT_NONE, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK | KeyEvent.ALT_DOWN_MASK)));
         final JMenuItem selectByRoi = getSelectRoiMenuItem();
         pMenu.add(selectByRoi);
         pMenu.addSeparator();
@@ -584,6 +588,22 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     /**
+     * Deselects the last selected path, or all paths
+     *
+     * @param clearAll whether to clear the whole selection (true) or only its last path (false)
+     */
+    public void deselectPaths(final boolean clearAll) {
+        // We will only display warnings if there is nothing selected or nothing to deselect
+        if (pathAndFillManager.size() == 0) {
+            canvasWarning("Nothing to deselect: There are no traced paths");
+        } else if (clearAll) {
+            if (!tracerPlugin.selectNone()) canvasWarning("Nothing selected");
+        } else {
+            if (tracerPlugin.deselectLastPath() == null) canvasWarning("Nothing selected");
+        }
+    }
+
+    /**
      * Selects the path nearest to the current mouse pointer position.
      *
      * @param addToExistingSelection if true, adds to current selection; if false, replaces it
@@ -680,7 +700,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Find the nearest point on unselected Paths currently displayed in
         // viewPort
         final List<Path> paths = pathAndFillManager
-                .getUnSelectedPathsRenderedInViewPort(this);
+                .getDeselectedPathsRenderedInViewPort(this);
         if (paths.isEmpty()) {
             return null;
         }
@@ -1487,6 +1507,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private static final String BOOKMARK_CURSOR = ContextMenuCommand.Labels.BOOKMARK;
         private static final String SELECT_NEAREST = ContextMenuCommand.Labels.GRAB;
         private static final String APPEND_NEAREST = ContextMenuCommand.Labels.APPEND;
+        private static final String DESELECT_LAST = ContextMenuCommand.Labels.DESELECT_LAST;
+        private static final String SELECT_NONE = ContextMenuCommand.Labels.SELECT_NONE;
         private static final String EXTEND_SELECTED = ContextMenuCommand.Labels.EXTEND;
         private static final String PAUSE_SNT_TOGGLE = ContextMenuCommand.Labels.PAUSE_SNT;
         private static final String PAUSE_TRACING_TOGGLE = ContextMenuCommand.Labels.PAUSE_TRACING;
@@ -1592,6 +1614,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     return true;
                 case APPEND_NEAREST:
                     selectNearestPathToMousePointer(true);
+                    return true;
+                case DESELECT_LAST:
+                    deselectPaths(false);
+                    return true;
+                case SELECT_NONE:
+                    deselectPaths(true);
                     return true;
                 case START_SHOLL:
                     return handleStartSholl();

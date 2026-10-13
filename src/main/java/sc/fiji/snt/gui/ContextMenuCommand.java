@@ -38,6 +38,8 @@ public enum ContextMenuCommand {
 
 	GRAB(Labels.GRAB, '\uf076', true, false),
 	APPEND(Labels.APPEND, '\uf076', true, true),
+	DESELECT_LAST(Labels.DESELECT_LAST, '\uf146', false, false),
+	SELECT_NONE(Labels.SELECT_NONE, IconFactory.GLYPH.SQUARE),
 	LASSO(Labels.LASSO, '\uf5ee', true, false),
 	HIDE(Labels.HIDE, IconFactory.GLYPH.EYE),
 	ORIENTATION(Labels.ORIENTATION, IconFactory.GLYPH.NAVIGATE),
@@ -59,6 +61,8 @@ public enum ContextMenuCommand {
 	public static final class Labels {
 		public static final String GRAB = "Grab Nearest Path";
 		public static final String APPEND = "Add Nearest Path to Selection";
+		public static final String DESELECT_LAST = "Deselect Last Path";
+		public static final String SELECT_NONE = "Select None";
 		public static final String LASSO = "Lasso Select Paths";
 		public static final String HIDE = "Hide Paths (Hold H)";
 		public static final String ORIENTATION = "Path Orientation (Hold O)";

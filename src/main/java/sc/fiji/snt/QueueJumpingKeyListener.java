@@ -102,6 +102,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		keyCommands.add(new BookmarkCommand());
 		keyCommands.add(new EditModeToggleCommand());
 		keyCommands.add(new PauseTracingCommand());
+		keyCommands.add(new DeselectPathCommand());
 		keyCommands.add(new SelectNearestPathCommand());
 		keyCommands.add(new UIToggleCommands());
 		keyCommands.add(new UIUndoCommands());
@@ -490,6 +491,27 @@ class QueueJumpingKeyListener implements KeyListener {
 		public void execute(KeyEvent e, KeyContext context) {
 			if (canvas != null && !calledFromUniv(true)) {
 				canvas.togglePauseTracing();
+			}
+			e.consume();
+		}
+	}
+
+	// Alt+G (deselect last) and Shift+Alt+G (select none). Matched by key code
+	// because Alt (Option) may alter the key char (e.g., on macOS)
+	private class DeselectPathCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyCode == KeyEvent.VK_G && context.altDown && !context.ctrlDown;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			if (canvas != null) {
+				canvas.deselectPaths(context.shiftDown);
+			} else if (context.shiftDown) {
+				tracerPlugin.selectNone();
+			} else {
+				tracerPlugin.deselectLastPath();
 			}
 			e.consume();
 		}
