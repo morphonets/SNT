@@ -87,7 +87,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -3675,21 +3674,26 @@ public class GuiUtils {
 		}
 
 		public static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
+			addSeparator(menu, glyph, header, null);
+		}
+
+		public static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header, final String tooltip) {
 			if (menu.getComponentCount() > 0) menu.addSeparator();
-			menu.add(getMenuItemSeparator(glyph, header));
+			menu.add(getMenuItemSeparator(glyph, header, tooltip));
 		}
 
 		public static void addSeparator(final JMenu menu, final IconFactory.GLYPH glyph, final String header) {
 			if (menu.getMenuComponents().length > 1) menu.addSeparator();
-			menu.add(getMenuItemSeparator(glyph, header));
+			menu.add(getMenuItemSeparator(glyph, header, null));
 		}
 
-		private static JMenuItem getMenuItemSeparator(final IconFactory.GLYPH glyph, final String header) {
+		private static JMenuItem getMenuItemSeparator(final IconFactory.GLYPH glyph, final String header, final String tooltip) {
 			final JMenuItem sep = new JMenuItem(header);
 			sep.putClientProperty("cmdFinder-ignore", true);
 			sep.setEnabled(false);
 			sep.setIcon(IconFactory.menuIcon(glyph, IconFactory.disabledColor()));
 			sep.setDisabledIcon(IconFactory.menuIcon(glyph, IconFactory.disabledColor()));
+			if (tooltip != null) sep.setToolTipText(tooltip);
 			return sep;
 		}
 
@@ -5422,7 +5426,9 @@ public class GuiUtils {
                         }
 						final Path dir = Paths.get(System.getProperty("java.io.tmpdir"));
                         final Path tmp = Files.createTempFile(dir, "snt-shortcuts-", ".html");
-                        Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
+                        final String html = new String(is.readAllBytes(), StandardCharsets.UTF_8)
+                                .replace("__SNT_VERSION__", SNTUtils.VERSION);
+                        Files.writeString(tmp, html, StandardCharsets.UTF_8);
                         tmp.toFile().deleteOnExit();
 						// On ubuntu w/ sandboxed firefox snap (default browser) file permissions errors
 						// occur when using Desktop.open() to open the html file the temp directory. This

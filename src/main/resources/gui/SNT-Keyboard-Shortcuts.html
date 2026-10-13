@@ -470,6 +470,94 @@
                     box-shadow: none;
                 }
             }
+            /* ---- Additions: analysis category, mode switch, mode icons ---- */
+            .cat-ana { border-color: rgba(45, 212, 191, 0.5); }
+            .cat-ana .func { color: #2dd4bf; }
+            .cat-ana .mode-dot { background: #2dd4bf; }
+            .dot-ana { background: #2dd4bf; }
+            .card-ana { border-left: 3px solid #2dd4bf; }
+            .key { height: 68px; }
+            .key .fns { display: flex; flex-direction: column; align-items: center; width: 100%; }
+            .key .func.fn { margin-top: 1px; }
+            .key .func.fn.cat-prompt { color: #fbbf24; }
+            .key .func.fn.cat-nav { color: #38bdf8; }
+            .key .func.fn.cat-path { color: #34d399; }
+            .key .func.fn.cat-trace { color: #c084fc; }
+            .key .func.fn.cat-ana { color: #2dd4bf; }
+            .key .func.fn.cat-edit { color: #fb7185; }
+            .key.off, .shortcut-row.off { opacity: 0.28; }
+            .key.off { filter: grayscale(0.8); }
+            .fn.off { display: none; }
+            .controls {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin-bottom: 22px;
+            }
+            .modes {
+                display: inline-flex;
+                border: 1px solid rgba(148, 163, 184, 0.3);
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            .modes button {
+                font: inherit;
+                font-size: 0.75rem;
+                font-weight: 600;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+                color: #94a3b8;
+                background: transparent;
+                border: none;
+                border-right: 1px solid rgba(148, 163, 184, 0.3);
+                padding: 8px 18px;
+                cursor: pointer;
+            }
+            .modes button:last-child { border-right: none; }
+            .modes button:hover { color: #e2e8f0; }
+            .modes button[aria-pressed="true"] { background: #38bdf8; color: #0f172a; }
+            .mode-note {
+                font-size: 0.7rem;
+                color: #94a3b8;
+                margin-top: 10px;
+                text-align: center;
+                line-height: 1.6;
+            }
+            .mi {
+                width: 0.95em;
+                height: 0.95em;
+                vertical-align: -0.12em;
+                margin: 0 2px;
+                opacity: 0.7;
+            }
+            .shortcut-desc .mi { margin: 0; }
+            .mslot { display: inline-block; width: 1.5em; }
+            .key .func .mi { width: 0.8em; height: 0.8em; margin: 0 2px 0 0; }
+            .footer {
+                text-align: center;
+                font-size: 0.7rem;
+                color: #64748b;
+                margin-top: 10px;
+            }
+            .footer a { color: #94a3b8; }
+            @media (prefers-color-scheme: light) {
+                .cat-ana { border-color: rgba(15, 118, 110, 0.5); }
+                .cat-ana .func { color: #0f766e; }
+                .cat-ana .mode-dot, .dot-ana { background: #0f766e; }
+                .card-ana { border-left-color: #0f766e; }
+                .key .func.fn.cat-prompt { color: #92400e; }
+                .key .func.fn.cat-nav { color: #0369a1; }
+                .key .func.fn.cat-path { color: #047857; }
+                .key .func.fn.cat-trace { color: #7e22ce; }
+                .key .func.fn.cat-ana { color: #0f766e; }
+                .key .func.fn.cat-edit { color: #be123c; }
+                .modes button { color: #475569; border-color: rgba(148, 163, 184, 0.4); }
+                .modes { border-color: rgba(148, 163, 184, 0.4); }
+                .modes button:hover { color: #1e293b; }
+                .modes button[aria-pressed="true"] { background: #0369a1; color: #fff; }
+                .mode-note, .footer a { color: #475569; }
+                .footer { color: #64748b; }
+            }
         </style>
     </head>
     <body>
@@ -548,266 +636,35 @@
                             >Keyboard Shortcuts</a
                         >
                     </h1>
-                    <div class="version">v5.1.0</div>
+                    <div class="version" id="version">__SNT_VERSION__</div>
+                </div>
+            </div>
+
+            <!-- Mode switch -->
+            <div class="controls">
+                <div class="modes" role="group" aria-label="Traditional Images">
+                    <button type="button" data-mode="all" aria-pressed="true">All</button>
+                    <button type="button" data-mode="classic" aria-pressed="false">Traditional Images</button>
+                    <button type="button" data-mode="stream" aria-pressed="false">SNT Stream</button>
+                </div>
+                <div class="mode-note">
+                    Unmarked shortcuts work everywhere |
+                    <span id="note-crop"></span> needs a memory-loaded (traditional) image, or a crop in Stream Mode |
+                    <span id="note-stream"></span> Stream Mode only
                 </div>
             </div>
 
             <!-- Legend -->
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-dot dot-prompt"></div>
-                    Interactive Prompt
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot dot-nav"></div>
-                    Navigation &amp; Zoom
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot dot-path"></div>
-                    Path Handling
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot dot-trace"></div>
-                    Tracing
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot dot-edit"></div>
-                    Path Editing
-                </div>
-            </div>
+            <div class="legend" id="legend"></div>
 
             <!-- Keyboard -->
-            <div class="keyboard">
-                <!-- Row 1: Number row -->
-                <div class="kb-row">
-                    <div class="key cat-prompt">
-                        <div class="mode-dot"></div>
-                        <div class="label">Esc</div>
-                        <div class="func">Abort / Exit</div>
-                    </div>
-                    <div class="key cat-path">
-                        <div class="mode-dot"></div>
-                        <div class="label">1</div>
-                        <div class="func">Visibility filter 1</div>
-                    </div>
-                    <div class="key cat-path">
-                        <div class="mode-dot"></div>
-                        <div class="label">2</div>
-                        <div class="func">Visibility filter 2</div>
-                    </div>
-                    <div class="key cat-path">
-                        <div class="mode-dot"></div>
-                        <div class="label">3</div>
-                        <div class="func">Visibility filter 3</div>
-                    </div>
-                    <div class="key cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">4</div>
-                        <div class="func">Original scale</div>
-                    </div>
-                    <div class="key cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">5</div>
-                        <div class="func">100% zoom</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">6</div></div>
-                    <div class="key cat-none"><div class="label">7</div></div>
-                    <div class="key cat-none"><div class="label">8</div></div>
-                    <div class="key cat-none"><div class="label">9</div></div>
-                    <div class="key cat-none"><div class="label">0</div></div>
-                    <div class="key cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">-</div>
-                        <div class="func">Zoom out</div>
-                    </div>
-                    <div class="key cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">+</div>
-                        <div class="func">Zoom in</div>
-                    </div>
-                    <div class="key key-back cat-none">
-                        <div class="label">Delete</div>
-                    </div>
-                </div>
-
-                <!-- Row 2: QWERTY -->
-                <div class="kb-row">
-                    <div class="key key-tab cat-none">
-                        <div class="label">Tab</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">Q</div></div>
-                    <div class="key cat-none"><div class="label">W</div></div>
-                    <div class="key cat-none"><div class="label">E</div></div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">R</div>
-                        <div class="func">Node radius</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">T</div></div>
-                    <div class="key cat-prompt">
-                        <div class="mode-dot"></div>
-                        <div class="label">Y</div>
-                        <div class="func">Confirm (Yes)</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">U</div></div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">I</div>
-                        <div class="func">Insert node</div>
-                    </div>
-                    <div class="key cat-path">
-                        <div class="mode-dot"></div>
-                        <div class="label">O</div>
-                        <div class="func">Orientations</div>
-                    </div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">P</div>
-                        <div class="func">Paint mode</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">[</div></div>
-                    <div class="key cat-none"><div class="label">]</div></div>
-                    <div class="key cat-none"><div class="label">\</div></div>
-                </div>
-
-                <!-- Row 3: ASDF -->
-                <div class="kb-row">
-                    <div class="key key-caps cat-none">
-                        <div class="label">Caps Lock</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">A</div></div>
-                    <div class="key cat-trace">
-                        <div class="mode-dot"></div>
-                        <div class="label">S</div>
-                        <div class="func">Cursor snap</div>
-                    </div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">D</div>
-                        <div class="func">Delete node</div>
-                    </div>
-                    <div class="key cat-prompt">
-                        <div class="mode-dot"></div>
-                        <div class="label">F</div>
-                        <div class="func">Finish path</div>
-                    </div>
-                    <div class="key cat-path">
-                        <div class="mode-dot"></div>
-                        <div class="label">G</div>
-                        <div class="func">Grab path</div>
-                    </div>
-                    <div class="key cat-path">
-                        <div class="mode-dot"></div>
-                        <div class="label">H</div>
-                        <div class="func">Hide paths</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">J</div></div>
-                    <div class="key cat-none"><div class="label">K</div></div>
-                    <div class="key cat-trace">
-                        <div class="mode-dot"></div>
-                        <div class="label">L</div>
-                        <div class="func">2nd layer</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">;</div></div>
-                    <div class="key cat-none"><div class="label">'</div></div>
-                    <div class="key key-enter cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">Enter</div>
-                        <div class="func">Toggle focus</div>
-                    </div>
-                </div>
-
-                <!-- Row 4: ZXCV -->
-                <div class="kb-row">
-                    <div class="key key-shift cat-none">
-                        <div class="label">Shift</div>
-                    </div>
-                    <div class="key cat-trace">
-                        <div class="mode-dot"></div>
-                        <div class="label">Z</div>
-                        <div class="func">Undo</div>
-                    </div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">X</div>
-                        <div class="func">Split / re-root</div>
-                    </div>
-                    <div class="key cat-prompt">
-                        <div class="mode-dot"></div>
-                        <div class="label">C</div>
-                        <div class="func">Cancel path</div>
-                    </div>
-                    <div class="key cat-trace">
-                        <div class="mode-dot"></div>
-                        <div class="label">V</div>
-                        <div class="func">Bright voxel</div>
-                    </div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">B</div>
-                        <div class="func">Bring to Z</div>
-                    </div>
-                    <div class="key cat-prompt">
-                        <div class="mode-dot"></div>
-                        <div class="label">N</div>
-                        <div class="func">Discard (No)</div>
-                    </div>
-                    <div class="key cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">M</div>
-                        <div class="func">Move node</div>
-                    </div>
-                    <div class="key cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">&lt;</div>
-                        <div class="func">Prev slice</div>
-                    </div>
-                    <div class="key cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">&gt;</div>
-                        <div class="func">Next slice</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">/</div></div>
-                    <div class="key key-shift cat-none">
-                        <div class="label">Shift</div>
-                    </div>
-                </div>
-
-                <!-- Row 5: Bottom row -->
-                <div class="kb-row">
-                    <div class="key key-ctrl cat-trace">
-                        <div class="mode-dot"></div>
-                        <div class="label">Ctrl</div>
-                        <div class="func">Scroll modifier</div>
-                    </div>
-                    <div class="key cat-none"><div class="label">Fn</div></div>
-                    <div class="key key-alt cat-edit">
-                        <div class="mode-dot"></div>
-                        <div class="label">Alt</div>
-                        <div class="func">Drag modifier</div>
-                    </div>
-                    <div class="key key-cmd cat-none">
-                        <div class="label">Cmd</div>
-                    </div>
-                    <div class="key key-space cat-nav">
-                        <div class="mode-dot"></div>
-                        <div class="label">Space</div>
-                        <div class="func">Pan (Hand) tool</div>
-                    </div>
-                    <div class="key key-cmd cat-none">
-                        <div class="label">Cmd</div>
-                    </div>
-                    <div class="key key-alt cat-none">
-                        <div class="label">Alt</div>
-                    </div>
-                </div>
-            </div>
+            <div class="keyboard" id="keyboard"></div>
 
             <!-- Tip -->
             <div class="tip-wrapper">
                 <div class="tip-box">
                     <strong>Tip:</strong> Press
-                    <span class="tip-key">Ctrl/Cmd</span> +
+                    <span class="tip-key" id="tip-mod">Ctrl/Cmd</span> +
                     <span class="tip-key">Shift</span> +
                     <span class="tip-key">P</span>
                     to open the Command Palette &mdash; the fastest way to
@@ -816,405 +673,279 @@
             </div>
 
             <!-- Shortcut Categories -->
-            <div class="categories">
-                <!-- Interactive Prompt -->
-                <div class="cat-card card-prompt">
-                    <h3>
-                        <div class="dot dot-prompt"></div>
-                        Interactive Prompt
-                    </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>C</span></div>
-                        <div class="shortcut-desc">Cancel current path</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Esc</span></div>
-                        <div class="shortcut-desc">
-                            Abort operation / exit mode
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>F</span></div>
-                        <div class="shortcut-desc">Finish current path</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>N</span></div>
-                        <div class="shortcut-desc">
-                            Discard temporary path (No) &mdash; double-tap to
-                            finish
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Y</span></div>
-                        <div class="shortcut-desc">
-                            Confirm temporary path (Yes) &mdash; double-tap to
-                            finish
-                        </div>
-                    </div>
-                </div>
+            <div class="categories" id="cards"></div>
 
-                <!-- Navigation & Zoom -->
-                <div class="cat-card card-nav">
-                    <h3>
-                        <div class="dot dot-nav"></div>
-                        Navigation &amp; Zoom
-                    </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>+</span><span class="plus">/</span
-                            ><span>-</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Zoom in / out (all views)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>4</span></div>
-                        <div class="shortcut-desc">Original scale</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>5</span></div>
-                        <div class="shortcut-desc">100% zoom</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>&lt;</span><span class="plus">/</span
-                            ><span>&gt;</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Previous / next Z-slice or channel
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Enter</span></div>
-                        <div class="shortcut-desc">
-                            Toggle focus: image / SNT window
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Space</span></div>
-                        <div class="shortcut-desc">Pan (Hand) tool</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Shift</span></div>
-                        <div class="shortcut-desc">
-                            Synchronize XY, ZY, XZ views
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl</span><span class="plus">+</span
-                            ><span>Tab</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Next / prev tab in SNT window
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Path Handling -->
-                <div class="cat-card card-path">
-                    <h3>
-                        <div class="dot dot-path"></div>
-                        Path Handling
-                    </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>1</span></div>
-                        <div class="shortcut-desc">
-                            Toggle: all paths vs. selected only
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>2</span></div>
-                        <div class="shortcut-desc">
-                            Toggle: all nodes vs. nearby Z-slices
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>3</span></div>
-                        <div class="shortcut-desc">
-                            Toggle: all channels vs. active channel
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>G</span></div>
-                        <div class="shortcut-desc">
-                            Grab (select) nearest path to cursor
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>H</span></div>
-                        <div class="shortcut-desc">
-                            Temporarily hide all paths (hold)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>O</span></div>
-                        <div class="shortcut-desc">
-                            Show path orientations (hold)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>G</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Grab + add to selection
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tracing -->
-                <div class="cat-card card-trace">
-                    <h3>
-                        <div class="dot dot-trace"></div>
-                        Tracing Mode
-                    </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>L</span></div>
-                        <div class="shortcut-desc">
-                            Toggle tracing on secondary layer
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>S</span></div>
-                        <div class="shortcut-desc">Toggle cursor snapping</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>V</span></div>
-                        <div class="shortcut-desc">
-                            Jump to brightest voxel (x, y)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Z</span></div>
-                        <div class="shortcut-desc">Undo last segment</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>B</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Bookmark cursor location
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>E</span>
-                        </div>
-                        <div class="shortcut-desc">Activate Edit Mode</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>P</span>
-                        </div>
-                        <div class="shortcut-desc">Pause tracing</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl</span><span class="plus">+</span
-                            ><span>Wheel</span>
-                        </div>
-                        <div class="shortcut-desc">Change path diameter</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl/Cmd</span><span class="plus">+</span
-                            ><span>S</span>
-                        </div>
-                        <div class="shortcut-desc">Save tracings</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl/Cmd</span><span class="plus">+</span
-                            ><span>Shift</span><span class="plus">+</span
-                            ><span>S</span>
-                        </div>
-                        <div class="shortcut-desc">Backup tracings</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Alt</span><span class="plus">+</span
-                            ><span>Shift</span><span class="plus">+</span
-                            ><span>Click</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Select forking point on path
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Path Editing -->
-                <div class="cat-card card-edit">
-                    <h3>
-                        <div class="dot dot-edit"></div>
-                        Path Editing Mode
-                    </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>B</span></div>
-                        <div class="shortcut-desc">
-                            Bring active node to current Z-plane
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>C</span></div>
-                        <div class="shortcut-desc">
-                            Connect highlighted nodes
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>D</span></div>
-                        <div class="shortcut-desc">Delete active node</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>I</span></div>
-                        <div class="shortcut-desc">
-                            Insert new node at cursor
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>L</span></div>
-                        <div class="shortcut-desc">Lock active node</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>M</span></div>
-                        <div class="shortcut-desc">
-                            Move active node to cursor
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>P</span></div>
-                        <div class="shortcut-desc">
-                            Toggle Paint Mode (brush sculpting)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>R</span></div>
-                        <div class="shortcut-desc">
-                            Change radius of active node
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>X</span></div>
-                        <div class="shortcut-desc">
-                            Split tree / re-root at active node
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Z</span></div>
-                        <div class="shortcut-desc">Undo last operation</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl</span><span class="plus">+</span
-                            ><span>Wheel</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Node radius / brush size (Paint Mode)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Alt</span><span class="plus">+</span
-                            ><span>Drag</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Move node / blend radii (Paint Mode)
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Reconstruction Viewer -->
-                <div class="cat-card card-viewer">
-                    <h3>
-                        <div class="dot dot-viewer"></div>
-                        Reconstruction Viewer
-                    </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>A</span></div>
-                        <div class="shortcut-desc">Toggle axes</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>C</span></div>
-                        <div class="shortcut-desc">Toggle camera mode</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>D</span></div>
-                        <div class="shortcut-desc">Toggle dark mode</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>F</span></div>
-                        <div class="shortcut-desc">
-                            Fit view to visible objects
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>R</span></div>
-                        <div class="shortcut-desc">
-                            Reset view (1×) / reload scene (2×)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>S</span></div>
-                        <div class="shortcut-desc">Save screenshot</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>←</span><span>→</span><span>↑</span
-                            ><span>↓</span>
-                        </div>
-                        <div class="shortcut-desc">Rotate scene</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>Arrows</span>
-                        </div>
-                        <div class="shortcut-desc">Pan scene</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>F</span>
-                        </div>
-                        <div class="shortcut-desc">Toggle full screen</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl/Cmd</span><span class="plus">+</span
-                            ><span>Shift</span><span class="plus">+</span
-                            ><span>P</span>
-                        </div>
-                        <div class="shortcut-desc">Command Palette</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl</span><span class="plus">+</span
-                            ><span>Click</span>
-                        </div>
-                        <div class="shortcut-desc">Snap to top/side view</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Double Click</span></div>
-                        <div class="shortcut-desc">
-                            Toggle animation (auto-detect rotation axis)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>Double Click</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Toggle animation (force Z-axis rotation)
-                        </div>
-                    </div>
-                </div>
+            <div class="footer">
+                Full documentation:
+                <a href="https://imagej.net/plugins/snt/key-shortcuts">imagej.net/plugins/snt/key-shortcuts</a>
             </div>
         </div>
+        <script>
+            // Shortcut data. One entry per shortcut:
+            //   c: category (prompt, nav, path, trace, ana, edit, viewer)
+            //   k: keys, as shown in cards ('Mod' is Ctrl or Cmd, '/' is a separator)
+            //   d: description
+            //   m: a = all canvases, c = needs an ImagePlus (classic canvas or
+            //      Stream Mode crop), s = Stream Mode only, v = always
+            //   kb: [[keyId, short label], ...] to also list it on the keyboard
+            const CATS = {
+                prompt: "Interactive Prompt",
+                nav: "Navigation & Zoom",
+                path: "Path Selection & Visibility",
+                trace: "Tracing",
+                ana: "Bookmarks & Analysis",
+                edit: "Path Editing (Edit Mode)",
+                viewer: "Reconstruction Viewer",
+            };
+            const S = [
+                // Interactive prompt
+                { c: "prompt", k: ["C"], d: "Cancel current path", m: "c", kb: [["C", "Cancel"]] },
+                { c: "prompt", k: ["F"], d: "Finish current path", m: "c", kb: [["F", "Finish path"]] },
+                { c: "prompt", k: ["N"], d: "Discard temporary path (No). Double-tap to finish", m: "c", kb: [["N", "No"]] },
+                { c: "prompt", k: ["Y"], d: "Confirm temporary path (Yes). Double-tap to finish", m: "c", kb: [["Y", "Yes"]] },
+                { c: "prompt", k: ["Enter"], d: "Finish temporary path", m: "s", kb: [["Enter", "Finish path"]] },
+                { c: "prompt", k: ["Double Click"], d: "Finish temporary path (in Stream Mode, centers the view when not tracing)", m: "a" },
+                { c: "prompt", k: ["Esc"], d: "Abort operation / discard temporary path / exit mode", m: "a", kb: [["Esc", "Abort / Exit"]] },
+                { c: "prompt", k: ["Z"], d: "Undo last segment (temporary paths)", m: "a", kb: [["Z", "Undo seg."]] },
+                // Navigation
+                { c: "nav", k: ["Shift"], d: "Synchronize XY, ZY and XZ views while moving the cursor (without cursor snapping)", m: "c", kb: [["Shift", "Sync views"]] },
+                { c: "nav", k: ["+", "/", "-"], d: "Zoom in / out (all views)", m: "c", kb: [["+", "Zoom in"], ["-", "Zoom out"]] },
+                { c: "nav", k: ["4"], d: "Display view(s) at original scale", m: "c", kb: [["4", "Original scale"]] },
+                { c: "nav", k: ["5"], d: "Display view(s) at 100%", m: "c", kb: [["5", "100% zoom"]] },
+                { c: "nav", k: ["Space"], d: "Activate Pan (Hand) tool", m: "c", kb: [["Space", "Pan tool"]] },
+                { c: "nav", k: ["<", "/", ">"], d: "Previous / next Z-slice or channel (see IJ's Misc. options)", m: "c", kb: [["<", "Prev slice"], [">", "Next slice"]] },
+                { c: "nav", k: ["Enter"], d: "Shuttle window focus between image and SNT window", m: "c", kb: [["Enter", "Shuttle focus"]] },
+                { c: "nav", k: ["Ctrl", "Tab"], d: "Next tab in the main SNT window", m: "c" },
+                { c: "nav", k: ["Ctrl", "Shift", "Tab"], d: "Previous tab in the main SNT window", m: "c" },
+                { c: "nav", k: ["Mod", "G"], d: "Go to location (prompts for coordinates)", m: "s" },
+                // Selection and visibility
+                { c: "path", k: ["G"], d: "Grab (select) the nearest path to the cursor", m: "a", kb: [["G", "Grab path"]] },
+                { c: "path", k: ["Shift", "G"], d: "Add nearest path to selection (disabled in Edit Mode)", m: "a" },
+                { c: "path", k: ["Alt", "G"], d: "Deselect last selected path", m: "a" },
+                { c: "path", k: ["Shift", "Alt", "G"], d: "Deselect all paths (Select None)", m: "a" },
+                { c: "path", k: ["H"], d: "Temporarily hide paths and annotations while pressed", m: "a", kb: [["H", "Hide paths"]] },
+                { c: "path", k: ["O"], d: "Temporarily show path orientations (start to end) while pressed", m: "c", kb: [["O", "Orientations"]] },
+                { c: "path", k: ["1"], d: "Visibility filter 1: all paths or just selected ones", m: "c", kb: [["1", "Filter 1"]] },
+                { c: "path", k: ["2"], d: "Visibility filter 2: all nodes or just those in nearby Z-slices", m: "c", kb: [["2", "Filter 2"]] },
+                { c: "path", k: ["3"], d: "Visibility filter 3: all channels/frames or just the active one", m: "c", kb: [["3", "Filter 3"]] },
+                // Tracing
+                { c: "trace", k: ["L"], d: "Toggle tracing/filling on secondary layer", m: "a", kb: [["L", "2nd layer"]] },
+                { c: "trace", k: ["V"], d: "Click on brightest voxel above/below cursor", m: "c", kb: [["V", "Bright voxel"]] },
+                { c: "trace", k: ["S"], d: "Toggle cursor snapping", m: "c", kb: [["S", "Cursor snap"]] },
+                { c: "trace", k: ["P"], d: "Pick structure under cursor (e.g., for Pick Sigma(s))", m: "s", kb: [["P", "Pick"]] },
+                { c: "trace", k: ["Space"], d: "Tap: toggle tracing on/off. Hold: disable tracing while pressed", m: "s", kb: [["Space", "Toggle tracing"]] },
+                { c: "trace", k: ["Ctrl", "Wheel"], d: "Change diameter of path being traced", m: "c" },
+                { c: "trace", k: ["Alt", "Shift", "Click"], d: "Select forking point on active path (branching/joining)", m: "a" },
+                { c: "trace", k: ["Shift", "E"], d: "Toggle Edit Mode", m: "a" },
+                { c: "trace", k: ["Shift", "P"], d: "Pause tracing", m: "c" },
+                { c: "trace", k: ["Mod", "S"], d: "Save tracings", m: "c" },
+                { c: "trace", k: ["Mod", "Shift", "S"], d: "Backup tracings", m: "c" },
+                { c: "trace", k: ["Mod", "Shift", "O"], d: "Save tracings and open next image", m: "c" },
+                { c: "trace", k: ["Mod", "Alt", "O"], d: "Save tracings and open previous image", m: "c" },
+                // Bookmarks and analysis
+                { c: "ana", k: ["Shift", "B"], d: "Bookmark cursor location", m: "c" },
+                { c: "ana", k: ["M"], d: "Mark cursor location", m: "s", kb: [["M", "Mark"]] },
+                { c: "ana", k: ["Shift", "Alt", "A"], d: "Sholl analysis at nearest node", m: "a" },
+                { c: "ana", k: ["K"], d: "Record key frame", m: "s", kb: [["K", "Key frame"]] },
+                { c: "ana", k: ["Shift", "K"], d: "Clear recorded key frames", m: "s" },
+                { c: "ana", k: ["Shift", "S"], d: "Save screenshot (BVV only)", m: "s" },
+                { c: "ana", k: ["Mod", "Shift", "P"], d: "Command Palette", m: "a" },
+                // Edit mode
+                { c: "edit", k: ["B"], d: "Bring active node to current Z-plane", m: "c", kb: [["B", "Bring to Z"]] },
+                { c: "edit", k: ["C"], d: "Connect highlighted nodes", m: "a", kb: [["C", "Connect"]] },
+                { c: "edit", k: ["Shift", "C"], d: "Quick-connect nodes", m: "s" },
+                { c: "edit", k: ["D"], d: "Delete active node", m: "a", kb: [["D", "Delete node"]] },
+                { c: "edit", k: ["I"], d: "Insert new node at cursor", m: "a", kb: [["I", "Insert node"]] },
+                { c: "edit", k: ["L"], d: "Lock active node", m: "a", kb: [["L", "Lock node"]] },
+                { c: "edit", k: ["M"], d: "Move active node to cursor", m: "a", kb: [["M", "Move"]] },
+                { c: "edit", k: ["P"], d: "Toggle Paint Mode (brush editing)", m: "c", kb: [["P", "Paint"]] },
+                { c: "edit", k: ["R"], d: "Change radius of active node", m: "a", kb: [["R", "Node radius"]] },
+                { c: "edit", k: ["T"], d: "Tag active node (assigns a unique color)", m: "a", kb: [["T", "Tag node"]] },
+                { c: "edit", k: ["X"], d: "Split tree at active node (re-roots structure)", m: "a", kb: [["X", "Split tree"]] },
+                { c: "edit", k: ["Z"], d: "Undo last edit", m: "a", kb: [["Z", "Undo edit"]] },
+                { c: "edit", k: ["Esc"], d: "Exit Edit Mode", m: "a" },
+                { c: "edit", k: ["Ctrl", "Wheel"], d: "Adjust node radius / brush size (Paint Mode)", m: "c" },
+                { c: "edit", k: ["Alt", "Drag"], d: "Move node / blend radii (Paint Mode)", m: "c" },
+                // Reconstruction Viewer
+                { c: "viewer", k: ["Arrows"], d: "Rotate scene (mouse: left drag)", m: "v" },
+                { c: "viewer", k: ["Shift", "Arrows"], d: "Pan scene (mouse: right drag)", m: "v" },
+                { c: "viewer", k: ["+", "/", "-"], d: "Zoom (mouse: wheel)", m: "v" },
+                { c: "viewer", k: ["Double Click"], d: "Toggle animation (auto-detect rotation axis)", m: "v" },
+                { c: "viewer", k: ["Shift", "Double Click"], d: "Toggle animation (force Z-axis rotation)", m: "v" },
+                { c: "viewer", k: ["Ctrl", "Click"], d: "Snap to top/side view", m: "v" },
+                { c: "viewer", k: ["A"], d: "Toggle axes", m: "v" },
+                { c: "viewer", k: ["C"], d: "Toggle camera mode", m: "v" },
+                { c: "viewer", k: ["D"], d: "Toggle dark mode", m: "v" },
+                { c: "viewer", k: ["F"], d: "Fit view to visible objects", m: "v" },
+                { c: "viewer", k: ["H"], d: "Help notification (F1: dedicated window)", m: "v" },
+                { c: "viewer", k: ["L"], d: "Log scene details to console", m: "v" },
+                { c: "viewer", k: ["R"], d: "Reset view (1x) / reload scene (2x)", m: "v" },
+                { c: "viewer", k: ["S"], d: "Save screenshot", m: "v" },
+                { c: "viewer", k: ["Shift", "C"], d: "Toggle control panel", m: "v" },
+                { c: "viewer", k: ["Shift", "F"], d: "Toggle full screen", m: "v" },
+                { c: "viewer", k: ["Shift", "S"], d: "Toggle status bar", m: "v" },
+                { c: "viewer", k: ["Mod", "Shift", "P"], d: "Command Palette", m: "v" },
+            ];
+
+            // Keyboard layout: [keyId, label, extra class]
+            const ROWS = [
+                [["Esc"], ["1"], ["2"], ["3"], ["4"], ["5"], ["6"], ["7"], ["8"], ["9"], ["0"], ["-"], ["+"], ["Delete", "Delete", "key-back"]],
+                [["Tab", "Tab", "key-tab"], ["Q"], ["W"], ["E"], ["R"], ["T"], ["Y"], ["U"], ["I"], ["O"], ["P"], ["["], ["]"], ["\\"]],
+                [["Caps", "Caps Lock", "key-caps"], ["A"], ["S"], ["D"], ["F"], ["G"], ["H"], ["J"], ["K"], ["L"], [";"], ["'"], ["Enter", "Enter", "key-enter"]],
+                [["Shift", "Shift", "key-shift"], ["Z"], ["X"], ["C"], ["V"], ["B"], ["N"], ["M"], ["<"], [">"], ["/"], ["Shift2", "Shift", "key-shift"]],
+                [["Ctrl", "Ctrl", "key-ctrl"], ["Alt", "Alt", "key-alt"], ["Cmd", "Cmd", "key-cmd"], ["Space", "Space", "key-space"], ["Cmd2", "Cmd", "key-cmd"], ["Alt2", "Alt", "key-alt"], ["Ctrl2", "Ctrl", "key-ctrl"]],
+            ];
+
+            const MAC = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "");
+            const MOD = MAC ? "Cmd" : "Ctrl";
+            const ICON_CROP = '<svg class="mi" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1v11h11M1 4h11v11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            const ICON_STREAM = '<svg class="mi" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5c1.5-2 2.5-2 4 0s2.5 2 4 0 2.5-2 4 0M1 11c1.5-2 2.5-2 4 0s2.5 2 4 0 2.5-2 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+            const MODE_TITLE = {
+                c: "Requires a memory-loaded (traditional) image or Stream Mode crop",
+                s: "Stream Mode only",
+            };
+            let mode = "all";
+
+            const el = (tag, cls, html) => {
+                const e = document.createElement(tag);
+                if (cls) e.className = cls;
+                if (html !== undefined) e.innerHTML = html;
+                return e;
+            };
+            const text = (s) => {
+                const d = document.createElement("div");
+                d.textContent = s;
+                return d.innerHTML;
+            };
+            const applies = (m) =>
+                mode === "all" || m === "a" || m === "v" ||
+                (m === "c" && mode === "classic") || (m === "s" && mode === "stream");
+            const modeIcon = (m) => (m === "c" ? ICON_CROP : m === "s" ? ICON_STREAM : "");
+            const keyName = (k) => (k === "Mod" ? MOD : k);
+
+            const kbdHtml = (keys) => {
+                let out = "";
+                let prevKey = false;
+                keys.forEach((k) => {
+                    if (k === "/") {
+                        out += '<span class="plus">/</span>';
+                        prevKey = false;
+                        return;
+                    }
+                    if (prevKey) out += '<span class="plus">+</span>';
+                    out += "<span>" + text(keyName(k)) + "</span>";
+                    prevKey = true;
+                });
+                return out;
+            };
+
+            // Keyboard functions per key
+            const FN = {};
+            S.forEach((s) =>
+                (s.kb || []).forEach(([id, label]) =>
+                    (FN[id] = FN[id] || []).push({ label, c: s.c, m: s.m, d: s.d }),
+                ),
+            );
+
+            function renderLegend() {
+                const lg = document.getElementById("legend");
+                Object.keys(CATS).forEach((c) => {
+                    const i = el("div", "legend-item");
+                    i.innerHTML = '<div class="legend-dot dot-' + c + '"></div>' + text(CATS[c]);
+                    lg.appendChild(i);
+                });
+                document.getElementById("note-crop").innerHTML = ICON_CROP;
+                document.getElementById("note-stream").innerHTML = ICON_STREAM;
+            }
+
+            function renderKeyboard() {
+                const kb = document.getElementById("keyboard");
+                ROWS.forEach((row) => {
+                    const r = el("div", "kb-row");
+                    row.forEach(([id, label, cls]) => {
+                        const k = el("div", "key" + (cls ? " " + cls : ""));
+                        k.dataset.id = id;
+                        const fns = FN[id] || [];
+                        k.appendChild(el("div", "mode-dot"));
+                        k.appendChild(el("div", "label", text(label || id)));
+                        const box = el("div", "fns");
+                        fns.forEach((f) => {
+                            const line = el("div", "func fn cat-" + f.c, modeIcon(f.m) + text(f.label));
+                            line.dataset.m = f.m;
+                            line.dataset.c = f.c;
+                            box.appendChild(line);
+                        });
+                        k.appendChild(box);
+                        if (fns.length) {
+                            k.title = fns.map((f) => f.d + (MODE_TITLE[f.m] ? " [" + MODE_TITLE[f.m] + "]" : "")).join("\n");
+                        } else {
+                            k.classList.add("cat-none");
+                        }
+                        r.appendChild(k);
+                    });
+                    kb.appendChild(r);
+                });
+            }
+
+            function renderCards() {
+                const host = document.getElementById("cards");
+                Object.keys(CATS).forEach((c) => {
+                    const card = el("div", "cat-card card-" + c);
+                    card.innerHTML = '<h3><div class="dot dot-' + c + '"></div>' + text(CATS[c]) + "</h3>";
+                    S.filter((s) => s.c === c).forEach((s) => {
+                        const row = el("div", "shortcut-row");
+                        row.dataset.m = s.m;
+                        const kbd = el("div", "kbd");
+                        kbd.innerHTML = kbdHtml(s.k);
+                        row.appendChild(kbd);
+                        const d = el("div", "shortcut-desc");
+                        const icon = modeIcon(s.m);
+                        d.innerHTML = '<span class="mslot"' + (icon ? ' title="' + MODE_TITLE[s.m] + '"' : "") + ">" + icon + "</span>" + text(s.d);
+                        row.appendChild(d);
+                        card.appendChild(row);
+                    });
+                    host.appendChild(card);
+                });
+            }
+
+            function applyMode() {
+                document.querySelectorAll(".modes button").forEach((b) =>
+                    b.setAttribute("aria-pressed", b.dataset.mode === mode ? "true" : "false"));
+                document.querySelectorAll(".key .fn").forEach((f) => f.classList.toggle("off", !applies(f.dataset.m)));
+                document.querySelectorAll(".key").forEach((k) => {
+                    const fns = Array.from(k.querySelectorAll(".fn"));
+                    if (!fns.length) return;
+                    const live = fns.filter((f) => !f.classList.contains("off"));
+                    k.classList.toggle("off", live.length === 0);
+                    ["prompt", "nav", "path", "trace", "ana", "edit"].forEach((c) => k.classList.remove("cat-" + c));
+                    k.classList.add("cat-" + (live[0] || fns[0]).dataset.c);
+                });
+                document.querySelectorAll(".shortcut-row").forEach((r) => r.classList.toggle("off", !applies(r.dataset.m)));
+            }
+
+            document.querySelectorAll(".modes button").forEach((b) =>
+                b.addEventListener("click", () => {
+                    mode = b.dataset.mode;
+                    try { history.replaceState(null, "", "#" + mode); } catch (e) { /* file: URLs may refuse */ }
+                    applyMode();
+                }));
+
+            // Version is injected by SNT when the sheet is opened. Hide it if it
+            // was not (e.g., file opened directly, or version not available)
+            const ver = document.getElementById("version");
+            if (ver) {
+                const v = ver.textContent.trim();
+                if (/^\d/.test(v)) ver.textContent = "v" + v;
+                else ver.remove();
+            }
+            document.getElementById("tip-mod").textContent = MOD;
+
+            renderLegend();
+            renderKeyboard();
+            renderCards();
+            const h = (location.hash || "").replace("#", "");
+            if (h === "classic" || h === "stream") mode = h;
+            applyMode();
+        </script>
     </body>
 </html>

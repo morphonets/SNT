@@ -44,6 +44,8 @@ import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
 
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -133,13 +135,18 @@ public class SigmaPalette extends Thread {
 			ic.disablePopupMenu(true);
 			ic.setShowCursorStatus(false);
 			ic.setCursor(new Cursor(Cursor.HAND_CURSOR));
-			final double scalingFactor = GuiUtils.uiScale();
-			if (scalingFactor > 1) {
-				ic.setMagnification(scalingFactor);
+			// Start at the largest zoom level that keeps the grid within ~55% of the
+			// shorter screen side, leaving room for sliders and buttons
+			final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+			final double maxGridSize = 0.55 * Math.min(screen.width, screen.height);
+			final int gridSize = Math.max(imp.getWidth(), imp.getHeight());
+			ic.setMagnification(1);
+			ic.unzoom();
+			for (int i = 0; i < 8; i++) {
+				final double current = ic.getMagnification();
+				if (ImageCanvas.getHigherZoomLevel(current) * gridSize > maxGridSize) break;
 				ic.zoomIn(ic.getWidth() / 2, ic.getHeight() / 2);
-			} else {
-				ic.setMagnification(1);
-				ic.unzoom();
+				if (ic.getMagnification() <= current) break; // zoom was capped
 			}
 			add(new Label("")); // spacer
 			final Panel panel = new Panel();
@@ -154,6 +161,14 @@ public class SigmaPalette extends Thread {
 			// shortcuts
 			removeKeyListener(IJ.getInstance());
 			getCanvas().removeKeyListener(IJ.getInstance());
+			final KeyAdapter keyHandler = new KeyAdapter() {
+				@Override
+				public void keyPressed(final KeyEvent e) {
+					handleKey(e);
+				}
+			};
+			addKeyListener(keyHandler);
+			getCanvas().addKeyListener(keyHandler);
 
 			// final rendering
 			updateSliceSelector();
@@ -167,6 +182,25 @@ public class SigmaPalette extends Thread {
 				AWTWindows.centerWindow(parent, this);
 			repaint(); // is this really needed?
 			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
+		}
+
+		// IJ's key listener is removed above, so zoom and help shortcuts are handled here
+		private void handleKey(final KeyEvent e) {
+			final ImageCanvas ic = getCanvas();
+			final char c = e.getKeyChar();
+			final int code = e.getKeyCode();
+			if (c == '+' || c == '=' || code == KeyEvent.VK_ADD) {
+				final Point p = ic.getMousePosition();
+				ic.zoomIn((p != null) ? p.x : ic.getWidth() / 2, (p != null) ? p.y : ic.getHeight() / 2);
+			} else if (c == '-' || c == '_' || code == KeyEvent.VK_SUBTRACT) {
+				final Point p = ic.getMousePosition();
+				ic.zoomOut((p != null) ? p.x : ic.getWidth() / 2, (p != null) ? p.y : ic.getHeight() / 2);
+			} else if (code == KeyEvent.VK_H || code == KeyEvent.VK_F1) {
+				paletteOptions.showHelp(helpHtml(), this);
+			} else {
+				return;
+			}
+			e.consume();
 		}
 
 		private void assembleButtonPanel(final Panel panel, final GridBagConstraints c) {

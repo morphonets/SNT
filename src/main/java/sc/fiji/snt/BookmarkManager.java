@@ -294,7 +294,7 @@ public class BookmarkManager {
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
         if (insideSNTUI) {
-            SNTUI.InternalUtils.addSeparatorWithURL(panel, "Bookmarks:", true, gbc);
+            SNTUI.InternalUtils.addSeparatorWithURL(panel, "Bookmarks:", true, false, gbc);
             gbc.gridy++;
         }
         gbc.weighty = 0.0;

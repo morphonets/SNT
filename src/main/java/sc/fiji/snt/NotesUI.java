@@ -73,7 +73,7 @@ public class NotesUI {
         final JPanel container = SNTUI.InternalUtils.initTab();
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
-        SNTUI.InternalUtils.addSeparatorWithURL(container, "Notepad:", true, gbc);
+        SNTUI.InternalUtils.addSeparatorWithURL(container, "Notepad:", true, false, gbc);
         gbc.gridy++;
         final String msg = """
                 This pane allows you to jot down notes during tracing. \

@@ -212,7 +212,7 @@ public class IconFactory {
         SQUARE('\uf0c8', false), //
         STAIRS('\ue289', true), //
         STETHOSCOPE('\uf0f1', true), //
-        STREAM('\uf550', true), //
+        STREAM('\uf773', true), //
         SUN('\uf185', true), //
         SYNC('\uf2f1', true), //
         STOP('\uf04d', true), //

@@ -1426,6 +1426,7 @@ public class DelineationsManager {
 
         private JButton assignFromRoiButton() {
             final JButton b = new JButton("Assign");
+            if (sntui.plugin.isStreamMode()) b.setToolTipText(SNTUI.InternalUtils.getCropOnlyTooltip());
             b.addActionListener(e -> {
                 if (noAssignmentPossible(this) || noImagePlusAvailableError()) return;
                 final Roi roi = sntui.plugin.getImagePlus().getRoi();

@@ -113,7 +113,7 @@ public class SNTUI extends JDialog {
     private JButton rebuildCanvasButton;
     private JCheckBox debugCheckBox;
     private JCheckBox canvasCheckBox;
-    private JPanel canvasCheckBoxRow; // see materializedCropBadge()
+    private JPanel canvasCheckBoxRow; // see rowWithCropBadge()
     private JButton workspaceIndicator;
     private JSpinner assignDiameterSpinner;
     private JCheckBox assignDiameterCheckBox;
@@ -431,16 +431,16 @@ public class SNTUI extends JDialog {
         final JPanel tab1 = InternalUtils.initTab();
         c1.insets.top = InternalUtils.MARGIN * 2;
         c1.anchor = GridBagConstraints.NORTHEAST;
-        InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, c1);
+        InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, plugin.isStreamMode(), c1);
         c1.insets.top = 0;
         ++c1.gridy;
         tab1.add(sourcePanel = sourcePanel(plugin.getImagePlus()), c1);
         ++c1.gridy;
-        InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", true, c1);
+        InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", true, plugin.isStreamMode(), c1);
         ++c1.gridy;
         tab1.add(snappingPanel(), c1);
         ++c1.gridy;
-        final JLabel jl = InternalUtils.addSeparatorWithURL(tab1, "Interactive Tracing:", true, c1);
+        final JLabel jl = InternalUtils.addSeparatorWithURL(tab1, "Interactive Tracing:", true, false, c1);
         CalloutManager.add(jl, CalloutManager.AUTO,
                 "Section headings like this one link<br>directly to online documentation.", calloutGroup(), 6);
         ++c1.gridy;
@@ -448,18 +448,18 @@ public class SNTUI extends JDialog {
         ++c1.gridy;
         tab1.add(secondaryDataPanel(), c1);
         ++c1.gridy;
-        InternalUtils.addSeparatorWithURL(tab1, "Computation Settings:", true, c1);
+        InternalUtils.addSeparatorWithURL(tab1, "Computation Settings:", true, false, c1);
         ++c1.gridy;
         c1.fill = GridBagConstraints.BOTH;
         c1.weighty = 1;
         tab1.add(settingsPanel(), c1);
         c1.weighty = 0;
         ++c1.gridy;
-        InternalUtils.addSeparatorWithURL(tab1, "Path Display Filters:", true, c1);
+        InternalUtils.addSeparatorWithURL(tab1, "Path Display Filters:", true, false, c1);
         ++c1.gridy;
         tab1.add(renderingPanel(), c1);
         ++c1.gridy;
-        InternalUtils.addSeparatorWithURL(tab1, "Default Path Colors:", true, c1);
+        InternalUtils.addSeparatorWithURL(tab1, "Default Path Colors:", true, false, c1);
         ++c1.gridy;
         tab1.add(colorOptionsPanel(), c1);
         ++c1.gridy;
@@ -479,11 +479,11 @@ public class SNTUI extends JDialog {
         final GridBagConstraints c2 = GuiUtils.defaultGbc();
         c2.anchor = GridBagConstraints.NORTHEAST;
         c2.gridwidth = GridBagConstraints.REMAINDER;
-        InternalUtils.addSeparatorWithURL(tab2, "Views:", true, c2);
+        InternalUtils.addSeparatorWithURL(tab2, "Views:", true, plugin.isStreamMode(), c2);
         ++c2.gridy;
         tab2.add(viewsPanel(), c2);
         ++c2.gridy;
-        InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
+        InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, false, c2);
         ++c2.gridy;
         tab2.add(tracingPanel(), c2);
         ++c2.gridy;
@@ -492,7 +492,7 @@ public class SNTUI extends JDialog {
         ++c2.gridy;
         tab2.add(optionsPanel = pathOptionsPanel(), c2);
         ++c2.gridy;
-        InternalUtils.addSeparatorWithURL(tab2, "Misc:", true, c2);
+        InternalUtils.addSeparatorWithURL(tab2, "Misc:", true, false, c2);
         ++c2.gridy;
         c2.weighty = 1;
         tab2.add(miscPanel(), c2);
@@ -507,7 +507,7 @@ public class SNTUI extends JDialog {
         c3.gridwidth = GridBagConstraints.REMAINDER;
 
         final ViewerPanelBuilder viewerPanelBuilder = new ViewerPanelBuilder();
-        InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", false, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", false, false, c3);
         c3.gridy++;
         final String msg = "A dedicated 3D visualization tool specialized in Neuroanatomy, " +
                 "supporting reconstructions, meshes, morphometric annotations, and multi-species atlases.";
@@ -516,7 +516,7 @@ public class SNTUI extends JDialog {
         tab3.add(reconstructionViewerPanel(viewerPanelBuilder), c3);
 
         c3.gridy++;
-        InternalUtils.addSeparatorWithURL(tab3, "Big Data Viewer:", true, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "Big Data Viewer:", true, false, c3);
         ++c3.gridy;
         final String msg5 = "Big Data Viewer (BDV) is an interactive re-slicing browser for images too " +
                 "large to fit into memory and a functional tracing canvas. Supports big data formats like N5, Zarr, IMS, etc.";
@@ -525,7 +525,7 @@ public class SNTUI extends JDialog {
         tab3.add(bdvPanel(viewerPanelBuilder), c3);
         c3.gridy++;
 
-        InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", false, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", false, false, c3);
         ++c3.gridy;
         final String msg4 = "Big Volume Viewer (BVV) is also a functional tracing canvas and the 3D counterpart " +
                 "of Big Data Viewer capable of GPU volume rendering. Discrete graphics card recommended.";
@@ -534,7 +534,7 @@ public class SNTUI extends JDialog {
         tab3.add(bvvPanel(viewerPanelBuilder), c3);
 
         c3.gridy++;
-        InternalUtils.addSeparatorWithURL(tab3, "sciview:", false, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "sciview:", false, false, c3);
         ++c3.gridy;
         final String msg3 = "3D visualization framework supporting image volumes, meshes, virtual " +
                 "reality, and Cx3D neurodevelopmental simulations. Discrete graphics card recommended.";
@@ -543,7 +543,7 @@ public class SNTUI extends JDialog {
         tab3.add(sciViewerPanel(viewerPanelBuilder), c3);
 
         c3.gridy++;
-        InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, false, c3);
         ++c3.gridy;
         final String msg2 =
                 "The Legacy 3D Viewer is a functional tracing canvas but it depends on " +
@@ -1234,13 +1234,6 @@ public class SNTUI extends JDialog {
         rebuildCanvasButton.setIcon(null);
     }
 
-    private JLabel materializedCropBadge(final float badgeScaling) {
-        final JLabel badge = new JLabel(IconFactory.get(GLYPH.CROP, IconFactory.defaultSize() * badgeScaling, IconFactory.defaultColor()));
-        badge.setDisabledIcon(IconFactory.get(GLYPH.CROP, IconFactory.defaultSize() * badgeScaling, IconFactory.disabledColor()));
-        badge.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        return badge;
-    }
-
     /**
      * Refreshes the enabled state of controls that require a real, paintable ImagePlus canvas: Classic mode always has
      * such a canvas; in Stream mode these apply exclusively to a materialized crop ({@link SNT#isMaterializedCrop()}),
@@ -1354,7 +1347,6 @@ public class SNTUI extends JDialog {
                 if (viewer != null) viewer.updateStatus("", 0, 0); // 0 nSteps hides the bar
                 try {
                     plugin.installMaterializedCrop(get());
-                    pauseTracing(true);
                     arrangeCanvases(false);
                     updateMaterializationDependentControls();
                     showStatus("Region materialized...", true);
@@ -2121,9 +2113,13 @@ public class SNTUI extends JDialog {
 
         final String bLabel = (plugin.getSinglePane()) ? "Display" : "Rebuild";
         final JButton refreshPanesButton = new JButton(bLabel + " ZY/XZ Views");
-        refreshPanesButton.setEnabled(!plugin.isStreamMode()); // TODO: probably fine to remain enabled but not tested yet
+        refreshPanesButton.setEnabled(!plugin.isStreamMode()); // TODO: NPE w/ materialized crops because SNT#xy remains null
         registerInCommandFinder(refreshPanesButton, "Display/Rebuild ZY/XZ Views", "Options Tab");
         refreshPanesButton.addActionListener(e -> {
+            if (plugin.isStreamMode()) {
+                guiError("This option is not available in Stream mode.");
+                return;
+            }
             final boolean noImageData = !plugin.accessToValidImageData();
             if (noImageData && pathAndFillManager.size() == 0) {
                 guiError("No paths exist to compute side-view canvases.");
@@ -2724,9 +2720,7 @@ public class SNTUI extends JDialog {
         ++gdb.gridy;
         gdb.insets = new Insets(0, 0, 0, 0);
         if (plugin.isStreamMode()) {
-            canvasCheckBoxRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-            canvasCheckBoxRow.add(canvasCheckBox);
-            canvasCheckBoxRow.add(materializedCropBadge(.9f));
+            canvasCheckBoxRow = InternalUtils.rowWithCropBadge(canvasCheckBox, true);
             miscPanel.add(canvasCheckBoxRow, gdb);
         } else {
             miscPanel.add(canvasCheckBox, gdb);
@@ -3558,6 +3552,10 @@ public class SNTUI extends JDialog {
                 "Main Tab");
         secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> secLayerImgOverlayCSpinner.setSelected(false));
         secLayerImgOverlayCSpinner.getCheckBox().addActionListener(e -> {
+            if (plugin.isStreamMode()) {
+                guiError("This option is not available for streamed data.");
+                return;
+            }
             if (!noSecondaryDataAvailableError()) {
                 plugin.showMIPOverlays(true,
                         (secLayerImgOverlayCSpinner.isSelected())
@@ -3566,8 +3564,10 @@ public class SNTUI extends JDialog {
                 if (secLayerImgOverlayCSpinner.isSelected()) warnOnAutoCTcompatibilityOthers();
             }
         });
-        secLayerImgOverlayCSpinner.appendLabel("% opacity");
+        secLayerImgOverlayCSpinner.appendLabel(" % opacity");
         secLayerPanel.add(secLayerImgOverlayCSpinner, c);
+        // We'll disable it completely in stream mode otherwise the overlay will be computed for the whole volume
+        GuiUtils.enableComponents(secLayerImgOverlayCSpinner, plugin.isStreamMode());
         c.gridy++;
         return secLayerPanel;
     }
@@ -4553,7 +4553,7 @@ public class SNTUI extends JDialog {
 
     private JPanel renderingPanel() {
 
-        showPathsSelected = new JCheckBox(InternalUtils.hotKeyLabel("1. Only selected paths (hide deselected)", "1"),
+        showPathsSelected = new JCheckBox(InternalUtils.hotKeyLabel("1. Only selected paths (hide deselected) ", "1"),
                 plugin.showOnlySelectedPaths);
         showPathsSelected.addItemListener(listener);
         CalloutManager.add(showPathsSelected, CalloutManager.AUTO,
@@ -4561,9 +4561,7 @@ public class SNTUI extends JDialog {
                 calloutGroup(), 7);
 
         showPathsSelectedRow = new JPanel(new BorderLayout(0, 0));
-        final JPanel showPathsSelectedLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        showPathsSelectedLeft.add(showPathsSelected);
-        if (plugin.isStreamMode()) showPathsSelectedLeft.add(materializedCropBadge(.9f));
+        final JPanel showPathsSelectedLeft = InternalUtils.rowWithCropBadge(showPathsSelected, plugin.isStreamMode());
         showPathsSelectedRow.add(showPathsSelectedLeft, BorderLayout.CENTER);
         showPathsSelectedRow.add(renderingOptionsButton(), BorderLayout.EAST);
 
@@ -4572,20 +4570,20 @@ public class SNTUI extends JDialog {
                 GuiUtils.Fields.integerSpinner(DEFAULT_NEARBY_ZSLICES, 1, 80, 1, true));
         partsNearbyCSpinner.appendLabel("Z-slices");
         partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
-        if (plugin.isStreamMode()) {
-            partsNearbyCSpinner.appendIcon(GLYPH.CROP, "Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        }
+        if (plugin.isStreamMode())
+            partsNearbyCSpinner.appendIcon(GLYPH.CROP, InternalUtils.getCropOnlyTooltip());
         partsNearbyCSpinner.getCheckBox().addItemListener(e -> plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
                 (int) partsNearbyCSpinner.getValue()));
         partsNearbyCSpinner.getSpinner().addChangeListener(e -> plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue()));
 
         final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel(
-                "3. Only paths from active channel/frame", "3"), plugin.showOnlyActiveCTposPaths);
+                "3. Only paths from active channel/frame ", "3"), plugin.showOnlyActiveCTposPaths);
         row3.add(onlyActiveCTposition);
         onlyActiveCTposition.addItemListener(listener);
         if (plugin.isStreamMode()) {
             activeCTposBadge = new JLabel();
+            activeCTposBadge.setBorder(BorderFactory.createEmptyBorder(0, InternalUtils.MARGIN, 0, 0));
             row3.add(activeCTposBadge);
             updateActiveCTposBadge();
         }
@@ -4822,7 +4820,6 @@ public class SNTUI extends JDialog {
         tracingOptionsPanel.add(snapWindowZsizeSpinner);
         GuiUtils.addTooltip(tracingOptionsPanel, "Whether the mouse pointer should snap to the brightest voxel "
                 + "searched within the specified neighborhood (in pixels). When Z=0 snapping occurs in 2D.");
-        if (plugin.isStreamMode()) tracingOptionsPanel.add(materializedCropBadge(1.1f));
         // ensure same alignment of all other panels using defaultGbc
         final JPanel container = new JPanel(new GridBagLayout());
         container.add(tracingOptionsPanel, GuiUtils.defaultGbc());
@@ -4886,13 +4883,14 @@ public class SNTUI extends JDialog {
         final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         checkboxPanel.add(aStarCheckBox);
         checkboxPanel.add(searchAlgoChoice);
-        algorithmChoiceLabel = GuiUtils.leftAlignedLabel(" algorithm", !plugin.isStreamMode());
+        algorithmChoiceLabel = InternalUtils.cropAwareLabel(plugin.isStreamMode(), " algorithm");
         checkboxPanel.add(algorithmChoiceLabel);
 
         final JPopupMenu optionsMenu = new JPopupMenu();
         aStarOptionsButton = GuiUtils.Buttons.OptionsButton(GLYPH.MATH, 1f, optionsMenu);
         GuiUtils.addTooltip(aStarOptionsButton, "Algorithm settings");
-        optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
+        GuiUtils.MenuItems.addSeparator(optionsMenu, "Data Structure:");
+
         final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
         final Map<String, SNT.SearchImageType> searchMap = new LinkedHashMap<>();
@@ -4911,9 +4909,8 @@ public class SNTUI extends JDialog {
                 updateSettingsString();
             });
         });
-        optionsMenu.addSeparator();
 
-        optionsMenu.add(GuiUtils.leftAlignedLabel("Cost Function:", false));
+        GuiUtils.MenuItems.addSeparator(optionsMenu, "Cost Function:");
         final ButtonGroup costFunctionButtonGroup = new ButtonGroup();
         final Map<String, SNT.CostType> costMap = new  LinkedHashMap<>();
         costMap.put("Reciprocal of Intensity (Default)", SNT.CostType.RECIPROCAL);
@@ -4948,8 +4945,7 @@ public class SNTUI extends JDialog {
         });
         optionsMenu.add(tuneCost);
 
-        optionsMenu.addSeparator();
-        optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
+        GuiUtils.MenuItems.addSeparator(optionsMenu, "Image Statistics:");
         autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
         autoRbmi.setToolTipText("Default. Re-calculates local statistics as you trace new image sections");
         final JRadioButtonMenuItem onceRbmi = new JRadioButtonMenuItem("Compute Now For Whole Image", false);
@@ -5022,8 +5018,7 @@ public class SNTUI extends JDialog {
                 onceRbmi.setSelected(true);
             }
         });
-        optionsMenu.addSeparator();
-        optionsMenu.add(GuiUtils.leftAlignedLabel("Tracing Mode:", false));
+        GuiUtils.MenuItems.addSeparator(optionsMenu, "Tracing Mode:");
         final ButtonGroup tracingModeButtonGroup = new ButtonGroup();
         standardTracingRbmi = new JRadioButtonMenuItem("Standard", !plugin.rubberBandTracing);
         final JRadioButtonMenuItem rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
@@ -5034,6 +5029,7 @@ public class SNTUI extends JDialog {
         tracingModeButtonGroup.add(rubberBandTracingRbmi);
         optionsMenu.add(standardTracingRbmi);
         optionsMenu.add(rubberBandTracingRbmi);
+        if (plugin.isStreamMode()) IconFactory.assignIcon(rubberBandTracingRbmi, GLYPH.CROP);
         standardTracingRbmi.addActionListener(e -> {
             plugin.rubberBandTracing = false;
             if (confirmTemporarySegmentsCheckbox != null) {
@@ -5045,10 +5041,10 @@ public class SNTUI extends JDialog {
             updateSettingsString();
             showStatus("Tracing mode: Standard", true);
         });
-        rubberBandTracingRbmi.setEnabled(!plugin.isStreamMode());
         rubberBandTracingRbmi.addActionListener(e -> {
             if (plugin.isStreamMode()) {
                 error("Live Preview (Rubber Band) tracing is not available for out-of-core tracing");
+                standardTracingRbmi.setSelected(true);
                 return;
             }
             if (!plugin.is2D() && !guiUtils.getConfirmation("Live Preview (Rubber Band) tracing is optimized for 2D images. "
@@ -5254,20 +5250,14 @@ public class SNTUI extends JDialog {
                 e -> showPathsSelected.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('1'));
         selPaths.setEnabled(showPathsSelected.isEnabled());
-        if (plugin.isStreamMode()) {
-            IconFactory.assignIcon(selPaths, GLYPH.CROP);
-            selPaths.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        }
+        InternalUtils.applyCropOnlyHint(plugin.isStreamMode(), selPaths);
         menu.add(selPaths);
         final JCheckBoxMenuItem nearbyZ = GuiUtils.MenuItems.checkboxMenuItem("Only Nearby Z-slices",
                 partsNearbyCSpinner.isSelected(),
                 e -> partsNearbyCSpinner.getCheckBox().setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('2'));
         nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled());
-        if (plugin.isStreamMode()) {
-            IconFactory.assignIcon(nearbyZ, GLYPH.CROP);
-            nearbyZ.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        }
+        InternalUtils.applyCropOnlyHint(plugin.isStreamMode(), nearbyZ);
         menu.add(nearbyZ);
         final JCheckBoxMenuItem activeCT = GuiUtils.MenuItems.checkboxMenuItem("Only Active Channel/Frame",
                 onlyActiveCTposition.isSelected(),
@@ -5289,12 +5279,8 @@ public class SNTUI extends JDialog {
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 null);
         diameters.setEnabled(diametersCheckBox.isEnabled());
-        if (plugin.isStreamMode()) {
-            IconFactory.assignDoubleIcon(diameters, GLYPH.CIRCLE, GLYPH.DOTCIRCLE, GLYPH.CROP);
-            diameters.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
-        } else {
-            IconFactory.assignDoubleIcon(diameters, GLYPH.CIRCLE, GLYPH.DOTCIRCLE, null);
-        }
+        IconFactory.assignDoubleIcon(diameters, GLYPH.CIRCLE, GLYPH.DOTCIRCLE, plugin.isStreamMode() ? GLYPH.CROP : null);
+        if (plugin.isStreamMode()) diameters.setToolTipText(InternalUtils.getCropOnlyTooltip());
         menu.add(diameters);
 
         GuiUtils.MenuItems.addSeparator(menu, "Tracing:");
@@ -7079,28 +7065,80 @@ public class SNTUI extends JDialog {
 
         static void applyStreamModeCompositeIcon(final boolean streamMode, final JMenuItem item, final GLYPH glyph) {
             if (streamMode) {
-                // Composite icon as earlier
-                item.setIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.defaultColor(), 2));
-                item.setDisabledIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, 0.9f, IconFactory.disabledColor(), 2));
-                item.setToolTipText("Applies only to a materialized crop, not to the live Bvv/Bdv scene");
+                item.setIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, .9f, IconFactory.defaultColor(), 2));
+                item.setDisabledIcon(IconFactory.doubleIcon(glyph, GLYPH.CROP, .9f, IconFactory.disabledColor(), 2));
+                item.setToolTipText(getCropOnlyTooltip());
             } else {
                 IconFactory.assignIcon(item, glyph);
             }
         }
 
+        private static final float CROP_BADGE_SCALING = .9f;
+
+        /** Assigns the (enabled/disabled) crop icons and the crop-only tooltip to a label */
+        private static <T extends JLabel> T applyCropBadge(final T label) {
+            final float size = IconFactory.defaultSize() * CROP_BADGE_SCALING;
+            label.setIcon(IconFactory.get(GLYPH.CROP, size, IconFactory.defaultColor()));
+            label.setDisabledIcon(IconFactory.get(GLYPH.CROP, size, IconFactory.disabledColor()));
+            label.setToolTipText(getCropOnlyTooltip());
+            return label;
+        }
+
+        private static JLabel materializedCropBadge() {
+            return applyCropBadge(new JLabel());
+        }
+
+        static JLabel labelWithTrailingCropIcon(final String text, final boolean enabled) {
+            final JLabel label = new JLabel(text);
+            // Force the text to position itself on the LEADING (left) side of the icon
+            label.setHorizontalTextPosition(SwingConstants.LEADING);
+            label.setIconTextGap(MARGIN);
+            label.setEnabled(enabled);
+            return applyCropBadge(label);
+        }
+
+        /** Left-aligned label, flagged as crop-only (trailing icon) when in stream mode */
+        static JLabel cropAwareLabel(final boolean streamMode, final String text) {
+            return (streamMode) ? labelWithTrailingCropIcon(text, false) : GuiUtils.leftAlignedLabel(text, false);
+        }
+
+        /** Left-aligned row holding the component, followed by a crop badge if requested */
+        static JPanel rowWithCropBadge(final JComponent component, final boolean badge) {
+            final JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            row.add(component);
+            if (badge) {
+                final JLabel badgeLabel = materializedCropBadge();
+                // Same gap CheckboxSpinner#appendIcon gets from the label's default icon-text gap
+                badgeLabel.setBorder(BorderFactory.createEmptyBorder(0, MARGIN, 0, 0));
+                row.add(badgeLabel);
+            }
+            return row;
+        }
+
+        /** Flags a menu item as crop-only (icon and tooltip) when in stream mode */
+        static void applyCropOnlyHint(final boolean streamMode, final JMenuItem item) {
+            if (!streamMode) return;
+            IconFactory.assignIcon(item, GLYPH.CROP);
+            item.setToolTipText(getCropOnlyTooltip());
+        }
+
+        static String getCropOnlyTooltip() {
+            return "Applies only to a materialized region, not to the live Bvv/Bdv scene";
+        }
+
         static JLabel addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
-                                        final GridBagConstraints c) {
-            return addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c, false);
+                                        final boolean cropIcon, final GridBagConstraints c) {
+            return addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c, cropIcon);
         }
 
         static JLabel addSeparatorWithURL(final JComponent component, final String label, final String baseUrl,
-                                        final boolean vgap, final GridBagConstraints c, final boolean streamIcon) {
+                                        final boolean vgap, final GridBagConstraints c, final boolean cropIcon) {
             final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
             final String uri = baseUrl + "#" + anchor;
             final JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
-            if (streamIcon) {
-                jLabel.setHorizontalTextPosition(SwingConstants.LEFT);
-                jLabel.setIcon(IconFactory.get(GLYPH.CROP, jLabel.getFont().getSize() * .9f, jLabel.getForeground()));
+            if (cropIcon) {
+                jLabel.setHorizontalTextPosition(SwingConstants.RIGHT);
+                jLabel.setIcon(IconFactory.get(GLYPH.CROP, jLabel.getFont().getSize() * .75f, jLabel.getForeground()));
                 jLabel.setToolTipText("These options apply only to a materialized crop, not the live Bdv/Bvv scene");
             }
             GuiUtils.addSeparator(component, jLabel, vgap, c);

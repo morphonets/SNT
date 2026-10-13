@@ -50,6 +50,10 @@ public class CheckboxSpinner extends JPanel {
 		add(label);
 	}
 
+	public void appendLabel(final JLabel trailingLabel) {
+		add(label = trailingLabel);
+	}
+
 	/**
 	 * Appends a small trailing icon with an optional tooltip.
 	 *
@@ -58,8 +62,8 @@ public class CheckboxSpinner extends JPanel {
 	 */
 	public void appendIcon(final IconFactory.GLYPH glyph, final String tooltip) {
 		iconLabel = new JLabel("  ");
-		label.setIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), IconFactory.defaultColor()));
-		label.setDisabledIcon(IconFactory.get(glyph, iconLabel.getFont().getSize(), IconFactory.disabledColor()));
+		label.setIcon(IconFactory.get(glyph, iconLabel.getFont().getSize2D() * .9f, IconFactory.defaultColor()));
+		label.setDisabledIcon(IconFactory.get(glyph, iconLabel.getFont().getSize2D() * .9f, IconFactory.disabledColor()));
 		label.setHorizontalTextPosition(SwingConstants.LEADING);
 		if (tooltip != null) iconLabel.setToolTipText(tooltip);
 		add(iconLabel);
