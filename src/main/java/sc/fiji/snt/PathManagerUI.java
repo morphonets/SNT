@@ -1953,6 +1953,32 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             setLeafIcon(IconFactory.nodeIcon(null, true, false));
         }
 
+        /** Custom tags: content inside {} split by comma (empties skipped); null if none. */
+        private static String[] parseCustomChips(final String name, final int curly) {
+            final int closingCurly = name.lastIndexOf('}');
+            if (closingCurly <= curly) return null;
+            final String[] parts = TAG_SPLIT_PATTERN.split(name.substring(curly + 1, closingCurly));
+            // filter empties without stream allocation
+            int count = 0;
+            for (final String s : parts) if (!s.isEmpty()) count++;
+            if (count == 0) return null;
+            final String[] chips = new String[count];
+            int i = 0;
+            for (final String s : parts) if (!s.isEmpty()) chips[i++] = s;
+            return chips;
+        }
+
+        /** Metadata tags: bracket-delimited blocks in the displayed text, without brackets; null if none. */
+        private static String[] parseMetaChips(final String displayed) {
+            final var m = META_CHIP_PATTERN.matcher(displayed);
+            final List<String> metaList = new ArrayList<>();
+            while (m.find()) {
+                final String match = m.group();
+                metaList.add(match.substring(1, match.length() - 1));
+            }
+            return metaList.isEmpty() ? null : metaList.toArray(new String[0]);
+        }
+
         @Override
         public Component getTreeCellRendererComponent(final JTree tree,
                                                       final Object value, final boolean selected, final boolean expanded,
@@ -1985,41 +2011,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return c;
             }
 
-            // Custom tags: content inside {} split by comma. Reuse curly index;
-            if (curly >= 0) {
-                final int closingCurly = name.lastIndexOf('}');
-                if (closingCurly > curly) {
-                    final String[] parts = TAG_SPLIT_PATTERN.split(name.substring(curly + 1, closingCurly));
-                    // filter empties without stream allocation
-                    int count = 0;
-                    for (final String s : parts) if (!s.isEmpty()) count++;
-                    if (count > 0) {
-                        customChips = new String[count];
-                        int i = 0;
-                        for (final String s : parts) if (!s.isEmpty()) customChips[i++] = s;
-                    } else {
-                        customChips = null;
-                    }
-                } else {
-                    customChips = null;
-                }
-            } else {
-                customChips = null;
-            }
+            customChips = (curly >= 0) ? parseCustomChips(name, curly) : null;
 
             // Metadata tags: scan displayed (= toString()) so [axon], [Single Point],
             // and [] blocks appended after {} are all captured
-            if (bracket >= 0) {
-                final var m = META_CHIP_PATTERN.matcher(displayed);
-                final List<String> metaList = new ArrayList<>();
-                while (m.find()) {
-                    final String match = m.group();
-                    metaList.add(match.substring(1, match.length() - 1));
-                }
-                metaChips = metaList.isEmpty() ? null : metaList.toArray(new String[0]);
-            } else {
-                metaChips = null;
-            }
+            metaChips = (bracket >= 0) ? parseMetaChips(displayed) : null;
 
             // Clean display text. Base is derived from getName() so toString()
             if (customChips != null || metaChips != null) {
@@ -3569,73 +3565,76 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
                 final String[] options = optionList.toArray(new String[0]);
 
-                // Build message
-                final String message;
-                if (totalChildren > 0 || canOrientTree) {
-                    final StringBuilder sb = new StringBuilder();
-                    sb.append("Reverse <b>").append(primaryPaths.size()).append("</b> primary path(s)");
-                    if (totalChildren > 0) {
-                        sb.append(" affecting <b>").append(totalChildren).append("</b> child path(s)");
-                    }
-                    sb.append("?<br><br>Choose operation:");
-                    sb.append("<br><b>").append(optionSimple).append("</b>: Flips node order. Children remain attached but ")
-                            .append("their branch point indices become invalid (use with caution).");
-                    if (totalChildren > 0) {
-                        sb.append("<br><b>Reverse and update...</b>: Flips node order and recalculates all ")
-                                .append("child branch point indices to maintain correct connections.");
-                    }
-                    if (canOrientTree) {
-                        sb.append("<br><b>Orient tree toward root</b>: Only reverses paths pointing away from the root ")
-                                .append("(").append(misorientedPaths.size()).append(" of ").append(treePaths.size())
-                                .append(" paths). Child branch points are updated automatically.");
-                    }
-                    message = sb.toString();
-                } else {
-                    message = String.format(
+                final String message = buildReverseMessage(primaryPaths.size(), totalChildren,
+                        misorientedPaths.size(), treePaths.size(), optionSimple);
+
+                final String choice = guiUtils.getChoice(message, "Reverse Path(s)", options, options[0]);
+                if (choice == null) return;
+
+                displayTmpMsg(choice.equals(optionOrientTree)
+                        ? orientTreeTowardRoot(misorientedPaths)
+                        : reversePaths(primaryPaths, choice.equals(optionWithChildren)));
+                plugin.updateAllViewers();
+                plugin.setUnsavedChanges(true);
+            }
+
+            private String buildReverseMessage(final int nPrimary, final int totalChildren,
+                                               final int nMisoriented, final int nTreePaths, final String optionSimple) {
+                final boolean canOrientTree = nMisoriented > 0;
+                if (totalChildren == 0 && !canOrientTree) {
+                    return String.format(
                             """
                                     Reverse %d primary path(s)?
                                     
                                     This will flip the orientation so that the starting node
                                     becomes the end node and vice versa.""",
-                            primaryPaths.size());
+                            nPrimary);
                 }
+                final StringBuilder sb = new StringBuilder();
+                sb.append("Reverse <b>").append(nPrimary).append("</b> primary path(s)");
+                if (totalChildren > 0) {
+                    sb.append(" affecting <b>").append(totalChildren).append("</b> child path(s)");
+                }
+                sb.append("?<br><br>Choose operation:");
+                sb.append("<br><b>").append(optionSimple).append("</b>: Flips node order. Children remain attached but ")
+                        .append("their branch point indices become invalid (use with caution).");
+                if (totalChildren > 0) {
+                    sb.append("<br><b>Reverse and update...</b>: Flips node order and recalculates all ")
+                            .append("child branch point indices to maintain correct connections.");
+                }
+                if (canOrientTree) {
+                    sb.append("<br><b>Orient tree toward root</b>: Only reverses paths pointing away from the root ")
+                            .append("(").append(nMisoriented).append(" of ").append(nTreePaths)
+                            .append(" paths). Child branch points are updated automatically.");
+                }
+                return sb.toString();
+            }
 
-                final String choice = guiUtils.getChoice(message, "Reverse Path(s)", options, options[0]);
-                if (choice == null) return;
-
-                // Execute based on choice
-                int reversedCount = 0;
+            /** Reverses only the misoriented paths (updating child branch points) and returns a feedback message. */
+            private String orientTreeTowardRoot(final List<Path> misorientedPaths) {
                 int updatedChildrenCount = 0;
-
-                if (choice.equals(optionOrientTree)) {
-                    // Orient tree: only reverse misoriented paths
-                    for (final Path p : misorientedPaths) {
-                        updatedChildrenCount += reverseWithChildrenUpdate(p);
-                        reversedCount++;
-                    }
-                    final String feedback = "Oriented tree: reversed " + reversedCount + " path(s), updated "
-                            + updatedChildrenCount + " child branch point(s)";
-                    displayTmpMsg(feedback);
-                } else {
-                    // Original behavior: reverse all selected primary paths
-                    final boolean updateChildren = choice.equals(optionWithChildren);
-                    for (final Path p : primaryPaths) {
-                        if (updateChildren) {
-                            updatedChildrenCount += reverseWithChildrenUpdate(p);
-                        } else {
-                            p.reverse();
-                        }
-                        reversedCount++;
-                    }
-                    String feedback = "Reversed " + reversedCount + " path(s)";
-                    if (updateChildren && updatedChildrenCount > 0) {
-                        feedback += ", updated " + updatedChildrenCount + " child branch point(s)";
-                    }
-                    displayTmpMsg(feedback);
+                for (final Path p : misorientedPaths) {
+                    updatedChildrenCount += reverseWithChildrenUpdate(p);
                 }
+                return "Oriented tree: reversed " + misorientedPaths.size() + " path(s), updated "
+                        + updatedChildrenCount + " child branch point(s)";
+            }
 
-                plugin.updateAllViewers();
-                plugin.setUnsavedChanges(true);
+            /** Reverses all given paths, optionally updating child branch points, and returns a feedback message. */
+            private String reversePaths(final List<Path> primaryPaths, final boolean updateChildren) {
+                int updatedChildrenCount = 0;
+                for (final Path p : primaryPaths) {
+                    if (updateChildren) {
+                        updatedChildrenCount += reverseWithChildrenUpdate(p);
+                    } else {
+                        p.reverse();
+                    }
+                }
+                String feedback = "Reversed " + primaryPaths.size() + " path(s)";
+                if (updateChildren && updatedChildrenCount > 0) {
+                    feedback += ", updated " + updatedChildrenCount + " child branch point(s)";
+                }
+                return feedback;
             }
 
             /**

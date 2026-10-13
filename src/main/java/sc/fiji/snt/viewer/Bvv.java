@@ -377,17 +377,7 @@ public class Bvv extends AbstractBigViewer {
                     });
                     final int vpW = bvvHandle.getViewerPanel().getWidth();
                     final double[] cam = BvvUtils.computeCamParams(sx, sy, sz, nZ, Math.max(dims[0], dims[1]), vpW);
-                    bvvHandle.getViewerPanel().setCamParams(cam[0], cam[1], cam[2]);
-                    if (pathOverlay != null) {
-                        pathOverlay.overlayRenderer.dCam = cam[0];
-                        pathOverlay.overlayRenderer.nearClip = cam[1];
-                        pathOverlay.overlayRenderer.farClip = cam[2];
-                    }
-                    attachControlPanel(chSource);
-                    if (annotationOverlay != null)
-                        annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
-                    if (tracer != null && tracer.tracingOverlay != null)
-                        tracer.tracingOverlay.setCamParams(cam[0], cam[1], cam[2]);
+                    applyInitialCamParams(chSource, cam);
                 }
             } else {
                 followerSources.add(chSource);
@@ -408,25 +398,7 @@ public class Bvv extends AbstractBigViewer {
         assignToNamedGroup(imageName, groupIdx, startIdx, followerSources.size() + 1, bvvHandle.getViewerPanel());
         final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
         multiSources.add(multi);
-        // Add channel unmixing card for 2+ channel images
-        if (multi.size() >= 2 && currentBvv != null) {
-            final String mixerTitle = unmixingCard.uniqueTitle(imageName);
-            SwingUtilities.invokeLater(() -> {
-                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                final JPanel mixPanel = unmixingPanel(multi, null);
-                cp.addCard(mixerTitle, mixPanel, false);
-                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
-                // Reorder: move Scene Controls and SNT Annotations after the unmixing card
-                if (sceneControlsCard != null) {
-                    cp.removeCard("Scene Controls");
-                    cp.addCard("Scene Controls", sceneControlsCard, true);
-                }
-                if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Controls");
-                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
-                }
-            });
-        }
+        addUnmixingCard(multi, imageName, null);
         return multi;
     }
 
@@ -905,54 +877,10 @@ public class Bvv extends AbstractBigViewer {
             }
         }
 
-        // Populate dims/cal from the first setup's metadata so the marker bounds
-        // check works for SpimData sources (where these are otherwise never set)
-        if (dims == null || cal == null) {
-            try {
-                final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
-                if (!setups.isEmpty()) {
-                    final var setup = setups.getFirst();
-                    if (setup.hasSize()) {
-                        final var sz = setup.getSize();
-                        dims = new long[]{sz.dimension(0), sz.dimension(1), sz.dimension(2)};
-                    }
-                    if (setup.hasVoxelSize()) {
-                        final var vs = setup.getVoxelSize();
-                        cal = new double[]{vs.dimension(0), vs.dimension(1), vs.dimension(2)};
-                        calUnit = (vs.unit() != null && !vs.unit().isBlank())
-                                ? BoundingBox.sanitizedUnit(vs.unit()) : "pixel";
-                    }
-                }
-            } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
-        }
+        // Populate dims/cal so the marker bounds check works for SpimData sources
+        populateDimsAndCal(spimData);
 
-        // Derive a display name that matches what is shown in the Sources card.
-        // Source names come from SpimData metadata (e.g., "MyBrain (Ch1)") which
-        // may differ from the file/folder name (e.g., for IMS XML sidecars or
-        // OME-Zarr datasets). Use the first source's name, stripping any channel
-        // suffix, so the mixer title stays consistent with the Sources panel.
-        String datasetName = null;
-        try {
-            if (!sources.isEmpty()) {
-                final var sacs = sources.getFirst().getSources();
-                if (sacs != null && !sacs.isEmpty()) {
-                    datasetName = sacs.getFirst().getSpimSource().getName();
-                    datasetName = datasetName.replaceAll("\\s*\\(Ch\\d+\\)$", "");
-                }
-            }
-        } catch (final Exception ignored) {}
-        if (datasetName == null || datasetName.isBlank()) {
-            try {
-                if (spimData.getBasePathURI() != null) {
-                    datasetName = new File(spimData.getBasePathURI()).getName();
-                    final int dot = datasetName.lastIndexOf('.');
-                    if (dot > 0)
-                        datasetName = datasetName.substring(0, dot);
-                }
-            } catch (final Exception ignored) {}
-        }
-        if (datasetName == null || datasetName.isBlank())
-            datasetName = "Dataset " + (multiSources.size() + 1);
+        final String datasetName = deriveDatasetName(sources, spimData);
 
         // Attach control panel on first source of the first dataset
         if (bvvHandle == null) {
@@ -960,38 +888,9 @@ public class Bvv extends AbstractBigViewer {
             attachControlPanel(sources.getFirst());
         }
 
-        // Group all setups from this SpimData into one BvvMultiSource, mirroring
-        // showImagePlusMultiChannel: leader = first setup, followers = the rest
-        final BvvStackSource<?> leaderSource = sources.getFirst();
-        final List<BvvStackSource<?>> followerSources = sources.subList(1, sources.size());
+        final BvvMultiSource multi = registerMultiSource(sources, datasetName);
 
-        final int groupIdx = multiSources.size();
-        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size() - sources.size();
-        assignToNamedGroup(datasetName, groupIdx, startIdx, sources.size(),
-                bvvHandle.getViewerPanel());
-
-        final BvvMultiSource multi = new BvvMultiSource(leaderSource,
-                new ArrayList<>(followerSources));
-        multiSources.add(multi);
-
-        // Add channel unmixing card for 2+ channel SpimData sources
-        if (multi.size() >= 2 && currentBvv != null) {
-            final String mixerTitle = unmixingCard.uniqueTitle(datasetName);
-            SwingUtilities.invokeLater(() -> {
-                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                final JPanel mixPanel = unmixingPanel(multi, spimData);
-                cp.addCard(mixerTitle, mixPanel, false);
-                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
-                if (sceneControlsCard != null) {
-                    cp.removeCard("Scene Controls");
-                    cp.addCard("Scene Controls", sceneControlsCard, true);
-                }
-                if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Controls");
-                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
-                }
-            });
-        }
+        addUnmixingCard(multi, datasetName, spimData);
 
         return Collections.singletonList(multi);
     }
@@ -1033,31 +932,10 @@ public class Bvv extends AbstractBigViewer {
         }
         if (sources.isEmpty()) return Collections.emptyList();
 
-        // Populate dims/cal from the first source's own metadata; there is no
-        // ViewSetup to read from here (unlike the AbstractSpimData path)
-        if (dims == null || cal == null) {
-            try {
-                final var src = sources.getFirst().getSources().getFirst().getSpimSource();
-                final var itvl = src.getSource(0, 0);
-                dims = new long[]{itvl.dimension(0), itvl.dimension(1), itvl.dimension(2)};
-                final var vd = src.getVoxelDimensions();
-                if (vd != null) {
-                    cal = new double[]{vd.dimension(0), vd.dimension(1), vd.dimension(2)};
-                    calUnit = (vd.unit() != null && !vd.unit().isBlank())
-                            ? BoundingBox.sanitizedUnit(vd.unit()) : "pixel";
-                }
-            } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
-        }
+        // Populate dims/cal from the first source's own metadata
+        populateDimsAndCal(sources.getFirst());
 
-        // Derive a display name, stripping any per-channel suffix
-        String datasetName = n5Sources.name();
-        try {
-            final String firstName = sources.getFirst().getSources().getFirst().getSpimSource().getName();
-            if (firstName != null && !firstName.isBlank())
-                datasetName = firstName.replaceAll("_ch\\d+$", "");
-        } catch (final Exception ignored) {}
-        if (datasetName == null || datasetName.isBlank())
-            datasetName = "Dataset " + (multiSources.size() + 1);
+        final String datasetName = deriveDatasetName(sources, n5Sources);
 
         // Attach control panel on first source of the first dataset. bvvHandle is already set by
         // the loop above, so this checks firstEverSource instead to still fire exactly once, the
@@ -1066,37 +944,9 @@ public class Bvv extends AbstractBigViewer {
             attachControlPanel(sources.getFirst());
         }
 
-        // Group all setups into one BvvMultiSource, mirroring show(AbstractSpimData)
-        final BvvStackSource<?> leaderSource = sources.getFirst();
-        final List<BvvStackSource<?>> followerSources = sources.subList(1, sources.size());
+        final BvvMultiSource multi = registerMultiSource(sources, datasetName);
 
-        final int groupIdx = multiSources.size();
-        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size() - sources.size();
-        assignToNamedGroup(datasetName, groupIdx, startIdx, sources.size(),
-                bvvHandle.getViewerPanel());
-
-        final BvvMultiSource multi = new BvvMultiSource(leaderSource,
-                new ArrayList<>(followerSources));
-        multiSources.add(multi);
-
-        // Add channel unmixing card for 2+ channel sources
-        if (multi.size() >= 2 && currentBvv != null) {
-            final String mixerTitle = unmixingCard.uniqueTitle(datasetName);
-            SwingUtilities.invokeLater(() -> {
-                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                final JPanel mixPanel = unmixingPanel(multi, n5Sources);
-                cp.addCard(mixerTitle, mixPanel, false);
-                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
-                if (sceneControlsCard != null) {
-                    cp.removeCard("Scene Controls");
-                    cp.addCard("Scene Controls", sceneControlsCard, true);
-                }
-                if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Controls");
-                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
-                }
-            });
-        }
+        addUnmixingCard(multi, datasetName, n5Sources);
 
         return Collections.singletonList(multi);
     }
@@ -1305,17 +1155,7 @@ public class Bvv extends AbstractBigViewer {
                                     bvv2.getViewerFrame().getHeight(),
                                     false, bvv2.getViewer().state()));
                     final double[] cam = computeCamParams(imp);
-                    bvvHandle.getViewerPanel().setCamParams(cam[0], cam[1], cam[2]);
-                    if (pathOverlay != null) {
-                        pathOverlay.overlayRenderer.dCam = cam[0];
-                        pathOverlay.overlayRenderer.nearClip = cam[1];
-                        pathOverlay.overlayRenderer.farClip = cam[2];
-                    }
-                    attachControlPanel(chSource);
-                    if (annotationOverlay != null)
-                        annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
-                    if (tracer != null && tracer.tracingOverlay != null)
-                        tracer.tracingOverlay.setCamParams(cam[0], cam[1], cam[2]);
+                    applyInitialCamParams(chSource, cam);
                 }
             } else {
                 followerSources.add(chSource);
@@ -1336,26 +1176,179 @@ public class Bvv extends AbstractBigViewer {
                 bvvHandle.getViewerPanel());
         final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
         multiSources.add(multi);
-        // Add Channel Unmixing card for 2+ channel images
-        if (multi.size() >= 2 && currentBvv != null) {
-            final String mixerTitle = unmixingCard.uniqueTitle(imp.getTitle());
-            SwingUtilities.invokeLater(() -> {
-                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
-                final JPanel mixPanel = unmixingPanel(multi, null);
-                cp.addCard(mixerTitle, mixPanel, false);
-                resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
-                // Reorder: move Scene Controls and SNT Annotations after the unmixing card
-                if (sceneControlsCard != null) {
-                    cp.removeCard("Scene Controls");
-                    cp.addCard("Scene Controls", sceneControlsCard, true);
-                }
-                if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Controls");
-                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
-                }
-            });
-        }
+        addUnmixingCard(multi, imp.getTitle(), null);
         return multi;
+    }
+
+    /**
+     * Adds a channel unmixing card for multichannel (2+) sources, keeping the Scene Controls and
+     * SNT Controls cards after it. No-op for single-channel sources or if the viewer is not available.
+     */
+    private void addUnmixingCard(final BvvMultiSource multi, final String name, final Object dataset) {
+        if (multi.size() < 2 || currentBvv == null) return;
+        final String mixerTitle = unmixingCard.uniqueTitle(name);
+        SwingUtilities.invokeLater(() -> {
+            final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
+            final JPanel mixPanel = unmixingPanel(multi, dataset);
+            cp.addCard(mixerTitle, mixPanel, false);
+            resizeCardPanelsAsNeeded(sceneControlsCard, mixPanel); // the unmixing card may be the widest
+            // Reorder: move Scene Controls and SNT Annotations after the unmixing card
+            if (sceneControlsCard != null) {
+                cp.removeCard("Scene Controls");
+                cp.addCard("Scene Controls", sceneControlsCard, true);
+            }
+            if (sntAnnotationsCard != null) {
+                cp.removeCard("SNT Controls");
+                cp.addCard("SNT Controls", sntAnnotationsCard, true);
+            }
+        });
+    }
+
+    /**
+     * Applies camera parameters to the viewer and to the overlays, and attaches the control panel
+     * (to be called once, when the first source of a new window is shown).
+     */
+    private void applyInitialCamParams(final BvvStackSource<?> source, final double[] cam) {
+        bvvHandle.getViewerPanel().setCamParams(cam[0], cam[1], cam[2]);
+        if (pathOverlay != null) {
+            pathOverlay.overlayRenderer.dCam = cam[0];
+            pathOverlay.overlayRenderer.nearClip = cam[1];
+            pathOverlay.overlayRenderer.farClip = cam[2];
+        }
+        attachControlPanel(source);
+        if (annotationOverlay != null)
+            annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
+        if (tracer != null && tracer.tracingOverlay != null)
+            tracer.tracingOverlay.setCamParams(cam[0], cam[1], cam[2]);
+    }
+
+    /** Groups the sources of a single dataset into a named group and registers them as one BvvMultiSource. */
+    private BvvMultiSource registerMultiSource(final List<BvvStackSource<?>> sources, final String datasetName) {
+        final BvvStackSource<?> leaderSource = sources.getFirst();
+        final List<BvvStackSource<?>> followerSources = new ArrayList<>(sources.subList(1, sources.size()));
+        final int groupIdx = multiSources.size();
+        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size() - sources.size();
+        assignToNamedGroup(datasetName, groupIdx, startIdx, sources.size(), bvvHandle.getViewerPanel());
+        final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
+        multiSources.add(multi);
+        return multi;
+    }
+
+    /** Populates dims/cal from the first setup's metadata (no-op if already set). */
+    private void populateDimsAndCal(final AbstractSpimData<?> spimData) {
+        if (dims != null && cal != null) return;
+        try {
+            final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
+            if (!setups.isEmpty()) {
+                final var setup = setups.getFirst();
+                if (setup.hasSize()) {
+                    final var sz = setup.getSize();
+                    dims = new long[]{sz.dimension(0), sz.dimension(1), sz.dimension(2)};
+                }
+                if (setup.hasVoxelSize()) {
+                    final var vs = setup.getVoxelSize();
+                    cal = new double[]{vs.dimension(0), vs.dimension(1), vs.dimension(2)};
+                    calUnit = (vs.unit() != null && !vs.unit().isBlank())
+                            ? BoundingBox.sanitizedUnit(vs.unit()) : "pixel";
+                }
+            }
+        } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
+    }
+
+    /** Populates dims/cal from the source's own metadata (no-op if already set). */
+    private void populateDimsAndCal(final BvvStackSource<?> firstSource) {
+        if (dims != null && cal != null) return;
+        try {
+            final var src = firstSource.getSources().getFirst().getSpimSource();
+            final var itvl = src.getSource(0, 0);
+            dims = new long[]{itvl.dimension(0), itvl.dimension(1), itvl.dimension(2)};
+            final var vd = src.getVoxelDimensions();
+            if (vd != null) {
+                cal = new double[]{vd.dimension(0), vd.dimension(1), vd.dimension(2)};
+                calUnit = (vd.unit() != null && !vd.unit().isBlank())
+                        ? BoundingBox.sanitizedUnit(vd.unit()) : "pixel";
+            }
+        } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
+    }
+
+    /**
+     * Derives a display name matching the Sources card: the first source's name without its channel
+     * suffix, falling back to the dataset's file/folder name and then to a generic label.
+     */
+    private String deriveDatasetName(final List<BvvStackSource<?>> sources, final AbstractSpimData<?> spimData) {
+        String datasetName = null;
+        try {
+            if (!sources.isEmpty()) {
+                final var sacs = sources.getFirst().getSources();
+                if (sacs != null && !sacs.isEmpty()) {
+                    datasetName = sacs.getFirst().getSpimSource().getName();
+                    datasetName = datasetName.replaceAll("\\s*\\(Ch\\d+\\)$", "");
+                }
+            }
+        } catch (final Exception ignored) {}
+        if (datasetName == null || datasetName.isBlank()) {
+            try {
+                if (spimData.getBasePathURI() != null) {
+                    datasetName = new File(spimData.getBasePathURI()).getName();
+                    final int dot = datasetName.lastIndexOf('.');
+                    if (dot > 0)
+                        datasetName = datasetName.substring(0, dot);
+                }
+            } catch (final Exception ignored) {}
+        }
+        if (datasetName == null || datasetName.isBlank())
+            datasetName = "Dataset " + (multiSources.size() + 1);
+        return datasetName;
+    }
+
+    /** Derives a display name for N5/OME-Zarr sources, stripping any per-channel suffix. */
+    private String deriveDatasetName(final List<BvvStackSource<?>> sources, final SpimDataUtils.N5Sources n5Sources) {
+        String datasetName = n5Sources.name();
+        try {
+            final String firstName = sources.getFirst().getSources().getFirst().getSpimSource().getName();
+            if (firstName != null && !firstName.isBlank())
+                datasetName = firstName.replaceAll("_ch\\d+$", "");
+        } catch (final Exception ignored) {}
+        if (datasetName == null || datasetName.isBlank())
+            datasetName = "Dataset " + (multiSources.size() + 1);
+        return datasetName;
+    }
+
+    /**
+     * Searches for the strongest peak along the ray: tight window first, widening to the full ray extent only
+     * if nothing significant is found.
+     */
+    private double[] searchPeakWithFallbacks(final java.util.Collection<bdv.viewer.SourceAndConverter<?>> toSample,
+                                             final int tp, final double focalT, final double[][] ray,
+                                             final VolumeViewerPanel vp, final double near, final double far) {
+        // Tight radius first (keeps the result tethered to the clicked point, see  BvvUtils#RAY_SEARCH_RADIUS_VOXELS);
+        // only widen if that finds nothing significant, so a click that's merely a few voxels off a thin/dim structure
+        // doesn't silently come back empty. "Significant" (see PEAK_SIGNIFICANCE) matters as much as "found": a window
+        // can contain some nonzero sample (background/noise, a few % of the display range) without containing the
+        // actually-visible structure the user clicked on, which may sit outside the window entirely
+        double[] result = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS);
+        if (result == null || result[3] < PEAK_SIGNIFICANCE) {
+            final double[] wide = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+            if (wide != null && (result == null || wide[3] > result[3])) {
+                if (result == null) SNTUtils.log("BVV: ray-max found nothing within "
+                        + BvvUtils.RAY_SEARCH_RADIUS_VOXELS + " voxels of the clicked point; widened to "
+                        + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+                result = wide;
+            }
+        }
+        if (result == null || result[3] < PEAK_SIGNIFICANCE) {
+            // Neither window found a peak clearly above background: the visible structure is not near the view's
+            // current focal plane at all (common right after loading a dataset, or after navigating without scrolling
+            // depth to match). Fall back to searching the ray's entire near-to-far extent rather than settling for a
+            // dim/background sample or perpetually returning the (likely wrong) focal-plane position
+            final double[] full = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_FULL);
+            if (full != null && (result == null || full[3] > result[3])) {
+                SNTUtils.log("BVV: ray-max found nothing significant within " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE
+                        + " voxels of the focal plane either; searched the full ray instead");
+                result = full;
+            }
+        }
+        return result;
     }
 
     /**
@@ -2604,33 +2597,7 @@ public class Bvv extends AbstractBigViewer {
                     + (current != null ? " (current-only: " + current.getSpimSource().getName() + ")" : ""));
         }
 
-        // Tight radius first (keeps the result tethered to the clicked point, see  BvvUtils#RAY_SEARCH_RADIUS_VOXELS);
-        // only widen if that finds nothing significant, so a click that's merely a few voxels off a thin/dim structure
-        // doesn't silently come back empty. "Significant" (see PEAK_SIGNIFICANCE) matters as much as "found": a window
-        // can contain some nonzero sample (background/noise, a few % of the display range) without containing the
-        // actually-visible structure the user clicked on, which may sit outside the window entirely
-        double[] result = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS);
-        if (result == null || result[3] < PEAK_SIGNIFICANCE) {
-            final double[] wide = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
-            if (wide != null && (result == null || wide[3] > result[3])) {
-                if (result == null) SNTUtils.log("BVV: ray-max found nothing within "
-                        + BvvUtils.RAY_SEARCH_RADIUS_VOXELS + " voxels of the clicked point; widened to "
-                        + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
-                result = wide;
-            }
-        }
-        if (result == null || result[3] < PEAK_SIGNIFICANCE) {
-            // Neither window found a peak clearly above background: the visible structure is not near the view's
-            // current focal plane at all (common right after loading a dataset, or after navigating without scrolling
-            // depth to match). Fall back to searching the ray's entire near-to-far extent rather than settling for a
-            // dim/background sample or perpetually returning the (likely wrong) focal-plane position
-            final double[] full = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_FULL);
-            if (full != null && (result == null || full[3] > result[3])) {
-                SNTUtils.log("BVV: ray-max found nothing significant within " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE
-                        + " voxels of the focal plane either; searched the full ray instead");
-                result = full;
-            }
-        }
+        final double[] result = searchPeakWithFallbacks(toSample, tp, focalT, ray, vp, near, far);
         final double[] peak = (result == null) ? null : new double[]{result[0], result[1], result[2]};
         if (SNTUtils.isDebugMode()) {
             SNTUtils.log("BVV findRayMaxima: final peak = "
