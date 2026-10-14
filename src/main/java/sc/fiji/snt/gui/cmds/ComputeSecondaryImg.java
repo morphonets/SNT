@@ -539,10 +539,12 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			case FRANGI:
 			case FRANGI_ALT: {
 				final ij.process.ImageStatistics stats = sntService.getInstance().getStats();
+				if (stats != null && stats.max == 0 && snt.isStreamMode()) computeStreamStatsOnDemand();
 				final double stackMax = (stats == null) ? 0 : stats.max;
 				if (stackMax == 0) {
 					new GuiUtils().error("Statistics for the main image have not been computed yet. "
-							+ "Please trace a small path over a relevant feature to compute them. "
+							+ "Please use the 'Select visually...' option, or trace a small path over a "
+							+ "relevant feature to compute them. "
 							+ "This will allow SNT to better understand the dynamic range of the image.");
 					return;
 				}
@@ -755,6 +757,20 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private RandomAccessibleInterval<T> getInputData() {
 		// could be modified to accept the original image with all channels, frames
 		return sntService.getInstance().getLoadedData();
+	}
+
+	// Whole-image pass: reads every chunk of lazy/remote data, so only on user request
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private void computeStreamStatsOnDemand() {
+		final boolean ok = new GuiUtils(getPrompt()).getConfirmation(
+				"Frangi requires the intensity range of the image, which has not been computed yet. "
+						+ "Computing it requires reading the entire dataset, which can be very slow for "
+						+ "streamed data. Alternatively, dismiss this prompt, use 'Select visually...' "
+						+ "(range is then estimated from the previewed region) and press 'Run' again.",
+				"Unknown Image Statistics", "Read Whole Image", "Dismiss");
+		if (!ok) return;
+		snt.computeImgStats(net.imglib2.view.Views.iterable((RandomAccessibleInterval) getInputData()),
+				snt.getStats(), SNT.CostType.RECIPROCAL);
 	}
 
 	private String getImageName() {

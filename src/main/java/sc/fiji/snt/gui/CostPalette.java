@@ -44,6 +44,7 @@ import sc.fiji.snt.util.SNTColor;
 import java.awt.*;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -62,6 +63,9 @@ public class CostPalette extends Thread {
      * Voxel-space padding added around the probe path's bounding box.
      */
     private static final int PROBE_PADDING = 10;
+    // Max extent (voxels) of the probe segment along any axis in Stream mode. A* over lazy or remote data
+    // between more distant endpoints reads a very large region
+    private static final int MAX_STREAM_PROBE_SPAN = 500;
 
     /**
      * Per-CostType overlay color. Index follows {@code CostType.values()}.
@@ -136,6 +140,45 @@ public class CostPalette extends Thread {
 
     public void show() {
         start();
+    }
+
+    /**
+     * Checks if the probe segment can be used: both endpoints must lie within the data being traced
+     * and, in Stream mode, be close enough to avoid reading a very large region of lazy/remote data.
+     *
+     * @return a message describing the problem, or null if the probe segment is usable
+     */
+    public String validateProbe() {
+        final RandomAccessibleInterval<?> data = (snt.isTracingOnSecondaryImageActive())
+                ? snt.getSecondaryData() : snt.getLoadedData();
+        if (data == null) return "No valid image data loaded.";
+        final long[] s = { voxelX(startWorld), voxelY(startWorld), voxelZ(startWorld) };
+        final long[] e = { voxelX(endWorld), voxelY(endWorld), voxelZ(endWorld) };
+        final int nDim = Math.min(3, data.numDimensions());
+        for (int d = 0; d < nDim; d++) {
+            if (s[d] < data.min(d) || s[d] > data.max(d) || e[d] < data.min(d) || e[d] > data.max(d)) {
+                final PointInCanvas off = snt.getActiveCanvasPixelOffset();
+                final String details = String.format("start=%s end=%s, loaded data=%s, offset=(%.1f,%.1f,%.1f), "
+                                + "crop=%b", Arrays.toString(s), Arrays.toString(e),
+                        Arrays.toString(data.minAsLongArray()) + "-" + Arrays.toString(data.maxAsLongArray()),
+                        off.x, off.y, off.z, snt.isMaterializedCrop());
+                SNTUtils.log("Cost-function wizard: probe out of bounds: " + details);
+                return "The probe segment lies outside the image data currently loaded"
+                        + ((snt.isStreamMode()) ? " (is a crop active?)." : ".") + "<br><small>" + details
+                        + "</small>";
+            }
+            if (snt.isStreamMode() && Math.abs(s[d] - e[d]) > MAX_STREAM_PROBE_SPAN) {
+                // Report in calibrated units: the limit is in voxels, so it differs per axis if spacing is anisotropic
+                final double[] spacing = { snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth() };
+                final String units = snt.getSpacingUnits();
+                return String.format("The probe segment is too long for streamed data (%s: %s %s between its "
+                                + "endpoints, but the limit is %s %s). Select a shorter path over a "
+                                + "representative segment.", "XYZ".charAt(d),
+                        SNTUtils.formatDouble(Math.abs(s[d] - e[d]) * spacing[d], 1), units,
+                        SNTUtils.formatDouble(MAX_STREAM_PROBE_SPAN * spacing[d], 1), units);
+            }
+        }
+        return null;
     }
 
     @Override
@@ -252,21 +295,23 @@ public class CostPalette extends Thread {
         return n == 0 ? Double.NaN : sum / n;
     }
 
+    // NB: uses SNT's own spacing, as SNT#createSearch(double...) does, not image's calibration: in Stream
+    // mode image is a bare wrap of the loaded data and may not carry the true voxel size
     // p is a true-world coordinate (Path node convention); image (snt.getLoadedDataAsImp()) wraps
     // snt.getLoadedData()/ctSlice3d directly, so its own pixel grid is whatever
     // snt.getActiveCanvasPixelOffset() currently corrects for (crop-local when a crop is
     // materialized, the raw streamed source's own voxel grid otherwise), same conversion as
     // SNT#createSearch(double...)/testPathTo()
     private int voxelX(final PointInImage p) {
-        return (int) Math.round(p.x / image.getCalibration().pixelWidth + snt.getActiveCanvasPixelOffset().x);
+        return (int) Math.round(p.x / snt.getPixelWidth() + snt.getActiveCanvasPixelOffset().x);
     }
 
     private int voxelY(final PointInImage p) {
-        return (int) Math.round(p.y / image.getCalibration().pixelHeight + snt.getActiveCanvasPixelOffset().y);
+        return (int) Math.round(p.y / snt.getPixelHeight() + snt.getActiveCanvasPixelOffset().y);
     }
 
     private int voxelZ(final PointInImage p) {
-        return (int) Math.round(p.z / Math.max(1e-9, image.getCalibration().pixelDepth)
+        return (int) Math.round(p.z / Math.max(1e-9, snt.getPixelDepth())
                 + snt.getActiveCanvasPixelOffset().z);
     }
 
@@ -438,6 +483,9 @@ public class CostPalette extends Thread {
                 final ImageCanvas thisIc = getCanvas();
                 thisIc.setMagnification(mag);
                 thisIc.setSize((int) Math.round(imp.getWidth() * mag), (int) Math.round(imp.getHeight() * mag));
+            } else {
+                // Stream mode: no source canvas to match
+                GuiUtils.zoomToScreenFraction(getCanvas(), 0.55, 8);
             }
 
             final Panel root = new Panel(new GridBagLayout());

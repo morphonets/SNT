@@ -2499,6 +2499,31 @@ public class GuiUtils {
 	}
 
 	/**
+	 * Zooms an (unmagnified) image canvas in to the largest IJ zoom level that keeps its image within a fraction of the
+	 * shorter side of the screen, e.g., to give a small preview window a usable initial size. Never zooms out below 1.
+	 *
+	 * @param ic          the canvas to zoom, typically one just attached to a new window
+	 * @param screenFraction the maximum extent of the image relative to the shorter side of the screen (e.g., 0.55)
+	 * @param maxMagnification the highest magnification allowed
+	 */
+	public static void zoomToScreenFraction(final ij.gui.ImageCanvas ic, final double screenFraction,
+			final double maxMagnification) {
+		final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+		final double maxSize = screenFraction * Math.min(screen.width, screen.height);
+		final ij.ImagePlus imp = ic.getImage();
+		final int size = Math.max(imp.getWidth(), imp.getHeight());
+		ic.setMagnification(1);
+		ic.unzoom();
+		for (int i = 0; i < 8; i++) {
+			final double current = ic.getMagnification();
+			final double next = ij.gui.ImageCanvas.getHigherZoomLevel(current);
+			if (next > maxMagnification || next * size > maxSize) break;
+			ic.zoomIn(ic.getWidth() / 2, ic.getHeight() / 2);
+			if (ic.getMagnification() <= current) break; // zoom was capped
+		}
+	}
+
+	/**
 	 * Returns the OS-level scale factor that is NOT already accounted for by Java's HiDPI awareness.
 	 * <p>
 	 * On macOS and Windows, Java intercepts HiDPI natively: so this returns 1.0. On Linux with GDK_SCALE, the OS seems

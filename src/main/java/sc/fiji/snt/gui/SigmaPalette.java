@@ -135,19 +135,8 @@ public class SigmaPalette extends Thread {
 			ic.disablePopupMenu(true);
 			ic.setShowCursorStatus(false);
 			ic.setCursor(new Cursor(Cursor.HAND_CURSOR));
-			// Start at the largest zoom level that keeps the grid within ~55% of the
-			// shorter screen side, leaving room for sliders and buttons
-			final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-			final double maxGridSize = 0.55 * Math.min(screen.width, screen.height);
-			final int gridSize = Math.max(imp.getWidth(), imp.getHeight());
-			ic.setMagnification(1);
-			ic.unzoom();
-			for (int i = 0; i < 8; i++) {
-				final double current = ic.getMagnification();
-				if (ImageCanvas.getHigherZoomLevel(current) * gridSize > maxGridSize) break;
-				ic.zoomIn(ic.getWidth() / 2, ic.getHeight() / 2);
-				if (ic.getMagnification() <= current) break; // zoom was capped
-			}
+			// Leave room for sliders and buttons
+			GuiUtils.zoomToScreenFraction(ic, 0.55, 8);
 			add(new Label("")); // spacer
 			final Panel panel = new Panel();
 			panel.setLayout(new GridBagLayout());
@@ -820,6 +809,8 @@ public class SigmaPalette extends Thread {
 
 		final Calibration cal = image.getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
+		// Stream mode: avoid a whole-image stats pass by using the crop's own range
+		if (analysisType == SNT.FilterType.FRANGI) snt.seedStatsFromSubVolume(cropped);
 
 		final int paletteWidth = croppedWidth * sigmasAcross + (sigmasAcross + 1);
 		final int paletteHeight = croppedHeight * sigmasDown + (sigmasDown + 1);

@@ -948,10 +948,12 @@ public class SNTUI extends JDialog {
             return;
         }
         if (autoCTwarning) warnOnAutoCTcompatibilityOthers();
-        if (!plugin.invalidStatsError(false)) {
-            plugin.flushSecondaryData();
-            (new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
-        }
+        // In Stream mode, stats are not required up front: Frangi is the only filter that needs them, and
+        // they are seeded from the Sigma Palette crop or requested on demand by ComputeSecondaryImg.
+        // Computing them here would read every chunk of the (lazy or remote) image
+        if (!plugin.isStreamMode() && plugin.invalidStatsError(false)) return;
+        plugin.flushSecondaryData();
+        (new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
     }
 
     /**
@@ -5043,7 +5045,7 @@ public class SNTUI extends JDialog {
         });
         rubberBandTracingRbmi.addActionListener(e -> {
             if (plugin.isStreamMode()) {
-                error("Live Preview (Rubber Band) tracing is not available for out-of-core tracing");
+                error("Live Preview (Rubber Band) tracing is not available for streamed data.");
                 standardTracingRbmi.setSelected(true);
                 return;
             }

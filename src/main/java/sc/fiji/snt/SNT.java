@@ -324,6 +324,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
+	private volatile Path lastTracedPath;
 
 	/*
 	 * Global statistics for streamedSourceData, computed lazily (see getStreamedOrLoadedStats()) the
@@ -2717,6 +2718,17 @@ public class SNT extends MultiDThreePanes implements
 		return currentPath;
 	}
 
+	/**
+	 * Returns the path most recently traced interactively in this session, as opposed to paths
+	 * loaded from file or created by other means.
+	 *
+	 * @return the path, or null if no path has been traced yet or it no longer exists
+	 */
+	public Path getLastTracedPath() {
+		final Path p = lastTracedPath;
+		return (p != null && pathAndFillManager.getPathFromID(p.getID()) != null) ? p : null;
+	}
+
 	protected void setPathUnfinished(final boolean unfinished) {
 
 		this.pathUnfinished = unfinished;
@@ -4004,6 +4016,7 @@ public class SNT extends MultiDThreePanes implements
 			// path was started - even if a re-materialization happened while it was still being built
 			currentPath.setCanvasOffset(activeCanvasPixelOffset);
 			pathAndFillManager.addPath(currentPath, true, false, false);
+			lastTracedPath = currentPath;
 			// Hook 3: Run holistic plausibility check on completed path
 			if (ui != null && ui.getPlausibilityMonitor().isEnabled()) {
 				ui.getPlausibilityMonitor().onPathFinalized(currentPath);
@@ -4477,6 +4490,26 @@ public class SNT extends MultiDThreePanes implements
 					+ " have not been computed yet. Please trace small path over a relevant feature to compute them.");
 		}
 		return (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
+	}
+
+	/**
+	 * In Stream mode, seeds unknown main image statistics (min, max) from a small
+	 * sub-volume already in memory (e.g., the Sigma Palette crop). Computing them
+	 * from the whole image would require reading every chunk of lazy/remote data.
+	 * Statistics from a sub-volume are local estimates. Does nothing if statistics
+	 * are already known.
+	 *
+	 * @param imp the sub-volume
+	 * @return true if main image statistics are available after this call
+	 * @see #invalidStatsError(boolean)
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public boolean seedStatsFromSubVolume(final ImagePlus imp) {
+		if (stats.max > 0) return true;
+		if (!isStreamMode() || imp == null) return false;
+		computeImgStats(Views.iterable((RandomAccessibleInterval) ImageJFunctions.wrapReal(imp)), stats,
+				CostType.RECIPROCAL);
+		return stats.max > 0;
 	}
 
 	protected void setFillTransparent(final boolean transparent) {

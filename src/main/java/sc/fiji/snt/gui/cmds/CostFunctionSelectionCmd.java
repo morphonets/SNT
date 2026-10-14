@@ -102,7 +102,7 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
                     + "<li>Trace a short path over a relevant feature</li>"
                     + "<li>Select a path in the Path Manager</li>"
                     + "</ul>"
-                    + "<p>If no path is selected, the most recently added one will be used. "
+                    + "<p>If no path is selected, the most recently traced one will be used. "
                     + "Then re-launch the wizard.");
             return;
         }
@@ -110,6 +110,11 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
         // 3. Launch the wizard
         final Path replaceTarget = probePath; // may be null in ROI mode
         final CostPalette wizard = new CostPalette(snt, a, b);
+        final String problem = wizard.validateProbe();
+        if (problem != null) {
+            error(problem);
+            return;
+        }
         wizard.addListener((chosen, chosenPath) -> applyChoice(chosen, chosenPath, replaceTarget, pafm));
         wizard.show(); // UI STATE: is currently RUNNING_CMD. wizard's dismiss will reset it
     }
@@ -135,10 +140,12 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
     private Path resolveProbePath() {
         if (snt.getPathAndFillManager() == null) return null;
         if (ui != null) {
-            final Collection<Path> sel = ui.getPathManager().getSelectedPaths(true);
+            final Collection<Path> sel = ui.getPathManager().getSelectedPaths(false); // false: do NOT default to all paths
             if (sel != null && !sel.isEmpty()) return sel.iterator().next();
         }
-        return (snt.getPathAndFillManager().size() == 0) ? null : snt.getPathAndFillManager().getPath(snt.getPathAndFillManager().size() - 1);
+        // Last path traced in this session, not simply the last one in the list, which may have been
+        // loaded from file
+        return snt.getLastTracedPath();
     }
 
     // fp.xpoints/ypoints and slice are pixel coordinates on imp's own grid - the crop-local grid when
