@@ -1688,13 +1688,13 @@ public class ImgUtils {
      * Levels are halved along X, Y and Z until a level fits a 3D texture (2048 voxels per side, and
      * {@link sc.fiji.snt.viewer.BvvUtils#MAX_SINGLE_TEXTURE_VOXELS}), with a minimum of 3 levels
      *
-     * @param img      image with X, Y, Z leading, an optional channel axis, and no time series (see
-     *                 {@link #normalizeToXYZ})
+     * @param img      image with X, Y, Z leading, followed by an optional channel axis and an optional time axis
+     *                 (see {@link #normalizeToXYZ})
      * @param zarrDir  the output directory (typically ending in {@code .ome.zarr}), which should not exist
      * @param nThreads number of threads used for computing and compressing blocks
      * @param progress optional receiver of short status messages, or {@code null}
      * @param <T>      pixel type
-     * @throws IllegalArgumentException if the axes layout is not XYZ[C]
+     * @throws IllegalArgumentException if the axes layout is not XYZ[C][T]
      * @throws IOException              if writing fails
      */
     public static <T extends RealType<T> & NativeType<T>> void saveAsOmeZarr(final ImgPlus<T> img,
@@ -1703,22 +1703,30 @@ public class ImgUtils {
                                                                               final java.util.function.Consumer<String> progress)
             throws IOException {
         if (!hasXYZLeading(img))
-            throw new IllegalArgumentException("OME-Zarr export requires X, Y, Z[, C] axes: " + axisReport(img));
+            throw new IllegalArgumentException("OME-Zarr export requires X, Y, Z[, C][, T] axes: " + axisReport(img));
         RandomAccessibleInterval<T> rai = img;
         final int tDim = img.dimensionIndex(Axes.TIME);
+        boolean timeSeries = false;
         if (tDim >= 0) {
-            if (img.dimension(tDim) > 1)
-                throw new IllegalArgumentException("OME-Zarr export does not support time series: " + axisReport(img));
-            rai = Views.hyperSlice(rai, tDim, 0);
+            if (img.dimension(tDim) > 1) {
+                if (tDim != img.numDimensions() - 1)
+                    throw new IllegalArgumentException("OME-Zarr export requires the time axis to be last: "
+                            + axisReport(img));
+                timeSeries = true;
+            } else {
+                rai = Views.hyperSlice(rai, tDim, 0);
+            }
         }
+        final boolean hasTime = timeSeries;
         final RandomAccessibleInterval<T> src = Views.zeroMin(rai);
-        final int nDim = src.numDimensions(); // 3 (XYZ) or 4 (XYZC)
+        final int nDim = src.numDimensions(); // 3 (XYZ), 4 (XYZC or XYZT) or 5 (XYZCT)
+        final boolean hasC = nDim - (hasTime ? 1 : 0) == 4;
         final long[] dims0 = Intervals.dimensionsAsLongArray(src);
         final int[] blockSize = new int[nDim];
         // Chunks match the cells BVV streams (64^3, see BvvUtils), a whole multiple of its 32^3 GPU tiles: reading a
         // cell then decodes exactly one chunk
         for (int d = 0; d < 3; d++) blockSize[d] = (int) Math.min(OME_ZARR_CHUNK_SIZE, dims0[d]);
-        if (nDim == 4) blockSize[3] = 1;
+        for (int d = 3; d < nDim; d++) blockSize[d] = 1; // channel and time axes are not chunked
         final long[] blockDims = new long[nDim];
         for (int d = 0; d < nDim; d++) blockDims[d] = blockSize[d];
 
@@ -1734,7 +1742,10 @@ public class ImgUtils {
         final org.janelia.saalfeldlab.n5.N5Writer n5 = new org.janelia.saalfeldlab.n5.universe.N5Factory()
                 .openWriter(org.janelia.saalfeldlab.n5.universe.StorageFormat.ZARR3, zarrDir.getAbsolutePath());
         // dimension names in N5 order (the Zarr v3 writer reverses them to C order on write)
-        final String[] dimNames = (nDim == 4) ? new String[]{"x", "y", "z", "c"} : new String[]{"x", "y", "z"};
+        final String[] dimNames = new String[nDim];
+        System.arraycopy(new String[]{"x", "y", "z"}, 0, dimNames, 0, 3);
+        if (hasC) dimNames[3] = "c";
+        if (hasTime) dimNames[nDim - 1] = "t";
         try {
             // Level 0, one slab of unit-deep Z planes at a time, where a unit is the smallest region that can be
             // written independently: a shard (or a chunk, if the array is not sharded). Concurrent writes into
@@ -1748,13 +1759,17 @@ public class ImgUtils {
             final long[] unitDims = new long[nDim];
             for (int d = 0; d < nDim; d++) unitDims[d] = unit[d];
             createZarrV3Dataset(n5, "s0", dims0, blockSize, shard0, dataType, compression, dimNames);
-            final int nCh = (nDim == 4) ? (int) dims0[3] : 1;
-            for (int c = 0; c < nCh; c++) {
+            final int nCh = hasC ? (int) dims0[3] : 1;
+            final int nT = hasTime ? (int) dims0[nDim - 1] : 1;
+            for (int tc = 0; tc < nT * nCh; tc++) { // every channel of a timepoint, timepoint by timepoint
+                final int c = tc % nCh;
+                final int t = tc / nCh;
                 for (long z0 = 0; z0 < dims0[2]; z0 += unit[2]) {
                     for (long y0 = 0; y0 < dims0[1]; y0 += tileY) {
                         for (long x0 = 0; x0 < dims0[0]; x0 += tileX) {
                             if (progress != null) progress.accept(String.format(Locale.US,
-                                    "Converting: level 0, channel %d/%d, plane %d/%d", c + 1, nCh, z0 + 1, dims0[2]));
+                                    "Converting: level 0, timepoint %d/%d, channel %d/%d, plane %d/%d",
+                                    t + 1, nT, c + 1, nCh, z0 + 1, dims0[2]));
                             final long[] min = new long[nDim];
                             final long[] max = new long[nDim];
                             for (int d = 0; d < nDim; d++) max[d] = dims0[d] - 1;
@@ -1764,10 +1779,12 @@ public class ImgUtils {
                             max[1] = Math.min(y0 + tileY, dims0[1]) - 1;
                             min[2] = z0;
                             max[2] = Math.min(z0 + unit[2], dims0[2]) - 1;
-                            if (nDim == 4) min[3] = max[3] = c;
+                            if (hasC) min[3] = max[3] = c;
+                            if (hasTime) min[nDim - 1] = max[nDim - 1] = t;
                             // One read of each voxel (a single-copy local tile), units are then compressed in parallel
                             final Img<T> slab = materializeTiled(Views.interval(src, min, max), blockSize[0]);
                             final long gridC = c;
+                            final long gridT = t;
                             final List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
                             for (final Interval block : createIntervals(Intervals.dimensionsAsLongArray(slab),
                                     unitDims)) {
@@ -1776,7 +1793,8 @@ public class ImgUtils {
                                     // size would suggest): units are aligned to whole chunks by construction
                                     final long[] grid = new long[nDim];
                                     for (int d = 0; d < 3; d++) grid[d] = (min[d] + block.min(d)) / blockSize[d];
-                                    if (nDim == 4) grid[3] = gridC;
+                                    if (hasC) grid[3] = gridC;
+                                    if (hasTime) grid[nDim - 1] = gridT;
                                     org.janelia.saalfeldlab.n5.imglib2.N5Utils.saveBlock(
                                             Views.zeroMin(Views.interval(slab, block)), n5, "s0", grid);
                                     return null;
@@ -1795,7 +1813,7 @@ public class ImgUtils {
                         dimNames);
                 final RandomAccessibleInterval<T> prev = org.janelia.saalfeldlab.n5.imglib2.N5Utils
                         .open(n5, "s" + (l - 1));
-                // Average 2x2x2 (XYZ) neighborhoods, leaving any channel axis alone. Offset.HALF_PIXEL gives
+                // Average 2x2x2 (XYZ) neighborhoods, leaving any channel/time axis alone. Offset.HALF_PIXEL gives
                 // ceil(n/2) pixels per axis, matching levelDims
                 final boolean[] downsampleInDim = new boolean[nDim];
                 Arrays.fill(downsampleInDim, 0, 3, true);
@@ -1838,7 +1856,7 @@ public class ImgUtils {
                 }
                 awaitAll(futures);
             }
-            writeOmeNgffMetadata(n5, img, levelDims, nDim == 4);
+            writeOmeNgffMetadata(n5, img, levelDims, hasC, hasTime);
         } finally {
             // After a failure other blocks may still be queued: stop them before the writer is closed
             exec.shutdownNow();
@@ -1878,8 +1896,8 @@ public class ImgUtils {
     /**
      * Gets the shard shape for an array of the given dimensions, or {@code null} if it should not be sharded. Each
      * edge is a whole multiple of the chunk edge (a Zarr v3 requirement), at most {@link #OME_ZARR_SHARD_SIZE}
-     * voxels rounded up to the chunk size, and may exceed the array size along small axes. The channel axis (if
-     * any) is never grouped
+     * voxels rounded up to the chunk size, and may exceed the array size along small axes. The channel and time
+     * axes (if any) are never grouped
      *
      * @param dims      the array dimensions
      * @param chunkSize the chunk shape
@@ -1892,7 +1910,7 @@ public class ImgUtils {
         if (nChunks < OME_ZARR_MIN_CHUNKS_FOR_SHARDING) return null;
         final int[] shard = new int[dims.length];
         for (int d = 0; d < dims.length; d++) {
-            if (d >= 3) { // channel axis
+            if (d >= 3) { // channel/time axes
                 shard[d] = chunkSize[d];
                 continue;
             }
@@ -1980,7 +1998,7 @@ public class ImgUtils {
 
     /**
      * Dimensions of the levels of the pyramid written by {@link #saveAsOmeZarr}. Only the first three (spatial)
-     * dimensions are halved, so any channel dimension is passed through unchanged
+     * dimensions are halved, so any channel/time dimension is passed through unchanged
      */
     private static List<long[]> omeZarrLevelDims(final long[] dims0) {
         final List<long[]> levels = new ArrayList<>();
@@ -2001,15 +2019,16 @@ public class ImgUtils {
     /**
      * Writes the OME-NGFF 0.5 root metadata with n5-universe's own writer, which nests {@code multiscales} under
      * {@code ome}, sets {@code ome/version}, reverses axes and transforms to Zarr (C) order and names the array
-     * dimensions. All arrays here are in N5 (F) order: X, Y, Z[, C]
+     * dimensions. All arrays here are in N5 (F) order: X, Y, Z[, C][, T]
      */
     private static void writeOmeNgffMetadata(final org.janelia.saalfeldlab.n5.N5Writer n5, final ImgPlus<?> img,
-                                              final List<long[]> levelDims, final boolean hasChannels)
+                                              final List<long[]> levelDims, final boolean hasChannels,
+                                              final boolean hasTime)
             throws IOException {
         final String unit = spatialNgffUnit(img);
         if (unit == null) SNTUtils.log("OME-Zarr export: unrecognized spatial unit(s) " + unitReport(img)
                 + "; axes will be written without units");
-        final int nDim = hasChannels ? 4 : 3;
+        final int nDim = 3 + (hasChannels ? 1 : 0) + (hasTime ? 1 : 0);
         final org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis[] axes =
                 new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis[nDim];
         final String[] names = {"x", "y", "z"};
@@ -2018,6 +2037,8 @@ public class ImgUtils {
                     org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis.SPACE, names[d], unit);
         if (hasChannels) axes[3] = new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis(
                 org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis.CHANNEL, "c");
+        if (hasTime) axes[nDim - 1] = new org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis(
+                org.janelia.saalfeldlab.n5.universe.metadata.axes.Axis.TIME, "t");
         final double[] cal = {img.averageScale(0), img.averageScale(1), img.averageScale(2)};
         final int nLevels = levelDims.size();
         final String[] paths = new String[nLevels];

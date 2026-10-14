@@ -6,8 +6,8 @@
  * file:  ChannelUnmixing.groovy
  * info:  Auto-generated script that applies SNT's (Bvv/Bdv) channel un-mixing to a whole volume and saves
  *        the result as a multi-resolution OME-Zarr (Zarr v3, OME-NGFF 0.5) that SNT can stream in BVV/BDV.
- *        Level 0 is unmixed on the fly, one slab at a time (so the volume can be larger than the available
- *        memory), and coarser levels are computed from it by SNT's OME-Zarr writer.
+ *        All timepoints are processed. Level 0 is unmixed on the fly, one slab at a time (so the volume can be
+ *        larger than the available memory), and coarser levels are computed from it by SNT's OME-Zarr writer.
  *        Output is written next to the input (or in the home folder if the input is remote) as
  *        '<name>_unmixed_<op>.ome.zarr'. Existing data is not overwritten: a numeric suffix is added instead.
  *        Run in Fiji's Script Editor (Language: Groovy)
@@ -69,7 +69,6 @@ def rangeScale  = #{RANGE_SCALE}   // signal range width / background range widt
 def sigName     = '#{SIG_NAME}'
 def subName     = '#{SUB_NAME}'
 def nTimepoints = #{N_TIMEPOINTS}
-def timepoint   = 0            // OME-Zarr export does not support time series: only this timepoint is exported
 
 def op = new UnmixingOp(weight, sigMin, subMin, rangeScale)
 
@@ -92,7 +91,7 @@ if (!parentDir.canWrite()) {
         "Try copying the input to a local directory first.")
 }
 if (nTimepoints > 1)
-    println "WARNING: ${nTimepoints} timepoints in source: only timepoint ${timepoint} will be exported"
+    println "${nTimepoints} timepoints in source: all will be exported"
 
 // -------- Output path (never overwrites) --------
 // 'x.xml', 'x.ims', 'x.ome.zarr' and 'x.n5' all map to 'x_unmixed_...'
@@ -104,32 +103,40 @@ for (int i = 1; outDir.exists(); i++)
 println "Output: ${outDir.absolutePath}"
 
 // -------- Open channels (full resolution, lazy: nothing is read until the writer needs it) --------
-def sig, sub
+def sigs = [], subs = []
 try {
-    sig = SpimDataUtils.openChannel(inputPath, sigChannel, timepoint)
-    sub = SpimDataUtils.openChannel(inputPath, subChannel, timepoint)
+    for (int t = 0; t < nTimepoints; t++) {
+        sigs << SpimDataUtils.openChannel(inputPath, sigChannel, t)
+        subs << SpimDataUtils.openChannel(inputPath, subChannel, t)
+    }
 } catch (Exception e) {
     throw new IOException("Failed to open dataset: ${inputPath}\n" +
         "The file may be corrupted, moved or in an unsupported format.\nDetails: ${e.message}", e)
 }
+def sig = sigs[0]
 if (sig.nChannels() != nChannels)
     throw new IOException("Channel mismatch: the viewer showed ${nChannels} channels but ${inputPath} has " +
         "${sig.nChannels()}. Channel indices may not refer to the same data: aborting.")
 println "Signal:     channel ${sigChannel} ('${sig.name()}')"
-println "Background: channel ${subChannel} ('${sub.name()}')"
+println "Background: channel ${subChannel} ('${subs[0].name()}')"
 
 // -------- Lazy unmixed view (level 0) --------
-def unmixed = Converters.convert(Views.zeroMin(sig.img()), Views.zeroMin(sub.img()),
-    { s, b, o -> o.setReal(op.apply(s.getRealDouble(), b.getRealDouble())) } as BiConverter,
-    new UnsignedShortType())
+// One lazy volume per timepoint, stacked along a trailing time axis when there is more than one
+def unmixedT = (0..<nTimepoints).collect { int t ->
+    Converters.convert(Views.zeroMin(sigs[t].img()), Views.zeroMin(subs[t].img()),
+        { s, b, o -> o.setReal(op.apply(s.getRealDouble(), b.getRealDouble())) } as BiConverter,
+        new UnsignedShortType())
+}
+def unmixed = nTimepoints > 1 ? Views.stack(unmixedT) : unmixedT[0]
 
 // -------- Calibration from the signal channel --------
 def cal = sig.spacing()
 def unit = sig.unit()
-def img = new ImgPlus(ImgView.wrap(unmixed), outName,
-    new DefaultLinearAxis(Axes.X, unit, cal[0]),
-    new DefaultLinearAxis(Axes.Y, unit, cal[1]),
-    new DefaultLinearAxis(Axes.Z, unit, cal[2]))
+def axes = [new DefaultLinearAxis(Axes.X, unit, cal[0]),
+            new DefaultLinearAxis(Axes.Y, unit, cal[1]),
+            new DefaultLinearAxis(Axes.Z, unit, cal[2])]
+if (nTimepoints > 1) axes << new DefaultLinearAxis(Axes.TIME, 1d)
+def img = new ImgPlus(ImgView.wrap(unmixed), outName, *axes)
 println "Image: ${ImgUtils.axisReport(img)}"
 if (!unit) println "WARNING: spatial unit unknown. The OME-Zarr will be written without units (spacing is kept)"
 
