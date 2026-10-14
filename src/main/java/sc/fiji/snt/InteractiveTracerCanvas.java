@@ -214,12 +214,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pMenu.addSeparator();
         togglePauseTracingMenuItem = new JCheckBoxMenuItem(ContextMenuCommand.PAUSE_TRACING.label());
         ContextMenuCommand.PAUSE_TRACING.applyIcon(togglePauseTracingMenuItem);
+        ContextMenuCommand.PAUSE_TRACING.tag(togglePauseTracingMenuItem);
         togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
         togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
         togglePauseTracingMenuItem.addItemListener(listener);
         pMenu.add(togglePauseTracingMenuItem);
         togglePauseSNTMenuItem = new JCheckBoxMenuItem(ContextMenuCommand.PAUSE_SNT.label());
         ContextMenuCommand.PAUSE_SNT.applyIcon(togglePauseSNTMenuItem);
+        ContextMenuCommand.PAUSE_SNT.tag(togglePauseSNTMenuItem);
         togglePauseSNTMenuItem.addItemListener(listener);
         pMenu.add(togglePauseSNTMenuItem);
     }
@@ -227,6 +229,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private JMenuItem getSelectRoiMenuItem() {
         final JMenuItem selectByRoi = new JMenuItem(ContextMenuCommand.LASSO.label());
         ContextMenuCommand.LASSO.applyIcon(selectByRoi);
+        ContextMenuCommand.LASSO.tag(selectByRoi);
         selectByRoi.addActionListener( e -> {
             if (pathAndFillManager.size() == 0) {
                 getGuiUtils().error("There are no traced paths.", "Nothing to Select");
@@ -402,7 +405,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private JMenuItem menuItem(final ContextMenuCommand cmd, final ActionListener lstnr, final KeyStroke keystroke) {
         final JMenuItem mi = GuiUtils.MenuItems.menuItem(cmd.label(), lstnr, keystroke, (IconFactory.GLYPH) null);
         cmd.applyIcon(mi);
-        return mi;
+        return cmd.tag(mi);
     }
 
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keycode,

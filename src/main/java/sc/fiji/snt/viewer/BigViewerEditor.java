@@ -857,9 +857,11 @@ final class BigViewerEditor {
 	 * @param menu     the menu
 	 * @param e        the event that opened the menu
 	 * @param clickPos the cursor position (calibrated coordinates) captured when the menu was opened, or null
+	 * @param pickNode whether the node at the event's position becomes the active node (false for menus that are
+	 *                 not opened by a click, so that the active node is not retargeted)
 	 */
-	void addMenuItems(final JPopupMenu menu, final MouseEvent e, final double[] clickPos) {
-		if (active) {
+	void addMenuItems(final JPopupMenu menu, final MouseEvent e, final double[] clickPos, final boolean pickNode) {
+		if (active && pickNode) {
 			// Snapshot target node and cursor position at the time of the click: neither may change while the menu is
 			// open (hovering over other nodes en route to a menu item must not retarget the command)
 			final int picked = pick(e.getX(), e.getY());

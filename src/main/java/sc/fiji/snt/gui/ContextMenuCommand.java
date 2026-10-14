@@ -23,6 +23,9 @@
 
 package sc.fiji.snt.gui;
 
+import java.awt.Component;
+
+import javax.swing.JComponent;
 import javax.swing.JMenuItem;
 
 /**
@@ -99,6 +102,28 @@ public enum ContextMenuCommand {
 		this.symbol = symbol;
 		this.solid = solid;
 		this.selectedColor = selectedColor;
+	}
+
+	private static final String PROPERTY = "snt.contextMenuCommand";
+
+	/**
+	 * Flags a menu item as the front-end of this command (see {@link #of(Component)})
+	 *
+	 * @param item the menu item
+	 * @return the item, for chaining
+	 */
+	public <T extends JMenuItem> T tag(final T item) {
+		item.putClientProperty(PROPERTY, this);
+		return item;
+	}
+
+	/**
+	 * @param c the component, e.g., a menu item
+	 * @return the command the component was {@link #tag(JMenuItem) tagged} with, or null
+	 */
+	public static ContextMenuCommand of(final Component c) {
+		return (c instanceof JComponent jc && jc.getClientProperty(PROPERTY) instanceof ContextMenuCommand cmd)
+				? cmd : null;
 	}
 
 	/** @return the menu label */

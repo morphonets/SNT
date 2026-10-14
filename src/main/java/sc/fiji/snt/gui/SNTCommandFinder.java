@@ -32,6 +32,7 @@ import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.TracerCanvas;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.Timer;
@@ -401,6 +402,14 @@ public class SNTCommandFinder {
     private void executeCmd(final CmdAction cmd) {
         if (cmd.hasButton()) {
             if (isUnavailableTracerCanvasCmd(cmd)) {
+                // No canvas: items shared with the Bdv/Bvv menu (e.g., Edit Mode) run on the active viewer
+                final AbstractBigViewer viewer = (sntui == null) ? null : sntui.getActiveBigViewer();
+                if (viewer != null && cmd.button instanceof JMenuItem jmi) {
+                    final String err = viewer.runContextItem(jmi);
+                    if (err != null) displayBlockingMsg(err);
+                    else if (!scriptCall) autoHide();
+                    return;
+                }
                 final boolean streamMode = SNTUtils.getInstance() != null && SNTUtils.getInstance().isStreamMode();
                 displayBlockingMsg((String.format("Command requires a %s.", (streamMode) ? "materialized crop" : "tracing canvas")));
                 return;
@@ -438,6 +447,56 @@ public class SNTCommandFinder {
             return false;
         final TracerCanvas canvas = (sntui == null) ? null : sntui.getTracingCanvas();
         return canvas == null || !canvas.isDisplayable();
+    }
+
+    private static final String CANVAS_MENU = "Image Contextual Menu";
+
+    // Target of a ContextMenuCommand: the tracing canvas if displayable (ImagePlus mode or materialized crop),
+    // otherwise the active Bdv/Bvv, if any
+    private void runContextCmd(final ContextMenuCommand cmd) {
+        final JMenuItem item = liveCanvasItem(cmd);
+        if (item != null) {
+            if (!item.isEnabled()) {
+                displayBlockingMsg("Command is currently disabled. Cannot be executed.");
+                return;
+            }
+            if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
+            item.doClick();
+            return;
+        }
+        final AbstractBigViewer viewer = (sntui == null) ? null : sntui.getActiveBigViewer();
+        if (viewer == null) {
+            displayBlockingMsg("Command requires a tracing canvas or a Bdv/Bvv viewer");
+            return;
+        }
+        final String err = viewer.runContextCommand(cmd);
+        if (err != null) displayBlockingMsg(err);
+        else if (!scriptCall) autoHide();
+    }
+
+    private void revealContextCmd(final ContextMenuCommand cmd) {
+        final JMenuItem item = liveCanvasItem(cmd);
+        if (item != null) {
+            final JPopupMenu popup = sntui.getTracingCanvasPopupMenu();
+            popup.putClientProperty("tracerCanvasMenu", Boolean.TRUE);
+            showStandalonePopup(popup, item);
+            return;
+        }
+        final AbstractBigViewer viewer = (sntui == null) ? null : sntui.getActiveBigViewer();
+        if (viewer == null) displayTempMsg("Image contextual menu is not available!", true);
+        else viewer.revealContextCommand(cmd);
+    }
+
+    // The item of the tracing canvas menu for a command, or null if there is no displayable canvas
+    private JMenuItem liveCanvasItem(final ContextMenuCommand cmd) {
+        if (sntui == null) return null;
+        final TracerCanvas canvas = sntui.getTracingCanvas();
+        final JPopupMenu popup = sntui.getTracingCanvasPopupMenu();
+        if (canvas == null || !canvas.isDisplayable() || popup == null) return null;
+        for (final MenuElement me : popup.getSubElements()) {
+            if (me instanceof JMenuItem mi && ContextMenuCommand.of(mi) == cmd) return mi;
+        }
+        return null;
     }
 
     private void revealCmd(final CmdAction cmd) {
@@ -505,8 +564,13 @@ public class SNTCommandFinder {
         if (sntui != null && Boolean.TRUE.equals(popup.getClientProperty("tracerCanvasMenu"))) {
             final TracerCanvas canvas = sntui.getTracingCanvas();
             if (canvas == null || !canvas.isDisplayable()) {
-                displayTempMsg("Image contextual menu is not available!", true);
-                return false;
+                final AbstractBigViewer viewer = sntui.getActiveBigViewer();
+                if (viewer != null) {
+                    viewer.revealContextItem(jmi);
+                } else {
+                    displayTempMsg("Image contextual menu is not available!", true);
+                }
+                return false; // nothing for the caller to arm
             }
             if (canvas.getImage() != null && canvas.getImage().getWindow() != null) {
                 canvas.getImage().getWindow().setVisible(true);
@@ -1353,7 +1417,8 @@ public class SNTCommandFinder {
                                                        final boolean hasFocus, final int row, final int column) {
             final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             setBackground((isSelected) ? selectionColor : table.getBackground());
-            setForeground(mainColor);
+            final boolean disabled = table.getValueAt(row, 0) instanceof CmdAction ca && ca.isDisabled();
+            setForeground((disabled) ? GuiUtils.Colors.disabledComponentColor() : mainColor);
             if (column == 2) { // cmd path
                 setHorizontalAlignment(JLabel.RIGHT);
                 setFont(col2Font);
@@ -1410,6 +1475,12 @@ public class SNTCommandFinder {
         private String normId, normPath, normTooltip, normKeywords;
         /** normGeneration value when the norm* fields were last computed. */
         private int normGen = -1;
+
+        /** True if backed by a button (or menu item) that is currently disabled */
+        boolean isDisabled() {
+            return button != null && (!button.isEnabled()
+                    || (button instanceof JMenuItem && button.getParent() != null && !button.getParent().isEnabled()));
+        }
 
         CmdAction(final String cmdName) {
             this.id = capitalize(cmdName);
@@ -1607,8 +1678,10 @@ public class SNTCommandFinder {
                 // Tag the popup so showStandalonePopup can identify it as the TracerCanvas
                 // context menu even when getInvoker() is null (invoker is only set at
                 // popup.show() time, i.e. after the user's first right-click on the canvas).
-                canvasPopup.putClientProperty("tracerCanvasMenu", Boolean.TRUE);
-                components.add(new AnnotatedComponent(canvasPopup, "Image Contextual Menu"));
+                if (canvasPopup != null) {
+                    canvasPopup.putClientProperty("tracerCanvasMenu", Boolean.TRUE);
+                    components.add(new AnnotatedComponent(canvasPopup, CANVAS_MENU));
+                }
                 components.add(new AnnotatedComponent(sntui.getJMenuBar()));
                 components.add(new AnnotatedComponent(
                         sntui.getPathManager().getJTree().getComponentPopupMenu(), "PM Contextual Menu")); // before PM's menu bar
@@ -1669,6 +1742,32 @@ public class SNTCommandFinder {
             for (final CmdAction extra : extras) {
                 cmdMap.put(compositeKey(extra.id, extra.path), extra);
             }
+            if (sntui != null) registerContextCommands();
+        }
+
+        // Commands shared by the tracing canvas and the Bdv/Bvv menus are listed once. The target is resolved
+        // when the command is run, so that they are also available without a canvas (see runContextCmd)
+        private void registerContextCommands() {
+            for (final ContextMenuCommand cmd : ContextMenuCommand.values()) {
+                final AbstractAction run = new AbstractAction() {
+                    @Override
+                    public void actionPerformed(final ActionEvent e) {
+                        runContextCmd(cmd);
+                    }
+                };
+                final AbstractAction reveal = new AbstractAction() {
+                    @Override
+                    public void actionPerformed(final ActionEvent e) {
+                        revealContextCmd(cmd);
+                    }
+                };
+                final JMenuItem proxy = new JMenuItem();
+                cmd.applyIcon(proxy);
+                run.putValue(Action.SMALL_ICON, proxy.getIcon());
+                final CmdAction entry = new CmdAction(cmd.label(), run, reveal);
+                entry.path = new ArrayList<>(List.of(CANVAS_MENU));
+                cmdMap.put(compositeKey(entry.id, entry.path), entry);
+            }
         }
 
         private void scrapeComponent(final AnnotatedComponent ac) {
@@ -1681,7 +1780,9 @@ public class SNTCommandFinder {
                     }
                 }
             } else if (ac.component instanceof JPopupMenu popup) {
-                getMenuItems(popup).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation)));
+                // Commands shared with the Bdv/Bvv menu are registered once, see registerContextCommands()
+                getMenuItems(popup).stream().filter(mi -> ContextMenuCommand.of(mi) == null)
+                        .forEach(mi -> registerMenuItem(mi, List.of(ac.annotation)));
             } else if (ac.component instanceof JToolBar toolBar) {
                 for (final Component c : toolBar.getComponents()) {
                     if (c instanceof AbstractButton b) {
@@ -1831,7 +1932,8 @@ public class SNTCommandFinder {
             String label = button.getActionCommand();
             if (NAME.equals(label))
                 return; // do not register command palette
-            if (label == null)
+            // Edit Mode items carry an internal id (see NodeEditCommand#actionId()): use their text
+            if (label == null || label.startsWith("snt-"))
                 label = button.getText();
             if (irrelevantCommand(label))
                 return;

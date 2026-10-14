@@ -217,6 +217,44 @@ public abstract class AbstractBigViewer {
         contextMenu.install();
     }
 
+    /**
+     * Runs a command of the viewer's context menu without displaying it
+     *
+     * @param cmd the command
+     * @return null if the command was run, otherwise the reason why it was not
+     */
+    public String runContextCommand(final ContextMenuCommand cmd) {
+        return (contextMenu == null) ? "Viewer menu is not available" : contextMenu.run(cmd);
+    }
+
+    /**
+     * Displays the viewer's context menu at the center of the display, with the item of a command armed
+     *
+     * @param cmd the command
+     */
+    public void revealContextCommand(final ContextMenuCommand cmd) {
+        if (contextMenu != null) contextMenu.reveal(cmd);
+    }
+
+    /**
+     * Runs the equivalent of a tracing canvas menu item without displaying the viewer's menu
+     *
+     * @param canvasItem the item of the tracing canvas menu
+     * @return null if the item was run, otherwise the reason why it was not
+     */
+    public String runContextItem(final javax.swing.JMenuItem canvasItem) {
+        return (contextMenu == null) ? "Viewer menu is not available" : contextMenu.run(canvasItem);
+    }
+
+    /**
+     * Displays the viewer's context menu with the equivalent of a tracing canvas menu item armed
+     *
+     * @param canvasItem the item of the tracing canvas menu
+     */
+    public void revealContextItem(final javax.swing.JMenuItem canvasItem) {
+        if (contextMenu != null) contextMenu.reveal(canvasItem);
+    }
+
     /** @return the tracer, or null if tracing is unavailable. For use by the context menu */
     AbstractTracer menuTracer() {
         return menuTracer;
