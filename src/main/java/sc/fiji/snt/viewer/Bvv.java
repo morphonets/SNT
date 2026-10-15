@@ -151,6 +151,7 @@ public class Bvv extends AbstractBigViewer {
      */
     public Bvv(final SNT snt) {
         super(snt); // sets this.snt and AbstractBigViewer.lastInstance
+        BvvProfiler.startIfEnabled();
         if (snt != null) {
             if (snt.getUI() != null) snt.getUI().setBvv(this);
             if (renderingOptions != null) {
@@ -163,8 +164,7 @@ public class Bvv extends AbstractBigViewer {
         options.frameTitle("SNT BVV");
         options.cacheBlockSize(BvvUtils.GPU_BLOCK_SIZE); // GPU cache tile size
         options.maxCacheSizeInMB(BvvUtils.effectiveCacheMB(1, false));
-        options.ditherWidth(1); // dither window. 1 = full resolution; 8 = coarsest resolution
-        options.numDitherSamples(8); // no. of nearest neighbors to interpolate from when dithering
+        BvvUtils.applyRenderQuality(options); // render size, time budget and dithering of the user's preset
     }
 
     private double[] getClickedPosition(final MouseEvent e) {
@@ -915,7 +915,7 @@ public class Bvv extends AbstractBigViewer {
             options.maxCacheSizeInMB(BvvUtils.effectiveCacheMB(n5Sources.sources().size(), true));
         for (final SourceAndConverter<?> original : n5Sources.sources()) {
             // Views (e.g., one channel sliced out of a multichannel array) are not streamable by BVV
-            final SourceAndConverter<?> soc = BvvUtils.ensureCellBacked(original);
+            final SourceAndConverter<?> soc = BvvUtils.ensureCellBacked(original, n5Sources.chunkShape(), n5Sources.remote());
             streamedSources.add(soc);
             // NB: Each channel is a separate BvvFunctions.show(...) call, and options *without* addTo(...) always
             // opens a brand new top-level window. Deciding "attach to existing handle" once, before any
@@ -931,6 +931,9 @@ public class Bvv extends AbstractBigViewer {
             if (bvvHandle == null) bvvHandle = source.getBvvHandle(); // subsequent channels attach to this window
         }
         if (sources.isEmpty()) return Collections.emptyList();
+
+        // Let BVV advance our fetch queues on every new frame (drops requests for views no longer shown)
+        BvvUtils.syncQueuesWithViewer(bvvHandle);
 
         // Populate dims/cal from the first source's own metadata
         populateDimsAndCal(sources.getFirst());
@@ -1028,17 +1031,12 @@ public class Bvv extends AbstractBigViewer {
         SNTUtils.log(String.format(
                 "BVV: %d slices, %d ch, blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f cache=%dMB",
                 nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep, cacheMB));
-        return bvv.vistools.Bvv.options()
+        return BvvUtils.applyRenderQuality(bvv.vistools.Bvv.options()
                 .preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE)
                 .frameTitle("SNT BVV")
                 .maxCacheSizeInMB(cacheMB)
-                .ditherWidth(1)
                 .cacheBlockSize(blockSize)
-                .numDitherSamples(1)
-                .renderWidth(renderW)
-                .renderHeight(renderH)
-                .maxRenderMillis(maxMillis)
-                .maxAllowedStepInVoxels(maxStep);
+                .maxAllowedStepInVoxels(maxStep));
     }
 
 
@@ -2542,8 +2540,13 @@ public class Bvv extends AbstractBigViewer {
      * source is loaded
      */
     public double[] findClickRayMaxima() {
-        final double[][] ray = findClickRay();
-        return (ray == null) ? null : findRayMaxima(ray);
+        final long t0 = BvvProfiler.start();
+        try {
+            final double[][] ray = findClickRay();
+            return (ray == null) ? null : findRayMaxima(ray);
+        } finally {
+            BvvProfiler.stop("findClickRayMaxima", t0);
+        }
     }
 
     /**
@@ -3836,6 +3839,15 @@ public class Bvv extends AbstractBigViewer {
 
         @Override
         public void drawOverlays(final java.awt.Graphics g) {
+            final long t0 = BvvProfiler.start();
+            try {
+                drawOverlaysImpl(g);
+            } finally {
+                BvvProfiler.stop("overlay.scene", t0);
+            }
+        }
+
+        private void drawOverlaysImpl(final java.awt.Graphics g) {
             if (canvasW == 0 || canvasH == 0) return;
             if (showCrosshair) drawCrosshair((java.awt.Graphics2D) g);
             if (!showAxes && !showBox) return;
@@ -4456,6 +4468,15 @@ public class Bvv extends AbstractBigViewer {
 
             @Override
             public void drawOverlays(final Graphics g) {
+                final long t0 = BvvProfiler.start();
+                try {
+                    drawOverlaysImpl(g);
+                } finally {
+                    BvvProfiler.stop("overlay.annotations", t0);
+                }
+            }
+
+            private void drawOverlaysImpl(final Graphics g) {
                 if (source.list().isEmpty() || hide) return;
 
                 // Update canvas dimensions
@@ -4702,6 +4723,12 @@ public class Bvv extends AbstractBigViewer {
         // them separately here and invalidate the cache  whenever either one changes between frames
         private int lastTimepoint = -1;
         private boolean lastShowOnlyActiveCTposPaths = false;
+        // True while the view transform changes between frames. Anti-aliasing and node caps are skipped then
+        // (cheap frames while navigating); a repaint is scheduled once the view settles. Opt out of this with
+        // -Dsnt.bvv.moveAA=true
+        private static final boolean KEEP_AA_WHILE_MOVING = Boolean.getBoolean("snt.bvv.moveAA");
+        private boolean moving;
+        private javax.swing.Timer settleTimer;
 
         OverlayRenderer(final AbstractBigViewer viewer, final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewer = viewer;
@@ -4853,6 +4880,15 @@ public class Bvv extends AbstractBigViewer {
 
         @Override
         public void drawOverlays(final Graphics g) {
+            final long t0 = BvvProfiler.start();
+            try {
+                drawOverlaysImpl(g);
+            } finally {
+                BvvProfiler.stop("overlay.paths", t0);
+            }
+        }
+
+        private void drawOverlaysImpl(final Graphics g) {
             if (trees.isEmpty() || hide) return;
 
             // Update canvas dimensions
@@ -4866,9 +4902,14 @@ public class Bvv extends AbstractBigViewer {
                 viewerPanel.getViewerTransform(viewerTransform);
             }
 
+            moving = false;
             if (!transformEquals(viewerTransform, cachedTransform)) {
                 cachedTransform.set(viewerTransform);
                 cacheValid = false;
+                if (!KEEP_AA_WHILE_MOVING) {
+                    moving = true;
+                    scheduleSettleRepaint();
+                }
             }
 
             // Check if the active-CT-only filter or the current timepoint changed: either can change
@@ -5201,6 +5242,7 @@ public class Bvv extends AbstractBigViewer {
                             && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
                     if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
                     if (doSlabClip && seg.viewerZ1 < slabNear && seg.viewerZ2 < slabNear) continue;
+                    if (isOffscreen(seg)) continue;
                     batchPath.moveTo(seg.x1, seg.y1);
                     batchPath.lineTo(seg.x2, seg.y2);
                 }
@@ -5224,6 +5266,7 @@ public class Bvv extends AbstractBigViewer {
                         && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
                 if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
                 if (doSlabClip && seg.viewerZ1 < slabNear && seg.viewerZ2 < slabNear) continue;
+                if (isOffscreen(seg)) continue;
                 if (seg.color1.equals(seg.color2)) {
                     addFrustumToPath(batchPath, seg);
                     hasUniform = true;
@@ -5243,6 +5286,7 @@ public class Bvv extends AbstractBigViewer {
                 // Deduplicated caps for uniform segments
                 for (final SegmentData seg : segments) {
                     if (!seg.color1.equals(seg.color2)) continue;
+                    if (isOffscreen(seg)) continue;
                     if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
                             && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
                     if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
@@ -5260,7 +5304,7 @@ public class Bvv extends AbstractBigViewer {
         private void drawCap(final Graphics2D g2d, final double cx, final double cy,
                              final double r, final Color color,
                              final java.util.HashSet<Long> drawn) {
-            if (r < 1.5) return; // skip sub-pixel caps (#2)
+            if (moving || r < 1.5) return; // skip sub-pixel caps (#2), and all caps while the view moves
             // Encode pixel position as long key for dedup (#1)
             final long key = (Math.round(cx) << 20) ^ Math.round(cy);
             if (!drawn.add(key)) return; // already drawn at this pixel
@@ -5450,9 +5494,26 @@ public class Bvv extends AbstractBigViewer {
             return true;
         }
 
+        /** Requests a full-quality repaint shortly after the last frame in which the view moved */
+        private void scheduleSettleRepaint() {
+            if (settleTimer == null) {
+                settleTimer = new javax.swing.Timer(200, e -> viewerPanel.requestRepaint());
+                settleTimer.setRepeats(false);
+            }
+            settleTimer.restart();
+        }
+
+        /** Whether {@code seg} (including its radius) lies entirely outside the canvas */
+        private boolean isOffscreen(final SegmentData seg) {
+            final double m = Math.max(seg.r1, seg.r2) + 1;
+            return Math.max(seg.x1, seg.x2) + m < 0 || Math.min(seg.x1, seg.x2) - m > canvasWidth
+                    || Math.max(seg.y1, seg.y2) + m < 0 || Math.min(seg.y1, seg.y2) - m > canvasHeight;
+        }
+
         private Graphics2D setupGraphics(final Graphics g) {
             final Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    moving ? RenderingHints.VALUE_ANTIALIAS_OFF : RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
             if (renderingOptions.getTransparency() < 1.0f) {
                 g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,

@@ -562,6 +562,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String BVV_RENDER_QUALITY_KEY = "snt.bvv.renderQuality";
 	private static final String BVV_CACHE_MB_KEY = "snt.bvv.cacheSizeMB";
 	private static final String BVV_CACHE_NO_ASK_KEY = "snt.bvv.cacheNoAsk";
+	private static final String BVV_FETCHERS_KEY = "snt.bvv.fetcherThreads";
 	private static final String BVV_MAX_STEP_KEY = "snt.bvv.maxStepInVoxels";
 	/** Default (and lower/upper limits of) BVV's maximum ray-marching step, in voxels */
 	public static final double BVV_DEFAULT_MAX_STEP = 1.0;
@@ -586,6 +587,16 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	/** @param mb the BVV GPU tile cache size (MB) to persist. 0 means automatic */
 	public static void setBvvCacheMB(final int mb) {
 		Prefs.set(BVV_CACHE_MB_KEY, Math.max(0, mb));
+	}
+
+	/** @return the persisted number of BVV tile fetcher threads. 0 means automatic */
+	public static int getBvvFetchers() {
+		return Math.max(0, (int) Prefs.get(BVV_FETCHERS_KEY, 0));
+	}
+
+	/** @param n the number of BVV tile fetcher threads to persist. 0 means automatic */
+	public static void setBvvFetchers(final int n) {
+		Prefs.set(BVV_FETCHERS_KEY, Math.max(0, n));
 	}
 
 	/** @return whether the user opted out of BVV's GPU tile cache prompt */
@@ -623,6 +634,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(BVV_RENDER_QUALITY_KEY, null);
 		Prefs.set(BVV_CACHE_MB_KEY, null);
 		Prefs.set(BVV_CACHE_NO_ASK_KEY, null);
+		Prefs.set(BVV_FETCHERS_KEY, null);
 		Prefs.set(BVV_MAX_STEP_KEY, null);
 	}
 

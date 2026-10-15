@@ -80,22 +80,32 @@ public final class BvvUtils {
     static final int DEFAULT_WINDOW_SIZE = 1024;
     /** GPU cache size in MB. */
     static final int DEFAULT_CACHE_SIZE_MB = 300;
-    /** BVV render quality presets (offscreen render size in px, and max. render time per frame in ms) */
+    /**
+     * BVV render quality presets: offscreen render size (px), max. render time per frame (ms) and dither window.
+     * A dither window above 1 renders only a subset of pixels per frame and interpolates the rest: cheaper frames,
+     * at the cost of some noise while navigating. Presets apply to all BVV windows, including streamed N5/Zarr data
+     * (see {@link #applyRenderQuality})
+     */
     public enum RenderQuality {
-        LOW("Low (256x256, 15ms)", 256, 15, "Lowest quality, fastest rendering. Best for slow GPUs"),
-        MEDIUM("Medium (512x512, 30ms)", 512, 30, "Balanced quality and performance (default)"),
-        HIGH("High (768x768, 60ms)", 768, 60, "Higher quality. Recommended for analysis and screenshots"),
-        MAX("Max (1024x1024, 100ms)", 1024, 100, "Maximum quality, slowest rendering. For high-end GPUs");
+        // NB: the dither window of LOW (2) is a first guess: tune it after visual testing
+        LOW("Low (256x256, 15ms, dithered)", 256, 15, 2,
+                "Lowest quality, fastest rendering: renders fewer pixels per frame. Best for slow GPUs or remote data"),
+        MEDIUM("Medium (512x512, 30ms)", 512, 30, 1, "Balanced quality and performance (default)"),
+        HIGH("High (768x768, 60ms)", 768, 60, 1, "Higher quality. Recommended for analysis and screenshots"),
+        MAX("Max (1024x1024, 100ms)", 1024, 100, 1, "Maximum quality, slowest rendering. For high-end GPUs");
 
         public final String label;
         public final int size;
         public final int millis;
+        public final int dither;
         public final String description;
 
-        RenderQuality(final String label, final int size, final int millis, final String description) {
+        RenderQuality(final String label, final int size, final int millis, final int dither,
+                      final String description) {
             this.label = label;
             this.size = size;
             this.millis = millis;
+            this.dither = dither;
             this.description = description;
         }
 
@@ -123,6 +133,18 @@ public final class BvvUtils {
 
     public static void setRenderQuality(final RenderQuality quality) {
         SNTPrefs.setBvvRenderQuality((quality == null ? RenderQuality.MEDIUM : quality).name());
+    }
+
+    /**
+     * Applies the user's {@link RenderQuality} preset (offscreen render size, time budget, dithering) to
+     * {@code options}. Only effective for options of a window that has not been created yet
+     *
+     * @return {@code options}
+     */
+    static bvv.vistools.BvvOptions applyRenderQuality(final bvv.vistools.BvvOptions options) {
+        final RenderQuality q = getRenderQuality();
+        return options.renderWidth(q.size).renderHeight(q.size).maxRenderMillis(q.millis)
+                .ditherWidth(q.dither).numDitherSamples(q.dither > 1 ? 8 : 1);
     }
 
     /** Hard ceiling (MB) for the GPU tile cache */
@@ -177,6 +199,32 @@ public final class BvvUtils {
         final int pref = getCachePrefMB();
         if (pref > 0) return Math.min(pref, max);
         return streaming ? recommendedCacheMB(nChannels) : DEFAULT_CACHE_SIZE_MB;
+    }
+
+    /** Fetcher threads used by default for remote (HTTP/S3/GCS) sources: threads mostly wait on the network */
+    private static final int REMOTE_FETCHERS = 64;
+    private static final int MAX_FETCHERS = 256;
+
+    /** @return the user's tile fetcher thread preference. 0 means automatic */
+    public static int getFetchersPref() {
+        return SNTPrefs.getBvvFetchers();
+    }
+
+    /** Persists the tile fetcher thread preference. 0 means automatic. Applies when a dataset is next opened */
+    public static void setFetchersPref(final int n) {
+        SNTPrefs.setBvvFetchers(n);
+    }
+
+    /**
+     * @param remote whether the data is read over the network
+     * @return the number of tile fetcher threads: the {@code snt.bvv.fetchers} system property, else the user
+     * preference, else {@value #REMOTE_FETCHERS} for remote data or one less than the number of CPU cores
+     */
+    public static int fetcherThreads(final boolean remote) {
+        final Integer prop = Integer.getInteger("snt.bvv.fetchers");
+        int n = (prop != null) ? prop : getFetchersPref();
+        if (n <= 0) n = remote ? REMOTE_FETCHERS : Runtime.getRuntime().availableProcessors() - 1;
+        return Math.max(1, Math.min(n, MAX_FETCHERS));
     }
 
     /** Default maximum ray-marching step size (voxels). */
@@ -803,7 +851,8 @@ public final class BvvUtils {
     private static final int MIN_CELL_SIZE = 32;
 
     /** Cells never exceed this edge length (voxels), whatever the source chunk size */
-    private static final int MAX_CELL_SIZE = 128;
+    private static final int MAX_CELL_SIZE = Math.max(32,
+            Integer.getInteger("snt.bvv.maxCell", 256) / 32 * 32); // override: -Dsnt.bvv.maxCell=N
 
     /** Edge length of the cells streamed for a source with chunks of {@code chunk} voxels along an axis */
     static int cellSizeFor(final int chunk) {
@@ -1106,7 +1155,12 @@ public final class BvvUtils {
      * @return {@code soc} itself if no wrapping is needed (or possible), or an equivalent, cell-backed one
      */
     public static SourceAndConverter<?> ensureCellBacked(final SourceAndConverter<?> soc) {
-        return ensureCellBacked(soc, null);
+        return ensureCellBacked(soc, null, false);
+    }
+
+    /** As {@link #ensureCellBacked(SourceAndConverter, int[], boolean)} for a local source */
+    public static SourceAndConverter<?> ensureCellBacked(final SourceAndConverter<?> soc, final int[] chunkShape) {
+        return ensureCellBacked(soc, chunkShape, false);
     }
 
     /**
@@ -1115,10 +1169,12 @@ public final class BvvUtils {
      * @param soc        the source about to be shown in BVV
      * @param chunkShape the chunk shape of the data in N5 axis order (x, y, z, ...), or null if unknown, in which
      *                   case cells have {@link #CELL_SIZE} voxels per side
+     * @param remote     whether the data is read over the network (sizes the tile fetcher pool)
      * @return {@code soc} itself if no wrapping is needed (or possible), or an equivalent, cell-backed one
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static SourceAndConverter<?> ensureCellBacked(final SourceAndConverter<?> soc, final int[] chunkShape) {
+    public static SourceAndConverter<?> ensureCellBacked(final SourceAndConverter<?> soc, final int[] chunkShape,
+                                                         final boolean remote) {
         final Source<?> source = soc.getSpimSource();
         final Object type = source.getType();
         if (source.getNumMipmapLevels() <= 1 || !TileAccess.isSupportedType(type)
@@ -1144,7 +1200,7 @@ public final class BvvUtils {
         final SourceAndConverter<?> vsoc = soc.asVolatile();
         if (vsoc == null) return new SourceAndConverter(wrapped, soc.getConverter());
         final VolatileCellBackedSource vsource = new VolatileCellBackedSource(wrapped, vsoc.getSpimSource(),
-                loadingQueue());
+                loadingQueue(remote));
         return new SourceAndConverter(wrapped, soc.getConverter(),
                 new SourceAndConverter(vsource, vsoc.getConverter()));
     }
@@ -1192,12 +1248,75 @@ public final class BvvUtils {
         if (freed > 0) SNTUtils.log("BVV: Released " + SNTUtils.formatBytes(freed) + " of RAM");
     }
 
-    private static bdv.cache.SharedQueue sharedLoadingQueue;
+    private static bdv.cache.SharedQueue localLoadingQueue;
+    private static bdv.cache.SharedQueue remoteLoadingQueue;
 
-    private static synchronized bdv.cache.SharedQueue loadingQueue() {
-        if (sharedLoadingQueue == null)
-            sharedLoadingQueue = new bdv.cache.SharedQueue(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
-        return sharedLoadingQueue;
+    // Fetch queues feeding BVV windows. BDV advances its queue on every new frame, which moves requests for views
+    // that are no longer shown to a low-priority prefetch queue. BVV does the same, but only for the cache controls
+    // registered with its handle, and BvvFunctions#show(SourceAndConverter) registers none: without
+    // syncQueuesWithViewer(), requests for stale views stay ahead of those for the current one
+    private static final java.util.List<bdv.cache.CacheControl> QUEUES =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final java.util.Map<Object, java.util.Set<bdv.cache.CacheControl>> SYNCED =
+            new java.util.WeakHashMap<>();
+
+    /** Makes {@link #syncQueuesWithViewer} aware of a fetch queue that feeds BVV */
+    public static void trackQueue(final bdv.cache.CacheControl queue) {
+        QUEUES.add(queue);
+    }
+
+    /**
+     * Registers all tracked fetch queues with the cache controls of {@code handle}, so that BVV advances them on
+     * every new frame (see {@link bdv.cache.CacheControl#prepareNextFrame()}). Idempotent. Opt out with
+     * {@code -Dsnt.bvv.noQueueSync=true}
+     */
+    public static synchronized void syncQueuesWithViewer(final bvv.vistools.BvvHandle handle) {
+        if (handle == null || Boolean.getBoolean("snt.bvv.noQueueSync")) return;
+        try {
+            // NB: getCacheControls() is package-private in bvv.vistools
+            final java.lang.reflect.Method getter = bvv.vistools.BvvHandle.class.getDeclaredMethod("getCacheControls");
+            getter.setAccessible(true);
+            final bdv.cache.CacheControl.CacheControls controls =
+                    (bdv.cache.CacheControl.CacheControls) getter.invoke(handle);
+            if (controls == null) return;
+            final java.util.Set<bdv.cache.CacheControl> done = SYNCED.computeIfAbsent(handle,
+                    h -> java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+            int added = 0;
+            for (final bdv.cache.CacheControl q : QUEUES) {
+                if (done.add(q)) {
+                    controls.addCacheControl(q);
+                    added++;
+                }
+            }
+            if (added > 0) SNTUtils.log("BVV: registered " + added + " fetch queue(s) with the viewer's cache controls");
+        } catch (final ReflectiveOperationException | RuntimeException ex) {
+            SNTUtils.log("BVV: could not register fetch queues with the viewer (" + ex + ")");
+        }
+    }
+
+    /**
+     * Number of fetch priorities of the loading queues. Priority 0 is served first: cells of the coarsest pyramid
+     * levels get 0, finer levels progressively lower priority, so that a low-resolution preview is available
+     * before the (much more numerous) fine tiles. Opt-in with -Dsnt.bvv.levelPriority=true: BVV also requests all
+     * intermediate levels, which then load ahead of the finest one and delay the sharp image (all levels share
+     * priority 0 by default)
+     */
+    private static final int QUEUE_PRIORITIES = 16;
+    private static final boolean LEVEL_PRIORITY = Boolean.getBoolean("snt.bvv.levelPriority");
+
+    private static synchronized bdv.cache.SharedQueue loadingQueue(final boolean remote) {
+        if (remote) {
+            if (remoteLoadingQueue == null) {
+                remoteLoadingQueue = new bdv.cache.SharedQueue(fetcherThreads(true), QUEUE_PRIORITIES);
+                trackQueue(remoteLoadingQueue);
+            }
+            return remoteLoadingQueue;
+        }
+        if (localLoadingQueue == null) {
+            localLoadingQueue = new bdv.cache.SharedQueue(fetcherThreads(false), QUEUE_PRIORITIES);
+            trackQueue(localLoadingQueue);
+        }
+        return localLoadingQueue;
     }
 
     /** {@link Source} delegating to another one, but exposing its levels as lazily-filled cell images */
@@ -1263,9 +1382,12 @@ public final class BvvUtils {
                             ? cellSizeFor(chunkShape[d]) : CELL_SIZE;
                     cellDims[d] = (int) Math.max(1, Math.min(edge, rai.dimension(d)));
                 }
+                final String loadLabel = "cell.load L" + level; // profiling label, one row per pyramid level
                 final net.imglib2.cache.img.CellLoader<T> loader = cell -> {
+                    final long t0 = BvvProfiler.start();
                     LoopBuilder.setImages(Views.interval(rai, cell), cell).forEachPixel((s, c) -> c.set(s));
                     residentCells.incrementAndGet();
+                    BvvProfiler.stop(loadLabel, t0);
                 };
                 // Memory-only, read-only cache (no disk spill of 'dirty' cells). Levels small enough to fit in a
                 // modest memory budget are held with strong references so they are never evicted and reloaded
@@ -1355,7 +1477,16 @@ public final class BvvUtils {
         @Override
         public RandomAccessibleInterval getSource(final int t, final int level) {
             return levels.computeIfAbsent(((long) t << 32) | level, k ->
-                    VolatileViews.wrapAsVolatile((RandomAccessibleInterval) cells.getSource(t, level), queue));
+                    VolatileViews.wrapAsVolatile((RandomAccessibleInterval) cells.getSource(t, level), queue,
+                            hintsFor(level)));
+        }
+
+        /** Coarsest level gets queue priority 0 (served first), finer levels progressively later */
+        private net.imglib2.cache.volatiles.CacheHints hintsFor(final int level) {
+            final int p = !LEVEL_PRIORITY ? 0
+                    : Math.max(0, Math.min(QUEUE_PRIORITIES - 1, original.getNumMipmapLevels() - 1 - level));
+            return new net.imglib2.cache.volatiles.CacheHints(
+                    net.imglib2.cache.volatiles.LoadingStrategy.VOLATILE, p, false);
         }
 
         @Override

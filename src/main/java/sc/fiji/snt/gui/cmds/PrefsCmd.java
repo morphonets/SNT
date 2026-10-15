@@ -97,10 +97,11 @@ public class PrefsCmd extends OptionsPlugin {
 			description="Whether Gzip compression should be use when saving .traces files")
 	private boolean compressTraces;
 
-	@Parameter(label="BVV render quality", persist = false, choices = {"Low (256x256, 15ms)", "Medium (512x512, 30ms)",
+	@Parameter(label="BVV render quality", persist = false, choices = {"Low (256x256, 15ms, dithered)", "Medium (512x512, 30ms)",
 			"High (768x768, 60ms)", "Max (1024x1024, 100ms)"},
-			description="<HTML><div WIDTH=500>Offscreen render size and max. render time per frame of BVV. Higher "
-					+ "quality is sharper but slower to navigate. Applies the next time a BVV window is opened")
+			description="<HTML><div WIDTH=500>Offscreen render size, max. render time per frame and dithering of BVV, "
+					+ "including streamed N5/Zarr data. Higher quality is sharper but slower to navigate. "
+					+ "Applies the next time a BVV window is opened")
 	private String bvvQuality;
 
 	@Parameter(label="BVV GPU tile cache (MB)", min = "0", persist = false,
@@ -109,6 +110,13 @@ public class PrefsCmd extends OptionsPlugin {
 					+ "JVM's max. memory (see Edit&gt;Options&gt;Memory &amp; Threads...), whichever is lower. "
 					+ "Too small a value causes flickering. Applies the next time a BVV window is opened")
 	private int bvvCacheMB;
+
+	@Parameter(label="BVV tile fetcher threads", min = "0", persist = false,
+			description="<HTML><div WIDTH=500>Number of threads loading volume tiles of pyramidal data. "
+					+ "0 = automatic (64 for remote data such as S3/HTTPS, CPU cores minus one for local files). "
+					+ "Each in-flight chunk is held in memory, so large chunks and many threads need more heap. "
+					+ "Applies the next time a dataset is opened")
+	private int bvvFetchers;
 
 	@Parameter(label="Clear Cache...", callback="clearCache",
 			description="<HTML>Deletes SNT's disk-backed cache (secondary/filtered images, auto-tracing scratch files, " +
@@ -167,6 +175,7 @@ public class PrefsCmd extends OptionsPlugin {
 	public void run() {
 		super.run();
 		BvvUtils.setCachePrefMB(Math.min(Math.max(0, bvvCacheMB), BvvUtils.maxCacheMB()));
+		BvvUtils.setFetchersPref(bvvFetchers);
 		BvvUtils.setRenderQuality(BvvUtils.RenderQuality.fromLabel(bvvQuality));
 		if (snt == null) return;
 
@@ -237,6 +246,7 @@ public class PrefsCmd extends OptionsPlugin {
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
 			bvvCacheMB = BvvUtils.getCachePrefMB();
+			bvvFetchers = BvvUtils.getFetchersPref();
 			bvvQuality = BvvUtils.getRenderQuality().label;
             somaDisplay = getSomaDisplayChoice(PathNodeCanvas.getSomaRenderMode());
 			workspaceDirectory = snt.getPrefs().getWorkspaceDir();

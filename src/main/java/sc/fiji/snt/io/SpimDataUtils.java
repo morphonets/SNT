@@ -487,12 +487,20 @@ public class SpimDataUtils {
      * @param name          Display name derived from the container's directory name.
      * @param chunkShape    Chunk (block) shape of the full-resolution array in N5 axis order (x, y, z[, c, t]), or
      *                      {@code null} if unknown.
+     * @param remote        Whether the container is read over the network (as opposed to a local file).
      */
-    public record N5Sources(List<SourceAndConverter<?>> sources, int numTimepoints, String name, int[] chunkShape) {
+    public record N5Sources(List<SourceAndConverter<?>> sources, int numTimepoints, String name, int[] chunkShape,
+                            boolean remote) {
+
+        /** Creates sources of a local container whose chunk shape is known */
+        public N5Sources(final List<SourceAndConverter<?>> sources, final int numTimepoints, final String name,
+                         final int[] chunkShape) {
+            this(sources, numTimepoints, name, chunkShape, false);
+        }
 
         /** Creates sources whose chunk shape is unknown */
         public N5Sources(final List<SourceAndConverter<?>> sources, final int numTimepoints, final String name) {
-            this(sources, numTimepoints, name, null);
+            this(sources, numTimepoints, name, null, false);
         }
     }
 
@@ -728,15 +736,29 @@ public class SpimDataUtils {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static N5Sources buildN5Sources(
             final N5Reader n5, final List<N5Metadata> selected, final String name) throws IOException {
-        final SharedQueue sharedQueue = new SharedQueue(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+        final boolean remote = isRemote(n5);
+        final SharedQueue sharedQueue = new SharedQueue(sc.fiji.snt.viewer.BvvUtils.fetcherThreads(remote));
+        sc.fiji.snt.viewer.BvvUtils.trackQueue(sharedQueue);
+        final N5Reader reader = Boolean.getBoolean("snt.profile.n5") ? sc.fiji.snt.viewer.BvvProfiler.wrap(n5) : n5;
         final List<ConverterSetup> converterSetups = new ArrayList<>();
         final List<SourceAndConverter<?>> sourcesAndConverters = new ArrayList<>();
         final int numTimepoints = N5Viewer.buildN5Sources(
-                n5, selected, sharedQueue, converterSetups, (List) sourcesAndConverters, BdvOptions.options());
+                reader, selected, sharedQueue, converterSetups, (List) sourcesAndConverters, BdvOptions.options());
         if (sourcesAndConverters.isEmpty())
             throw new IllegalArgumentException("No displayable sources found for '" + name + "'.");
         return new N5Sources(new ArrayList<>(sourcesAndConverters), numTimepoints, name,
-                chunkShapeOf(n5, selected));
+                chunkShapeOf(n5, selected), remote);
+    }
+
+    /** Whether {@code n5} is read over the network, i.e., its URI has a scheme other than {@code file} */
+    private static boolean isRemote(final N5Reader n5) {
+        try {
+            final java.net.URI uri = n5.getURI();
+            final String scheme = (uri == null) ? null : uri.getScheme();
+            return scheme != null && !"file".equalsIgnoreCase(scheme);
+        } catch (final RuntimeException ex) {
+            return false;
+        }
     }
 
     /**

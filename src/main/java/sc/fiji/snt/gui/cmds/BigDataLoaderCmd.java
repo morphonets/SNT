@@ -1102,7 +1102,8 @@ public class BigDataLoaderCmd extends ContextCommand {
                             BvvUtils.synthesizeMipmapPyramid((Source) soc.getSpimSource(), 3, copyLocally),
                             soc.getConverter()))
                     .toList();
-            return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name());
+            return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name(), null,
+                    n5Sources.remote());
         } catch (final OutOfMemoryError oom) {
             throw new IllegalStateException("Not enough memory to build a pyramid for '" + n5Sources.name()
                     + "'. Increase the amount of memory available to Fiji/SNT, or convert the image to a multi-resolution "
@@ -1120,12 +1121,12 @@ public class BigDataLoaderCmd extends ContextCommand {
         final List<SourceAndConverter<?>> wrapped = new ArrayList<>();
         boolean changed = false;
         for (final SourceAndConverter<?> soc : n5Sources.sources()) {
-            final SourceAndConverter<?> w = BvvUtils.ensureCellBacked(soc, n5Sources.chunkShape());
+            final SourceAndConverter<?> w = BvvUtils.ensureCellBacked(soc, n5Sources.chunkShape(), n5Sources.remote());
             changed |= (w != soc);
             wrapped.add(w);
         }
         return changed ? new SpimDataUtils.N5Sources(wrapped, n5Sources.numTimepoints(), n5Sources.name(),
-                n5Sources.chunkShape()) : n5Sources;
+                n5Sources.chunkShape(), n5Sources.remote()) : n5Sources;
     }
 
     /**
