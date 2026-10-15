@@ -137,7 +137,7 @@ unzip -l "$FIJI_HOME"/jars/SNT-*.jar | grep script_templates/Neuroanatomy
 unzip -p "$FIJI_HOME"/jars/SNT-*.jar script_templates/Neuroanatomy/Analysis/Get_Branch_Points.groovy
 ```
 
-Templates are grouped: `Analysis/`, `Batch/`, `Big_Data/`, `Misc/`, `Render/`, `Skeletons_and_ROIs/`, `Time-lapses/`, `Tracing/`.
+Templates are grouped: `Analysis/`, `Batch/`, `Big_Data/`, `Develop/`, `Misc/`, `Render/`, `Skeletons_and_ROIs/`, `Time-lapses/`, `Tracing/`.
 Their headers also serve as canonical examples of `#@` parameters and `SNTService` use.
 
 ---
@@ -326,8 +326,28 @@ Before handing a script back to the user:
 
 ---
 
+### Two helper scripts (bundled; SNT menu: Scripts > Develop)
+
+Run these instead of guessing. Both work headlessly and print to the console. Use `output="JSON"` (API_Lookup) for machine-readable
+results. Never pass `output="Text window"`: it opens a window on the user's screen when Fiji is not headless.
+
+```bash
+# Ground truth for class/method names in the installed jar
+"$FIJI_HOME/fiji" --headless --run API_Lookup.groovy 'mode="search",query="skeleton"'
+"$FIJI_HOME/fiji" --headless --run API_Lookup.groovy 'mode="class",query="TreeStatistics",output="JSON"'
+# modes: search | class | classes (package) | packages
+
+# State of the SNT session (versions, image, paths, trees); optionally load a file
+"$FIJI_HOME/fiji" --headless --run Inspect_Session.groovy 'reconstruction="/path/cell.swc"'
+```
+
+Extract them with `unzip -p "$FIJI_HOME"/jars/SNT-*.jar script_templates/Neuroanatomy/Develop/API_Lookup.groovy > API_Lookup.groovy`.
+`Inspect_Session.groovy` reports on the session it runs in: from the Script Editor it sees
+the live GUI session, headlessly it only sees a fresh one.
+
 ## Phase 6: When Stuck
 
+0. **Look the API up:** run `API_Lookup.groovy` (see above) before writing any call you are not sure exists
 1. **Read the jar.** `unzip -l "$FIJI_HOME"/jars/SNT-*.jar` is the ground truth for what classes/templates exist *on this machine*
 2. **Open the javadoc** for the specific class: `https://morphonets.github.io/SNT/sc/fiji/snt/<ClassName>.html`
 3. **Check the notebooks repo** for curated working examples: https://github.com/morphonets/SNT/tree/main/notebooks

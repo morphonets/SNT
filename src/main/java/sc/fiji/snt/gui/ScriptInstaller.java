@@ -322,7 +322,7 @@ public class ScriptInstaller {
 			sMenu.revalidate();
 			guiUtils.centeredMsg((newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
-		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.menuIcon(GLYPH.FILE));
+		final JMenuItem mi1 = new JMenuItem("New Script from Template...", IconFactory.menuIcon(GLYPH.FILE));
 		mi1.addActionListener(e -> {
 			final HashMap<String, String> map = new HashMap<>();
 			map.put("BeanShell", "BSH.bsh");
@@ -347,10 +347,10 @@ public class ScriptInstaller {
 							getScriptsDir() + File.separator + "_SNT_script." + FileUtils.getExtension(map.get(choice)));
 			}
 		});
-		final JMenuItem mi2 = new JMenuItem("From Clipboard...", IconFactory.menuIcon(GLYPH.CLIPBOARD));
+		final JMenuItem mi2 = new JMenuItem("New Script from Clipboard...", IconFactory.menuIcon(GLYPH.CLIPBOARD));
 		mi2.addActionListener(e -> newScriptFromClipboard());
-		final JMenu nMenu = new JMenu("New");
-		nMenu.setIcon(IconFactory.menuIcon(GLYPH.PLUS));
+		final JMenu nMenu = new JMenu("Develop");
+		nMenu.setIcon(IconFactory.menuIcon(GLYPH.TOOLBOX));
 		nMenu.add(mi1);
 		nMenu.add(mi2);
 
@@ -363,6 +363,23 @@ public class ScriptInstaller {
 		});
 		nMenu.addSeparator();
 		nMenu.add(mi3);
+
+		// Helper scripts for script/agent development (script_templates/Neuroanatomy/Develop)
+		final JMenuItem apiMI = developItem("API Lookup");
+		final JMenuItem sessionMI = developItem("Inspect Session");
+		if (apiMI != null) {
+			apiMI.setIcon(IconFactory.menuIcon(GLYPH.SEARCH));
+			nMenu.add(apiMI);
+		}
+		if (sessionMI != null) {
+			sessionMI.setIcon(IconFactory.menuIcon(GLYPH.STETHOSCOPE));
+			nMenu.add(sessionMI);
+		}
+		final JMenuItem skillMI = new JMenuItem("Download Agent Skill...", IconFactory.menuIcon(GLYPH.ROBOT));
+		skillMI.setToolTipText("Saves SNT's skill file for AI coding agents (e.g., Claude Code) to a snt/ folder");
+		skillMI.addActionListener(e -> downloadAgentSkill());
+		nMenu.addSeparator();
+		nMenu.add(skillMI);
 
 		sMenu.add(listMenu);
 		sMenu.addSeparator();
@@ -385,6 +402,60 @@ public class ScriptInstaller {
 		sMenu.addSeparator();
 		sMenu.add(about());
 		return sMenu;
+	}
+
+	private static final String SKILL_RAW_URL = "https://raw.githubusercontent.com/morphonets/SNT/main/SKILL.md";
+	private static final String SKILL_PAGE_URL = "https://github.com/morphonets/SNT/blob/main/SKILL.md";
+
+	/** Returns the menu item of a bundled Develop script, or null if not found */
+	private JMenuItem developItem(final String label) {
+		for (final ScriptInfo si : scripts) {
+			final String[] dirAndFile = getDirAndFilename(si.getPath());
+			if (dirAndFile != null && dirAndFile[0].contains("Develop") && label.equals(getScriptLabel(si, true)))
+				return menuItem(si, true);
+		}
+		return null;
+	}
+
+	private void downloadAgentSkill() {
+		final File proposal = new File(new File(System.getProperty("user.home"), "snt"), "SKILL.md");
+		final File dest = guiUtils.getSaveFile("Save SNT Agent Skill (SKILL.md)", proposal);
+		if (dest == null) return; // canceled
+		if (ui != null) ui.showStatus("Downloading SKILL.md...", false);
+		final Thread t = new Thread(() -> {
+			try {
+				final File parent = dest.getAbsoluteFile().getParentFile();
+				if (parent != null && !parent.exists() && !parent.mkdirs())
+					throw new IOException("Could not create " + parent);
+				final File tmp = SNTUtils.downloadToTempFile(SKILL_RAW_URL);
+				java.nio.file.Files.copy(tmp.toPath(), dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				SwingUtilities.invokeLater(() -> {
+					if (ui != null) ui.showStatus("SKILL.md saved", true);
+					final File folder = dest.getAbsoluteFile().getParentFile();
+					final String hint = (folder != null && "snt".equals(folder.getName()))
+							? "Place the snt folder in the skills directory of your AI agent (e.g., .claude/skills/)."
+							: "To use it, place SKILL.md in a folder named snt within the skills directory of your "
+									+ "AI agent (e.g., .claude/skills/snt/SKILL.md).";
+					if (guiUtils.getConfirmation("Saved to " + dest.getAbsolutePath() + "\n\n" + hint, "Agent Skill Saved",
+							"Reveal File", "OK")) {
+                        try {
+                            FileChooser.reveal(dest);
+                        } catch (final IOException e) {
+							SNTUtils.log("Could not open directory: " + e.getMessage());
+						}
+                    }
+				});
+			} catch (final IOException | java.net.URISyntaxException ex) {
+				SNTUtils.error("SKILL.md download failed", ex);
+				SwingUtilities.invokeLater(() -> {
+					if (ui != null) ui.showStatus("Download failed", true);
+					guiUtils.error("SKILL.md could not be downloaded. Opening its web page instead.");
+					GuiUtils.openURL(SKILL_PAGE_URL);
+				});
+			}
+		}, "SNT-skill-download");
+		t.setDaemon(true);
+		t.start();
 	}
 
 	public void openScript(final String folder, final String name) throws IllegalArgumentException{
