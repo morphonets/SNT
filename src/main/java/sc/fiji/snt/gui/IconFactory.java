@@ -406,10 +406,9 @@ public class IconFactory {
         // icon) so callers that sometimes pass a real entry2 and sometimes null - e.g. a JList mixing
         // single- and double-glyph rows, or a menu item whose badge glyph only applies in some state -
         // get a consistently-sized icon either way.
-        final Icon leftIcon = (entry1 == null) ? new BlankIcon(Math.round(size), Math.round(size))
-                : cachedIcon(entry1.id, size, color, entry1.solid);
-        final Icon rightIcon = (entry2 == null) ? new BlankIcon(Math.round(size), Math.round(size))
-                : cachedIcon(entry2.id, size, color, entry2.solid);
+        final BlankIcon blankIcon = new BlankIcon(Math.round(size), Math.round(size));
+        final Icon leftIcon = (entry1 == null) ? blankIcon : cachedIcon(entry1.id, size, color, entry1.solid);
+        final Icon rightIcon = (entry2 == null) ? blankIcon : cachedIcon(entry2.id, size, color, entry2.solid);
         return new DropdownIcon(leftIcon, rightIcon, iconGap);
     }
 

@@ -3744,7 +3744,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
     /*
      * Whatever the state of the paths, update the 3D viewer to make sure that
-     * they're the right colour, the right version (fitted or unfitted) is being
+     * they're the right color, the right version (fitted or unfitted) is being
      * used, whether the line or surface representation is being used, or whether
      * the path should be displayed at all (it shouldn't if the "Show only selected
      * paths" option is set.)

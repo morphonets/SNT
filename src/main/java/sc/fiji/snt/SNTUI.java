@@ -144,7 +144,7 @@ public class SNTUI extends JDialog {
     private JButton pathColorsOptionsButton;
 
     // UI controls promoted from Options tab
-    private JCheckBox diametersCheckBox; // used for for quick-toggle access
+    private JCheckBox diametersCheckBox; // used for quick-toggle access
     private final JPanel optionsPanel; // Options tab group holding diametersCheckBox and its sub-panels. //
     private JSpinner transparencyOutOfBoundsSpinner; // focused by renderingOptionsButton()'s "Adjust Out-of-Plane Opacity..." 
 
@@ -1420,7 +1420,7 @@ public class SNTUI extends JDialog {
             bvv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
             // VolumeViewerFrame's own constructor already registers a WindowListener that unconditionally
             // calls viewer.stop() (halting the render/tile-streaming thread) the instant windowClosing
-            // fires, regardless of what any listener added afterward. We we'll remove it and re-instate
+            // fires, regardless of what any listener added afterward. We'll remove it and re-instate
             for (final WindowListener wl : bvv.getViewerFrame().getWindowListeners()) {
                 bvv.getViewerFrame().removeWindowListener(wl);
             }
@@ -7489,7 +7489,7 @@ public class SNTUI extends JDialog {
             plugin.setUnsavedChanges(false);
         } catch (final IOException ioe) {
             showStatus("Saving failed.", true);
-            guiError(String.format("File could not be saved: %s. " + GuiUtils.consoleHint() + ".", ioe.getMessage()));
+            guiError(String.format("File could not be saved: %s. %s.", ioe.getMessage(), GuiUtils.consoleHint()));
             changeState(preSavingState);
             plugin.setUnsavedChanges(true);
             SNTUtils.error(ioe);

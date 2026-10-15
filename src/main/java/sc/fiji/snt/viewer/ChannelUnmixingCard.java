@@ -37,7 +37,7 @@ import java.util.Set;
  * Builds and manages the "Channel Unmixing" card panel for real-time two-channel
  * subtraction in BDV/BVV. The card provides a slider controlling a subtraction
  * weight {@code w} in {@code result = signal - w * background} (clamped to
- * [0, 65535]), normalised by the display range of each channel. It only deals
+ * [0, 65535]), normalized by the display range of each channel. It only deals
  * with the UI: how the mix is computed and displayed is up to the viewer-specific
  * {@link UnmixEngine}.
  */

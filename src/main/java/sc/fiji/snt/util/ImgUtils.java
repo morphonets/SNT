@@ -654,7 +654,7 @@ public class ImgUtils {
     /**
      * Faster, single-copy alternative to {@code raiToImp(rai, title).duplicate()}. That combination routes
      * through a lazy {@link net.imglib2.img.display.imagej.ImageJVirtualStack} (which performs a full copy
-     * of every slice on first/every access) and then {@link ImagePlus#duplicate()} (which performs a SECOND
+     * of every slice on first/every access) and then {@link ImagePlus#duplicate()} which performs a SECOND
      * full, single-threaded copy of every stack slice. For large crops this double-copy, single-threaded path
      * may be quite heavy.
      * <p>

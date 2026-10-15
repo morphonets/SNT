@@ -4195,7 +4195,7 @@ public abstract class AbstractBigViewer {
          *         exclusive {@link ButtonGroup} (see {@link #installTracingModeButtons}), this action only
          *         ever fires when {@code manualTraceFlag}'s button is newly selected - a radio button that
          *         is already selected does not re-fire on click - so unlike the old none-selected-allowed
-         *         group, there is no "turn off" branch to handle here any more.
+         *         group, there is no "turn off" branch to handle here anymore.
          */
         protected AbstractAction getToggleAction(final boolean manualTraceFlag) {
             return new AbstractAction("Start/Stop tracing") {

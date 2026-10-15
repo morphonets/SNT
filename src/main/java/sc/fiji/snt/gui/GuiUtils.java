@@ -1498,7 +1498,7 @@ public class GuiUtils {
 	 * @param allowedExtensions the choosable extension(s) offered in the dialog's filter; if a
 	 *                          single extension is given, it is appended to the chosen file if the
 	 *                          user typed a name without it
-	 * @return the chosen {@code File}, or {@code null} if the dialog was cancelled
+	 * @return the chosen {@code File}, or {@code null} if the dialog was canceled
 	 */
 	public File getSaveFile(final String title, final File file, final String... allowedExtensions) {
 		final FileNameExtensionFilter filter = (allowedExtensions == null || allowedExtensions.length == 0) ? null
@@ -1601,7 +1601,7 @@ public class GuiUtils {
 	 *                          ({@code setSelectedFile})
 	 * @param filter         the (single) choosable extension filter to add, or {@code null} for none
 	 * @return a {@code File} (single-selection) or {@code File[]} (multi-selection), or {@code null}
-	 *         if the dialog was cancelled
+	 *         if the dialog was canceled
 	 */
 	private Object showOpenDialog(final String title, final int selectionMode, final boolean multiSelection,
 			final File preset, final boolean presetIsDirectory, final FileNameExtensionFilter filter) {

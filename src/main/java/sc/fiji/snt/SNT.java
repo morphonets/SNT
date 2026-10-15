@@ -824,7 +824,7 @@ public class SNT extends MultiDThreePanes implements
 	 * 0 by dematerializeDisplayCanvas(). Exists so  pixel-based tracing interactions that must compare against a
 	 * Path's own (true-world) node coordinates (e.g. clickForTrace, mouseMovedTo's join-point lookup, etc.) can correct
 	 * a raw pane-pixel index back to the true grid before doing so. Without this, those interactions silently used the
-	 * crop-local pixel index as if it were the true.
+	 * crop-local pixel index as if it were the truth.
 	 */
 	private PointInCanvas activeCanvasPixelOffset = new PointInCanvas(0, 0, 0);
 
@@ -972,7 +972,7 @@ public class SNT extends MultiDThreePanes implements
 	/*
 	 * Reverts a materialized crop back to a plain Stream-mode session: restores  ctSlice3d to the original
 	 * streamedSourceData cached by materializeDisplayCanvas(BoundingBox), resets every Path's canvasOffset back to 0
-	 * and clears this session's own XY canvas bookkeeping (nullifyCanvases(false). Called by SNTUI when the crop's
+	 * and clears this session's own XY canvas bookkeeping (nullifyCanvases(false)). Called by SNTUI when the crop's
 	 * ImagePlus window is closed, so BDV/BVV  tracing (blocked by isMaterializedCrop() while a crop is open) and any
 	 * "whole dataset" command work correctly again.
 	 *
@@ -2010,7 +2010,7 @@ public class SNT extends MultiDThreePanes implements
 			// Wait a while for existing tasks to terminate
 			if (!fillerThreadPool.awaitTermination(1L, TimeUnit.SECONDS)) {
 				fillerThreadPool.shutdownNow(); // Cancel currently executing tasks
-				// Wait a while for tasks to respond to being cancelled
+				// Wait a while for tasks to respond to being canceled
 				if (!fillerThreadPool.awaitTermination(1L, TimeUnit.SECONDS))
 					System.err.println("Filler did not terminate");
 			}
@@ -3618,7 +3618,7 @@ public class SNT extends MultiDThreePanes implements
 	 *          the tracer thread pool, so the caller can cancel it later (e.g. {@code
 	 *          future.cancel(true)}); the search loop already checks for interruption, so this
 	 *          actually stops the search rather than merely abandoning it. May be null.
-	 * @return the path, or null if the search failed or was cancelled
+	 * @return the path, or null if the search failed or was canceled
 	 */
 	public Path autoTrace(final SNTPoint start, final SNTPoint end, final PointInImage forkPoint,
 			final SearchProgressCallback progressCallback, final Consumer<Future<?>> onSubmit) {
@@ -4815,7 +4815,7 @@ public class SNT extends MultiDThreePanes implements
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
 		// important! sets the channel/frame to be imported. Does nothing if image is not a hyperstack.
 		// The 2ng arg Z position is irrelevant to ImgUtils#getCtSlice(ImagePlus) below, so any in-range
-		// value works. In stream mode xy is null so we fallback to 1 rather than dereferencing xy.getSlice()
+		// value works. In stream mode xy is null so we fall back to 1 rather than dereferencing xy.getSlice()
 		imp.setPosition( channel, (xy != null) ? xy.getSlice() : 1, frame );
 		secondaryData = ImgUtils.getCtSlice(imp);
 		SNTUtils.log("Secondary data dimensions: " +
@@ -5310,7 +5310,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/*
 	 * Whatever the state of the paths, update the 3D viewer to make sure that
-	 * they're the right colour, the right version (fitted or unfitted) is being
+	 * they're the right color, the right version (fitted or unfitted) is being
 	 * used and whether the path should be displayed at all - it shouldn't if the
 	 * "Show only selected paths" option is set.
 	 */
@@ -6417,11 +6417,9 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas without voxel data.
 	 *
-	 * @param view            A case-insensitive string specifying the canvas to be
-	 *                        captured. Either "xy" (or "main"), "xz", "zy" or "3d"
-	 *                        (for legacy's 3D Viewer).
-	 * @param backgroundColor the background color of the canvas (string, hex, or
-	 *                        html)
+	 * @param view            A case-insensitive string specifying the canvas to be captured. Either "xy" (or "main"),
+	 *                        "xz", "zy" or "3d" (for legacy's 3D Viewer).
+	 * @param backgroundColor the background color of the canvas (string, hex, or html)
 	 * @return the snapshot capture of the canvas as an RGB image
 	 * @throws UnsupportedOperationException if SNT is not running
 	 * @throws IllegalArgumentException      if {@code view} or

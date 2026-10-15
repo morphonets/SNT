@@ -50,10 +50,6 @@ public class CheckboxSpinner extends JPanel {
 		add(label);
 	}
 
-	public void appendLabel(final JLabel trailingLabel) {
-		add(label = trailingLabel);
-	}
-
 	/**
 	 * Appends a small trailing icon with an optional tooltip.
 	 *

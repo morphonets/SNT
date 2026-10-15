@@ -28,7 +28,6 @@ import ij.gui.Toolbar;
 
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
-import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ContextMenuCommand;
 import sc.fiji.snt.gui.NodeEditCommand;
@@ -403,7 +402,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     /** Menu item for a command shared with the Bdv/Bvv context menu: label and icon come from the enum */
     private JMenuItem menuItem(final ContextMenuCommand cmd, final ActionListener lstnr, final KeyStroke keystroke) {
-        final JMenuItem mi = GuiUtils.MenuItems.menuItem(cmd.label(), lstnr, keystroke, (IconFactory.GLYPH) null);
+        final JMenuItem mi = GuiUtils.MenuItems.menuItem(cmd.label(), lstnr, keystroke, null);
         cmd.applyIcon(mi);
         return cmd.tag(mi);
     }
@@ -416,11 +415,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke,
                                final IconFactory.GLYPH glyph) {
         return GuiUtils.MenuItems.menuItem(cmdName, lstnr, keystroke, glyph);
-    }
-
-    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke,
-                               final char symbol, final boolean solid, final Color color) {
-        return GuiUtils.MenuItems.menuItem(cmdName, lstnr, keystroke, symbol, solid, color);
     }
 
     public void setFillTransparent(final boolean transparent) {

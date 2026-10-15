@@ -70,9 +70,7 @@ public class SigmaPalette extends Thread {
 	private static final Color COLOR_SELECTED = Color.GREEN;
 
 	private double[] sigmaValues;
-	private int croppedWidth;
-	private int croppedHeight;
-	private PaletteStackWindow paletteWindow;
+    private PaletteStackWindow paletteWindow;
 	private ImagePlus paletteImage;
 	private PaletteOptions paletteOptions;
 
@@ -117,8 +115,7 @@ public class SigmaPalette extends Thread {
 	private class PaletteStackWindow extends StackWindow {
 
 		private static final long serialVersionUID = 1L;
-		private Button setButton;
-		private Button commitButton;
+        private Button commitButton;
 		private Scrollbar maxValueScrollbar;
 		private Scrollbar scalesScrollbar;
 		private Label maxValueLabel;
@@ -259,7 +256,7 @@ public class SigmaPalette extends Thread {
 
 			scalesScrollbar = new RangeScrollbar(1, 1, getMaxScales() + 1);
 			selectedScaleLabel = new Label("1  ");
-			setButton = new Button("Set");
+            final Button setButton = new Button("Set");
 			setButton.addActionListener(e -> setSettingsForSelectedScale());
 
 			scalesScrollbar.addAdjustmentListener(e -> selectedScaleChanged(scalesScrollbar.getValue()));
@@ -715,7 +712,7 @@ public class SigmaPalette extends Thread {
 		if (selectedScale > 1 && selectedScale > scaleSettings.size() + 1) {
 			if (paletteWindow.guiUtils
 					.getConfirmation("You are adjusting scale " + selectedScale + " but previous scale positions are unset."
-									+ " Adjust scale " + (scaleSettings.size() + 1) + " instead?", "Non-contiguos Scale Positions")) {
+									+ " Adjust scale " + (scaleSettings.size() + 1) + " instead?", "Non-contiguous Scale Positions")) {
 				paletteWindow.scalesScrollbar.setValue(scaleSettings.size()+1);
 				paletteWindow.selectedScaleChanged(scaleSettings.size()+1);
 				autoAdvance = false;
@@ -798,13 +795,13 @@ public class SigmaPalette extends Thread {
 	@Override
 	public void run() {
 
-		croppedWidth = (x_max - x_min) + 1;
-		croppedHeight = (y_max - y_min) + 1;
+        final int croppedWidth = (x_max - x_min) + 1;
+        final int croppedHeight = (y_max - y_min) + 1;
 		final int croppedDepth = (z_max - z_min) + 1;
 
 		final Roi existingRoi = image.getRoi();
 		image.setRoi(x_min, y_min, croppedWidth, croppedHeight);
-		final ImagePlus cropped = image.crop("" + z_min + "-" + z_max);
+		final ImagePlus cropped = image.crop(z_min + "-" + z_max);
 		image.setRoi(existingRoi);
 
 		final Calibration cal = image.getCalibration();

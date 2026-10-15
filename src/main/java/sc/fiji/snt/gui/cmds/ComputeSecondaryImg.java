@@ -171,8 +171,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 
 	private Img<U> filteredImg;
-	private boolean useLazy;
-	private List<Double> sigmas;
+    private List<Double> sigmas;
 	private int paletteStatus = PALETTE_CLOSED;
 	private ImagePlus inputImp;
 
@@ -497,7 +496,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 		if (numThreads > SNTPrefs.getThreads())
 			numThreads = SNTPrefs.getThreads();
-		useLazy = LAZY_LOADING_TRUE.equals(useLazyChoice);
+        final boolean useLazy = LAZY_LOADING_TRUE.equals(useLazyChoice);
 		if (NONE.equals(filter)) {
 			final RandomAccessibleInterval<T> loadedData = getInputData();
 			final Img<T> copy = ops.create().img(loadedData);
@@ -521,7 +520,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			error("Current filter is not compatible with the current performance strategy.");
 			return;
 		}
-		if (sigmas.length > 1 && (MEDIAN.equals(filter) || GAUSS.equals(filter))) {
+		if ((sigmas != null && sigmas.length > 1) && (MEDIAN.equals(filter) || GAUSS.equals(filter))) {
 			msg("Only the first scale ('" + SNTUtils.formatDouble(sigmas[0], 2) + "') will be considered.",
 					"Single-scale Filter Chosen");
 		}
@@ -690,7 +689,6 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		new GuiUtils(getPrompt()).centeredMsg(sb.toString(), "Average Color");
 	}
 
-	@SuppressWarnings("unchecked")
 	private <V extends RealType<V>> Img<U> computeSpectralSimilarity(final U type, final boolean lazy, final int cellDim) {
 		if (!spectralUnmixingAllowed()) {
 			spectralUnmixingNotAllowedError();
@@ -760,7 +758,6 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	}
 
 	// Whole-image pass: reads every chunk of lazy/remote data, so only on user request
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private void computeStreamStatsOnDemand() {
 		final boolean ok = new GuiUtils(getPrompt()).getConfirmation(
 				"Frangi requires the intensity range of the image, which has not been computed yet. "
@@ -769,8 +766,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 						+ "(range is then estimated from the previewed region) and press 'Run' again.",
 				"Unknown Image Statistics", "Read Whole Image", "Dismiss");
 		if (!ok) return;
-		snt.computeImgStats(net.imglib2.view.Views.iterable((RandomAccessibleInterval) getInputData()),
-				snt.getStats(), SNT.CostType.RECIPROCAL);
+		snt.computeImgStats(getInputData(), snt.getStats(), SNT.CostType.RECIPROCAL);
 	}
 
 	private String getImageName() {
