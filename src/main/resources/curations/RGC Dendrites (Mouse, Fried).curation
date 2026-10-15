@@ -5,26 +5,45 @@
 # Cell IDs: 20180925_C8_WT, 20180918_C1_WT, 20181005_C1_WT, 20180926_C2_WT,
 #           20180928_C4_WT, 20180926_C3_WT, 20180919_C3_WT, 20190517_C10_WT
 #           20180926_C1_WT
-# Curation preset saved from SNT on Thu Apr 23 16:04:09 EDT 2026
+# Curation preset saved from SNT on Thu Oct 15 16:54:21 EDT 2026
 branchAngle.min=15.57809599252122
 branchAngle.max=129.35873497488083
 branchAngle.enabled=true
 directionContinuity.minAlignment=12.432496703234621
 directionContinuity.enabled=true
-radiusContinuity.maxRatio=1.4148982558139527
+radiusContinuity.maxRatio=1.4093386627906976
 radiusContinuity.enabled=true
-terminalBranchLength.minLength=3.2890032119306953
+terminalBranchLength.minLength=3.2920510292230953
 terminalBranchLength.enabled=true
-somaDistance.maxDist=149.67239069717917
+somaDistance.maxDist=149.1042116810069
 somaDistance.enabled=true
 tortuosityConsistency.maxDiff=0.30810614746523474
 tortuosityConsistency.enabled=true
 constantRadii.enabled=true
-pathOverlap.proximity=2.553339083553026
-pathOverlap.enabled=true
+interForkDistance.minDistance=5.0
+interForkDistance.enabled=true
+crossovers.proximity=2.565378620746322
+crossovers.includeSelfCrossovers=true
+crossovers.enabled=true
 radiusJumps.maxRatio=2.166666666666667
 radiusJumps.enabled=true
 radiusMonotonicity.minRun=3
 radiusMonotonicity.enabled=true
+invalidRadius.enabled=true
 signalQuality.minContrast=-1.0
 signalQuality.enabled=true
+uncertainTerminal.minTipContrast=-1.0
+uncertainTerminal.tailNodes=5
+uncertainTerminal.enabled=true
+intensityValley.minProminence=0.3
+intensityValley.enabled=true
+terminalNearAncestor.maxProximity=3.0
+terminalNearAncestor.enabled=true
+boundaryProximity.minVoxels=1.0
+boundaryProximity.enabled=true
+zExtentRatio.minRatio=0.01
+zExtentRatio.enabled=true
+bundledPaths.maxParallelAngle=20.0
+bundledPaths.minRunNodes=10
+bundledPaths.proximity=3.0
+bundledPaths.enabled=true

@@ -6,26 +6,43 @@
 # c82063, c12873, c73164, c82061, c60463, c12979, c12877, c53063,
 # c12971, c73167b, c11571, c20467, c30573, c60361, c31162, c40165,
 # c62563
-# Curation preset saved from SNT on Thu Apr 23 13:34:34 EDT 2026
-branchAngle.min=13.577760106649617
-branchAngle.max=71.91640324747353
+# Curation preset saved from SNT on Thu Oct 15 16:17:31 EDT 2026
+branchAngle.min=14.569416900011683
+branchAngle.max=103.98227011691485
 branchAngle.enabled=true
-directionContinuity.minAlignment=10.231934149656432
+directionContinuity.minAlignment=10.699767789370522
 directionContinuity.enabled=true
 radiusContinuity.maxRatio=1.0
 radiusContinuity.enabled=true
-terminalBranchLength.minLength=30.70772338521734
+terminalBranchLength.minLength=29.122372345409126
 terminalBranchLength.enabled=true
-somaDistance.maxDist=459.32869011687
+somaDistance.maxDist=504.8954733931415
 somaDistance.enabled=true
-tortuosityConsistency.maxDiff=0.10918178535081886
+tortuosityConsistency.maxDiff=0.19364093514312378
 tortuosityConsistency.enabled=true
 constantRadii.enabled=true
-pathOverlap.proximity=9.30550466515372
-pathOverlap.enabled=true
-radiusJumps.maxRatio=2.380000000000003
+interForkDistance.minDistance=5.0
+interForkDistance.enabled=true
+crossovers.proximity=7.111419688602024
+crossovers.includeSelfCrossovers=true
+crossovers.enabled=true
+radiusJumps.maxRatio=2.6218181818181785
 radiusJumps.enabled=true
 radiusMonotonicity.minRun=1
 radiusMonotonicity.enabled=true
+invalidRadius.enabled=true
 signalQuality.minContrast=-1.0
 signalQuality.enabled=true
+uncertainTerminal.minTipContrast=-1.0
+uncertainTerminal.tailNodes=5
+uncertainTerminal.enabled=true
+intensityValley.minProminence=0.3
+intensityValley.enabled=true
+terminalNearAncestor.maxProximity=3.0
+terminalNearAncestor.enabled=true
+zExtentRatio.minRatio=0.01
+zExtentRatio.enabled=true
+bundledPaths.maxParallelAngle=20.0
+bundledPaths.minRunNodes=10
+bundledPaths.proximity=3.0
+bundledPaths.enabled=true

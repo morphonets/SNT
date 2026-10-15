@@ -15,8 +15,9 @@
 #@ Double (label="Upper percentile:", value=95.0, min=50, max=100, stepSize=1) upperPctl
 #@ Double (label="Lower percentile:", value=5.0, min=0, max=50, stepSize=1) lowerPctl
 #@ File (label="Workspace directory:", style="directory", required=false) workspaceDir
+#@ SNTServive snt
 
-snt.requireVersion("5.0.10") // SNT version required to run this script
+snt.requireVersion("5.0.20") // SNT version required to run this script
 
 cellIds = cellIds.split(/\s*,\s*/)
 

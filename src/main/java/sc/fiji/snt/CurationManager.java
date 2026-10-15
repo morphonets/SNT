@@ -155,6 +155,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         this.warningsTable = GuiUtils.Tables.tableWithPlaceholder(tableModel,
                 tableModel::placeholderLine1, tableModel::placeholderLine2);
         monitor.addWarningListener(this);
+        // Must run before the panel is built: checkboxes read the enabled state
+        if (isStreamData()) disableWholeImageChecks();
         configureTable();
         visitingZoom.resetFor(sntui != null ? sntui.plugin.getImagePlus() : null);
     }
@@ -1093,6 +1095,12 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         c.insets.left = savedLeft;
 
+        if (isStreamData()) {
+            appendStreamHint(signalQualityCheckbox);
+            appendStreamHint(uncertainTerminalCheckbox);
+            appendStreamHint(intensityValleyCheckbox);
+        }
+
         // Collect and wire section-level toggling
         onDemandCheckboxes = List.of(overlapCheckbox, bundledPathsCheckbox,
                 terminalNearAncestorCheckbox, zExtentCheckbox,
@@ -1102,6 +1110,39 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         wireSectionHeader(onDemandHeaderCheckbox, onDemandCheckboxes);
 
         return p;
+    }
+
+    private boolean isStreamData() {
+        return sntui != null && sntui.plugin != null && sntui.plugin.isStreamMode();
+    }
+
+    /** Whole-image checks scan the entire (possibly remote) volume and may be prohibitively slow in stream mode */
+    private List<PlausibilityCheck.DeepCheck> wholeImageChecks() {
+        final List<PlausibilityCheck.DeepCheck> checks = new ArrayList<>(3);
+        for (final Class<? extends PlausibilityCheck.DeepCheck> cls : List.of(
+                PlausibilityCheck.SignalQuality.class, PlausibilityCheck.UncertainTerminal.class,
+                PlausibilityCheck.IntensityValley.class)) {
+            final PlausibilityCheck.DeepCheck check = monitor.getDeepCheck(cls);
+            if (check != null) checks.add(check);
+        }
+        return checks;
+    }
+
+    private void disableWholeImageChecks() {
+        wholeImageChecks().forEach(check -> check.setEnabled(false));
+    }
+
+    private boolean anyWholeImageCheckEnabled() {
+        return wholeImageChecks().stream().anyMatch(PlausibilityCheck.DeepCheck::isEnabled);
+    }
+
+    private static final String STREAM_SLOW_HINT = "Stream data: scans the whole image and may be slow";
+
+    private static void appendStreamHint(final JCheckBox cb) {
+        final String tip = cb.getToolTipText();
+        if (tip == null) cb.setToolTipText(STREAM_SLOW_HINT);
+        else if (tip.startsWith("<html>")) cb.setToolTipText(tip + "<br><i>" + STREAM_SLOW_HINT + "</i>");
+        else cb.setToolTipText(tip + "\n" + STREAM_SLOW_HINT);
     }
 
     private Action signalQualityWarningAction() {
@@ -1657,7 +1698,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         try {
             PlausibilityCalibrator.load(file, monitor);
             syncUIFromMonitor();
-            sntui.showStatus(String.format("%s loaded...", file.getName()), true);
+            // User presets are honored as-is, but flag the slow options
+            final boolean slow = isStreamData() && anyWholeImageCheckEnabled();
+            sntui.showStatus(String.format("%s loaded%s", file.getName(),
+                    slow ? ": signal quality checks are enabled and may be slow with stream data" : "..."), true);
         } catch (final Exception ex) {
             SNTUtils.log("Load curation failed: " + ex.getMessage());
             sntui.error("Could not load preset. See log.");
@@ -1742,8 +1786,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private void loadBuiltInPreset(final String presetName) {
         try {
             PlausibilityCalibrator.loadBuiltIn(presetName, monitor);
+            final boolean skipped = isStreamData() && anyWholeImageCheckEnabled();
+            if (skipped) disableWholeImageChecks();
             syncUIFromMonitor();
-            sntui.showStatus(String.format("%s loaded...", presetName), true);
+            sntui.showStatus(String.format("%s loaded%s", presetName,
+                    skipped ? ": signal quality checks skipped (slow with stream data)" : "..."), true);
         } catch (final Exception ex) {
             SNTUtils.log("Load built-in preset failed: " + ex.getMessage());
             sntui.error("Could not load built-in preset. See log.");
@@ -1838,6 +1885,20 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             signalQualitySpinner.setValue(sq.getMinContrast());
             signalQualityCheckbox.setSelected(sq.isEnabled());
             signalQualitySpinner.setEnabled(sq.isEnabled());
+        }
+        final PlausibilityCheck.UncertainTerminal ut =
+                monitor.getDeepCheck(PlausibilityCheck.UncertainTerminal.class);
+        if (uncertainTerminalCheckbox != null && ut != null) {
+            uncertainTerminalSpinner.setValue(ut.getMinTipContrast());
+            uncertainTerminalCheckbox.setSelected(ut.isEnabled());
+            uncertainTerminalSpinner.setEnabled(ut.isEnabled());
+        }
+        final PlausibilityCheck.IntensityValley iv =
+                monitor.getDeepCheck(PlausibilityCheck.IntensityValley.class);
+        if (intensityValleyCheckbox != null && iv != null) {
+            intensityValleySpinner.setValue(iv.getMinProminence());
+            intensityValleyCheckbox.setSelected(iv.isEnabled());
+            intensityValleySpinner.setEnabled(iv.isEnabled());
         }
         // Refresh section header tri-states
         if (liveHeaderCheckbox != null && liveCheckboxes != null)

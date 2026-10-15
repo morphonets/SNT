@@ -5,26 +5,45 @@
 # https://pubmed.ncbi.nlm.nih.gov/17135406/
 # https://pubmed.ncbi.nlm.nih.gov/17965719/
 # Cell IDs: 030403-1, AM81-2-2, VN031605-0, AM81-2-3, AM85-2-1, 030128-3
-# Curation preset saved from SNT on Thu Apr 23 14:26:44 EDT 2026
-branchAngle.min=9.199702564141365
-branchAngle.max=144.41923931334438
+# Curation preset saved from SNT on Thu Oct 15 16:26:43 EDT 2026
+branchAngle.min=15.481687645704584
+branchAngle.max=153.52927604227196
 branchAngle.enabled=true
-directionContinuity.minAlignment=8.99274112100721
+directionContinuity.minAlignment=10.495126499534713
 directionContinuity.enabled=true
 radiusContinuity.maxRatio=1.0
 radiusContinuity.enabled=true
-terminalBranchLength.minLength=3.791615009076855
+terminalBranchLength.minLength=2.075925755108633
 terminalBranchLength.enabled=true
-somaDistance.maxDist=176.61577401521419
+somaDistance.maxDist=632.7699391620275
 somaDistance.enabled=true
-tortuosityConsistency.maxDiff=0.5107026780973438
+tortuosityConsistency.maxDiff=0.47747012280056467
 tortuosityConsistency.enabled=true
 constantRadii.enabled=true
-pathOverlap.proximity=1.0555492152078603
-pathOverlap.enabled=true
+interForkDistance.minDistance=5.0
+interForkDistance.enabled=true
+crossovers.proximity=1.3297800131115831
+crossovers.includeSelfCrossovers=true
+crossovers.enabled=true
 radiusJumps.maxRatio=3.0416666666666665
 radiusJumps.enabled=true
 radiusMonotonicity.minRun=3
 radiusMonotonicity.enabled=true
+invalidRadius.enabled=true
 signalQuality.minContrast=-1.0
 signalQuality.enabled=true
+uncertainTerminal.minTipContrast=-1.0
+uncertainTerminal.tailNodes=5
+uncertainTerminal.enabled=true
+intensityValley.minProminence=0.3
+intensityValley.enabled=true
+terminalNearAncestor.maxProximity=3.0
+terminalNearAncestor.enabled=true
+boundaryProximity.minVoxels=1.0
+boundaryProximity.enabled=true
+zExtentRatio.minRatio=0.01
+zExtentRatio.enabled=true
+bundledPaths.maxParallelAngle=20.0
+bundledPaths.minRunNodes=10
+bundledPaths.proximity=3.0
+bundledPaths.enabled=true

@@ -2942,7 +2942,7 @@ public abstract class AbstractBigViewer {
     public static class PathRenderingOptions {
         private float thicknessMultiplier = 1.0f;
         private float transparency = 1.0f; // 1.0 = opaque, 0.0 = transparent
-        private boolean usePathRadius = true;
+        private boolean usePathRadius = false;
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
         SNTPoint pathOffset; // the viewer's "Annotations Offset..." toggle

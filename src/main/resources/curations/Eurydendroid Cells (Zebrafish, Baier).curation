@@ -2,7 +2,7 @@
 # Computed from 116 reconstructions of larval zebrafish eurydendroid cells
 # from NeuroMorpho's Baier archive.
 # https://pubmed.ncbi.nlm.nih.gov/31147152/
-# Curation preset saved from SNT on Thu Apr 23 16:11:02 EDT 2026
+# Curation preset saved from SNT on Thu Oct 15 16:37:46 EDT 2026
 branchAngle.min=20.713737707902418
 branchAngle.max=155.094481734307
 branchAngle.enabled=true
@@ -17,11 +17,30 @@ somaDistance.enabled=true
 tortuosityConsistency.maxDiff=0.531627329450544
 tortuosityConsistency.enabled=true
 constantRadii.enabled=true
-pathOverlap.proximity=0.7599526550972695
-pathOverlap.enabled=true
+interForkDistance.minDistance=5.0
+interForkDistance.enabled=true
+crossovers.proximity=0.8690180658743353
+crossovers.includeSelfCrossovers=true
+crossovers.enabled=true
 radiusJumps.maxRatio=1.626668472296224
 radiusJumps.enabled=true
 radiusMonotonicity.minRun=3
 radiusMonotonicity.enabled=true
+invalidRadius.enabled=true
 signalQuality.minContrast=-1.0
 signalQuality.enabled=true
+uncertainTerminal.minTipContrast=-1.0
+uncertainTerminal.tailNodes=5
+uncertainTerminal.enabled=true
+intensityValley.minProminence=0.3
+intensityValley.enabled=true
+terminalNearAncestor.maxProximity=3.0
+terminalNearAncestor.enabled=true
+boundaryProximity.minVoxels=1.0
+boundaryProximity.enabled=true
+zExtentRatio.minRatio=0.01
+zExtentRatio.enabled=true
+bundledPaths.maxParallelAngle=20.0
+bundledPaths.minRunNodes=10
+bundledPaths.proximity=3.0
+bundledPaths.enabled=true

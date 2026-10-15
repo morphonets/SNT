@@ -3,8 +3,8 @@
 # of mouse CA1 cells from NeuroMorpho's DeFelipe archive.
 # https://pubmed.ncbi.nlm.nih.gov/26928278/
 # Prefixes of cell IDs: R10a, R10b, R35a, R50, R51WT, R52, R57,
-# R59a, R59b, R59, R60, R61, R62, R63, R64, R66, R67, R99a
-# Curation preset created on Thu Apr 23 08:53:42 EDT 2026
+# R59a, R59b, R59nr, R60, R61, R62, R63, R64, R66, R67, R99a
+# Curation preset saved from SNT on Thu Oct 15 16:14:41 EDT 2026
 branchAngle.min=16.38405034037069
 branchAngle.max=98.90874556498889
 branchAngle.enabled=true
@@ -19,11 +19,28 @@ somaDistance.enabled=true
 tortuosityConsistency.maxDiff=0.2229064328246812
 tortuosityConsistency.enabled=true
 constantRadii.enabled=true
-pathOverlap.proximity=3.419454824782221
-pathOverlap.enabled=true
+interForkDistance.minDistance=5.0
+interForkDistance.enabled=true
+crossovers.proximity=3.3786287542417766
+crossovers.includeSelfCrossovers=true
+crossovers.enabled=true
 radiusJumps.maxRatio=13.666666666666668
 radiusJumps.enabled=true
 radiusMonotonicity.minRun=1
 radiusMonotonicity.enabled=true
+invalidRadius.enabled=true
 signalQuality.minContrast=-1.0
 signalQuality.enabled=true
+uncertainTerminal.minTipContrast=-1.0
+uncertainTerminal.tailNodes=5
+uncertainTerminal.enabled=true
+intensityValley.minProminence=0.3
+intensityValley.enabled=true
+terminalNearAncestor.maxProximity=3.0
+terminalNearAncestor.enabled=true
+zExtentRatio.minRatio=0.01
+zExtentRatio.enabled=true
+bundledPaths.maxParallelAngle=20.0
+bundledPaths.minRunNodes=10
+bundledPaths.proximity=3.0
+bundledPaths.enabled=true
