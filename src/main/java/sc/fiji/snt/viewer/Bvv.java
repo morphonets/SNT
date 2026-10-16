@@ -50,7 +50,6 @@ import net.imglib2.realtransform.RealViews;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
-import org.apache.commons.lang.WordUtils;
 import org.jdom2.JDOMException;
 import org.scijava.command.CommandService;
 import org.scijava.util.ColorRGB;
@@ -119,7 +118,7 @@ public class Bvv extends AbstractBigViewer {
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
     private static final long CENTER_ANIMATION_DURATION_MS = 250;
 
-    // Tracing-click recenter gating (see registerCenterOnDoubleClickListener). Strategy is stored on
+    // Tracing-click recenter gating (see registerRecenterListener). Strategy is stored on
     // renderingOptions.strategy (see AbstractBigViewer.RecenterStrategy) rather than a field here, so
     // it can be exposed/toggled from the toolbar (see sntToolbar())
     // Physical (world-space) radius, in Z-voxels, within which a clicked point is considered "close
@@ -155,7 +154,6 @@ public class Bvv extends AbstractBigViewer {
         if (snt != null) {
             if (snt.getUI() != null) snt.getUI().setBvv(this);
             if (renderingOptions != null) {
-                renderingOptions.selectedColor = SNTPrefs.selectedPathColor();
                 renderingOptions.displayCustomPathColors = snt.getPrefs().getDisplayCustomPathColors();
             }
         }
@@ -1416,7 +1414,7 @@ public class Bvv extends AbstractBigViewer {
             currentBvv = bvv;
             initializePathOverlay(currentBvv);
             initializeAnnotationOverlay(currentBvv);
-            registerCenterOnDoubleClickListener(currentBvv);
+            registerRecenterListener(currentBvv);
             if (snt != null) {
                 tracer = new Tracer(snt);
                 installContextMenu();
@@ -1614,19 +1612,23 @@ public class Bvv extends AbstractBigViewer {
 
     /**
      * Registers a mouse listener that centers the view on the clicked point.
-     * Left-double-click finds the intensity peak along the click ray (or falls back to
-     * the focal-plane intersection) and translates the viewer transform so that
+     * Finds the intensity peak along the click ray (or falls back to the
+     * focal-plane intersection) and translates the viewer transform so that
      * world point maps to the screen center at viewerZ = 0 (the focal plane).
      * This forces BVV to load tiles at the clicked location, making subsequent
      * findClickRayMaxima() calls accurate.
      * <p>
-     * While tracing, this fires on every single click (not just double-clicks), so on
-     * data still streaming from disk/network the animated recenter may race against tile
-     * loading: the very next click can land mid-animation, against tiles that are still
-     * catching up to the *previous* recenter. See {@link AbstractBigViewer.RecenterStrategy}
-     * ({@code renderingOptions.strategy}).
+     * Two gestures trigger it. While tracing, a single left-click recenters, as
+     * dictated by {@link AbstractBigViewer.RecenterStrategy}
+     * ({@code renderingOptions.strategy}). Otherwise, a plain left double-click
+     * always recenters, regardless of strategy. While tracing, a double-click
+     * finishes the path (see Tracer#handleClick).
+     * <p>
+     * On data still streaming from disk/network the animated recenter may race
+     * against tile loading: the very next tracing click can land mid-animation,
+     * against tiles that are still catching up to the previous recenter.
      */
-    private void registerCenterOnDoubleClickListener(final BigVolumeViewer bvv) {
+    private void registerRecenterListener(final BigVolumeViewer bvv) {
         bvv.getViewer().getDisplay().getComponent().addMouseListener(
                 new java.awt.event.MouseAdapter() {
                     // AWT only synthesizes mouseClicked with zero pixel movement between press and
@@ -1808,28 +1810,6 @@ public class Bvv extends AbstractBigViewer {
             toolbar.add(b0);
             toolbar.add(b1);
             toolbar.add(b2);
-
-            // "Center scene strategy on click" options button (see AbstractBigViewer.RecenterStrategy)
-            final JPopupMenu popupMenu = new JPopupMenu();
-            GuiUtils.MenuItems.addSeparator(popupMenu, "Center on Click:");
-            final ButtonGroup buttonGroup = new ButtonGroup();
-            for (final RecenterStrategy strategy : RecenterStrategy.values()) {
-                final JCheckBoxMenuItem mi = new JCheckBoxMenuItem(WordUtils.capitalize(strategy.toString().toLowerCase()),
-                        strategy == renderingOptions.strategy);
-                buttonGroup.add(mi);
-                mi.addItemListener(e -> renderingOptions.strategy = strategy);
-                popupMenu.add(mi);
-            }
-            toolbar.addSeparator();
-            toolbar.add(Box.createHorizontalGlue());
-            toolbar.addSeparator();
-            final GuiUtils.Buttons.OptionsButton optionsButton =
-                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LOCATION_CROSSHAIR, SCALING_FACTOR, popupMenu);
-            optionsButton.setToolTipText("<html>Choose when to recenter the view on a tracing click:"
-                    + "<br>&nbsp;&nbsp;<b>Never</b>: Keep the current view as-is"
-                    + "<br>&nbsp;&nbsp;<b>Always</b>: Recenter on every click (best for in-core data)"
-                    + "<br>&nbsp;&nbsp;<b>Adaptive</b>: Recenter only when needed, pausing tracing briefly to let tiles stream in</html>");
-            toolbar.add(optionsButton);
             toolbar.addSeparator();
             toolbar.add(Box.createHorizontalGlue());
             toolbar.addSeparator();
@@ -1847,6 +1827,32 @@ public class Bvv extends AbstractBigViewer {
         toggleVisibility.setToolTipText("Show/Hide All Annotations");
         IconFactory.assignDoubleIcon(toggleVisibility, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, IconFactory.GLYPH.CHECK_DOUBLE);
         toolbar.add(actions.visibilityOptionsButton(toggleVisibility));
+
+        if (tracer != null) {
+            // "Re-center while tracing" options button (see AbstractBigViewer.RecenterStrategy)
+            final JPopupMenu popupMenu = new JPopupMenu();
+            GuiUtils.MenuItems.addSeparator(popupMenu, "Re-center While Tracing:");
+            final ButtonGroup buttonGroup = new ButtonGroup();
+            for (final RecenterStrategy strategy : RecenterStrategy.values()) {
+                final String label = switch (strategy) {
+                    case NEVER -> "Never";
+                    case ADAPTIVE -> "When Needed (Adaptive)";
+                    case ALWAYS -> "Every Click";
+                };
+                final JCheckBoxMenuItem mi = new JCheckBoxMenuItem(label, strategy == renderingOptions.strategy);
+                buttonGroup.add(mi);
+                mi.addItemListener(e -> renderingOptions.strategy = strategy);
+                popupMenu.add(mi);
+            }
+            final GuiUtils.Buttons.OptionsButton optionsButton =
+                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LOCATION_CROSSHAIR, SCALING_FACTOR, popupMenu);
+            optionsButton.setToolTipText("<html>Choose when to recenter the view on a <i>tracing</i> click:"
+                    + "<br>&nbsp;&nbsp;<b>Never</b>: Keep the current view as-is"
+                    + "<br>&nbsp;&nbsp;<b>When Needed</b>: Recenter only when needed, pausing briefly to let tiles stream in"
+                    + "<br>&nbsp;&nbsp;<b>Every Click</b>: Recenter on every click (best for in-core data)"
+                    + "<br>Outside tracing mode, double-click always recenters the view</html>");
+            toolbar.add(optionsButton);
+        }
         toolbar.add(toggleAroundCursor);
         toolbar.add(offsetActivate);
 
@@ -2682,7 +2688,7 @@ public class Bvv extends AbstractBigViewer {
 
     @Override
     public Color getDefaultMarkerColor() {
-        return renderingOptions.fallbackColor;
+        return SNTPrefs.deselectedPathColor();
     }
 
     @Override
@@ -3621,9 +3627,10 @@ public class Bvv extends AbstractBigViewer {
                     + "Smaller = higher quality, slower. Larger = faster, lower quality");
             stepItem.addActionListener(e -> {
                 final double curStep = SNTPrefs.getBvvMaxStep();
-                final String msg = String.format("<html>Maximum ray-marching step in voxels. Lower values improve quality but slow<br>"
-                        + "down the rendering. Larger values degrade quality but speed-up rendering.<br>"
-                        + "<b>Default is %.1f vox. Currently, this setting is %s%.1f vox.",
+                final String msg = String.format("<html>Maximum ray-marching step (in voxels of the finest resolution level) used when rendering the<br>"
+                                + "volume. Lower values sample the data more densely: thin structures are rendered more<br>"
+                                + "faithfully, but each frame takes longer. Larger values render faster but may skip thin neurites.<br>"
+                                + "<b>Default is %.1f voxel(s). Currently, this setting is %s%.1f voxel(s).",
                         BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS,
                         (BvvUtils.DEFAULT_MAX_STEP_IN_VOXELS == curStep) ? "also " : "",
                         curStep);
@@ -4206,7 +4213,7 @@ public class Bvv extends AbstractBigViewer {
 
         /** Annotations must have a color: null falls back to the rendering fallback color */
         private Color nonNull(final Color c) {
-            return (c != null) ? c : renderingOptions.fallbackColor;
+            return (c != null) ? c : SNTPrefs.deselectedPathColor();
         }
 
         /**
@@ -4802,7 +4809,7 @@ public class Bvv extends AbstractBigViewer {
          */
         private void rebuildHaloSegments(final TreeScreenData data) {
             data.haloSegments.clear();
-            final Color haloColor = renderingOptions.selectedColor;
+            final Color haloColor = SNTPrefs.selectedPathColor();
             for (final Map.Entry<Path, PathScreenData> entry : data.byPath.entrySet()) {
                 if (!entry.getKey().isSelected()) continue;
                 final PathScreenData pathData = entry.getValue();
@@ -4838,8 +4845,8 @@ public class Bvv extends AbstractBigViewer {
                 if (pathData == null) continue; // added/removed since cached; next full sync will pick it up
                 final boolean customColor = renderingOptions.displayCustomPathColors && path.hasCustomColor();
                 final boolean selected = path.isSelected();
-                Color color = renderingOptions.fallbackColor;
-                if (selected && !customColor) color = renderingOptions.selectedColor;
+                Color color = SNTPrefs.deselectedPathColor();
+                if (selected && !customColor) color = SNTPrefs.selectedPathColor();
                 else if (customColor) color = path.getColor(); // never null when hasCustomColor() true
                 final boolean hasNodeColors = path.hasNodeColors();
                 final double selectedBoost = selected ? 1.5 : 1.0;
@@ -5045,7 +5052,7 @@ public class Bvv extends AbstractBigViewer {
             // Outline halo for selected path(s), drawn first so the normal-colored fill sits on
             // top of it, leaving a visible rim (see #rebuildHaloSegments)
             if (!screenData.haloSegments.isEmpty()) {
-                drawBatch(g2d, renderingOptions.selectedColor, screenData.haloSegments, doClip, clipPos, clipDist);
+                drawBatch(g2d, SNTPrefs.selectedPathColor(), screenData.haloSegments, doClip, clipPos, clipDist);
             }
 
             for (final Map.Entry<Color, List<SegmentData>> entry : screenData.batches.entrySet()) {
@@ -5085,8 +5092,8 @@ public class Bvv extends AbstractBigViewer {
                 final PathScreenData pathData = new PathScreenData(n);
                 final boolean customColor = renderingOptions.displayCustomPathColors && path.hasCustomColor();
                 final boolean selected = path.isSelected();
-                Color color = renderingOptions.fallbackColor;
-                if (selected && !customColor) color = renderingOptions.selectedColor;
+                Color color = SNTPrefs.deselectedPathColor();
+                if (selected && !customColor) color = SNTPrefs.selectedPathColor();
                 else if (customColor) color = path.getColor(); // never null when hasCustomColor() true
                 final boolean hasNodeColors = path.hasNodeColors();
 

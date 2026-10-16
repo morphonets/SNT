@@ -5392,14 +5392,6 @@ public class SNT extends MultiDThreePanes implements
 					SNTPrefs.deselectedPathColor().getGreen(), SNTPrefs.deselectedPathColor().getBlue()));
 			if (pathAndFillManager.size() > 0) getUI().recViewer.syncPathManagerList();
 		}
-		if (getUI() != null && getUI().bvvSNT != null) {
-			getUI().bvvSNT.getRenderingOptions().selectedColor = SNTPrefs.selectedPathColor();
-			getUI().bvvSNT.getRenderingOptions().fallbackColor = SNTPrefs.deselectedPathColor();
-		}
-		if (getUI() != null && getUI().bdvSNT != null) {
-			getUI().bdvSNT.getRenderingOptions().selectedColor = SNTPrefs.selectedPathColor();
-			getUI().bdvSNT.getRenderingOptions().fallbackColor = SNTPrefs.deselectedPathColor();
-		}
 		updateTracingViewers(true);
 	}
 
