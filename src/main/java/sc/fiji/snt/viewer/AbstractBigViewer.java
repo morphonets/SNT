@@ -498,6 +498,7 @@ public abstract class AbstractBigViewer {
             syncedPathManagerLabels.clear();
         }
         try {
+            stopPlayback();
             if (editor != null) editor.onViewerDisposed();
             disposeViewer();
         } catch (final RuntimeException ex) {
@@ -955,6 +956,52 @@ public abstract class AbstractBigViewer {
         setViewerTransform(target, 300);
         if (getCurrentTimepoint() != t) setCurrentTimepoint(t);
         showViewerMessage(String.format("Flying to %s", label));
+    }
+
+    private PathPlayer pathPlayer;
+    private PathPlayer.AbortListener pathPlayerAbort;
+
+    /**
+     * Sets the viewer transform at once (no animation). Used by {@link PathPlayer}, which updates the transform at
+     * every tick. The default implementation relies on a minimal-duration animation.
+     *
+     * @param target the transform to be applied
+     */
+    protected void setViewerTransformImmediate(final AffineTransform3D target) {
+        setViewerTransform(target, 1);
+    }
+
+    /**
+     * Plays a walkthrough of the specified paths: the view is centered on a point traveling along each path at constant
+     * speed (translation only: the current rotation is preserved). Playback is non-blocking, and can be aborted by
+     * clicking on the display or by calling {@link #stopPlayback()}. Since the distance covered per tick does not
+     * depend on rendering speed, playbacks are reproducible, and the elapsed time reported by
+     * {@link PathPlayer#getSummary()} reflects how well the viewer keeps up.
+     *
+     * @param paths the paths to be played, in order
+     * @param speed the travel speed, in world units per second (&lt;= 0 for the default of 50)
+     * @param fov   the width of the field of view, in world units, or &lt;= 0 to keep the current zoom
+     * @return the player, or null if the viewer is not ready. Use it to register callbacks or retrieve the summary
+     */
+    public PathPlayer playPaths(final Collection<Path> paths, final double speed, final double fov) {
+        if (paths == null || paths.isEmpty() || isDisposed() || getViewerWidth() <= 0) return null;
+        stopPlayback();
+        final PathPlayer player = new PathPlayer(this, paths, speed, fov);
+        if (pathPlayerAbort == null) {
+            pathPlayerAbort = new PathPlayer.AbortListener();
+            addMouseListenerToDisplay(pathPlayerAbort);
+        }
+        pathPlayerAbort.current = player;
+        pathPlayer = player;
+        return player.play();
+    }
+
+    /** Stops the playback started by {@link #playPaths(Collection, double, double)}, if any */
+    public void stopPlayback() {
+        final PathPlayer p = pathPlayer;
+        pathPlayer = null;
+        if (pathPlayerAbort != null) pathPlayerAbort.current = null;
+        if (p != null && p.isPlaying()) p.stop();
     }
 
     /**

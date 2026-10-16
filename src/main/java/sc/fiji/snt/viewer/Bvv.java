@@ -175,6 +175,39 @@ public class Bvv extends AbstractBigViewer {
         return lastPosition;
     }
 
+    /** The viewer panel, also during show(), when currentBvv has not been assigned yet but the handle exists */
+    private VolumeViewerPanel panelOrHandle() {
+        final VolumeViewerPanel vp = getViewerPanel();
+        if (vp != null) return vp;
+        return bvvHandle == null ? null : bvvHandle.getViewerPanel();
+    }
+
+    // Profiling only (-Dsnt.profile=true): interval between rendered frames, i.e., how smooth the view feels
+    private bdv.viewer.TransformListener<AffineTransform3D> frameProfileListener;
+    private volatile long lastFrameNs;
+
+    private void startFrameProfiling() {
+        if (!BvvProfiler.isEnabled() || frameProfileListener != null) return;
+        final VolumeViewerPanel vp = panelOrHandle();
+        if (vp == null) return;
+        frameProfileListener = t -> {
+            final long now = System.nanoTime();
+            final long last = lastFrameNs;
+            lastFrameNs = now;
+            // Longer gaps are idle time (nothing was changing), not frames
+            if (last == 0L || now - last > 2_000_000_000L) return;
+            BvvProfiler.stop("render.frame interval", last);
+            if (now - last > 100_000_000L) BvvProfiler.stop("render.gap >100 ms", last);
+        };
+        vp.renderTransformListeners().add(frameProfileListener);
+    }
+
+    private void stopFrameProfiling() {
+        final VolumeViewerPanel vp = panelOrHandle();
+        if (vp != null && frameProfileListener != null) vp.renderTransformListeners().remove(frameProfileListener);
+        frameProfileListener = null;
+    }
+
     private double[] getClickedPosition() {
         // Use ray-maxima for accurate Z; fall back to focal-plane if ray misses.
         final double[] peak = findClickRayMaxima();
@@ -932,6 +965,7 @@ public class Bvv extends AbstractBigViewer {
 
         // Let BVV advance our fetch queues on every new frame (drops requests for views no longer shown)
         BvvUtils.syncQueuesWithViewer(bvvHandle);
+        startFrameProfiling();
 
         // Populate dims/cal from the first source's own metadata
         populateDimsAndCal(sources.getFirst());
@@ -2398,6 +2432,7 @@ public class Bvv extends AbstractBigViewer {
         SNTUtils.log("BVV: disposing viewer");
         final VolumeViewerPanel vp = getViewerPanel();
         final VolumeViewerFrame frame = getViewerFrame();
+        stopFrameProfiling();
         if (tracer != null) tracer.dispose();
         if (vp != null && sceneOverlay != null) vp.getDisplay().overlays().remove(sceneOverlay);
         if (pathOverlay != null) pathOverlay.dispose();
@@ -2474,6 +2509,12 @@ public class Bvv extends AbstractBigViewer {
             default -> { return null; }
         }
         return t;
+    }
+
+    @Override
+    protected void setViewerTransformImmediate(final AffineTransform3D target) {
+        final VolumeViewerPanel p = getViewerPanel();
+        if (p != null) p.state().setViewerTransform(target);
     }
 
     @Override
