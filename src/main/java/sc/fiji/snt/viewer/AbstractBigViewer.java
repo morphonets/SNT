@@ -1906,18 +1906,36 @@ public abstract class AbstractBigViewer {
     }
 
     /**
-     * Returns the world-space bounding box of the primary loaded volume, assuming
-     * an origin at (0,0,0), i.e., no {@link sc.fiji.snt.SNT#getWorldOriginOffset()
-     * world-origin offset} or per-source transform is factored in.
+     * Returns the world-space bounding box of the primary loaded volume. The box is anchored at the
+     * translation of the first source's {@code sourceTransform} (the same value
+     * {@link sc.fiji.snt.SNT#getWorldOriginOffset()} is built from in Stream mode), or at (0,0,0)
+     * if no source is available. Only the translation is considered: rotation/shear is ignored
      *
      * @return the volume's bounding box, or null if dimensions/calibration are not yet known
      */
     public BoundingBox getBoundingBox() {
         if (dims == null || cal == null) return null;
+        final double[] o = primarySourceTranslation();
         final BoundingBox box = new BoundingBox();
-        box.setOrigin(new PointInImage(0, 0, 0));
-        box.setOriginOpposite(new PointInImage(dims[0] * cal[0], dims[1] * cal[1], dims[2] * cal[2]));
+        box.setOrigin(new PointInImage(o[0], o[1], o[2]));
+        box.setOriginOpposite(new PointInImage(o[0] + dims[0] * cal[0], o[1] + dims[1] * cal[1],
+                o[2] + dims[2] * cal[2]));
         return box;
+    }
+
+    /** Translation of the first source's sourceTransform (timepoint 0, level 0), or zeros if unavailable */
+    private double[] primarySourceTranslation() {
+        final double[] t = new double[3];
+        try {
+            final var state = getViewerState();
+            if (state == null || state.getSources().isEmpty()) return t;
+            final AffineTransform3D at = new AffineTransform3D();
+            state.getSources().getFirst().getSpimSource().getSourceTransform(0, 0, at);
+            for (int d = 0; d < 3; d++) t[d] = at.get(d, 3);
+        } catch (final Exception ignored) {
+            // defensive: fall back to a zero offset
+        }
+        return t;
     }
 
     /**
