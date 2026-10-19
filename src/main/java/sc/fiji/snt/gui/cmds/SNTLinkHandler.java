@@ -46,8 +46,8 @@ import java.util.Map;
  * outside Fiji, e.g., from a browser, a paper's supplementary HTML, or another
  * SciJava application, via scijava-desktop's {@link LinkHandler} mechanism.
  * <p>
- * Recognized forms (operation is the first path segment, i.e., the part of
- * {@link URI#getPath()} up to the first {@code /}; see {@link Links}):
+ * Recognized forms (the operation is the authority of {@code snt://} links, and
+ * the first path segment of the {@code fiji://snt/} fallback; see {@link Links}):
  * </p>
  * <pre>
  *   snt://open
@@ -56,6 +56,7 @@ import java.util.Map;
  *   snt://open?tracings=/path/to/reconstruction.swc&amp;mode=replace
  *   snt://demo
  *   snt://demo?tree=OP_1
+ *   fiji://snt/open?tracings=... (fallback form: same operations and parameters)
  * </pre>
  * <p>
  * NB: {@link #handle(URI)} may be called off the EDT (e.g., by
@@ -71,6 +72,8 @@ public class SNTLinkHandler extends AbstractLinkHandler {
 	/** The URI scheme handled by this plugin. */
 	public static final String SCHEME = "snt";
 
+	private static final String FIJI_SCHEME = "fiji";
+
 	private static final String OP_OPEN = "open";
 	private static final String OP_DEMO = "demo";
 
@@ -82,7 +85,23 @@ public class SNTLinkHandler extends AbstractLinkHandler {
 
 	@Override
 	public boolean supports(final URI uri) {
-		return uri != null && SCHEME.equalsIgnoreCase(uri.getScheme());
+		if (uri == null) return false;
+		return SCHEME.equalsIgnoreCase(uri.getScheme()) || isFijiLink(uri);
+	}
+
+	/**
+	 * Fallback form, {@code fiji://snt/<operation>?...}, handled wherever
+	 * {@code fiji://} is registered, i.e., also on macOS, where {@code snt://}
+	 * cannot be registered at runtime
+	 */
+	private static boolean isFijiLink(final URI uri) {
+		return FIJI_SCHEME.equalsIgnoreCase(uri.getScheme()) && SCHEME.equalsIgnoreCase(uri.getAuthority());
+	}
+
+	/** Operation: {@code snt://<operation>} or {@code fiji://snt/<operation>} */
+	private static String operation(final URI uri) {
+		if (isFijiLink(uri)) return Links.operation(uri);
+		return (uri.getAuthority() == null) ? Links.operation(uri) : uri.getAuthority();
 	}
 
 	@Override
@@ -98,7 +117,7 @@ public class SNTLinkHandler extends AbstractLinkHandler {
 	@Override
 	public void handle(final URI uri) {
 		if (!supports(uri)) return;
-		final String operation = Links.operation(uri);
+		final String operation = operation(uri);
 		final Map<String, String> query = Links.query(uri);
 		SwingUtilities.invokeLater(() -> {
 			try {
