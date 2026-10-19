@@ -427,6 +427,7 @@ public class PathFitter implements Callable<Path> {
      * Returns [a_basis, b_basis] where each is [x, y, z].
      * @deprecated use {@link CrossSectionUtils#computeTangentPlaneBasis(double, double, double)}
      */
+    @Deprecated
     private double[][] computeTangentPlaneBasis(final double nx, final double ny, final double nz) {
         return CrossSectionUtils.computeTangentPlaneBasis(nx, ny, nz);
     }
@@ -434,6 +435,7 @@ public class PathFitter implements Callable<Path> {
     /**
      * @deprecated use {@link CrossSectionUtils#computeScaleAlongVector(double, double, double, double, double, double)}
      */
+    @Deprecated
     private double computeScaleAlongVector(final double vx, final double vy, final double vz) {
         return CrossSectionUtils.computeScaleAlongVector(vx, vy, vz, path.x_spacing, path.y_spacing, path.z_spacing);
     }
@@ -1047,6 +1049,7 @@ public class PathFitter implements Callable<Path> {
     /**
      * @deprecated use {@link CrossSectionUtils#sampleCrossSection} instead
      */
+    @Deprecated
     @SuppressWarnings("unused")
     private float[] squareNormalToVector(
             final int side,

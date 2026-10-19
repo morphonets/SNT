@@ -289,8 +289,31 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @throws URISyntaxException 
 	 */
 	public void loadTracings(String filePathOrURL) throws UnsupportedOperationException, IOException, URISyntaxException {
+		loadTracings(filePathOrURL, true);
+	}
+
+	/**
+	 * Checks whether SNT holds paths that have not been saved.
+	 *
+	 * @return true if SNT is running and has unsaved paths
+	 */
+	public boolean hasUnsavedPaths() {
+		return isActive() && plugin.isUnsavedChanges();
+	}
+
+	/**
+	 * Loads the specified tracings file.
+	 *
+	 * @param filePathOrURL either a "SWC", "TRACES" or "JSON" file path or URL
+	 * @param replace       if false, SWC/JSON data is added to existing paths
+	 *                      (TRACES files always replace them)
+	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IOException                   if data cannot be imported
+	 * @throws URISyntaxException
+	 */
+	public void loadTracings(String filePathOrURL, boolean replace) throws UnsupportedOperationException, IOException, URISyntaxException {
 		accessActiveInstance(false);
-		plugin.getPathAndFillManager().loadGuessingType(filePathOrURL);
+		plugin.getPathAndFillManager().loadGuessingType(filePathOrURL, replace);
 	}
 
 	/**

@@ -317,6 +317,12 @@
 			<artifactId>scijava-ui-swing</artifactId>
 		</dependency>
 
+		<!-- snt:// desktop links (see SNTLinkHandler) -->
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-desktop</artifactId>
+		</dependency>
+
 		<!-- Managed third-party dependencies -->
 		<dependency>
 			<groupId>com.fifesoft</groupId>

@@ -142,7 +142,6 @@ public class Bdv extends AbstractBigViewer {
             if (snt.getUI() != null) snt.getUI().setBdv(this);
             if (renderingOptions != null) {
                 // Mirrors Bvv(SNT)'s constructor: without this renderingOptions.displayCustomPathColors stalls
-                renderingOptions.selectedColor = SNTPrefs.selectedPathColor();
                 renderingOptions.displayCustomPathColors = snt.getPrefs().getDisplayCustomPathColors();
             }
         }
@@ -853,6 +852,11 @@ public class Bdv extends AbstractBigViewer {
     @Override
     public PathRenderingOptions getRenderingOptions() {
         return renderingOptions;
+    }
+
+    @Override
+    public PathRenderingOptions.Style getDefaultRenderingStyle() {
+        return PathRenderingOptions.Style.FRUSTA;
     }
 
     /**

@@ -386,7 +386,7 @@ public abstract class AbstractBigViewer {
     // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a
     // stationary click, which silently suppresses mouseClicked entirely: no event is delivered at all, not
     // even to a listener sitting at the very top of mousePressed/mouseReleased. AbstractTracer and Bvv's own
-    // registerCenterOnDoubleClickListener listener both detect clicks themselves from press+release within
+    // registerRecenterListener listener both detect clicks themselves from press+release within
     // this tolerance instead of relying on that zero-movement guarantee
     protected static final int CLICK_MOVE_TOLERANCE_PX = 4;
 
@@ -465,6 +465,18 @@ public abstract class AbstractBigViewer {
     protected AbstractBigViewer(final SNT snt) {
         this.snt = snt;
         lastInstance = this;
+        renderingOptions.setStyle(getDefaultRenderingStyle());
+        renderingOptions.load(getClass());
+    }
+
+    /**
+     * Gets the path rendering style used when no preference has been stored.
+     * Centerlines by default; overridden by viewers that favor frusta.
+     *
+     * @return the default style
+     */
+    public PathRenderingOptions.Style getDefaultRenderingStyle() {
+        return PathRenderingOptions.Style.LINE_SIMPLE;
     }
 
     private volatile boolean disposed;
@@ -486,6 +498,7 @@ public abstract class AbstractBigViewer {
             syncedPathManagerLabels.clear();
         }
         try {
+            stopPlayback();
             if (editor != null) editor.onViewerDisposed();
             disposeViewer();
         } catch (final RuntimeException ex) {
@@ -943,6 +956,52 @@ public abstract class AbstractBigViewer {
         setViewerTransform(target, 300);
         if (getCurrentTimepoint() != t) setCurrentTimepoint(t);
         showViewerMessage(String.format("Flying to %s", label));
+    }
+
+    private PathPlayer pathPlayer;
+    private PathPlayer.AbortListener pathPlayerAbort;
+
+    /**
+     * Sets the viewer transform at once (no animation). Used by {@link PathPlayer}, which updates the transform at
+     * every tick. The default implementation relies on a minimal-duration animation.
+     *
+     * @param target the transform to be applied
+     */
+    protected void setViewerTransformImmediate(final AffineTransform3D target) {
+        setViewerTransform(target, 1);
+    }
+
+    /**
+     * Plays a walkthrough of the specified paths: the view is centered on a point traveling along each path at constant
+     * speed (translation only: the current rotation is preserved). Playback is non-blocking, and can be aborted by
+     * clicking on the display or by calling {@link #stopPlayback()}. Since the distance covered per tick does not
+     * depend on rendering speed, playbacks are reproducible, and the elapsed time reported by
+     * {@link PathPlayer#getSummary()} reflects how well the viewer keeps up.
+     *
+     * @param paths the paths to be played, in order
+     * @param speed the travel speed, in world units per second (&lt;= 0 for the default of 50)
+     * @param fov   the width of the field of view, in world units, or &lt;= 0 to keep the current zoom
+     * @return the player, or null if the viewer is not ready. Use it to register callbacks or retrieve the summary
+     */
+    public PathPlayer playPaths(final Collection<Path> paths, final double speed, final double fov) {
+        if (paths == null || paths.isEmpty() || isDisposed() || getViewerWidth() <= 0) return null;
+        stopPlayback();
+        final PathPlayer player = new PathPlayer(this, paths, speed, fov);
+        if (pathPlayerAbort == null) {
+            pathPlayerAbort = new PathPlayer.AbortListener();
+            addMouseListenerToDisplay(pathPlayerAbort);
+        }
+        pathPlayerAbort.current = player;
+        pathPlayer = player;
+        return player.play();
+    }
+
+    /** Stops the playback started by {@link #playPaths(Collection, double, double)}, if any */
+    public void stopPlayback() {
+        final PathPlayer p = pathPlayer;
+        pathPlayer = null;
+        if (pathPlayerAbort != null) pathPlayerAbort.current = null;
+        if (p != null && p.isPlaying()) p.stop();
     }
 
     /**
@@ -1894,18 +1953,36 @@ public abstract class AbstractBigViewer {
     }
 
     /**
-     * Returns the world-space bounding box of the primary loaded volume, assuming
-     * an origin at (0,0,0), i.e., no {@link sc.fiji.snt.SNT#getWorldOriginOffset()
-     * world-origin offset} or per-source transform is factored in.
+     * Returns the world-space bounding box of the primary loaded volume. The box is anchored at the
+     * translation of the first source's {@code sourceTransform} (the same value
+     * {@link sc.fiji.snt.SNT#getWorldOriginOffset()} is built from in Stream mode), or at (0,0,0)
+     * if no source is available. Only the translation is considered: rotation/shear is ignored
      *
      * @return the volume's bounding box, or null if dimensions/calibration are not yet known
      */
     public BoundingBox getBoundingBox() {
         if (dims == null || cal == null) return null;
+        final double[] o = primarySourceTranslation();
         final BoundingBox box = new BoundingBox();
-        box.setOrigin(new PointInImage(0, 0, 0));
-        box.setOriginOpposite(new PointInImage(dims[0] * cal[0], dims[1] * cal[1], dims[2] * cal[2]));
+        box.setOrigin(new PointInImage(o[0], o[1], o[2]));
+        box.setOriginOpposite(new PointInImage(o[0] + dims[0] * cal[0], o[1] + dims[1] * cal[1],
+                o[2] + dims[2] * cal[2]));
         return box;
+    }
+
+    /** Translation of the first source's sourceTransform (timepoint 0, level 0), or zeros if unavailable */
+    private double[] primarySourceTranslation() {
+        final double[] t = new double[3];
+        try {
+            final var state = getViewerState();
+            if (state == null || state.getSources().isEmpty()) return t;
+            final AffineTransform3D at = new AffineTransform3D();
+            state.getSources().getFirst().getSpimSource().getSourceTransform(0, 0, at);
+            for (int d = 0; d < 3; d++) t[d] = at.get(d, 3);
+        } catch (final Exception ignored) {
+            // defensive: fall back to a zero offset
+        }
+        return t;
     }
 
     /**
@@ -2921,8 +2998,9 @@ public abstract class AbstractBigViewer {
     }
 
     /**
-     * Auto-recenter strategy for BVV's per-click "center the view on the clicked point" behavior
-     * (see {@code Bvv#registerCenterOnDoubleClickListener}). Not used by {@link Bdv}.
+     * Auto-recenter strategy for BVV's "center the view on the clicked point" behavior while tracing
+     * (see {@code Bvv#registerRecenterListener}). Does not affect the double-click recenter available
+     * outside tracing mode. Not used by {@link Bdv}.
      */
     public enum RecenterStrategy {
         /** Never auto-recenter the view on a tracing click. */
@@ -2946,8 +3024,6 @@ public abstract class AbstractBigViewer {
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
         SNTPoint pathOffset; // the viewer's "Annotations Offset..." toggle
-        public Color fallbackColor = SNTPrefs.deselectedPathColor();
-        public Color selectedColor = SNTPrefs.selectedPathColor();
         public boolean displayCustomPathColors;
         public boolean requireShiftToFork;
         public boolean activateFinishedPath;
@@ -3074,7 +3150,88 @@ public abstract class AbstractBigViewer {
         public void setDisplayRadii(final boolean displayRadii) {
             this.displayRadii = displayRadii;
         }
-        private boolean displayRadii = true;
+        private boolean displayRadii;
+
+        /** Path rendering styles. Combines {@link #isDisplayRadii()} and {@link #isUsePathRadius()} */
+        public enum Style {
+            /** Centerlines of uniform width */
+            LINE_SIMPLE,
+            /** Centerlines with width from path radii */
+            LINE_RADII,
+            /** Tapered frusta from path radii */
+            FRUSTA
+        }
+
+        /** Gets the rendering style matching the current display flags */
+        public Style getStyle() {
+            if (displayRadii) return Style.FRUSTA;
+            return usePathRadius ? Style.LINE_RADII : Style.LINE_SIMPLE;
+        }
+
+        /** Sets the display flags according to the specified style */
+        public void setStyle(final Style style) {
+            displayRadii = style == Style.FRUSTA;
+            usePathRadius = style != Style.LINE_SIMPLE;
+        }
+
+        private static final String KEY_STYLE = "style";
+        private static final String KEY_MULT = "thicknessMultiplier";
+        private static final String KEY_MIN = "minThickness";
+        private static final String KEY_MAX = "maxThickness";
+        private static final String KEY_TRANSP = "transparency";
+
+        private static org.scijava.prefs.PrefService prefs() {
+            try {
+                final org.scijava.Context ctx = SNTUtils.getContext();
+                return (ctx == null) ? null : ctx.getService(org.scijava.prefs.PrefService.class);
+            } catch (final Exception ignored) {
+                return null;
+            }
+        }
+
+        /**
+         * Restores persisted settings. Values not previously saved are left
+         * untouched. Settings are stored per viewer type (e.g., Bvv, Bdv)
+         *
+         * @param viewerClass the viewer class the settings are scoped to
+         */
+        void load(final Class<?> viewerClass) {
+            final org.scijava.prefs.PrefService ps = prefs();
+            if (ps == null) return;
+            try {
+                final String styleName = ps.get(viewerClass, KEY_STYLE);
+                if (styleName != null) setStyle(Style.valueOf(styleName));
+                setThicknessMultiplier(ps.getFloat(viewerClass, KEY_MULT, thicknessMultiplier));
+                setMinThickness(ps.getFloat(viewerClass, KEY_MIN, minThickness));
+                setMaxThickness(ps.getFloat(viewerClass, KEY_MAX, maxThickness));
+                setTransparency(ps.getFloat(viewerClass, KEY_TRANSP, transparency));
+            } catch (final RuntimeException ex) {
+                SNTUtils.log("Could not restore rendering options: " + ex.getMessage());
+            }
+        }
+
+        /**
+         * Persists the current settings (see {@link #load(Class)})
+         *
+         * @param viewerClass the viewer class the settings are scoped to
+         */
+        public void save(final Class<?> viewerClass) {
+            final org.scijava.prefs.PrefService ps = prefs();
+            if (ps == null) return;
+            ps.put(viewerClass, KEY_STYLE, getStyle().name());
+            ps.put(viewerClass, KEY_MULT, String.valueOf(thicknessMultiplier));
+            ps.put(viewerClass, KEY_MIN, String.valueOf(minThickness));
+            ps.put(viewerClass, KEY_MAX, String.valueOf(maxThickness));
+            ps.put(viewerClass, KEY_TRANSP, String.valueOf(transparency));
+        }
+
+        /** Removes persisted settings for the specified viewer type */
+        public void clearSaved(final Class<?> viewerClass) {
+            final org.scijava.prefs.PrefService ps = prefs();
+            if (ps == null) return;
+            for (final String k : new String[] { KEY_STYLE, KEY_MULT, KEY_MIN, KEY_MAX, KEY_TRANSP })
+                ps.remove(viewerClass, k);
+        }
 
 
         /**
@@ -3229,7 +3386,7 @@ public abstract class AbstractBigViewer {
         // recenter animation is either still running or has just finished (tiles for the new focal
         // region may still be streaming in). 0 (or already elapsed) means the scene is considered
         // settled. Only meaningful for viewers with a recenter-on-click behavior (currently just Bvv;
-        // see Bvv#registerCenterOnDoubleClickListener); left permanently at 0 otherwise
+        // see Bvv#registerRecenterListener); left permanently at 0 otherwise
         protected volatile long tracingSettleUntilMs = 0;
 
         protected AbstractTracer(final SNT snt) {
@@ -3297,7 +3454,7 @@ public abstract class AbstractBigViewer {
             if (System.currentTimeMillis() < tracingSettleUntilMs) {
                 // An animated camera transform is still interpolating (or has just finished but tiles for the new focal
                 // region may still be streaming in): either Bvv's own ADAPTIVE recenter-on- click (see
-                // Bvv#registerCenterOnDoubleClickListener) or an externally-triggered jump such as flyTo()/a bookmark/a
+                // Bvv#registerRecenterListener) or an externally-triggered jump such as flyTo()/a bookmark/a
                 // seed/GuidedTutorial's rotate() (see #setViewerTransform, which arms this window for any of those).
                 // Resolving a click's world position against a transform that's still moving would silently place a bad
                 // node or miss a fork target, so the click is dropped instead; the status row (set by the recenter
@@ -3587,7 +3744,7 @@ public abstract class AbstractBigViewer {
          * <p>
          * NB> this ignores perspective foreshortening (scale technically also depends on depth along
          * the camera axis in BVV). Good enough here because clicks are first centered onto the focal
-         * plane (see {@code Bvv#registerCenterOnDoubleClickListener}), where foreshortening is minimal
+         * plane (see {@code Bvv#registerRecenterListener}), where foreshortening is minimal
          *
          * @param screenPx the desired pick radius, in screen pixels
          * @return the equivalent world-space distance at the current zoom level, or {@code screenPx}

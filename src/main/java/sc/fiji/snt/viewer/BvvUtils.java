@@ -835,8 +835,16 @@ public final class BvvUtils {
      */
     public static final long MAX_SINGLE_TEXTURE_VOXELS = Integer.MAX_VALUE / 2L;
 
-    /** Edge length (voxels) of the tiles BVV uploads to the GPU cache (padded by +2 on each axis internally) */
-    public static final int GPU_BLOCK_SIZE = 32;
+    /**
+     * Edge length (voxels) of the tiles BVV uploads to the GPU cache (padded by +2 on each axis internally). 64 gave
+     * fewer, larger uploads and less padding overhead (~10% vs ~20% for 32). Override with -Dsnt.bvv.gpuBlock=32|64|128
+     */
+    public static final int GPU_BLOCK_SIZE = gpuBlockSize();
+
+    private static int gpuBlockSize() {
+        final int v = Integer.getInteger("snt.bvv.gpuBlock", 64);
+        return v >= 128 ? 128 : v >= 64 ? 64 : 32;
+    }
 
     /**
      * Edge length (voxels) of the cells BVV streams from disk. Also the chunk size of exported OME-Zarr
@@ -844,7 +852,7 @@ public final class BvvUtils {
      */
     public static final int CELL_SIZE = 64;
     static {
-        assert CELL_SIZE % GPU_BLOCK_SIZE == 0 : "CELL_SIZE must be a multiple of GPU_BLOCK_SIZE";
+        assert GPU_BLOCK_SIZE > CELL_SIZE || CELL_SIZE % GPU_BLOCK_SIZE == 0 : "CELL_SIZE must be a multiple of GPU_BLOCK_SIZE";
     }
 
     /** Source chunks smaller than this (per axis) are read in whole multiples: cells are {@link #CELL_SIZE} then */

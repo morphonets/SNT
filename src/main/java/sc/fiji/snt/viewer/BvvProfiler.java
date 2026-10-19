@@ -128,7 +128,7 @@ public final class BvvProfiler {
             s.edtCount.increment();
             s.edtNs.add(dt);
         }
-        if (LOG_SLOW && dt > SLOW_NS && (edt || dt > 20 * SLOW_NS) && !label.startsWith("edt.")) {
+        if (LOG_SLOW && dt > SLOW_NS && (edt || dt > 20 * SLOW_NS) && !label.startsWith("edt.") && !label.startsWith("render.")) {
             out(String.format("slow %s: %.1f ms on %s", label, dt / 1e6,
                     edt ? "EDT" : Thread.currentThread().getName()));
         }
@@ -253,11 +253,17 @@ public final class BvvProfiler {
                 final long t0 = System.nanoTime();
                 SwingUtilities.invokeLater(done::countDown);
                 boolean stalled = false;
+                boolean dumpedAll = false;
                 long waited = 0;
                 while (!done.await(STALL_MS, TimeUnit.MILLISECONDS)) {
                     waited += STALL_MS;
                     // Dump at first detection, then once per second
                     if (DUMP_EDT && (!stalled || waited % 1000 < STALL_MS)) dumpEdt(waited);
+                    // Once per stall: what everybody else is doing (e.g., workers the EDT is waiting for)
+                    if (DUMP_EDT && !dumpedAll && waited >= 3000) {
+                        dumpedAll = true;
+                        dumpWorkers(waited);
+                    }
                     stalled = true;
                 }
                 final long latency = System.nanoTime() - t0;
@@ -291,6 +297,46 @@ public final class BvvProfiler {
         }
         sb.append('\n');
         for (final StackTraceElement f : ti.getStackTrace()) sb.append("    at ").append(f).append('\n');
+        out(sb.toString());
+    }
+
+    /** Stacks of all non-idle threads that are in bvv-core, imglib2 caches, N5/Zarr or SNT code (excluding the EDT) */
+    private static void dumpWorkers(final long waitedMs) {
+        final ThreadInfo[] all = ManagementFactory.getThreadMXBean().dumpAllThreads(false, false, 40);
+        final StringBuilder sb = new StringBuilder("ALL THREADS during EDT stall >").append(waitedMs).append(" ms\n");
+        int shown = 0;
+        final Map<String, Integer> idle = new java.util.TreeMap<>();
+        for (final ThreadInfo ti : all) {
+            if (ti.getThreadName().startsWith("AWT-EventQueue")) continue;
+            final StackTraceElement[] st = ti.getStackTrace();
+            boolean relevant = false;
+            for (final StackTraceElement f : st) {
+                final String c = f.getClassName();
+                if (c.startsWith("bvv.") || c.startsWith("bdv.") || c.startsWith("net.imglib2.cache")
+                        || c.startsWith("org.janelia.saalfeldlab.n5") || c.startsWith("sc.fiji.snt")) {
+                    relevant = true;
+                    break;
+                }
+            }
+            if (!relevant) continue;
+            // Collapse threads parked in a pool's take()/poll() (idle workers)
+            final String top = st.length > 0 ? st[0] + (st.length > 3 ? " < " + st[3] : "") : "?";
+            if (top.contains("LinkedBlockingQueue") || top.contains("PriorityBlockingQueue")) {
+                idle.merge(ti.getThreadName().replaceAll("[-_ ]?\\d+$", ""), 1, Integer::sum);
+                continue;
+            }
+            if (shown++ >= 40) continue;
+            sb.append("  thread '").append(ti.getThreadName()).append("' ").append(ti.getThreadState());
+            if (ti.getLockName() != null) sb.append(" on ").append(ti.getLockName());
+            if (ti.getLockOwnerName() != null) sb.append(" held by '").append(ti.getLockOwnerName()).append("'");
+            sb.append('\n');
+            int n = 0;
+            for (final StackTraceElement f : st) {
+                sb.append("      at ").append(f).append('\n');
+                if (++n >= 14) break;
+            }
+        }
+        sb.append("  (idle queue workers: ").append(idle).append(")\n");
         out(sb.toString());
     }
 
