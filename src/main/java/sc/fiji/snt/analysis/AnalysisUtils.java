@@ -96,6 +96,20 @@ import java.util.stream.DoubleStream;
  */
 public class AnalysisUtils {
 
+	/** Lowers verbosity of smile.stat.distribution.* if logback is the backend */
+	private static void quietSmileLoggers() {
+		if (org.slf4j.LoggerFactory.getILoggerFactory() instanceof ch.qos.logback.classic.LoggerContext ctx) {
+			for (final String name : new String[] {
+					"smile.stat.distribution.GaussianMixture",
+					"smile.stat.distribution.ExponentialFamilyMixture" })
+				ctx.getLogger(name).setLevel(ch.qos.logback.classic.Level.WARN);
+		}
+	}
+
+	static {
+		quietSmileLoggers();
+	}
+
 	private AnalysisUtils() {
 	}
 

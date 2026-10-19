@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<configuration>
-    <logger name="smile.stat.distribution.GaussianMixture" level="WARN"/>
-    <logger name="smile.stat.distribution.ExponentialFamilyMixture" level="WARN"/>
-</configuration>
