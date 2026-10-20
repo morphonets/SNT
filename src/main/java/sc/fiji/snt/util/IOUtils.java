@@ -60,14 +60,14 @@ public final class IOUtils {
 
 	/**
 	 * Guesses the format of a reconstruction file from its first bytes (not its extension): gzip magic
-	 * number, XML (Neurolucida if the header holds an {@code <mbf>} root element), JSON ({@code '{'}),
-	 * NDF ({@code '/'}), or SWC otherwise.
+	 * number, XML (Neurolucida if the header holds an {@code <mbf>} root element), JSON
+	 * (<code>'&#123;'</code>), NDF ({@code '/'}), or SWC otherwise.
 	 *
-	 * @param is                  the stream to be inspected. If it supports marking, it is reset
-	 *                            after inspection (unless {@code closeStreamAfterGuess} is true)
+	 * @param is                    the stream to be inspected. If it supports marking, it is reset
+	 *                              after inspection (unless {@code closeStreamAfterGuess} is true)
 	 * @param closeStreamAfterGuess whether {@code is} should be closed after inspection
 	 * @return the detected format
-	 * @throws IOException if an I/O error occurs
+	 * @throws IOException if an IO error occurs
 	 */
 	public static ReconstructionFormat detectFormat(final InputStream is, final boolean closeStreamAfterGuess)
 			throws IOException {

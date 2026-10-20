@@ -138,6 +138,32 @@ public class BigDataLoaderCmd extends ContextCommand {
     @Parameter
     private PrefService prefService;
 
+    private static final String VIEWER_BDV = "Big Data Viewer (BDV): Interactive reslicing";
+    private static final String VIEWER_BVV = "Big Volume Viewer (BVV): 3D rendering";
+
+    /** Whether this instance was started programmatically (see {@link #open}): last-used values are left alone */
+    private boolean fromLink;
+
+    /**
+     * Opens a streamed dataset without prompting (e.g., from a link). Blocks until loading is complete, so it must
+     * not be called from the EDT. Last-used values of the prompt are neither read nor overwritten
+     *
+     * @param image      the path or URL of the main volume
+     * @param tracings   the path or URL of reconstruction(s) to load (null for none)
+     * @param bvv        true for the Big Volume Viewer, false for the Big Data Viewer
+     * @param withTracer whether SNT Stream (tracing) should be enabled. Requires SNT not to be running
+     */
+    public static void open(final String image, final String tracings, final boolean bvv, final boolean withTracer) {
+        final BigDataLoaderCmd cmd = new BigDataLoaderCmd();
+        SNTUtils.getContext().inject(cmd);
+        cmd.fromLink = true;
+        cmd.img1File = new File(image);
+        cmd.recFiles = (tracings == null || tracings.isBlank()) ? null : new File(tracings);
+        cmd.viewerType = bvv ? VIEWER_BVV : VIEWER_BDV;
+        cmd.tracingEnabled = withTracer;
+        cmd.run();
+    }
+
     /** Last OME-Zarr written by {@link #convertToOmeZarr} */
     private File convertedZarr;
 
@@ -209,6 +235,7 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /** Persists the four File fields as their repaired (toPathString()) string form. */
     private void saveLastUsed() {
+        if (fromLink) return;
         putOrRemove(IMG1_KEY, img1File);
         putOrRemove(IMG2_KEY, img2File);
         putOrRemove(REC_KEY, recFiles);
@@ -473,7 +500,6 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /** Holds the outcome of {@link #resolveBvvSources(String[], int, Object, boolean)}. */
-    /** {@code paths} is aligned with {@code sources}: the path each source was resolved from */
     private record ResolvedSources(List<Object> sources, List<String> paths, List<String> deferredPaths) {}
 
     /**
@@ -546,7 +572,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     /**
      * Makes sure BVV's GPU tile cache is large enough for a streamed pyramid, prompting (once, unless suppressed) if
      * the user's preference is too low or if the JVM heap limits the cache below what is needed. Must run before the
-     * first BVV window is created (the cache size cannot change afterwards)
+     * first BVV window is created (the cache size cannot change afterward)
      */
     private void checkGpuCache(final Bvv bvv, final int nChannels) {
         if (bvv.getViewerFrame() != null) return; // the cache size cannot change once a window exists
