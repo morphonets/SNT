@@ -46,7 +46,8 @@ def get_selected_paths_and_image():
         if snt.isStreamMode():
             snt.getUI().error(
                 "This script relies on a classic tracing canvas (ImageCanvas/Zoom) to "
-                "'fly through' path nodes, which is not available in Stream mode."
+                "'fly through' path nodes, which is not available in Stream mode.<br>"
+                "Use Big_Data > Path Player (Stream Mode) instead."
             )
             return None, None
 
