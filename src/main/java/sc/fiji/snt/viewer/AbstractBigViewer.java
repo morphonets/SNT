@@ -2002,6 +2002,16 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Returns the distinct file paths/URLs of all datasets tracked by this viewer (see
+     * {@link #getPrimarySourcePath()} for the tracking caveat)
+     *
+     * @return the source paths/URLs (unordered, possibly empty)
+     */
+    public java.util.List<String> getSourcePaths() {
+        return datasetPaths.values().stream().distinct().toList();
+    }
+
+    /**
      * Gets the source file path/URL of a dataset shown in this viewer.
      *
      * @param dataset an {@link AbstractSpimData} or {@link SpimDataUtils.N5Sources} instance shown in this viewer

@@ -678,9 +678,13 @@ public class DemoRunner {
 			descriptions[idx++] = entry.description();
 		}
 		final String defChoice = (prefs == null) ? choices[0] : prefs.getTemp("demo", choices[0]);
+		final GuiUtils.ChoiceAction copyLink = new GuiUtils.ChoiceAction("Copy snt:// Link",
+				IconFactory.menuIcon(IconFactory.GLYPH.LINK), "Copies a link that loads the selected demo to the clipboard",
+				"Link Copied", index -> true, index -> java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+						.setContents(new java.awt.datatransfer.StringSelection(entries.get(index).link()), null));
 		final String choice = new GuiUtils(ui).getChoice(
 				"Which dataset/tutorial?<br>NB: Remote data may take a while to download", "Load Demo Dataset/Tutorial", choices,
-				descriptions, defChoice, (list, index) -> entries.get(index).icon(list));
+				descriptions, defChoice, (list, index) -> entries.get(index).icon(list), List.of(copyLink));
 		if (choice == null)
 			return null;
 		if (prefs != null)
@@ -879,6 +883,11 @@ public class DemoRunner {
 			return false;
 		}
 
+		/** The link that loads this demo, see {@code SNTLinkHandler} */
+		String link() {
+			return "fiji://snt/demo?id=" + id;
+		}
+
 		String description() {
 			final StringBuilder sb = new StringBuilder();
 			sb.append(summary);
@@ -896,6 +905,7 @@ public class DemoRunner {
 				sb.append("\n");
 				sb.append("Keywords: ").append(String.join(", ", keywords));
 			}
+			sb.append("\nLink: ").append(link());
 			return sb.toString();
 		}
 

@@ -97,6 +97,8 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -718,6 +720,36 @@ public class GuiUtils {
 	public String getChoice(final String message, final String title, final String[] choices,
 							final String[] descriptions, final String defaultChoice,
 							final BiFunction<JList<?>, Integer, Icon> iconResolver) {
+		return getChoice(message, title, choices, descriptions, defaultChoice, iconResolver, List.of());
+	}
+
+	/**
+	 * A button displayed below the description of the selected choice of
+	 * {@link #getChoice(String, String, String[], String[], String, BiFunction, List)}
+	 *
+	 * @param label     the button label
+	 * @param icon      the button icon (can be null)
+	 * @param tooltip   the button tooltip (can be null)
+	 * @param doneLabel the label shown after the button is pressed (e.g., "Copied"), until the selection
+	 *                  changes. Null to keep {@code label}
+	 * @param enabled   tests whether the button is enabled for the choice at the given index
+	 * @param run       the action, given the index of the selected choice
+	 */
+	public record ChoiceAction(String label, Icon icon, String tooltip, String doneLabel,
+							   IntPredicate enabled, IntConsumer run) {}
+
+	/**
+	 * Same as {@link #getChoice(String, String, String[], String[], String, BiFunction)}, with additional buttons
+	 * below the description of the selected choice.
+	 *
+	 * @param actions the buttons to be displayed. Evaluated once: the presence of buttons cannot change while the
+	 *                prompt is displayed. Null or empty for none (same as the 6-arg overload)
+	 */
+	public String getChoice(final String message, final String title, final String[] choices,
+							final String[] descriptions, final String defaultChoice,
+							final BiFunction<JList<?>, Integer, Icon> iconResolver,
+							final List<ChoiceAction> actions) {
+		final List<ChoiceAction> acts = (actions == null) ? List.of() : actions;
 		final JTextArea ta = new JTextArea();
 		ta.setRows(6);
 		ta.setWrapStyleWord(true);
@@ -740,9 +772,29 @@ public class GuiUtils {
 		if (iconResolver != null)
 			list.setCellRenderer(iconListCellRenderer(iconResolver));
 		list.setVisibleRowCount(Math.min(20, choices.length));
+		final List<JButton> actionButtons = new ArrayList<>(acts.size());
+		for (final ChoiceAction action : acts) {
+			final JButton button = new JButton(action.label(), action.icon());
+			button.setToolTipText(action.tooltip());
+			button.addActionListener(e -> {
+				final int idx = list.getSelectedIndex();
+				if (idx < 0) return;
+				action.run().accept(idx);
+				if (action.doneLabel() != null) button.setText(action.doneLabel());
+			});
+			actionButtons.add(button);
+		}
+		final Runnable syncActions = () -> {
+			final int idx = list.getSelectedIndex();
+			for (int i = 0; i < acts.size(); i++) {
+				actionButtons.get(i).setText(acts.get(i).label());
+				actionButtons.get(i).setEnabled(idx >= 0 && acts.get(i).enabled().test(idx));
+			}
+		};
 		list.addListSelectionListener(e -> {
 			ta.setText(descriptions[list.getSelectedIndex()]);
 			ta.setCaretPosition(0);
+			syncActions.run();
 		});
 		list.setSelectedIndex(defIdx);
 		list.ensureIndexIsVisible(defIdx);
@@ -760,6 +812,12 @@ public class GuiUtils {
 		panel.add(new JLabel("<HTML>&nbsp;"), gbc); // spacer
 		gbc.gridy++;
 		panel.add(ScrollPanes.create(ta), gbc);
+		if (!actionButtons.isEmpty()) {
+			final JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+			actionButtons.forEach(actionPanel::add);
+			gbc.gridy++;
+			panel.add(actionPanel, gbc);
+		}
 		if (choices.length >  4) {
 			final Searchable searchable = SNTSearchableBar.newListSearchable(list, object -> {
 				final int idx = listModel.indexOf(object);

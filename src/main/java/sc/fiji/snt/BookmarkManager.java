@@ -34,6 +34,7 @@ import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.cmds.SNTLink;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bvv;
@@ -65,6 +66,7 @@ public class BookmarkManager {
     /** Name prefix for temporary highlight ROIs added to the image overlay. */
     private static final String HIGHLIGHT_PREFIX = "__bm_highlight_";
 
+    private static final String LINK_LOCAL_NAG_KEY = "snt.link.localpath.skipnag";
     private final SNTUI sntui;
     private final AbstractBigViewer viewer;
     private JToggleButton highlightToggle;
@@ -158,7 +160,7 @@ public class BookmarkManager {
      * {@link SNT} is available.
      * <p>
      * <b>Do not substitute {@code ij.measure.Calibration}'s own {@code xOrigin/yOrigin/zOrigin}
-     * fields for {@code SNT.getWorldOriginOffset()} here</b> (or vice versa, see
+     * fields for {@code SNT.getWorldOriginOffset()} here</b> or vice versa, see
      * {@link SNT#setWorldOriginOffset}.
      *
      * @see #worldToPixel(Bookmark) the inverse conversion
@@ -565,6 +567,13 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
 
+        if (linksSupported()) {
+            mi = new JMenuItem("Copy snt:// Link to Selected Location", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+            mi.setToolTipText("Copies an snt:// link that flies to the selected bookmark");
+            mi.addActionListener(e -> copyLinkToLocation());
+            pMenu.add(mi);
+        }
+
         GuiUtils.MenuItems.addSeparator(pMenu, "Utilities:");
         if (sntui != null) {
             mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
@@ -587,6 +596,39 @@ public class BookmarkManager {
         // table-management actions (the Searchable items will be the last
         // entries in the menu).
         return pMenu;
+    }
+
+    /** Locations in links are only supported in stream mode (see SNTLink) */
+    private boolean linksSupported() {
+        return viewer != null || (sntui != null && sntui.plugin.isStreamMode());
+    }
+
+    private void copyLinkToLocation() {
+        if (noBookmarksError()) return;
+        final int row = table.getSelectedRow();
+        if (row == -1) {
+            getGuiUtils().error("No bookmark selected.");
+            return;
+        }
+        final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
+        final String source = sc.fiji.snt.gui.cmds.SNTLink.sourceOf((sntui == null) ? null : sntui.plugin, viewer);
+        if (source == null) {
+            getGuiUtils().error("A link cannot be created: the source of the displayed data is unknown.");
+            return;
+        }
+        if (SNTLink.isLocal(source) && !ij.Prefs.get(LINK_LOCAL_NAG_KEY, false)) {
+            final Boolean skipNag = getGuiUtils().getPersistentWarning(
+                    "This link contains a local path. It will only work on this machine "
+                            + "(or on machines with the same mount), and it exposes the path.",
+                    "Link Contains Local Path");
+            if (skipNag == null) return; // prompt canceled
+            ij.Prefs.set(LINK_LOCAL_NAG_KEY, skipNag);
+        }
+        final AbstractBigViewer v = (viewer != null) ? viewer
+                : SNTLink.activeViewer((sntui == null) ? null : sntui.plugin);
+        final String link = SNTLink.locationLink(source, v, sntui != null, b.getX(), b.getY(), b.getZ(), b.t);
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(link), null);
+        getGuiUtils().tempMsg("Link copied to clipboard");
     }
 
     private void applyUniqueTags() {

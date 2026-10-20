@@ -1109,6 +1109,15 @@ public class SNTUI extends JDialog {
         exitRequested(true);
     }
 
+    /**
+     * Closes this SNT session, asking for confirmation only if there are unsaved paths or measurements
+     *
+     * @return true if the session was closed, false if the user canceled
+     */
+    public boolean close() {
+        return exitRequested(false);
+    }
+
     private boolean exitRequested(final boolean requireExplicitConfirmation) {
         assert SwingUtilities.isEventDispatchThread();
         String msg = null;
