@@ -25,6 +25,9 @@ package sc.fiji.snt.io;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.file.Files;
@@ -36,7 +39,9 @@ import java.util.List;
 import java.util.Locale;
 
 import bdv.cache.SharedQueue;
+import bdv.img.imaris.IHDF5Access;
 import bdv.img.imaris.Imaris;
+import bdv.img.imaris.ImarisImageLoader;
 import bdv.spimdata.SpimDataMinimal;
 import bdv.spimdata.XmlIoSpimDataMinimal;
 import bdv.tools.brightness.ConverterSetup;
@@ -117,8 +122,8 @@ public class SpimDataUtils {
         final String lower = path.toLowerCase(Locale.ROOT);
         try {
             if (lower.endsWith(".xml") || lower.endsWith(".ims")) {
-                final AbstractSpimData<?> sd = lower.endsWith(".ims") ? Imaris.openIms(path)
-                        : new XmlIoSpimDataMinimal().load(path);
+                final AbstractSpimData<?> sd = lockImarisReads(lower.endsWith(".ims") ? Imaris.openIms(path)
+                        : new XmlIoSpimDataMinimal().load(path));
                 final var seq = sd.getSequenceDescription();
                 final var setups = seq.getViewSetupsOrdered();
                 if (channelIdx < 0 || channelIdx >= setups.size())
@@ -223,7 +228,7 @@ public class SpimDataUtils {
             try {
                 if (new File(xmlPath).exists()) {
                     SNTUtils.log("BVV: reusing existing XML sidecar: " + xmlPath);
-                    return new XmlIoSpimDataMinimal().load(xmlPath);
+                    return lockImarisReads(new XmlIoSpimDataMinimal().load(xmlPath));
                 }
                 final File dir = file.getParentFile();
                 if (dir != null && !dir.canWrite()) {
@@ -240,7 +245,7 @@ public class SpimDataUtils {
                         : file.getName();
                 patchImsXml(xmlPath, base);
                 SNTUtils.log("BVV: created XML sidecar: " + xmlPath);
-                return new XmlIoSpimDataMinimal().load(xmlPath);
+                return lockImarisReads(new XmlIoSpimDataMinimal().load(xmlPath));
             } catch (final IOException | SpimDataException e) {
                 throw new IllegalArgumentException("Could not open IMS file: " + e.getMessage(), e);
             }
@@ -248,7 +253,7 @@ public class SpimDataUtils {
 
         if (lower.endsWith(".xml")) {
             try {
-                return new XmlIoSpimDataMinimal().load(filePathOrUrl);
+                return lockImarisReads(new XmlIoSpimDataMinimal().load(filePathOrUrl));
             } catch (final SpimDataException e) {
                 throw new IllegalArgumentException("Could not open XML file: " + e.getMessage(), e);
             }
@@ -925,5 +930,50 @@ public class SpimDataUtils {
         try (final PrintWriter pw = new PrintWriter(xmlFile)) {
             pw.print(xml);
         }
+    }
+
+    /**
+     * Serializes all HDF5 reads of an Imaris-backed {@code spimData}. BDV's {@code HDF5AccessHack} only
+     * synchronizes its byte reads: the short and float reads share a mutable hyperslab selection, so
+     * concurrent cell loads (e.g., a parallel crop copy plus viewer fetcher threads) can return cells
+     * holding data from the wrong chunk. The loader opens lazily and captures its array loader when an
+     * image is first requested, so this must be called before any image is obtained from {@code spimData}.
+     * Does nothing for other loaders, and leaves {@code spimData} untouched if reflection fails
+     *
+     * @param spimData the dataset (typically freshly opened)
+     * @param <T>      the dataset type
+     * @return {@code spimData}, for chaining
+     */
+    public static <T extends AbstractSpimData<?>> T lockImarisReads(final T spimData) {
+        try {
+            if (!(spimData.getSequenceDescription().getImgLoader() instanceof ImarisImageLoader<?, ?, ?> ims))
+                return spimData;
+            ims.getCacheControl(); // forces the lazy open()
+            final Field accessField = ImarisImageLoader.class.getDeclaredField("hdf5Access");
+            final Field loaderField = ImarisImageLoader.class.getDeclaredField("loader");
+            accessField.setAccessible(true);
+            loaderField.setAccessible(true);
+            final IHDF5Access orig = (IHDF5Access) accessField.get(ims);
+            if (orig == null || Proxy.isProxyClass(orig.getClass())) return spimData; // nothing to do, or done
+            // Locking on orig itself also keeps the already synchronized byte reads mutually exclusive
+            final IHDF5Access locked = (IHDF5Access) Proxy.newProxyInstance(IHDF5Access.class.getClassLoader(),
+                    new Class<?>[]{IHDF5Access.class}, (proxy, method, args) -> {
+                        synchronized (orig) {
+                            try {
+                                return method.invoke(orig, args);
+                            } catch (final InvocationTargetException e) {
+                                throw e.getCause();
+                            }
+                        }
+                    });
+            final Object oldLoader = loaderField.get(ims);
+            final Object newLoader = oldLoader.getClass().getConstructor(IHDF5Access.class).newInstance(locked);
+            accessField.set(ims, locked);
+            loaderField.set(ims, newLoader);
+            SNTUtils.log("Imaris: HDF5 reads are now serialized");
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            SNTUtils.log("Imaris: could not serialize HDF5 reads (" + e + "); concurrent reads may be unsafe");
+        }
+        return spimData;
     }
 }
