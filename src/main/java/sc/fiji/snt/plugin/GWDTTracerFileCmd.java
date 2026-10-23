@@ -28,6 +28,7 @@ import net.imglib2.type.numeric.RealType;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
@@ -65,6 +66,14 @@ public class GWDTTracerFileCmd extends GWDTTracerCommonCmd {
                     "do not match the input, score mapping is silently disabled for that<br>" +
                     "input and a warning is logged (the trace still runs).")
     private String secondaryImageSuffix = "_probmap";
+
+    @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
+    private Button applyDefaultsBtn;
+
+    @SuppressWarnings("unused")
+    private void applyDefaultsCallback() {
+        applyDefaults();
+    }
 
     private boolean batchMode;
     private boolean batchImageFailed;

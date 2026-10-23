@@ -5507,23 +5507,41 @@ public class GuiUtils {
 			return new OptionsButton(glyph, (color == null) ? IconFactory.defaultColor() : color, scalingFactor, menu, dropdownIndicator);
 		}
 
+		public static OptionsButton OptionsButton(final String text, final JPopupMenu menu, final boolean dropdownIndicator) {
+			return new OptionsButton(text, menu, dropdownIndicator);
+		}
+
 		 /** A {@link JButton} that shows an attached {@link JPopupMenu} of options when clicked. */
 		 public static class OptionsButton extends JButton {
-			public final JPopupMenu popupMenu;
+			 public final JPopupMenu popupMenu;
 
-			private OptionsButton(final IconFactory.GLYPH glyph, final Color color, final float scalingFactor, final JPopupMenu popupMenu,
-								  final boolean dropdownIndicator) {
-				super( (dropdownIndicator)
-						? IconFactory.dropdownMenuIcon(glyph, scalingFactor, color)
-						: IconFactory.buttonIcon(glyph, color, scalingFactor));
-				this.popupMenu = popupMenu;
-				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.disabledColor()));
-				// Store a back-reference so callers can locate this button from the popup alone
-				// (getInvoker() is only set at show() time, i.e. after the first click)
-				popupMenu.putClientProperty("owner", this);
-				addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
-			}
-		}
+			 private OptionsButton(final IconFactory.GLYPH glyph, final Color color, final float scalingFactor, final JPopupMenu popupMenu,
+								   final boolean dropdownIndicator) {
+				 super((dropdownIndicator)
+						 ? IconFactory.dropdownMenuIcon(glyph, scalingFactor, color)
+						 : IconFactory.buttonIcon(glyph, color, scalingFactor));
+				 this.popupMenu = popupMenu;
+				 setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.disabledColor()));
+				 assignPopup(popupMenu);
+			 }
+
+			 private OptionsButton(final String text, final JPopupMenu popupMenu, final boolean dropdownIndicator) {
+				 super(text);
+				 if (dropdownIndicator) {
+					 setIcon(UIManager.getIcon("Tree.expandedIcon"));
+					 setHorizontalTextPosition(SwingConstants.LEFT);
+				 }
+				 this.popupMenu = popupMenu;
+				 assignPopup(popupMenu);
+			 }
+
+			 private void assignPopup(final JPopupMenu popupMenu) {
+				 // Store a back-reference so callers can locate this button from the popup alone
+				 // (getInvoker() is only set at show() time, i.e. after the first click)
+				 popupMenu.putClientProperty("owner", this);
+				 addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
+			 }
+		 }
 
 		public static JButton help(final String url) {
 			final JButton button = new JButton();
@@ -5981,6 +5999,53 @@ public class GuiUtils {
 
 	}
 
+
+	/** Utility methods for creating panels. */
+	public static class Panels {
+
+		private Panels() {
+		}
+
+		/**
+		 * Creates a section with a header that collapses/expands its content when clicked.
+		 *
+		 * @param title    the header text
+		 * @param content  the component to show/hide
+		 * @param expanded whether the section is initially expanded
+		 * @param onToggle optional action run after each toggle (e.g., to re-pack the parent window). May be null
+		 * @return the section panel, to be added to a container
+		 */
+		public static JPanel collapsibleSection(final String title, final JComponent content, final boolean expanded,
+												final Runnable onToggle) {
+			final JButton header = new JButton(title);
+			GuiUtils.Buttons.makeBorderless(header);
+			header.setFocusable(false);
+			// Buttons have a sizeable left margin by default: flush the icon with the left edge of the container
+			header.setMargin(new Insets(2, 0, 2, 4));
+			header.setIconTextGap(4);
+			header.setHorizontalAlignment(SwingConstants.LEFT);
+			header.setFont(header.getFont().deriveFont(Font.BOLD));
+			header.setToolTipText("Collapse/expand section");
+			final Color arrowColor = UIManager.getColor("Spinner.buttonArrowColor");
+			final boolean[] state = {expanded};
+			final Runnable applyState = () -> {
+				IconFactory.assignIcon(header, state[0] ? GLYPH.ANGLE_DOWN : GLYPH.ANGLE_RIGHT, arrowColor, 0.8f);
+				content.setVisible(state[0]);
+			};
+			applyState.run();
+			final JPanel section = new JPanel(new BorderLayout());
+			section.add(header, BorderLayout.NORTH);
+			section.add(content, BorderLayout.CENTER);
+			header.addActionListener(e -> {
+				state[0] = !state[0];
+				applyState.run();
+				section.revalidate();
+				section.repaint();
+				if (onToggle != null) onToggle.run();
+			});
+			return section;
+		}
+	}
 
 	/** Utility methods for creating and styling {@link JScrollPane}s. */
 	public static class ScrollPanes {

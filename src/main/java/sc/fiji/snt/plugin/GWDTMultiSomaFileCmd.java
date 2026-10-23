@@ -25,6 +25,7 @@ package sc.fiji.snt.plugin;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -48,6 +49,14 @@ public class GWDTMultiSomaFileCmd extends GWDTMultiSomaCommonCmd {
     @Parameter(label = "Export directory", style = FileWidget.DIRECTORY_STYLE,
             description = "<HTML>Directory for saving traced trees as SWC files.")
     private File exportDir;
+
+    @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
+    private Button applyDefaultsBtn;
+
+    @SuppressWarnings("unused")
+    private void applyDefaultsCallback() {
+        applyDefaults();
+    }
 
     private boolean batchMode;
     private boolean batchImageFailed;

@@ -29,6 +29,7 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.NumberWidget;
+import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
@@ -127,6 +128,16 @@ public class AutotraceFromWaypointsCmd extends GWDTTracerCommonCmd {
                     "Set to 0 to bias only the waypoint voxel itself.")
     private double biasRadiusVoxels = 2.0;
 
+    @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
+    private Button applyDefaultsBtn;
+
+    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
+    private Button learnFromSelectedPathsBtn;
+
+    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+    private String learnFromExampleMsg = " ";
+
+
     /**
      * Waypoints resolved at the start of {@link #runCommand}; consumed by  {@link #createAndConfigureTracer(ImgPlus)}
      * when the parent's flow reaches the tracer-configuration step. Same field-injection pattern as
@@ -157,6 +168,16 @@ public class AutotraceFromWaypointsCmd extends GWDTTracerCommonCmd {
         }
         final MutableModuleItem<String> typeItem = getInfo().getMutableInput("typeFilterChoice", String.class);
         typeItem.setChoices(typeChoices);
+    }
+
+    @SuppressWarnings("unused")
+    private void applyDefaultsCallback() {
+        applyDefaults();
+    }
+
+    @SuppressWarnings("unused")
+    private void learnParametersCallback() {
+        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
     }
 
     @Override

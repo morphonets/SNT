@@ -22,25 +22,15 @@
 
 package sc.fiji.snt.plugin;
 
-import net.imagej.ImgPlus;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.numeric.RealType;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.gui.cmds.AutoTraceConfigDialog;
-import sc.fiji.snt.tracing.auto.AutoTraceConfig;
-import sc.fiji.snt.util.ImgUtils;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collection;
 
 /**
  * Interactive command providing a GUI for GWDT autotracing when an image is
@@ -57,10 +47,10 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
 
     private static final String PROMPT_TITLE = "Autotracing Grayscale Data (GWDT)... "; // MUST BE UNIQUE for getPrompt() to work
 
-    @Parameter(label = "Learn Parameters From Selected Path(s)...", callback = "learnFromSelectedPaths",
-            description = "<HTML>Derive tracing parameters from paths currently selected<br>" +
-                    "in Path Manager. Radii, intensity, and branch geometry are<br>" +
-                    "sampled to auto-fill settings above.")
+    @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
+    private Button applyDefaultsBtn;
+
+    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
     private Button learnFromSelectedPathsBtn;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
@@ -68,8 +58,6 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
 
     @Parameter(label = "   Run   ", callback = "runTrace", description = "<HTML>Run autotracing")
     private Button run;
-
-    private AutoTraceConfigDialog configDialog;
 
     @SuppressWarnings("unused")
     private void init() {
@@ -111,7 +99,7 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
 
     @SuppressWarnings("unused")
     private void runTrace() {
-        if (configDialog != null) configDialog.dispose();
+        disposeLearnDialog();
         final JDialog prompt = getPrompt();
         if (prompt != null) prompt.dispose();
         // Button callbacks in Interactive commands run on the EDT,
@@ -139,57 +127,12 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
     }
 
     @SuppressWarnings("unused")
-    private void learnFromSelectedPaths() {
-        final Collection<Path> selected = sntService.getSelectedPaths();
-        if (selected == null || selected.isEmpty()) {
-            learnFromExampleMsg = "<HTML><font color='red'>No paths selected in Path Manager.</font>";
-            return;
-        }
-
-        try {
-            final ImgPlus<?> chosenImp = getImgFromImgChoice();
-            if (chosenImp == null) {
-                learnFromExampleMsg = "<HTML><font color='red'>No valid image available.</font>";
-                return;
-            }
-
-            @SuppressWarnings("unchecked")
-            final RandomAccessibleInterval<? extends RealType<?>> source =
-                    (RandomAccessibleInterval<? extends RealType<?>>) chosenImp;
-            final double[] spacing = ImgUtils.getSpacing(chosenImp);
-
-            final AutoTraceConfig config = AutoTraceConfig.fromPaths(new ArrayList<>(selected), source, spacing);
-
-            // Show the config dialog
-            configDialog = new AutoTraceConfigDialog(getPrompt(), config);
-            configDialog.setApplyCallback(cfg -> applySelectedConfig(configDialog, cfg));
-            configDialog.setVisible(true);
-
-            learnFromExampleMsg = "<HTML><font color='green'>Learned from "
-                    + selected.size() + " path(s). Review the configuration window.</font>";
-
-            SNTUtils.log("AutoTraceConfig derived:\n" + config.getSummary());
-
-        } catch (final Exception ex) {
-            learnFromExampleMsg = "<HTML><font color='red'>Error: " + ex.getMessage() + "</font>";
-            SNTUtils.log("AutoTraceConfig error: " + ex.getMessage());
-        }
+    private void applyDefaultsCallback() {
+        applyDefaults();
     }
 
-    private void applySelectedConfig(final AutoTraceConfigDialog dialog, final AutoTraceConfig config) {
-        if (dialog.isSelected("backgroundThreshold") && !Double.isNaN(config.getBackgroundThreshold())) {
-            backgroundThreshold = config.getBackgroundThreshold();
-        }
-        if (dialog.isSelected("lengthThreshold") && !Double.isNaN(config.getMinBranchIntensityLength())) {
-            lengthThreshold = config.getMinBranchIntensityLength();
-        }
-        if (dialog.isSelected("branchTuneMaxAngle") && !Double.isNaN(config.getBranchTuneMaxAngle())) {
-            branchTuneMaxAngle = config.getBranchTuneMaxAngle();
-        }
-        if (dialog.isSelected("scoreMapEnabled") && config.getScoreMapScales() != null) {
-            scoreMapFilter = SCORE_MAP_TUBENESS;
-        }
-        learnFromExampleMsg = "<HTML><font color='green'>Applied selected parameters.</font>";
-        SNTUtils.log("AutoTraceConfig: applied selected parameters to dialog");
+    @SuppressWarnings("unused")
+    private void learnParametersCallback() {
+        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
     }
 }

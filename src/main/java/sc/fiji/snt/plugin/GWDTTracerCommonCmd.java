@@ -32,7 +32,6 @@ import org.scijava.ItemVisibility;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
-import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
@@ -44,7 +43,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.gui.cmds.AutoTraceConfigDialog;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
+import sc.fiji.snt.tracing.auto.AutoTraceConfig;
 import sc.fiji.snt.tracing.auto.GWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.tracing.auto.SomaUtils;
@@ -53,9 +54,17 @@ import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.gui.GuiUtils;
 
+import javax.swing.JDialog;
+import javax.swing.SwingWorker;
+import java.awt.Cursor;
+import java.awt.Window;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Base command providing shared parameters and logic for GWDT autotracing.
@@ -111,7 +120,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     protected File imgFileChoice;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER2 = "<HTML>&nbsp;<br><b>Soma/Root Detection";
+    private String HEADER2 = "<HTML>&nbsp;<b>Soma/Root Detection";
 
     @Parameter(required = false, label = "ROI strategy",
             choices = {SOMA_AUTO, SOMA_ROI_AUTO_EDGE, SOMA_ROI_EDGE, SOMA_ROI_CENTROID, SOMA_ROI_CENTROID_WEIGHTED},
@@ -249,8 +258,10 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     "Default: Medium")
     private String connectivityChoice = "Medium";
 
+    private static final String DEBUG_MODE_DESCRIPTION = "<HTML>Enable verbose logging to Console";
+
     @Parameter(label = "Debug mode", persist = false, callback = "debugModeCallback",
-            description = "<HTML>Enable verbose logging to Console")
+            description = DEBUG_MODE_DESCRIPTION)
     protected boolean debugMode;
 
     @Parameter(label = "After tracing",
@@ -270,9 +281,13 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     "</dl>")
     String afterTracingChoice = AFTER_DO_NOTHING;
 
-    @Parameter(label = "  Apply Defaults  ", callback = "applyDefaults",
-            description = "<HTML>Resets all fields above to their default values.")
-    private Button applyDefaultsButton;
+    // NB: Widgets follow declaration order, base class first. To have the button after all the parameters of the
+    // command, each concrete command declares it (see APPLY_DEFAULTS_LABEL) and calls applyDefaults() in its callback
+    /** Label of the "apply defaults" button, declared by each concrete command */
+    protected static final String APPLY_DEFAULTS_LABEL = "  Apply Defaults  ";
+    /** Description of the "apply defaults" button */
+    protected static final String APPLY_DEFAULTS_DESCRIPTION = "<HTML>Resets all fields above to their default values,<br>"
+            + "including values adopted from learned parameters.";
 
     protected boolean abortRun;
     protected ImgPlus<?> chosenImp;
@@ -405,6 +420,9 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         connectivityChoice = "Medium";
         afterTracingChoice = AFTER_DO_NOTHING;
         scoreMapFilterCallback(); // keep secondaryImageSuffix visibility in sync w/ reset scoreMapFilter
+        // Learned values are gone: the window listing them would show stale 'current' values
+        disposeLearnDialog();
+        if (learnMessage != null) learnMessage.accept(" ");
     }
 
     /**
@@ -472,6 +490,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     }
 
     protected void runCommand() {
+        javax.swing.SwingUtilities.invokeLater(this::disposeLearnDialog); // no longer relevant
         try {
             chosenImp = getImgFromImgChoice();
             if (chosenImp == null || abortRun) return;
@@ -626,6 +645,307 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         }
         status("Successfully traced " + trees.size() + " tree(s)", true);
     }
+
+    // ---- Learning parameters from example paths (image-based commands) ----
+
+    /** Label of the "learn" button, declared by each image-based command (see {@link #learnFromSelectedPaths}) */
+    protected static final String LEARN_LABEL = "Learn Parameters...";
+    /** Description of the "learn" button */
+    protected static final String LEARN_DESCRIPTION = "<HTML>Derive tracing parameters from example paths: those currently<br>"
+            + "selected in Path Manager, or reconstruction files (SWC, TRACES, etc.)<br>"
+            + "dropped onto the window that opens. Radii, intensity, and branch<br>"
+            + "geometry are sampled to auto-fill settings above.";
+
+    private AutoTraceConfigDialog configDialog;
+    private Consumer<String> learnMessage; // updates the message widget of the "learn" button
+
+    /**
+     * Closes the window listing learned parameters, if open
+     */
+    protected void disposeLearnDialog() {
+        if (configDialog != null) configDialog.dispose();
+        learnImg = null;
+        learnImgFile = null;
+    }
+
+    // Updates the widgets of the prompt to reflect the current value of the fields of this command. NB: SciJava only
+    // does so after the callback of a widget of the prompt. Neither the input panel (it is not a component) nor any
+    // other means of refreshing it are reachable from here, so a widget callback is triggered by flipping the 'debug
+    // mode' checkbox and restoring it right away (same EDT event: it is never painted in the flipped state). The
+    // callback of this widget only sets SNTUtils' debug mode
+    private void refreshPrompt() {
+        final JDialog prompt = findPrompt();
+        final javax.swing.JCheckBox box = (prompt == null) ? null
+                : findCheckBox(prompt.getContentPane(), "verbose logging");
+        if (box == null) return;
+        final boolean value = box.isSelected();
+        box.setSelected(!value);
+        box.setSelected(value);
+    }
+
+    // Finds the checkbox whose tooltip contains the text
+    private static javax.swing.JCheckBox findCheckBox(final java.awt.Component c, final String tooltip) {
+        if (c instanceof javax.swing.JCheckBox box && box.getToolTipText() != null
+                && box.getToolTipText().contains(tooltip)) return box;
+        if (c instanceof java.awt.Container container) {
+            for (final java.awt.Component child : container.getComponents()) {
+                final javax.swing.JCheckBox box = findCheckBox(child, tooltip);
+                if (box != null) return box;
+            }
+        }
+        return null;
+    }
+
+    // The visible prompt of this command, or null (NB: Window titles are not unique in general, but are for prompts)
+    private JDialog findPrompt() {
+        final String title = getInfo().getLabel();
+        for (final Window w : Window.getWindows()) {
+            if (w instanceof JDialog d && d.isVisible() && d.getTitle() != null && d.getTitle().equals(title)) return d;
+        }
+        return null;
+    }
+
+    /**
+     * Opens a window listing tracing parameters learned from example paths, from which the user can cherry-pick the
+     * ones to apply to the prompt. If paths are selected in the Path Manager, they are used as the initial examples;
+     * otherwise the window waits for reconstruction files to be dropped onto it or chosen with its file chooser. The
+     * heavy work (loading, fitting radii, sampling intensities) runs off the EDT. To be called from the callback of
+     * the "learn" button of image-based commands, which declare it together with a message widget
+     *
+     * @param message receives the text to display in the message widget of the prompt
+     */
+    protected void learnFromSelectedPaths(final Consumer<String> widgetMessage) {
+        // Widgets of the prompt only refresh after a widget callback, but messages and values are also set by the
+        // learning window and by background threads: refresh the prompt explicitly
+        final Consumer<String> message = msg -> {
+            widgetMessage.accept(msg);
+            javax.swing.SwingUtilities.invokeLater(this::refreshPrompt);
+        };
+        learnMessage = message;
+        disposeLearnDialog();
+        final AutoTraceConfigDialog.Learner learner = new AutoTraceConfigDialog.Learner() {
+            @Override
+            public void learnFromFiles(final List<File> files, final Consumer<AutoTraceConfig> onDone,
+                                       final Consumer<String> onError) {
+                learn(null, files, message, onDone, onError);
+            }
+
+            @Override
+            public void learnFromSelection(final Consumer<AutoTraceConfig> onDone, final Consumer<String> onError) {
+                final Collection<Path> selected = sntService.getSelectedPaths();
+                if (selected == null || selected.isEmpty()) {
+                    onError.accept("No paths selected in Path Manager.");
+                    return;
+                }
+                learn(new ArrayList<>(selected), null, message, onDone, onError);
+            }
+
+            @Override
+            public void learnFromAll(final Consumer<AutoTraceConfig> onDone, final Consumer<String> onError) {
+                final List<Path> all = sntService.getPaths();
+                if (all == null || all.isEmpty()) {
+                    onError.accept("Path Manager is empty.");
+                    return;
+                }
+                learn(new ArrayList<>(all), null, message, onDone, onError);
+            }
+        };
+        message.accept(" ");
+        configDialog = new AutoTraceConfigDialog(findPrompt(), null, currentLearnableValues(), learner);
+        configDialog.setApplyCallback(cfg -> applySelectedConfig(configDialog, cfg, message));
+        configDialog.setVisible(true);
+        final Collection<Path> selected = sntService.getSelectedPaths();
+        if (selected != null && !selected.isEmpty()) configDialog.learnFromSelection();
+    }
+
+    // Examples beyond this number (longest first) are ignored: fitting radii to many paths is slow, and even
+    // more so if the image is a lazily loaded stream
+    private static final int MAX_EXAMPLE_PATHS = 200;
+    private static final int MAX_EXAMPLE_PATHS_STREAMED = 30;
+
+    // Image of file-based commands, kept while the learning window is open: loading it can be slow
+    private ImgPlus<?> learnImg;
+    private File learnImgFile;
+    private long learnImgStamp;
+
+    private ImgPlus<?> learnImage() {
+        if (isFileMode()) {
+            final File f = imgFileChoice;
+            if (learnImg != null && f != null && f.equals(learnImgFile) && f.lastModified() == learnImgStamp)
+                return learnImg;
+            learnImg = getImgFromImgChoice();
+            learnImgFile = f;
+            learnImgStamp = (f == null) ? 0 : f.lastModified();
+            return learnImg;
+        }
+        return getImgFromImgChoice();
+    }
+
+    private static List<Path> loadPaths(final List<File> files) {
+        final List<Path> paths = new ArrayList<>();
+        for (final File f : files) {
+            for (final Tree tree : Tree.listFromFile(f.getAbsolutePath())) paths.addAll(tree.list());
+        }
+        return paths;
+    }
+
+    /**
+     * Derives a configuration from either example paths or reconstruction files, reporting back on the EDT
+     *
+     * @param examples the example paths (null if files are specified)
+     * @param files    the reconstruction files (ignored if examples are specified)
+     */
+    private void learn(final List<Path> examples, final List<File> files, final Consumer<String> message,
+                       final Consumer<AutoTraceConfig> onDone, final Consumer<String> onError) {
+        final ImgPlus<?> chosenImp;
+        try {
+            chosenImp = learnImage();
+        } catch (final Exception ex) {
+            learnFailed("Image could not be loaded: " + ex.getMessage(), message, onError);
+            return;
+        }
+        if (chosenImp == null) {
+            learnFailed("No valid image available.", message, onError);
+            return;
+        }
+        @SuppressWarnings("unchecked") final RandomAccessibleInterval<? extends RealType<?>> source =
+                (RandomAccessibleInterval<? extends RealType<?>>) chosenImp;
+        final double[] spacing = ImgUtils.getSpacing(chosenImp);
+        final boolean fromFiles = examples == null;
+
+        // Paths are in true-world coordinates, but the image is not necessarily anchored at world origin: it may be
+        // a materialized crop, or a stream with a world origin offset (same convention as in CostPalette)
+        final double[] voxelOffset = new double[3];
+        boolean streamedSource = false;
+        if (!isFileMode() && snt != null) {
+            final PointInCanvas o = snt.getActiveCanvasPixelOffset();
+            if (o != null) {
+                voxelOffset[0] = o.x;
+                voxelOffset[1] = o.y;
+                voxelOffset[2] = o.z;
+            }
+            streamedSource = snt.isStreamMode() && !snt.isMaterializedCrop();
+        }
+        final boolean streamed = streamedSource;
+        final int maxPaths = streamed ? MAX_EXAMPLE_PATHS_STREAMED : MAX_EXAMPLE_PATHS;
+
+        // Loading, fitting radii and sampling intensities can take a while (many paths, lazy data): do it off the
+        // EDT, so that the prompt does not freeze, and show progress
+        final JDialog prompt = findPrompt();
+        final Cursor previousCursor = (prompt == null) ? null : prompt.getCursor();
+        if (prompt != null) prompt.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        message.accept(" ");
+        status("Learning parameters from example paths...", false);
+        new SwingWorker<AutoTraceConfig, Void>() {
+            private int nPaths;
+
+            @Override
+            protected AutoTraceConfig doInBackground() {
+                List<Path> paths = fromFiles ? loadPaths(files) : examples;
+                if (paths.isEmpty()) throw new IllegalArgumentException("No paths could be read from the file(s).");
+                final double inside = AutoTraceConfig.fractionInBounds(paths, source, spacing, voxelOffset);
+                if (fromFiles && (Double.isNaN(inside) || inside < 0.5)) {
+                    throw new IllegalArgumentException(String.format("Only %.0f%% of the nodes fall within the image: "
+                            + "the reconstruction(s) do not seem to match it.", 100 * (Double.isNaN(inside) ? 0 : inside)));
+                }
+                final int total = paths.size();
+                if (total > maxPaths) {
+                    paths = new ArrayList<>(paths);
+                    paths.sort((p1, p2) -> Double.compare(p2.getLength(), p1.getLength()));
+                    paths = paths.subList(0, maxPaths);
+                }
+                nPaths = paths.size();
+                final AutoTraceConfig config = AutoTraceConfig.fromPaths(paths, source, spacing, voxelOffset, streamed);
+                if (!Double.isNaN(inside) && inside < 0.95) {
+                    config.addWarning(String.format("Only %.0f%% of the example nodes fall within the image: values "
+                            + "sampled from it may be unreliable.", 100 * inside));
+                }
+                if (total > nPaths) {
+                    config.addWarning("Using the " + nPaths + " longest of " + total + " example paths"
+                            + (streamed ? " (the image is streamed: reading it is slow)." : "."));
+                }
+                return config;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    final AutoTraceConfig config = get();
+                    message.accept("<HTML><font color='green'>Learned from " + nPaths
+                            + " path(s). Review the configuration window.</font>");
+                    status("Learned parameters from " + nPaths + " path(s)", true);
+                    SNTUtils.log("AutoTraceConfig derived:\n" + config.getSummary());
+                    onDone.accept(config);
+                } catch (final InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    onError.accept("Interrupted.");
+                } catch (final Exception ex) {
+                    final Throwable cause = (ex.getCause() != null) ? ex.getCause() : ex;
+                    status(null, true);
+                    learnFailed("Parameters could not be learned: " + cause.getMessage(), message, onError);
+                } finally {
+                    if (prompt != null) prompt.setCursor(previousCursor);
+                }
+            }
+        }.execute();
+    }
+
+    private void learnFailed(final String msg, final Consumer<String> message, final Consumer<String> onError) {
+        message.accept("<HTML><font color='red'>" + msg + "</font>");
+        SNTUtils.log("AutoTraceConfig error: " + msg);
+        onError.accept(msg);
+    }
+
+    private void applySelectedConfig(final AutoTraceConfigDialog dialog, final AutoTraceConfig config,
+                                     final Consumer<String> message) {
+        if (dialog.isSelected("backgroundThreshold") && !Double.isNaN(config.getBackgroundThreshold())) {
+            backgroundThreshold = config.getBackgroundThreshold();
+        }
+        if (dialog.isSelected("lengthThreshold") && !Double.isNaN(config.getMinBranchIntensityLength())) {
+            lengthThreshold = config.getMinBranchIntensityLength();
+        }
+        if (dialog.isSelected("branchTuneMaxAngle") && !Double.isNaN(config.getBranchTuneMaxAngle())) {
+            branchTuneMaxAngle = config.getBranchTuneMaxAngle();
+        }
+        if (dialog.isSelected("scoreMapEnabled") && config.getScoreMapScales() != null) {
+            // Only enable the filter if it is off: do not replace the type (or secondary layer) already in use
+            if (SCORE_MAP_NONE.equals(scoreMapFilter)) scoreMapFilter = SCORE_MAP_TUBENESS;
+        }
+        if (dialog.isSelected("reconnectMaxBridgeDist") && !Double.isNaN(config.getReconnectMaxBridgeDist())) {
+            tipExtensionDistance = config.getReconnectMaxBridgeDist();
+        }
+        if (dialog.isSelected("sphereOverlapThreshold") && !Double.isNaN(config.getSphereOverlapThreshold())) {
+            sphereOverlapThreshold = config.getSphereOverlapThreshold();
+        }
+        if (dialog.isSelected("resampleStep") && !Double.isNaN(config.getResampleStep())) {
+            resampleStep = config.getResampleStep();
+        }
+        message.accept("<HTML><font color='green'>Applied selected parameters.</font>");
+        SNTUtils.log("AutoTraceConfig: applied selected parameters to dialog");
+    }
+
+    // Current value of the parameters that a learned configuration can set, formatted as in the dialog
+    private Map<String, String> currentLearnableValues() {
+        final Map<String, String> current = new LinkedHashMap<>();
+        current.put("backgroundThreshold", (backgroundThreshold < 0) ? "Auto"
+                : SNTUtils.formatDouble(backgroundThreshold, 2));
+        current.put("lengthThreshold", SNTUtils.formatDouble(lengthThreshold, 2));
+        current.put("branchTuneMaxAngle", (branchTuneMaxAngle < 0) ? "Disabled"
+                : SNTUtils.formatDouble(branchTuneMaxAngle, 2) + "°");
+        current.put("scoreMapEnabled", switch (scoreMapFilter) {
+            case SCORE_MAP_NONE -> "None";
+            case SCORE_MAP_TUBENESS -> "Tubeness";
+            case SCORE_MAP_FRANGI -> "Frangi";
+            default -> "Secondary layer";
+        });
+        current.put("sphereOverlapThreshold", SNTUtils.formatDouble(sphereOverlapThreshold, 2));
+        current.put("resampleStep", (resampleStep <= 0) ? "0 (disabled)"
+                : SNTUtils.formatDouble(resampleStep, 2) + " voxels");
+        current.put("reconnectMaxBridgeDist", (tipExtensionDistance <= 0) ? "0 (disabled)"
+                : SNTUtils.formatDouble(tipExtensionDistance, 2) + " voxels");
+        return current;
+    }
+
 
     protected abstract boolean isFileMode();
 

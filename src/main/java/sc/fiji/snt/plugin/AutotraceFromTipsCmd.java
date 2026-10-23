@@ -28,6 +28,7 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.seed.SeedOverlay;
@@ -99,6 +100,16 @@ public class AutotraceFromTipsCmd extends GWDTTracerCommonCmd {
                     "populated from the distinct values currently in the overlay.")
     private String typeFilterChoice = TYPE_ANY;
 
+    @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
+    private Button applyDefaultsBtn;
+
+    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
+    private Button learnFromSelectedPathsBtn;
+
+    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+    private String learnFromExampleMsg = " ";
+
+
     /**
      * Tips resolved at the start of {@link #runCommand}; consumed by {@link #createAndConfigureTracer(ImgPlus)} when
      * the parent's flow reaches the tracer-configuration step. Field-level state (rather than a parameter passed
@@ -132,6 +143,16 @@ public class AutotraceFromTipsCmd extends GWDTTracerCommonCmd {
         }
         final MutableModuleItem<String> typeItem = getInfo().getMutableInput("typeFilterChoice", String.class);
         typeItem.setChoices(typeChoices);
+    }
+
+    @SuppressWarnings("unused")
+    private void applyDefaultsCallback() {
+        applyDefaults();
+    }
+
+    @SuppressWarnings("unused")
+    private void learnParametersCallback() {
+        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
     }
 
     @Override
