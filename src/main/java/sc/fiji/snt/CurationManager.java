@@ -2794,44 +2794,37 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
      * horizontal bar drawn behind the text. Bar width is proportional to the impact value (clamped [0, 1]).
      * NaN is displayed as an em-dash with an explanatory tooltip.
      */
-    private class ImpactRenderer extends DefaultTableCellRenderer {
+    private class ImpactRenderer extends GuiUtils.Tables.BarCellRenderer {
 
-        /**
-         * Cached impact value used by {@link #paintComponent} to draw the bar.
-         */
-        private double impactValue = Double.NaN;
-        private boolean rowSelected = false;
+        ImpactRenderer() {
+            // Go from a 'quiet' blue (low impact) to the severity-error 'pop' red (high impact)
+            super(SEVERITY_INFO, SEVERITY_ERROR);
+        }
 
         @Override
-        public Component getTableCellRendererComponent(final JTable table, final Object value,
-                                                       final boolean isSelected, final boolean hasFocus,
-                                                       final int row, final int column) {
-            super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
-            setHorizontalAlignment(SwingConstants.RIGHT);
-            rowSelected = isSelected;
-            if (value instanceof Double d && !Double.isNaN(d)) {
-                impactValue = Math.clamp(d, 0, 1);
-                final double pct = impactValue * 100;
-                // "<1%" branch keeps the em dash reserved for "not computed":
-                // a measurable-but-tiny impact is informationally different
-                // from an absent one, even if both round to 0% under %.0f.
-                if (pct > 0 && pct < 0.5) {
-                    setText("<1% ");
-                } else {
-                    setText(String.format("%.0f%% ", pct));
-                }
-                setToolTipText(String.format(
-                        "<html>Impact: <b>%.2f%%</b> of the reconstruction's total " +
-                                "length is at stake if this flag turns out to be a tracing error.",
-                        pct));
-            } else {
-                impactValue = Double.NaN;
-                setText("— "); // em-dash
-                // Differentiate "metric not applicable" (NONE-kind check, e.g., ConstantRadii) from "not yet computed"
-                // (live warning awaiting a Full Scan)
-                setToolTipText(tooltipForUncomputedImpact(table, row));
+        protected String formatValue(final double impact) {
+            // "<1%" branch keeps the em dash reserved for "not computed": a measurable-but-tiny impact is
+            // informationally different from an absent one, even if both round to 0% under %.0f
+            final double pct = impact * 100;
+            return (pct > 0 && pct < 0.5) ? "<1% " : String.format("%.0f%% ", pct);
+        }
+
+        @Override
+        protected String missingText() {
+            return "— "; // em-dash
+        }
+
+        @Override
+        protected String tooltipFor(final JTable table, final int row, final double impact) {
+            if (Double.isNaN(impact)) {
+                // Differentiate "metric not applicable" (NONE-kind check, e.g., ConstantRadii) from "not yet
+                // computed" (live warning awaiting a Full Scan)
+                return tooltipForUncomputedImpact(table, row);
             }
-            return this;
+            return String.format(
+                    "<html>Impact: <b>%.2f%%</b> of the reconstruction's total " +
+                            "length is at stake if this flag turns out to be a tracing error.",
+                    impact * 100);
         }
 
         /**
@@ -2852,30 +2845,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 // fall through to default
             }
             return "Impact not yet computed. Click \"Run Full Scan\" to compute.";
-        }
-
-        @Override
-        protected void paintComponent(final Graphics g) {
-            // Draw a subtle bar behind the text so the eye gets a quick
-            // visual cue without having to read the percentage.
-            if (!Double.isNaN(impactValue) && impactValue > 0) {
-                final int w = getWidth();
-                final int h = getHeight();
-                final int barW = (int) Math.round(w * impactValue);
-                // Go from a 'quiet' blue (low impact) to the severity-error 'pop' red (high impact)
-                final int r = (int) (SEVERITY_INFO.getRed()
-                        + (SEVERITY_ERROR.getRed() - SEVERITY_INFO.getRed()) * impactValue);
-                final int gC = (int) (SEVERITY_INFO.getGreen()
-                        + (SEVERITY_ERROR.getGreen() - SEVERITY_INFO.getGreen()) * impactValue);
-                final int b = (int) (SEVERITY_INFO.getBlue()
-                        + (SEVERITY_ERROR.getBlue() - SEVERITY_INFO.getBlue()) * impactValue);
-                // Translucent so text remains legible and selection highlight (when present)
-                // still reads as the selection color
-                final int alpha = rowSelected ? 40 : 70;
-                g.setColor(new Color(r, gC, b, alpha));
-                g.fillRect(0, 0, barW, h);
-            }
-            super.paintComponent(g);
         }
     }
 

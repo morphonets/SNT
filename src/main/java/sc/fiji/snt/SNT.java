@@ -4552,6 +4552,26 @@ public class SNT extends MultiDThreePanes implements
 		return imp;
 	}
 
+	/**
+	 * Crop-independent counterpart of {@link #getLoadedDataAsImp()}: the full source data
+	 * ({@link #getFullSourceData()}) as an ImagePlus, e.g., for a preview that must show the region actually
+	 * clicked in BDV/BVV regardless of the crop that may be materialized on the classic canvas. Its pixel grid is
+	 * the one described by {@link #getDefaultCanvasPixelOffset()}. Same as {@link #getLoadedDataAsImp()} if no
+	 * crop is materialized.
+	 *
+	 * @return the full source data, or null if no image data has been loaded
+	 */
+	public <T extends RealType<T>> ImagePlus getFullSourceDataAsImp() {
+		if (ctSlice3d == null)
+			return null;
+		final RandomAccessibleInterval<T> data = getStreamedOrLoadedData();
+		final ImagePlus imp = ImgUtils.raiToImp(data, "LoadedData");
+		imp.copyScale(xy);
+		imp.resetDisplayRange();
+		setIsCachedData(imp);
+		return imp;
+	}
+
 	@SuppressWarnings("unchecked")
 	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
 		return (ctSlice3d == null) ? null : Views.dropSingletonDimensions(ctSlice3d);

@@ -6411,7 +6411,7 @@ public class SNTUI extends JDialog {
         // than plugin.getImagePlus(), so this also works in Stream mode, where no ImagePlus/canvas
         // exists. This is the crop-local grid while a crop is materialized - correct here, since x/y/z
         // (and this method's classic-canvas caller) are themselves expressed in that same local grid
-        launchSigmaPaletteAroundData(x, y, z, plugin.getLoadedData());
+        launchSigmaPaletteAroundData(x, y, z, plugin.getLoadedData(), false);
     }
 
     /**
@@ -6427,11 +6427,11 @@ public class SNTUI extends JDialog {
      * @param z 1-based Z-slice index, matching {@link ImagePlus#getZ()}'s convention
      */
     public void launchSigmaPaletteAroundStreamed(final int x, final int y, final int z) {
-        launchSigmaPaletteAroundData(x, y, z, plugin.getFullSourceData());
+        launchSigmaPaletteAroundData(x, y, z, plugin.getFullSourceData(), true);
     }
 
     private void launchSigmaPaletteAroundData(final int x, final int y, final int z,
-            final RandomAccessibleInterval<?> data) {
+            final RandomAccessibleInterval<?> data, final boolean fullSource) {
 
         final int either_side_xy = 40;
         final int either_side_z = 15;
@@ -6460,7 +6460,8 @@ public class SNTUI extends JDialog {
             sigmas[i] = ((i + 1) * plugin.getMinimumSeparation()) / 2;
         }
 
-        sigmaPalette = new SigmaPalette(plugin);
+        sigmaPalette = new SigmaPalette(plugin, fullSource);
+        sigmaPalette.setSeed(x, y, z);
         sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 4, 4, z);
         sigmaPalette.addListener(sigmaPaletteListener);
         if (sigmaPaletteListener != null) sigmaPalette.setParent(sigmaPaletteListener.getParent());

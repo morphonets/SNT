@@ -2566,6 +2566,17 @@ public class GuiUtils {
 	 */
 	public static void zoomToScreenFraction(final ij.gui.ImageCanvas ic, final double screenFraction,
 			final double maxMagnification) {
+		zoomToScreenFraction(ic, screenFraction, maxMagnification, 0);
+	}
+
+	/**
+	 * Same as {@link #zoomToScreenFraction(ij.gui.ImageCanvas, double, double)}, but guarantees a minimum canvas width.
+	 * The minimum takes precedence over the screen fraction, but never over the maximum magnification.
+	 *
+	 * @param minWidth the minimum width of the displayed image, in pixels (0 for none)
+	 */
+	public static void zoomToScreenFraction(final ij.gui.ImageCanvas ic, final double screenFraction,
+			final double maxMagnification, final int minWidth) {
 		final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
 		final double maxSize = screenFraction * Math.min(screen.width, screen.height);
 		final ij.ImagePlus imp = ic.getImage();
@@ -2578,6 +2589,12 @@ public class GuiUtils {
 			if (next > maxMagnification || next * size > maxSize) break;
 			ic.zoomIn(ic.getWidth() / 2, ic.getHeight() / 2);
 			if (ic.getMagnification() <= current) break; // zoom was capped
+		}
+		for (int i = 0; i < 8 && imp.getWidth() * ic.getMagnification() < minWidth; i++) {
+			final double current = ic.getMagnification();
+			if (ij.gui.ImageCanvas.getHigherZoomLevel(current) > maxMagnification) break;
+			ic.zoomIn(ic.getWidth() / 2, ic.getHeight() / 2);
+			if (ic.getMagnification() <= current) break;
 		}
 	}
 
@@ -4471,6 +4488,126 @@ public class GuiUtils {
 		}
 
 		/**
+		 * Cell renderer drawing a translucent bar behind right-aligned text, proportional to a value in [0, 1]. The bar
+		 * color is interpolated between two colors. Subclasses customize text and tooltips.
+		 */
+		public static class BarCellRenderer extends javax.swing.table.DefaultTableCellRenderer {
+
+			private final Color low;
+			private final Color high;
+			// Cached by getTableCellRendererComponent() for paintComponent()
+			private double barValue = Double.NaN;
+			private boolean rowSelected = false;
+
+			/**
+			 * @param low  the bar color for a value of 0
+			 * @param high the bar color for a value of 1
+			 */
+			public BarCellRenderer(final Color low, final Color high) {
+				this.low = low;
+				this.high = high;
+			}
+
+			/**
+			 * @param value the value (clamped to [0, 1])
+			 * @return the cell text for a valid value
+			 */
+			protected String formatValue(final double value) {
+				final double pct = value * 100;
+				// Keep the NaN text reserved for 'not computed': a tiny value is different from an absent one
+				return (pct > 0 && pct < 0.5) ? "<1% " : String.format("%.0f%% ", pct);
+			}
+
+			/**
+			 * @return the cell text for a NaN or non-numeric value
+			 */
+			protected String missingText() {
+				return "n/a ";
+			}
+
+			/**
+			 * @param table the table
+			 * @param row   the view row
+			 * @param value the clamped value, or NaN if missing
+			 * @return the cell tooltip (may be null)
+			 */
+			protected String tooltipFor(final JTable table, final int row, final double value) {
+				return null;
+			}
+
+			@Override
+			public Component getTableCellRendererComponent(final JTable table, final Object value,
+			                                               final boolean isSelected, final boolean hasFocus,
+			                                               final int row, final int column) {
+				super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
+				setHorizontalAlignment(SwingConstants.RIGHT);
+				rowSelected = isSelected;
+				if (value instanceof Double d && !Double.isNaN(d)) {
+					barValue = Math.clamp(d, 0, 1);
+					setText(formatValue(barValue));
+				} else {
+					barValue = Double.NaN;
+					setText(missingText());
+				}
+				setToolTipText(tooltipFor(table, row, barValue));
+				return this;
+			}
+
+			@Override
+			protected void paintComponent(final Graphics g) {
+				if (!Double.isNaN(barValue) && barValue > 0) {
+					final int barW = (int) Math.round(getWidth() * barValue);
+					final int r = (int) (low.getRed() + (high.getRed() - low.getRed()) * barValue);
+					final int gC = (int) (low.getGreen() + (high.getGreen() - low.getGreen()) * barValue);
+					final int b = (int) (low.getBlue() + (high.getBlue() - low.getBlue()) * barValue);
+					// Translucent so text remains legible and the selection color still reads as selection
+					g.setColor(new Color(r, gC, b, rowSelected ? 40 : 70));
+					g.fillRect(0, 0, barW, getHeight());
+				}
+				super.paintComponent(g);
+			}
+		}
+
+		/**
+		 * Cell renderer for tables comparing alternatives across metrics: right-aligned text in which the cells flagged
+		 * as 'best' are drawn in bold over a translucent highlight.
+		 */
+		public static class BestCellRenderer extends javax.swing.table.DefaultTableCellRenderer {
+
+			private static final Color HIGHLIGHT = new Color(76, 175, 80, 80);
+			private final java.util.function.BiPredicate<Integer, Integer> best;
+			private boolean highlighted = false;
+
+			/**
+			 * @param best tests a (model row, model column) pair, returning true if the cell holds the best value
+			 */
+			public BestCellRenderer(final java.util.function.BiPredicate<Integer, Integer> best) {
+				this.best = best;
+			}
+
+			@Override
+			public Component getTableCellRendererComponent(final JTable table, final Object value,
+			                                               final boolean isSelected, final boolean hasFocus,
+			                                               final int row, final int column) {
+				super.getTableCellRendererComponent(table, value, isSelected, false, row, column);
+				setHorizontalAlignment(SwingConstants.RIGHT);
+				highlighted = best.test(table.convertRowIndexToModel(row), table.convertColumnIndexToModel(column));
+				final Font f = table.getFont();
+				setFont(highlighted ? f.deriveFont(Font.BOLD) : f);
+				return this;
+			}
+
+			@Override
+			protected void paintComponent(final Graphics g) {
+				if (highlighted) {
+					g.setColor(HIGHLIGHT);
+					g.fillRect(0, 0, getWidth(), getHeight());
+				}
+				super.paintComponent(g);
+			}
+		}
+
+		/**
 		 * Configures a Boolean column to render and edit as a checkbox, with
 		 * an optional header tooltip.
 		 *
@@ -4557,8 +4694,10 @@ public class GuiUtils {
 				final Component comp = table.prepareRenderer(renderer, row, columnIndex);
 				maxWidth = Math.max(comp.getPreferredSize().width, maxWidth);
 			}
-			// Also consider the header
-			final javax.swing.table.TableCellRenderer headerRenderer = col.getHeaderRenderer();
+			// Also consider the header, using the table's default header renderer if the column has none of its own
+			javax.swing.table.TableCellRenderer headerRenderer = col.getHeaderRenderer();
+			if (headerRenderer == null && table.getTableHeader() != null)
+				headerRenderer = table.getTableHeader().getDefaultRenderer();
 			if (headerRenderer != null) {
 				final Component headerComp = headerRenderer.getTableCellRendererComponent(
 						table, col.getHeaderValue(), false, false, -1, columnIndex);
