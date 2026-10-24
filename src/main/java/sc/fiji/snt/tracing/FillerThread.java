@@ -153,6 +153,7 @@ public class FillerThread extends SearchThread {
             case DIFFERENCE -> new Difference(stats.min, stats.max);
             case DIFFERENCE_SQUARED -> new DifferenceSq(stats.min, stats.max);
             case PROBABILITY -> new OneMinusErf(stats.max, stats.mean, stats.stdDev);
+            case PROBABILITY_FLOOR -> new OneMinusErfFloor(stats.max, stats.mean, stats.stdDev);
             default -> throw new IllegalArgumentException("Unknown cost: " + fill.getMetric());
         };
         final FillerThread result = new FillerThread(image, calibration,
@@ -234,6 +235,8 @@ public class FillerThread extends SearchThread {
             fill.setMetric(SNT.CostType.DIFFERENCE_SQUARED);
         else if (costFunction.getClass().equals(OneMinusErf.class))
             fill.setMetric(SNT.CostType.PROBABILITY);
+        else if (costFunction.getClass().equals(OneMinusErfFloor.class))
+            fill.setMetric(SNT.CostType.PROBABILITY_FLOOR);
         else
             throw new IllegalArgumentException("Unknown cost " + costFunction.getClass());
 

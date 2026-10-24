@@ -79,6 +79,7 @@ final class WizardSupport {
             case DIFFERENCE -> new Difference(st.min, st.max);
             case DIFFERENCE_SQUARED -> new DifferenceSq(st.min, st.max);
             case PROBABILITY -> new OneMinusErf(st.max, st.mean, st.stdDev);
+            case PROBABILITY_FLOOR -> new OneMinusErfFloor(st.max, st.mean, st.stdDev);
         };
     }
 

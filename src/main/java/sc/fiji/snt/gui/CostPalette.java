@@ -82,11 +82,18 @@ public class CostPalette extends Thread {
     /**
      * Per-CostType overlay color. Index follows {@code CostType.values()}.
      */
-    private static final Color[] COLORS = SNTColor.okabeIto4Colors().toArray(new Color[0]);
+    private static final Color[] COLORS = okabeItoForCosts();
     // OKABE_ITO_ORANGE_COLOR: RECIPROCAL
     // KABE_ITO_BLUE_COLOR: DIFFERENCE
     // OKABE_ITO_GREEN_COLOR: DIFF_SQUARED
     // OKABE_ITO_VERMILLION_COLOR: PROBABILITY
+    // OKABE_ITO_PINK_COLOR: PROBABILITY_FLOOR
+
+    // orange, blue, green, vermillion, pink (skips yellow, poor contrast on overlays)
+    private static Color[] okabeItoForCosts() {
+        final java.util.List<Color> c = SNTColor.okabeIto6Colors();
+        return new Color[]{c.get(0), c.get(1), c.get(2), c.get(4), c.get(5)};
+    }
 
     /**
      * Result of one A* probe run
@@ -294,7 +301,7 @@ public class CostPalette extends Thread {
         croppedDepth = (z_max - z_min) + 1;
     }
 
-    // 4 parallel A* probes (one per CostType)
+    // Parallel A* probes (one per CostType)
     private void runProbes() {
         final CostType[] types = CostType.values();
         @SuppressWarnings("unchecked") final CompletableFuture<Probe>[] futures = new CompletableFuture[types.length];

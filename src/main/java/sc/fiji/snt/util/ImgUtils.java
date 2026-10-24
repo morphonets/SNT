@@ -2732,4 +2732,46 @@ public class ImgUtils {
         return spacing;
     }
 
+    /**
+     * Computes min, max, mean and (sample) standard deviation in a single pass.
+     * If the image holds more than {@code maxSamples} voxels, only a regular
+     * grid of voxels is visited (same stride along all dimensions), so the
+     * result is approximate. Exact otherwise.
+     *
+     * @param in         the data
+     * @param maxSamples approximate upper bound on the number of voxels visited
+     *                   (values &lt;= 0 mean no limit)
+     * @return {min, max, mean, stdDev, nSamples}
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RealType<T>> double[] sampledStats(final Iterable<T> in, final long maxSamples) {
+        Iterable<T> it = in;
+        if (maxSamples > 0 && in instanceof RandomAccessibleInterval) {
+            final RandomAccessibleInterval<T> rai = (RandomAccessibleInterval<T>) in;
+            final long n = Intervals.numElements(rai);
+            if (n > maxSamples) {
+                final long step = (long) Math.ceil(Math.pow((double) n / maxSamples, 1.0 / rai.numDimensions()));
+                final long[] steps = new long[rai.numDimensions()];
+                Arrays.fill(steps, step);
+                it = Views.iterable(Views.subsample(Views.zeroMin(rai), steps));
+            }
+        }
+        double min = Double.MAX_VALUE;
+        double max = -Double.MAX_VALUE;
+        double mean = 0;
+        double m2 = 0;
+        long count = 0;
+        for (final T t : it) {
+            final double v = t.getRealDouble();
+            if (v < min) min = v;
+            if (v > max) max = v;
+            count++;
+            final double delta = v - mean;
+            mean += delta / count;
+            m2 += delta * (v - mean);
+        }
+        final double std = (count > 1) ? Math.sqrt(m2 / (count - 1)) : 0;
+        return new double[]{min, max, mean, std, count};
+    }
+
 }

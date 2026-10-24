@@ -1878,6 +1878,8 @@ public class PathAndFillManager extends DefaultHandler implements
                         current_fill.setMetric(SNT.CostType.DIFFERENCE_SQUARED);
                     } else if (Objects.equals(metric, SNT.CostType.PROBABILITY.toString())) {
                         current_fill.setMetric(SNT.CostType.PROBABILITY);
+                    } else if (Objects.equals(metric, SNT.CostType.PROBABILITY_FLOOR.toString())) {
+                        current_fill.setMetric(SNT.CostType.PROBABILITY_FLOOR);
                     } else {
                         current_fill.setMetric(SNT.CostType.RECIPROCAL);
                     }

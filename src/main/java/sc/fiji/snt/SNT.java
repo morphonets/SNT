@@ -150,7 +150,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 	public enum CostType {
-		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY;
+		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY, PROBABILITY_FLOOR;
 
 		public String getDescription() {
 			return switch (this) {
@@ -159,6 +159,8 @@ public class SNT extends MultiDThreePanes implements
 				case DIFFERENCE_SQUARED -> "Similar to Difference, usually faster";
 				case PROBABILITY ->
 						"Fast, especially on noisy or distribution-offset images. Use with real-time statistics";
+				case PROBABILITY_FLOOR ->
+						"Probability with a small additive step cost, to reduce zig-zagging across dim gaps";
 			};
 		}
 
@@ -166,6 +168,9 @@ public class SNT extends MultiDThreePanes implements
 		public String toString() {
 			if (this == CostType.DIFFERENCE_SQUARED) {
 				return "Difference Sq."; // OtherWise too wide for FillManagerUI type label!?
+			}
+			if (this == CostType.PROBABILITY_FLOOR) {
+				return "Probability+Floor";
 			}
 			return StringUtils.capitalize(super.toString().toLowerCase());
 		}
@@ -358,6 +363,9 @@ public class SNT extends MultiDThreePanes implements
 	/* adjustable parameters for cost functions */
 	// This should be less than 1, prevents meandering path
 	protected volatile double oneMinusErfZFudge = 0.8;
+	// Approx. max number of voxels visited when computing mean/stdDev for the
+	// probability cost types. Boxes with fewer voxels are processed exactly
+	protected volatile long maxStatsSamples = 50_000;
 
 	/* tracing threads */
     AbstractSearch currentSearchThread = null;
@@ -2974,14 +2982,28 @@ public class SNT extends MultiDThreePanes implements
 																	final ImageStatistics imgStats,
 																	final CostType costType)
 	{
+		return computeImgStats(in, imgStats, costType, 0);
+	}
+
+	// maxSamples: approx. voxel budget for the probability types (<= 0: all voxels)
+	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	 final ImageStatistics imgStats,
+																	 final CostType costType,
+																	 final long maxSamples)
+	{
 		switch (costType) {
-			case PROBABILITY: {
-				imgStats.max = opService.stats().max(in).getRealDouble();
-				imgStats.mean = opService.stats().mean(in).getRealDouble();
-				imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+			case PROBABILITY:
+			case PROBABILITY_FLOOR: {
+				// Single (possibly strided) pass instead of three op calls
+				final long t0 = System.nanoTime();
+				final double[] st = ImgUtils.sampledStats(in, maxSamples);
+				imgStats.max = st[1];
+				imgStats.mean = st[2];
+				imgStats.stdDev = st[3];
 				SNTUtils.log("Subvolume statistics: max=" + imgStats.max +
 						", mean=" + imgStats.mean +
-						", stdDev=" + imgStats.stdDev);
+						", stdDev=" + imgStats.stdDev +
+						" (" + (long) st[4] + " voxels, " + (System.nanoTime() - t0) / 1000000 + " ms)");
 				break;
 			}
 			case RECIPROCAL:
@@ -3177,9 +3199,11 @@ public class SNT extends MultiDThreePanes implements
 			// NB: compute into a fresh, local instance rather than mutating the shared stats/ statsSecondary fields
 			// in place. createSearch() can now be invoked concurrently from multiple threads (AStarRefiner/autoTraceSync),
 			// and those fields are shared SNT-instance state: mutating them here would race across threads!
+			final long tStats = System.nanoTime();
 			imgStats = computeImgStats(
 					ImgUtils.subInterval(img, new Point(x_start, y_start, z_start), new Point(x_end, y_end, z_end), 10),
-					new ImageStatistics(), effCostType);
+					new ImageStatistics(), effCostType, maxStatsSamples);
+			SNTUtils.log("Local statistics (" + effCostType + ") took " + (System.nanoTime() - tStats) / 1000000 + " ms");
 		}
 
 		Cost costFunction;
@@ -3192,6 +3216,11 @@ public class SNT extends MultiDThreePanes implements
 				OneMinusErf cost = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
 				cost.setZFudge(oneMinusErfZFudge);
 				costFunction = cost;
+				break;
+			case PROBABILITY_FLOOR:
+				OneMinusErfFloor costFloor = new OneMinusErfFloor(imgStats.max, imgStats.mean, imgStats.stdDev);
+				costFloor.setZFudge(oneMinusErfZFudge);
+				costFunction = costFloor;
 				break;
 			case DIFFERENCE:
 				costFunction = new Difference(imgStats.min, imgStats.max);
@@ -4422,6 +4451,12 @@ public class SNT extends MultiDThreePanes implements
 					return;
 				}
 				costFunction = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
+				break;
+			case PROBABILITY_FLOOR:
+				if (invalidStatsError(useSecondary) && imgStats.stdDev == 0) {
+					return;
+				}
+				costFunction = new OneMinusErfFloor(imgStats.max, imgStats.mean, imgStats.stdDev);
 				break;
 			case DIFFERENCE:
 				if (invalidStatsError(useSecondary)) {

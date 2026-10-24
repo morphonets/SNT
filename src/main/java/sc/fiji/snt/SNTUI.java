@@ -1079,8 +1079,10 @@ public class SNTUI extends JDialog {
         sb.append("    Data structure: ").append(plugin.searchImageType);
         sb.append("\n");
         sb.append("    Cost function: ").append(plugin.getCostType());
-        if (plugin.getCostType() == SNT.CostType.PROBABILITY) {
+        if (plugin.getCostType() == SNT.CostType.PROBABILITY || plugin.getCostType() == SNT.CostType.PROBABILITY_FLOOR) {
             sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
+            if (plugin.getCostType() == SNT.CostType.PROBABILITY_FLOOR)
+                sb.append("; Floor: ").append(sc.fiji.snt.tracing.cost.OneMinusErfFloor.DEFAULT_FLOOR);
         }
         sb.append("\n");
         sb.append("    Tracing mode: ").append(plugin.rubberBandTracing ? "Live preview" : "Standard");
@@ -4922,6 +4924,7 @@ public class SNTUI extends JDialog {
         costMap.put("Difference of Intensity", SNT.CostType.DIFFERENCE);
         costMap.put("Difference of Intensity Squared", SNT.CostType.DIFFERENCE_SQUARED);
         costMap.put("Probability of Intensity", SNT.CostType.PROBABILITY);
+        costMap.put("Probability of Intensity (Floored Cost)", SNT.CostType.PROBABILITY_FLOOR);
         costMap.forEach((lbl, type) -> {
             final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
             rbmi.setToolTipText(type.getDescription());
@@ -4934,7 +4937,7 @@ public class SNTUI extends JDialog {
                 updateSettingsString();
                 showStatus("Cost function: " + lbl, true);
                 SNTUtils.log("Cost function: Now using " + plugin.getCostType());
-                if (type == SNT.CostType.PROBABILITY) {
+                if (type == SNT.CostType.PROBABILITY || type == SNT.CostType.PROBABILITY_FLOOR) {
                     plugin.setUseSubVolumeStats(true);
                 }
             });
