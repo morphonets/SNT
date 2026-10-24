@@ -712,7 +712,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
      * heavy work (loading, fitting radii, sampling intensities) runs off the EDT. To be called from the callback of
      * the "learn" button of image-based commands, which declare it together with a message widget
      *
-     * @param message receives the text to display in the message widget of the prompt
+     * @param widgetMessage receives the text to display in the message widget of the prompt
      */
     protected void learnFromSelectedPaths(final Consumer<String> widgetMessage) {
         // Widgets of the prompt only refresh after a widget callback, but messages and values are also set by the
@@ -871,8 +871,9 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             protected void done() {
                 try {
                     final AutoTraceConfig config = get();
-                    message.accept("<HTML><font color='green'>Learned from " + nPaths
-                            + " path(s). Review the configuration window.</font>");
+                    message.accept("<HTML><font color='green'>Learned from " + nPaths + " path(s)"
+                            + (fromFiles ? " in the file(s). " : ". ")
+                            + "Choose which values to adopt in the 'Auto-Trace Configuration' window.</font>");
                     status("Learned parameters from " + nPaths + " path(s)", true);
                     SNTUtils.log("AutoTraceConfig derived:\n" + config.getSummary());
                     onDone.accept(config);

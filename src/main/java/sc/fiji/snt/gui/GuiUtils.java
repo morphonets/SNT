@@ -2399,7 +2399,8 @@ public class GuiUtils {
 		urlsGbc.insets = new Insets(5, 0, 0, 0);
 		main.add(urls, urlsGbc);
 
-		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
+		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION,
+				null, new Object[0]); // empty options: no OK button
 		final JDialog d = optionPane.createDialog("About SNT");
 		new Thread(() -> {
 			final String cacheSize = SNTUtils.formatBytes(SNTUtils.getCacheDirSize());

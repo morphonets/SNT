@@ -3411,9 +3411,11 @@ public class SNTUI extends JDialog {
 
     private void registerInCommandFinder(final AbstractButton button, final String recordedString,
                                          final String... location) {
-        if (commandFinder != null) {
-            if (recordedString != null)
-                button.setActionCommand(recordedString);
+        if (commandFinder == null) return;
+        if (button instanceof GuiUtils.Buttons.OptionsButton options) {
+            commandFinder.register(options.popupMenu, List.of(location));
+        } else {
+            if (recordedString != null) button.setActionCommand(recordedString);
             commandFinder.register(button, location);
         }
     }
@@ -3495,18 +3497,14 @@ public class SNTUI extends JDialog {
         final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
                 IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
-        registerInCommandFinder(mi1, "Main tab", "Interactive tracing (II Layer)");
         mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
         mi1.addActionListener(e -> runSecondaryLayerWizard(true));
         final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
         mi2.addActionListener(e -> loadSecondaryImage(true));
         mi2.setEnabled(!plugin.isStreamMode());
-        registerInCommandFinder(mi2, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
         mi3.addActionListener(e -> loadSecondaryImage(false));
-        registerInCommandFinder(mi3, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
-        registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Interactive tracing");
         mi4.addActionListener(e -> {
             if (!noSecondaryDataAvailableError()
                     && guiUtils.getConfirmation("Flush secondary layer? (RAM will be released but "
@@ -3526,7 +3524,6 @@ public class SNTUI extends JDialog {
             (new DynamicCmdRunner(WekaModelLoader.class, null)).run();
         });
         ScriptRecorder.setRecordingCall(mi5, "snt.getUI().runCommand(\"From Labkit/TWS Model...\")");
-        registerInCommandFinder(mi5, "Main tab", "Interactive tracing (II Layer)");
         GuiUtils.MenuItems.addSeparator(secLayerMenu, "Create:");
         secLayerMenu.add(mi1);
         GuiUtils.MenuItems.addSeparator(secLayerMenu, "Load Precomputed:");
@@ -3539,8 +3536,8 @@ public class SNTUI extends JDialog {
         secLayerMenu.addSeparator();
         final JMenuItem mi6 = GuiUtils.MenuItems.openHelpURL("Help on Secondary Layers",
                 "https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
-        registerInCommandFinder(mi6, "Main tab", "Interactive tracing (II Layer)");
         secLayerMenu.add(mi6);
+        registerInCommandFinder(secLayerActionButton, null, "Main tab", "Interactive tracing (II Layer)");
 
         // Assemble panel
         JPanel secLayerPanel = new JPanel(new GridBagLayout());
@@ -4627,7 +4624,7 @@ public class SNTUI extends JDialog {
             partsNearbyCSpinner.setSelected(false);
             showStatus("Display filters unselected", true);
         });
-        optionsMenu.add(jmi);  // skip registerInCommandFinder. Not worth it!?
+        optionsMenu.add(jmi);
         jmi = new JMenuItem("Select All", IconFactory.menuIcon('\uf14a', false));
         jmi.addActionListener(e -> {
             // setSelected() fires each control's own ItemListener, which updates plugin/prefs
@@ -4636,7 +4633,7 @@ public class SNTUI extends JDialog {
             partsNearbyCSpinner.setSelected(true);
             showStatus("All display filters selected", true);
         });
-        optionsMenu.add(jmi); // skip registerInCommandFinder. Not worth it!?
+        optionsMenu.add(jmi);
         optionsMenu.addSeparator();
         jmi = new JMenuItem("Adjust Out-of-Plane Opacity...", IconFactory.menuIcon(GLYPH.TOOL));
         jmi.setToolTipText(InternalUtils.hotKeyLabel(
@@ -4651,7 +4648,6 @@ public class SNTUI extends JDialog {
                 }
             });
         });
-        registerInCommandFinder(jmi, null, "Options Tab",  "Path Rendering"); // register actual location of transparencyOutOfBoundsSpinner
         optionsMenu.add(jmi);
         optionsMenu.addSeparator();
         jmi = new JMenuItem("Reset Defaults", IconFactory.menuIcon(GLYPH.UNDO));
@@ -4662,7 +4658,8 @@ public class SNTUI extends JDialog {
             partsNearbyCSpinner.getSpinner().setValue(DEFAULT_NEARBY_ZSLICES);
             showStatus("Display filters reset", true);
         });
-        optionsMenu.add(jmi); // skip registerInCommandFinder. Not worth it!?
+        optionsMenu.add(jmi);
+        registerInCommandFinder(renderingFilterOptionsButton, null, "Main Tab", "Path Display Filters");
         return renderingFilterOptionsButton;
     }
 
@@ -4766,7 +4763,6 @@ public class SNTUI extends JDialog {
             plugin.setSelectedAndDeselectedColors(currentDeselected, currentSelected);
             showStatus("Selected/Deselected colors swapped", true);
         });
-        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
         optionsMenu.add(jmi);
         jmi = new JMenuItem("Use Colorblind-Safe Colors", IconFactory.menuIcon(GLYPH.EYE_LOW_VISION));
         jmi.setToolTipText("Applies an Okabe-Ito colorblind-safe yellow/sky-blue pair");
@@ -4777,7 +4773,6 @@ public class SNTUI extends JDialog {
                     SNTPrefs.COLORBLIND_SAFE_DESELECTED_COLOR);
             showStatus("Colorblind-safe path colors applied", true);
         });
-        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
         optionsMenu.add(jmi);
         optionsMenu.addSeparator();
         jmi = new JMenuItem("Discard All Path Manager Color Tags/Mappings...", IconFactory.menuIcon(GLYPH.BROOM));
@@ -4788,7 +4783,6 @@ public class SNTUI extends JDialog {
                 plugin.updateAllViewers();
             }
         });
-        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
         optionsMenu.add(jmi);
         optionsMenu.addSeparator();
         jmi = new JMenuItem("Reset Defaults", IconFactory.menuIcon(GLYPH.UNDO));
@@ -4801,8 +4795,8 @@ public class SNTUI extends JDialog {
             plugin.getPrefs().setDisplayCustomPathColors(!SNTPrefs.DEFAULT_ENFORCE_DEFAULT_PATH_COLORS);
             showStatus("Color settings reset", true);
         });
-        registerInCommandFinder(jmi, null, "Main tab", "Default Path Colors");
         optionsMenu.add(jmi);
+        registerInCommandFinder(pathColorsOptionsButton, null, "Main tab", "Default Path Colors");
         return pathColorsOptionsButton;
     }
 
@@ -4949,7 +4943,6 @@ public class SNTUI extends JDialog {
         // the best one visually (SigmaPalette-style)
         final JMenuItem tuneCost = new JMenuItem("Cost Function Selection Wizard...", IconFactory.menuIcon(GLYPH.WIZARD));
         tuneCost.setToolTipText("Compare cost-function variants on a probe segment to pick the most suitable one");
-        registerInCommandFinder(tuneCost, null, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tuneCost.addActionListener(e -> {
             final CommandService cs = plugin.getContext().getService(CommandService.class);
             if (cs != null) cs.run(CostFunctionSelectionCmd.class, true);
@@ -5035,7 +5028,6 @@ public class SNTUI extends JDialog {
         final JRadioButtonMenuItem rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
         GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse."
                 + "(ala NeuronJ).<br>Click to confirm each segment. <b>Only recommended for 2D images.");
-        registerInCommandFinder(rubberBandTracingRbmi, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tracingModeButtonGroup.add(standardTracingRbmi);
         tracingModeButtonGroup.add(rubberBandTracingRbmi);
         optionsMenu.add(standardTracingRbmi);
@@ -5078,6 +5070,7 @@ public class SNTUI extends JDialog {
         aStarPanel = new JPanel(new BorderLayout());
         aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
         aStarPanel.add(aStarOptionsButton, BorderLayout.EAST);
+        registerInCommandFinder(aStarOptionsButton, null, "Main tab", "Interactive Tracing", "Algorithm Settings");
         return aStarPanel;
     }
 

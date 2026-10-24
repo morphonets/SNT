@@ -200,6 +200,7 @@ public class AutoTraceConfigDialog extends JDialog {
         if (!isDisplayable()) return; // closed while learning
         setLearning(false);
         setConfig(newConfig);
+        toFront(); // the prompt may have been clicked while learning
     }
 
     private void learnFailed(final String message) {
