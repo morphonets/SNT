@@ -101,6 +101,22 @@ public class SNTUtils {
 
 	public static final String VERSION = getVersion();
 
+	static {
+		quietLoggers();
+	}
+
+	/*
+	 * Logback defaults to a DEBUG root logger when no config is present, which
+	 * floods the console with HTTP/AWS SDK traces during remote N5/Zarr access.
+	 * Skipped if the user supplied a logback configuration
+	 */
+	private static void quietLoggers() {
+		if (System.getProperty("logback.configurationFile") == null
+				&& org.slf4j.LoggerFactory.getILoggerFactory() instanceof ch.qos.logback.classic.LoggerContext ctx) {
+			ctx.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).setLevel(ch.qos.logback.classic.Level.WARN);
+		}
+	}
+
 	private static volatile boolean initialized;  // Make volatile for thread safety
 	private static SNT plugin;
 	private static HashMap<Integer, Viewer3D> viewerMap;

@@ -154,6 +154,7 @@
 		<fastutil.version>8.5.19</fastutil.version>
 		<flatlaf-jide-oss.version>3.7.2</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
+		<logback.version>1.6.5</logback.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
@@ -563,7 +564,13 @@
 			<!-- Change verbose logging of smile.stat.distribution.* -->
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.6.5</version>
+			<version>${logback.version}</version>
+		</dependency>
+		<dependency>
+			<!-- Must match logback-classic: the BOM manages an older core -->
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-core</artifactId>
+			<version>${logback.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
