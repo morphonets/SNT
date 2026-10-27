@@ -981,8 +981,9 @@ public class SNT extends MultiDThreePanes implements
 	 * Reverts a materialized crop back to a plain Stream-mode session: restores  ctSlice3d to the original
 	 * streamedSourceData cached by materializeDisplayCanvas(BoundingBox), resets every Path's canvasOffset back to 0
 	 * and clears this session's own XY canvas bookkeeping (nullifyCanvases(false)). Called by SNTUI when the crop's
-	 * ImagePlus window is closed, so BDV/BVV  tracing (blocked by isMaterializedCrop() while a crop is open) and any
-	 * "whole dataset" command work correctly again.
+	 * ImagePlus window is closed, so commands reading getLoadedData() (e.g., GWDT tracing, getDataset()), which are
+	 * crop-local while a crop is open, operate on the whole dataset again. BDV/BVV tracing is unaffected: it always
+	 * searches the full source (see getStreamedOrLoadedData()).
 	 *
 	 * canvasOffset reset: installMaterializedCrop(...) sets every Path's canvasOffset to -voxelMin, corrected
 	 * for getWorldOriginOffset(), so node coordinates line up with the crop's local pixel grid. Resetting to

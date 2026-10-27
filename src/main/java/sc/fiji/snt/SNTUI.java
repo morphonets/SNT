@@ -6746,8 +6746,8 @@ public class SNTUI extends JDialog {
                 return;
             }
             // Case 2: A materialized crop was closed (see SNT#materializeDisplayCanvas(BoundingBox)):
-            // restore the full streamed source so BDV/BVV tracing (blocked while a crop is open, see
-            // SNT#isMaterializedCrop()) and any "whole dataset" command work again. Checked before Case 4
+            // restore the full streamed source so any "whole dataset" command (crop-local while a
+            // crop is open, see SNT#getLoadedData()) works again. Checked before Case 4
             // below, which would otherwise also match (a crop's own ctSlice3d is non-null too) and
             // incorrectly offer to "reopen from cached data" using the crop's own small pixel data
             else if (ImpUtils.isMaterializedCrop(imp)) {

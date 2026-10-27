@@ -61,6 +61,13 @@ public class MaterializeRegionDialog extends JDialog {
 	private static final String SIZE_AUTO_SELECTED = "Auto-bounds: Selected paths";
 	private static final String SIZE_OTHER = "Other...";
 
+	private static final String PREF_SIZE_CHOICE = "mrd.sizechoice";
+	private static final String PREF_SIZE_X = "mrd.xsize";
+	private static final String PREF_SIZE_Y = "mrd.ysize";
+	private static final String PREF_SIZE_Z = "mrd.zsize";
+	private static final String PREF_CENTER_CHOICE = "mrd.centerchoice";
+	private static final String PREF_SCOPE_CHOICE = "mrd.scopechoice";
+
 	private static final String SCOPE_MAIN = "Main image (CT position being traced)";
 	private static final String SCOPE_SECONDARY = "Secondary layer";
 
@@ -150,6 +157,7 @@ public class MaterializeRegionDialog extends JDialog {
 		if (pathAndFillManager().getSelectedPaths().isEmpty()) {
 			sizeCombo.removeItem(SIZE_AUTO_SELECTED);
 		}
+		restoreChoices(ui.getPrefs());
 
 		okButton = new JButton("Materialize");
 		okButton.addActionListener(e -> {
@@ -239,13 +247,36 @@ public class MaterializeRegionDialog extends JDialog {
 		c.gridy++;
 		add(section("Scope", scopeCombo, null), c);
 		c.gridy++;
-		add(fastMaterializationCheckBox, c);
+		final JPanel optionsPanel = new JPanel(new BorderLayout());
+		optionsPanel.add(fastMaterializationCheckBox, BorderLayout.CENTER);
+		final JButton helpButton = GuiUtils.Buttons.help(null);
+		helpButton.setToolTipText("About single- vs multichannel crops");
+		helpButton.addActionListener(e -> new GuiUtils(this).showHTMLDialog(getHelpMsg(),
+				"Materialize Region... Help", true));
+		optionsPanel.add(helpButton, BorderLayout.EAST);
+		add(optionsPanel, c);
 		c.gridy++;
 		c.insets.top = 10;
 		add(statusLabel, c);
 		c.gridy++;
 		c.insets.top = 14;
 		add(buttonsPanel, c);
+	}
+
+	private String getHelpMsg() {
+		return "<HTML><div WIDTH=500><p>"
+				+ "Only the channel (and time point) currently being traced is materialized. To crop <i>all</i> "
+				+ "channels of the same region into a multichannel image, run the <i>Big Data &gt; Materialize "
+				+ "Multichannel Region</i> template script.</p>"
+				+ "<ul>"
+				+ "<li>Pixel edits are local to the crop: only path geometry persists, nothing is written back to the "
+				+ "streamed source.</li>"
+				+ "<li>While a crop is open, tracing on its 2D canvas and commands that read the image data (e.g., "
+				+ "GWDT tracing) are restricted to the crop's bounds. Tracing in BDV/BVV still searches the full "
+				+ "volume. Close the crop's image window to restore the full volume for those commands.</li>"
+				+ "<li>Auto-bounds uses the bounding box of all paths or of the selected paths (as chosen) and "
+				+ "ignores the Bounding Box Center. Padding is added on top.</li>"
+				+ "</ul>";
 	}
 
 	private JPanel section(final String title, final JComboBox<String> combo, final XYZFieldsPanel fields) {
@@ -484,11 +515,36 @@ public class MaterializeRegionDialog extends JDialog {
 		fastMaterializationCheckBox.setSelected(prefs.isFastCropMaterializationEnabled());
 	}
 
+	// Done after the item removal in the constructor and before the listeners are attached: unknown items are
+	// ignored by setSelectedItem(), and sizeChoiceChanged() syncs the dependent state
+	private void restoreChoices(final SNTPrefs prefs) {
+		sizeCombo.setSelectedItem(prefs.get(PREF_SIZE_CHOICE, SIZE_AUTO_ALL));
+		if (SIZE_OTHER.equals(sizeCombo.getSelectedItem())) {
+			sizeFields.setValue(0, Double.parseDouble(prefs.get(PREF_SIZE_X, "512")));
+			sizeFields.setValue(1, Double.parseDouble(prefs.get(PREF_SIZE_Y, "512")));
+			sizeFields.setValue(2, Double.parseDouble(prefs.get(PREF_SIZE_Z, "256")));
+		}
+		// Center coordinates are dataset specific: only the Auto/Scene choices are restored
+		final String center = prefs.get(PREF_CENTER_CHOICE, CENTER_AUTO);
+		if (!CENTER_OTHER.equals(center)) centerCombo.setSelectedItem(center);
+		// Secondary layer may not be available next time: setSelectedItem() ignores it then
+		scopeCombo.setSelectedItem(prefs.getTemp(PREF_SCOPE_CHOICE, SCOPE_MAIN));
+	}
+
 	private void savePrefs(final SNTPrefs prefs) {
 		prefs.set("mrd.xpad", "" + paddingFields.getValue(0, 10));
 		prefs.set("mrd.ypad", "" + paddingFields.getValue(1, 10));
 		prefs.set("mrd.zpad", "" + paddingFields.getValue(2, 10));
 		prefs.setFastCropMaterialization(fastMaterializationCheckBox.isSelected());
+		prefs.set(PREF_SIZE_CHOICE, (String) sizeCombo.getSelectedItem());
+		if (SIZE_OTHER.equals(sizeCombo.getSelectedItem())) {
+			prefs.set(PREF_SIZE_X, "" + sizeFields.getValue(0, 512));
+			prefs.set(PREF_SIZE_Y, "" + sizeFields.getValue(1, 512));
+			prefs.set(PREF_SIZE_Z, "" + sizeFields.getValue(2, 256));
+		}
+		// Auto-bounds forces the center to Auto: do not overwrite the user's own choice
+		if (centerCombo.isEnabled()) prefs.set(PREF_CENTER_CHOICE, (String) centerCombo.getSelectedItem());
+		prefs.setTemp(PREF_SCOPE_CHOICE, (String) scopeCombo.getSelectedItem());
 	}
 
 	/**
