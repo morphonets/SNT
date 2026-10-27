@@ -54,9 +54,9 @@ import org.jzy3d.plot3d.primitives.Wireframeable;
 import org.jzy3d.plot3d.primitives.enlightables.EnlightableSphere;
 import org.scijava.util.ColorRGB;
 
-import net.imagej.mesh.Mesh;
-import net.imagej.mesh.Triangle;
-import net.imagej.mesh.Triangles;
+import net.imglib2.mesh.Mesh;
+import net.imglib2.mesh.Triangles;
+import net.imglib2.mesh.Vertices;
 import net.imglib2.roi.geom.real.Polygon2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.analysis.AbstractConvexHull;
@@ -241,14 +241,12 @@ public class Annotation3D {
 
 	private static Drawable meshToDrawable(Mesh mesh, final Color color) {
 		final Triangles faces = mesh.triangles();
-		final Iterator<Triangle> faceIter = faces.iterator();
+		final Vertices vertices = mesh.vertices();
 		final List<ArrayList<Coord3d>> coord3dFaces = new ArrayList<>();
-		while (faceIter.hasNext()) {
+		for (long i = 0; i < faces.sizel(); i++) {
 			final ArrayList<Coord3d> simplex = new ArrayList<>();
-			final Triangle t = faceIter.next();
-			simplex.add(new Coord3d(t.v0x(), t.v0y(), t.v0z()));
-			simplex.add(new Coord3d(t.v1x(), t.v1y(), t.v1z()));
-			simplex.add(new Coord3d(t.v2x(), t.v2y(), t.v2z()));
+			for (final long v : new long[] { faces.vertex0(i), faces.vertex1(i), faces.vertex2(i) })
+				simplex.add(new Coord3d(vertices.x(v), vertices.y(v), vertices.z(v)));
 			coord3dFaces.add(simplex);
 		}
 		final List<Polygon> polygons = new ArrayList<>();

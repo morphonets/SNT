@@ -816,6 +816,18 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         }
     }
 
+    private class MeshExportAction implements ExportAction {
+        @Override
+        public String getMenuText() {
+            return "Meshes (OBJ)...";
+        }
+
+        @Override
+        public void execute() {
+            exportAsMeshes();
+        }
+    }
+
     private class CsvSummaryExportAction implements ExportAction {
         @Override
         public String getMenuText() {
@@ -837,7 +849,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
                 new BinaryMaskExportAction(),
                 new DistanceImageExportAction(),
                 new GrayscaleImageExportAction(),
-                new LabelImageExportAction()
+                new LabelImageExportAction(),
+                new MeshExportAction()
         );
 
         // Add image export actions
@@ -894,6 +907,62 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         }
         if (imp != null) imp.setTitle("Fill_" + resultType);
         return imp;
+    }
+
+    private void exportAsMeshes() {
+        if (noFillsError() || noValidImgError()) return;
+        final int[] selectedIndices = getSelectedIndices("export");
+        if (selectedIndices.length == 0) {
+            gUtils.error("You must select at least one Fill for export.");
+            return;
+        }
+        if (plugin.fillerSet.isEmpty()) {
+            updateStatusText("Loading fill(s) for export...");
+            pathAndFillManager.reloadFills(selectedIndices);
+            fillList.setSelectedIndices(selectedIndices);
+            changeState(State.LOADED);
+            fillList.repaint();
+        }
+        final Double sigma = gUtils.getDouble("Smoothing sigma in calibrated units (0: no smoothing). "
+                + "Note that thin fills shrink and may vanish if smoothed:", "Export Fills as Meshes", 0);
+        if (sigma == null) return; // user pressed cancel
+        if (Double.isNaN(sigma) || sigma < 0) {
+            gUtils.error("Invalid smoothing value.");
+            return;
+        }
+        final File saveFile = plugin.getUI().saveFile("Export Fills as Meshes...", "Fills.obj", "obj");
+        if (saveFile == null) return; // user pressed cancel
+        updateStatusText("Meshing fill(s)...");
+        new SwingWorker<Integer, Object>() {
+            @Override
+            protected Integer doInBackground() throws IOException {
+                final Map<String, net.imglib2.mesh.Mesh> meshes = plugin.getFilledMeshes(sigma);
+                if (meshes.isEmpty()) return 0;
+                sc.fiji.snt.util.MeshUtils.saveAsObj(meshes, saveFile);
+                return meshes.size();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    final int n = get();
+                    if (n == 0) gUtils.error("No meshes could be created. Are the fills empty?");
+                    else plugin.getUI().showStatus(n + " mesh(es) saved to " + saveFile.getAbsolutePath(), true);
+                } catch (final java.util.concurrent.ExecutionException ex) {
+                    final Throwable cause = ex.getCause();
+                    if (cause instanceof IllegalArgumentException) {
+                        gUtils.error(cause.getMessage()); // e.g., fills too large
+                    } else {
+                        gUtils.error("Export failed. " + GuiUtils.consoleHint() + ".");
+                        SNTUtils.error("Mesh export", ex);
+                    }
+                } catch (final Exception ex) {
+                    gUtils.error("Export failed. " + GuiUtils.consoleHint() + ".");
+                    SNTUtils.error("Mesh export", ex);
+                }
+                updateStatusText("Mesh export finished");
+            }
+        }.execute();
     }
 
     private void saveFills() {

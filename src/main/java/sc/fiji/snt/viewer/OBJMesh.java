@@ -58,10 +58,14 @@ import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.EigenDecomposition;
 import org.apache.commons.math3.linear.RealMatrix;
 
+import net.imglib2.mesh.Mesh;
+import net.imglib2.mesh.impl.naive.NaiveFloatMesh;
+
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.PCAnalyzer;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.MeshUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 
@@ -90,6 +94,7 @@ public class OBJMesh {
 	boolean backfaceCull = false;
 	private String displayedHemisphere = "both";
 	private BrainAnnotation sourceAnnotation;
+	private boolean fileColor;
 
 	/**
 	 * Instantiates a new wavefront OBJ mesh from a file path/URL.
@@ -111,6 +116,21 @@ public class OBJMesh {
 		}
 		drawable = new RemountableDrawableVBO(loader, this);
 		unit = meshUnit;
+		if (loader.obj.mtlKd != null) {
+			drawable.setColor(new Color(loader.obj.mtlKd[0], loader.obj.mtlKd[1],
+				loader.obj.mtlKd[2], loader.obj.mtlAlpha));
+			fileColor = true;
+		}
+	}
+
+	/**
+	 * Returns whether the color of this mesh was defined in the material (.mtl)
+	 * file associated with the imported .obj file.
+	 *
+	 * @return true, if the mesh color was read from the file
+	 */
+	public boolean hasFileColor() {
+		return fileColor;
 	}
 
 	private OBJMesh() {}
@@ -190,6 +210,7 @@ public class OBJMesh {
 		dup.drawable.setColor(drawable.getColor());
 		dup.drawable.setBoundingBoxColor(drawable.getBoundingBoxColor());
 		dup.drawable.setBoundingBoxDisplayed(drawable.isBoundingBoxDisplayed());
+		dup.fileColor = fileColor;
 		dup.unit = unit;
 		dup.volume = volume;
 		dup.label = label;
@@ -611,6 +632,24 @@ public class OBJMesh {
 	}
 
 	/**
+	 * Returns a copy of this mesh as an imglib2-mesh {@link Mesh} (vertices and
+	 * triangles only, in the coordinates of this mesh).
+	 *
+	 * @return the mesh (empty if this mesh has no triangles)
+	 */
+	public Mesh toMesh() {
+		final NaiveFloatMesh mesh = new NaiveFloatMesh();
+		final List<Float> pos = loader.obj.getPositions();
+		final List<Integer> idx = loader.obj.getPositionIndices();
+		if (pos == null || idx == null) return mesh;
+		for (int i = 0; i + 2 < pos.size(); i += 3)
+			mesh.vertices().add(pos.get(i), pos.get(i + 1), pos.get(i + 2));
+		for (int t = 0; t + 2 < idx.size(); t += 3)
+			mesh.triangles().add(idx.get(t), idx.get(t + 1), idx.get(t + 2));
+		return mesh;
+	}
+
+	/**
 	 * Returns the {@link DrawableVBO} associated with this mesh
 	 *
 	 * @return the DrawableVBO
@@ -854,6 +893,27 @@ public class OBJMesh {
 
 	private class OBJFilePlus extends OBJFile {
 
+		/* Diffuse color (0-1) and opacity of the first material in the .mtl file, if any */
+		private float[] mtlKd;
+		private float mtlAlpha = 1f;
+
+		private void readMaterial(final URL objUrl, final String mtlName) {
+			try {
+				// Only relative paths within the OBJ's location are followed
+				if (!MeshUtils.isSafeRelativeReference(mtlName)) {
+					SNTUtils.log("Ignored material file reference: " + mtlName);
+					return;
+				}
+				final MeshUtils.Material m = MeshUtils.readMaterial(new URL(objUrl, mtlName.replace(" ", "%20")));
+				if (m == null) return;
+				mtlKd = new float[] { m.r() / 255f, m.g() / 255f, m.b() / 255f };
+				mtlAlpha = (float) m.opacity();
+			} catch (final IOException | RuntimeException ex) {
+				SNTUtils.log("Material file could not be read: " + ex.getMessage());
+				mtlKd = null;
+			}
+		}
+
 		/*
 		 * Copied ipsis verbis from
 		 * {@link org.jzy3d.io.obj.OBJFile#loadModelFromURL(URL)} but accommodates files
@@ -868,6 +928,7 @@ public class OBJMesh {
                     final float[] val = new float[4];
                     final int[][] idx = new int[3][3];
                     boolean hasNormals = false;
+                    String mtlName = null;
 
                     while ((line = input.readLine()) != null) {
                         line = line.trim();
@@ -880,6 +941,9 @@ public class OBJMesh {
                                 break;
                             case 'f':
                                 hasNormals = parseObjFace(line, idx, hasNormals);
+                                break;
+                            case 'm':
+                                if (line.startsWith("mtllib")) mtlName = line.substring(6).trim();
                                 break;
                             case '#':
                             default:
@@ -894,6 +958,7 @@ public class OBJMesh {
                     }
 
                     posSize_ = 3;
+                    if (mtlName != null) readMaterial(fileURL, mtlName);
                     return true;
 
                 } catch (final FileNotFoundException kFNF) {

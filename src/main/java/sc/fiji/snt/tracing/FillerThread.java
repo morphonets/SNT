@@ -287,6 +287,15 @@ public class FillerThread extends SearchThread {
         this.threshold = threshold;
     }
 
+    /**
+     * Returns the paths this fill originated from.
+     *
+     * @return the source paths (empty if undefined)
+     */
+    public Set<Path> getSourcePaths() {
+        return (sourcePaths == null) ? Collections.emptySet() : Collections.unmodifiableSet(sourcePaths);
+    }
+
     public void setSourcePaths(final Collection<Path> newSourcePaths) {
         sourcePaths = new HashSet<>();
         sourcePaths.addAll(newSourcePaths);

@@ -672,6 +672,58 @@ public class TreeToRaster {
 	}
 
 	/**
+	 * Voxel index range {xMin, yMin, zMin, xMax, yMax, zMax} of world bounds
+	 * {xMin, xMax, yMin, yMax, zMin, zMax}
+	 */
+	private int[] voxelRange(final double[] bounds) {
+		return new int[] { (int) Math.floor(bounds[0] / lateralRes),
+				(int) Math.floor(bounds[2] / lateralRes),
+				(int) Math.floor(bounds[4] / axialRes),
+				(int) Math.ceil(bounds[1] / lateralRes),
+				(int) Math.ceil(bounds[3] / lateralRes),
+				(int) Math.ceil(bounds[5] / axialRes) };
+	}
+
+	/**
+	 * Gets the position, in the tree's coordinate system, of the center of voxel
+	 * (0, 0, 0) of the image returned by {@link #rasterize()}. The rasterized
+	 * image is not calibrated with an origin, so this is needed to place it
+	 * (e.g., a mesh extracted from it) back on the tree. The result depends on
+	 * the current resolution and reference bounds settings, which should be set
+	 * before calling this method.
+	 *
+	 * @return the {x, y, z} position of the center of the first voxel
+	 */
+	public double[] getRasterOrigin() {
+		int xo = 0, yo = 0, zo = 0;
+		if (refWidth <= 0) {
+			final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+			final int[] vr = voxelRange(worldBounds(defR));
+			xo = BORDER_XY - vr[0];
+			yo = BORDER_XY - vr[1];
+			zo = BORDER_Z - vr[2];
+		}
+		return new double[] { (0.5 - xo) * lateralRes, (0.5 - yo) * lateralRes,
+				is2D() ? 0 : (0.5 - zo) * axialRes };
+	}
+
+	/**
+	 * Gets the number of voxels of the image {@link #rasterize()} would allocate
+	 * with the current settings, so that callers can avoid oversized requests.
+	 *
+	 * @return the voxel count
+	 */
+	public long getRasterVoxelCount() {
+		if (refWidth > 0) return (long) refWidth * refHeight * refDepth;
+		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+		final int[] vr = voxelRange(worldBounds(defR));
+		final long w = (long) (vr[3] - vr[0]) + 2L * BORDER_XY;
+		final long h = (long) (vr[4] - vr[1]) + 2L * BORDER_XY;
+		final long d = is2D() ? 1 : Math.max((long) (vr[5] - vr[2]) + 2L * BORDER_Z, 1);
+		return w * h * d;
+	}
+
+	/**
 	 * Prepares a raster context from a pre-built frustum list.
 	 */
 	private RasterContext prepareRasterization(final List<Frustum> frustums) {
@@ -690,12 +742,9 @@ public class TreeToRaster {
 			ctx.zo = 0;
 		} else {
 			// Default mode: tight fit around tree with border padding
-			final int xm = (int) Math.floor(bounds[0] / lateralRes);
-			final int ym = (int) Math.floor(bounds[2] / lateralRes);
-			final int zm = (int) Math.floor(bounds[4] / axialRes);
-			final int xM = (int) Math.ceil(bounds[1] / lateralRes);
-			final int yM = (int) Math.ceil(bounds[3] / lateralRes);
-			final int zM = (int) Math.ceil(bounds[5] / axialRes);
+			final int[] vr = voxelRange(bounds);
+			final int xm = vr[0], ym = vr[1], zm = vr[2];
+			final int xM = vr[3], yM = vr[4], zM = vr[5];
 			ctx.width  = (xM - xm) + 2 * BORDER_XY;
 			ctx.height = (yM - ym) + 2 * BORDER_XY;
 			ctx.depth  = Math.max((zM - zm) + 2 * BORDER_Z, 1);

@@ -2062,7 +2062,7 @@ public class TreeStatistics extends ContextCommand {
     public String getUnit(final String metric) {
         final String m = metric.toLowerCase();
         if (TreeStatistics.WIDTH.equals(metric) || TreeStatistics.HEIGHT.equals(metric) || TreeStatistics.DEPTH.equals(metric)
-                || m.contains("length") || m.contains("radius") || m.contains("distance") || TreeStatistics.CONVEX_HULL_ELONGATION.equals(metric)) {
+                || m.contains("length") || m.contains("radius") || m.contains("distance")) {
             return getSpatialUnit();
         } else if (m.contains("volume")) {
             return getSpatialUnit() + "³";

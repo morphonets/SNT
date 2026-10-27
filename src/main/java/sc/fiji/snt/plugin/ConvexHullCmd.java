@@ -217,8 +217,7 @@ public class ConvexHullCmd extends ContextCommand {
 			if (doRoundness)
 				table.appendToLastRow("Convex hull: Roundness", analyzer.getRoundness());
 			if (doMainElongation)
-				table.appendToLastRow(String.format("Convex hull: Elongation (%s)", analyzer.getUnit("Convex hull: Elongation")),
-					analyzer.getElongation());
+				table.appendToLastRow("Convex hull: Elongation", analyzer.getElongation());
 			if (doOther) {
 				table.appendToLastRow("Convex hull: Eccentricity", analyzer.getEccentricity());
 				table.appendToLastRow("Convex hull: Compactness", analyzer.getCompactness());

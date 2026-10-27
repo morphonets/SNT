@@ -66,6 +66,10 @@ public class LoadObjCmd extends ContextCommand {
 		description = "Rendering color of imported mesh(es)")
 	private ColorRGB color;
 
+	@Parameter(label = "Use colors defined in file", required = false,
+		description = "If checked, colors defined in the material (.mtl) file associated with the OBJ file, if any, take precedence over the color above")
+	private boolean useFileColor = true;
+
 	@Parameter(label = "Render bounding box", required = false)
 	private boolean box;
 
@@ -130,7 +134,7 @@ public class LoadObjCmd extends ContextCommand {
 				if (recViewer.getManagerPanel() != null)
 					recViewer.getManagerPanel().showProgress(index++, files.length);
 				final OBJMesh objMesh = new OBJMesh(file.getAbsolutePath());
-				objMesh.setColor(color, transparency);
+				if (!(useFileColor && objMesh.hasFileColor())) objMesh.setColor(color, transparency);
 				if (box) objMesh.setBoundingBoxColor(color);
 				meshes.add(objMesh);
 			} catch (final IllegalArgumentException ex) {
@@ -149,7 +153,7 @@ public class LoadObjCmd extends ContextCommand {
 			if (recViewer.getManagerPanel() != null)
 				recViewer.getManagerPanel().showProgress(-1, -1);
 			final OBJMesh objMesh = new OBJMesh(filePath);
-			objMesh.setColor(color, transparency);
+			if (!(useFileColor && objMesh.hasFileColor())) objMesh.setColor(color, transparency);
 			if (box) objMesh.setBoundingBoxColor(color);
 			return recViewer.addMesh(objMesh);
 		} catch (final IllegalArgumentException ex) {

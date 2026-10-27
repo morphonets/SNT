@@ -34,6 +34,10 @@ import org.scijava.plugin.Parameter;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
 import net.imglib2.RealLocalizable;
+import net.imglib2.mesh.Mesh;
+import net.imglib2.mesh.MeshStats;
+import net.imglib2.mesh.Triangles;
+import net.imglib2.mesh.Vertices;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
@@ -249,7 +253,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	public double getCompactness() {
 		initHull();
 		if (hull instanceof ConvexHull3D hull3D)
-			return opService.geom().compactness(hull3D.getMesh()).getRealDouble();
+			return MeshStats.compactness(hull3D.getMesh());
 		return Double.NaN;
 	}
 
@@ -272,7 +276,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 
 	protected double computeRoundness(final AbstractConvexHull hull) {
 		if (hull instanceof ConvexHull3D hull3D)
-			return opService.geom().sphericity(hull3D.getMesh()).getRealDouble();
+			return MeshStats.sphericity(hull3D.getMesh());
 		else if (hull instanceof ConvexHull2D hull2D)
 			return opService.geom().circularity(hull2D.getPolygon()).getRealDouble();
 		else
@@ -283,7 +287,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 
 		try {
 			if (hull instanceof ConvexHull3D hull3D)
-				return opService.geom().boxivity(hull3D.getMesh()).getRealDouble();
+				return opService.geom().boxivity(toLegacyMesh(hull3D.getMesh())).getRealDouble();
 			else if (hull instanceof ConvexHull2D hull2D)
 				return opService.geom().boxivity(hull2D.getPolygon()).getRealDouble();
 		} catch (final IllegalArgumentException iae) {
@@ -294,9 +298,24 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}
 
+	/**
+	 * Copies a mesh to the legacy {@code net.imagej.mesh.Mesh}, the only type
+	 * supported by the ImageJ Ops geometry ops that have no MeshStats equivalent
+	 */
+	private static net.imagej.mesh.Mesh toLegacyMesh(final Mesh mesh) {
+		final net.imagej.mesh.Mesh out = new net.imagej.mesh.naive.NaiveDoubleMesh();
+		final Vertices v = mesh.vertices();
+		for (long i = 0; i < v.sizel(); i++)
+			out.vertices().add(v.x(i), v.y(i), v.z(i));
+		final Triangles t = mesh.triangles();
+		for (long i = 0; i < t.sizel(); i++)
+			out.triangles().add(t.vertex0(i), t.vertex1(i), t.vertex2(i));
+		return out;
+	}
+
 	protected RealLocalizable computeCentroid(final AbstractConvexHull hull) {
 		if (hull instanceof ConvexHull3D hull3D)
-			return opService.geom().centroid(hull3D.getMesh());
+			return MeshStats.centroid(hull3D.getMesh());
 		else if (hull instanceof ConvexHull2D hull2D)
 			return opService.geom().centroid(hull2D.getPolygon());
 		else
@@ -305,7 +324,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 
 	protected double computeElongation(final AbstractConvexHull hull) {
 		if (hull instanceof ConvexHull3D hull3D)
-			return opService.geom().mainElongation(hull3D.getMesh()).getRealDouble();
+			return MeshStats.mainElongation(hull3D.getMesh());
 		else if (hull instanceof ConvexHull2D hull2D)
 			return opService.geom().mainElongation(hull2D.getPolygon()).getRealDouble();
 		else

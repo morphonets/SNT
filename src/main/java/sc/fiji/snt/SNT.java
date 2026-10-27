@@ -59,6 +59,7 @@ import net.imglib2.type.numeric.integer.UnsignedIntType;
 import net.imglib2.type.numeric.integer.UnsignedLongType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.mesh.Mesh;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
 import net.imglib2.util.Util;
@@ -4338,6 +4339,47 @@ public class SNT extends MultiDThreePanes implements
 			final CommandService cmdService = getContext().getService(CommandService.class);
 			cmdService.run(ShollAnalysisTreeCmd.class, true, input);
 		});
+	}
+
+	/**
+	 * Converts the currently loaded fills to meshes, one per fill, in the
+	 * spatially calibrated coordinates of the image (the same space as path
+	 * nodes). Only voxels within each fill's threshold are included.
+	 *
+	 * @param smoothing the sigma (in calibrated units) of a Gaussian blur applied
+	 *                  before meshing. 0 disables smoothing. Note that thin fills
+	 *                  shrink and may vanish if smoothed
+	 * @return the (non-empty) meshes, mapped by name (that of the source path(s)
+	 *         of each fill, or "Fill_1", "Fill_2", etc. if undefined).
+	 *         Empty if no fills are loaded
+	 * @see MeshUtils#fromFills(Collection, double[], double[], double)
+	 */
+	public Map<String, Mesh> getFilledMeshes(final double smoothing) {
+		final Map<String, Mesh> meshes = new LinkedHashMap<>();
+		if (fillerSet == null || fillerSet.isEmpty()) return meshes;
+		final double[] spacing = { x_spacing, y_spacing, z_spacing };
+		final PointInCanvas offset = getActiveCanvasPixelOffset();
+		final double[] origin = { -offset.x * x_spacing, -offset.y * y_spacing, -offset.z * z_spacing };
+		int idx = 1;
+		for (final FillerThread filler : fillerSet) {
+			final Mesh mesh = MeshUtils.fromFills(List.of(filler), spacing, origin, smoothing);
+			if (mesh.vertices().size() > 0) {
+				String name = fillMeshName(filler, idx);
+				for (int i = 2; meshes.containsKey(name); i++) name = fillMeshName(filler, idx) + "_" + i;
+				meshes.put(name, mesh);
+			}
+			idx++;
+		}
+		return meshes;
+	}
+
+	/* Name from source paths, e.g., "Path_1" or "Path_1+Path_2", or "Fill_n" if undefined */
+	private static String fillMeshName(final FillerThread filler, final int idx) {
+		final List<String> names = filler.getSourcePaths().stream().sorted()
+				.map(p -> (p.getName() == null) ? "Path_" + p.getID() : p.getName()).toList();
+		if (names.isEmpty()) return "Fill_" + idx;
+		if (names.size() <= 3) return String.join("+", names);
+		return names.get(0) + "+" + (names.size() - 1) + "_more";
 	}
 
 	public ImagePlus getFilledBinaryImp() {

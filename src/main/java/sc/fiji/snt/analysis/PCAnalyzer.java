@@ -22,8 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
-import net.imagej.mesh.Vertex;
-import net.imagej.mesh.Vertices;
+import net.imglib2.mesh.Vertices;
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.EigenDecomposition;
 import org.apache.commons.math3.linear.RealMatrix;
@@ -105,9 +104,9 @@ public class PCAnalyzer {
      * (primary, secondary, tertiary), or null if computation fails
      */
     public static PrincipalAxis[] getPrincipalAxes(final Vertices vertices) {
-        final List<SNTPoint> points = new ArrayList<>((int)vertices.size());
-        for (final Vertex vertex : vertices) {
-            points.add(SNTPoint.of(vertex.x(), vertex.y(), vertex.z()));
+        final List<SNTPoint> points = new ArrayList<>(vertices.size());
+        for (long i = 0; i < vertices.sizel(); i++) {
+            points.add(SNTPoint.of(vertices.x(i), vertices.y(i), vertices.z(i)));
         }
         return getPrincipalAxes(points);
     }

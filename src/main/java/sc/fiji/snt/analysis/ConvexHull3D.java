@@ -23,8 +23,10 @@
 package sc.fiji.snt.analysis;
 
 import net.imagej.ImageJ;
-import net.imagej.mesh.Mesh;
-import net.imagej.mesh.naive.NaiveDoubleMesh;
+import net.imglib2.mesh.Mesh;
+import net.imglib2.mesh.MeshStats;
+import net.imglib2.mesh.alg.hull.ConvexHull;
+import net.imglib2.mesh.impl.naive.NaiveDoubleMesh;
 import org.scijava.Context;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -58,20 +60,20 @@ public class ConvexHull3D extends AbstractConvexHull {
     public void compute() {
         final Mesh mesh = new NaiveDoubleMesh();
         points.forEach(v -> mesh.vertices().add(v.getX(), v.getY(), v.getZ()));
-        hull = (Mesh) opService.geom().convexHull(mesh).getFirst();
+        hull = ConvexHull.calculate(mesh);
     }
 
     @Override
     public double size() {
         if (size ==-1)
-            size = opService.geom().size(getMesh()).getRealDouble();
+            size = MeshStats.volume(getMesh());
         return size;
     }
 
     @Override
     public double boundarySize() {
         if (boundarySize ==-1)
-            boundarySize = opService.geom().boundarySize(getMesh()).getRealDouble();
+            boundarySize = MeshStats.surfaceArea(getMesh());
         return boundarySize;
     }
 
