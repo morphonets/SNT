@@ -55,6 +55,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.PrefsCmd;
 import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.Integration;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
@@ -96,6 +97,7 @@ import java.util.List;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
@@ -2516,6 +2518,10 @@ public class GuiUtils {
 		side.add(gpuDetails, gbc);
 		gbc.gridy++;
 
+		final JButton integrationDetails = infoButton("Integrations: querying...", GLYPH.LINK, refIcon);
+		side.add(integrationDetails, gbc);
+		gbc.gridy++;
+
 		final GridBagConstraints sideGbc = new GridBagConstraints();
 		sideGbc.gridx = 1;
 		sideGbc.gridy = 0;
@@ -2542,8 +2548,27 @@ public class GuiUtils {
 		new Thread(() -> {
 			final String cacheSize = SNTUtils.formatBytes(SNTUtils.getCacheDirSize());
 			final GLUtils.Info gpu = GLUtils.getInfo();
+			final List<Integration> availableIntegrations = Integration.available();
 			SwingUtilities.invokeLater(() -> {
 				cacheDetails.setText("Cache: " + cacheSize);
+				final StringBuilder integrationList = new StringBuilder();
+				for (final Integration i : Integration.values()) {
+					if (!integrationList.isEmpty()) integrationList.append("\n");
+					integrationList.append(i.getDisplayName()).append(": ")
+							.append(availableIntegrations.contains(i) ? "Available" : "Not installed");
+				}
+				integrationDetails.setText("Integrations: " + availableIntegrations.size() + "/"
+						+ Integration.values().length + " available");
+				integrationDetails.setToolTipText("<HTML>" +
+						integrationList.toString()
+								.replaceAll("(?m)^([^:]+):", "<b>$1</b>:")
+								.replace("\n", "<br>")
+						+ "<br><br>Click to copy to clipboard");
+				integrationDetails.addActionListener(e -> {
+					Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+							new StringSelection(integrationList.toString()), null);
+					reportTempMsgOnButtonLabel(integrationDetails, "Copied to clipboard!", false);
+				});
 				if (gpu.available()) {
 					final String gpuText = gpu.renderer() + " (OpenGL " + gpu.version() + " max)";
 					gpuDetails.setText(gpuText);

@@ -40,7 +40,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-import org.scijava.util.Types;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -3175,11 +3174,8 @@ public class SNTUI extends JDialog {
                 new FlatSVGIcon("gui/sciview-logo-icon.svg", IconFactory.defaultSize(), IconFactory.defaultSize()));
         openSciView.addActionListener(e -> {
             if (noPathsError()) return; // for consistency with rec. viewer
-            if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
-                final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-                cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
-                return;
-            }
+            if (!EnableIntegrationCmd.requireOrPrompt(Integration.SCIVIEW,
+                    plugin.getContext().getService(CommandService.class))) return;
 
             // Use SwingWorker pattern like RecWorker for thread safety
             class SciViewWorker extends SwingWorker<Boolean, Object> {
@@ -3904,6 +3900,8 @@ public class SNTUI extends JDialog {
         final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2",
                 IconFactory.menuIcon('T', false));
         sendToTrakEM2.addActionListener(e -> {
+            if (!EnableIntegrationCmd.requireOrPrompt(Integration.TRAKEM2,
+                    plugin.getContext().getService(CommandService.class))) return;
             if (!plugin.anyListeners())
                 error("TrakEM2 is either not running or not listening to SNT events.");
             else
@@ -5404,7 +5402,7 @@ public class SNTUI extends JDialog {
     }
 
     private boolean isFastMarchSearchAvailable() {
-        final boolean tgInstalled = Types.load("FijiITKInterface.TubularGeodesics") != null;
+        final boolean tgInstalled = Integration.TUBULAR_GEODESICS.isAvailable();
         final boolean tgAvailable = plugin.tubularGeodesicsTracingEnabled;
         if (!tgAvailable || !tgInstalled) {
             final StringBuilder msg = new StringBuilder(

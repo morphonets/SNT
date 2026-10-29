@@ -34,7 +34,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
-import sc.fiji.snt.gui.cmds.EnableSciViewUpdateSiteCmd;
+import sc.fiji.snt.util.Integration;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.iview.SciView;
@@ -77,7 +77,7 @@ public class SciViewSNT {
 	 * @throws NullContextException   If context is null
 	 */
 	public SciViewSNT(final Context context) throws NoClassDefFoundError {
-		if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
+		if (!Integration.SCIVIEW.isAvailable()) {
 			// If dependencies are missing, warn users politely
 			throw new NoClassDefFoundError(
 					"SciView is not available. Please see https://imagej.net/plugins/snt/#installation for details");
