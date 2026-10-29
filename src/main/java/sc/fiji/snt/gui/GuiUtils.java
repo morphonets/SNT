@@ -2075,7 +2075,18 @@ public class GuiUtils {
 	 */
 	public static void displayBanner(final String msg, final Color background, final Component parent,
 			final int position, final boolean dismissOnMove) {
-		if (parent == null || !parent.isShowing()) return;
+		displayBanner(msg, background, parent, position, dismissOnMove, (dismissOnMove) ? 4000 : 10000);
+	}
+
+	/**
+	 * Same as {@link #displayBanner(String, Color, Component, int, boolean)} but with an explicit
+	 * display time, e.g., to give long messages enough time to be read.
+	 *
+	 * @param timeoutMs the time (in milliseconds) after which the banner fades away. A click dismisses it earlier
+	 */
+	public static void displayBanner(final String msg, final Color background, final Component parent,
+			final int position, final boolean dismissOnMove, final int timeoutMs) {
+		if (msg == null || parent == null || !parent.isShowing()) return;
 		final Window owner = SwingUtilities.getWindowAncestor(parent);
 		final boolean translucent = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice()
 				.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
@@ -2083,7 +2094,7 @@ public class GuiUtils {
 		SwingUtilities.invokeLater(() -> {
 			if (!parent.isShowing()) return;
 			new Banner(owner, msg, bg, SNTColor.contrastColor(bg), translucent).display(parent, position,
-					dismissOnMove, (dismissOnMove) ? 4000 : 10000);
+					dismissOnMove, timeoutMs);
 		});
 	}
 

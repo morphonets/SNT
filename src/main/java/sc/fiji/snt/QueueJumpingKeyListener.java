@@ -170,7 +170,7 @@ class QueueJumpingKeyListener implements KeyListener {
 				tracerPlugin.getUI().getBookmarkManager().add((int) p.x, (int) p.y, (int) p.z,
 						tracerPlugin.getChannel(), tracerPlugin.getFrame());
 				if (!tracerPlugin.getUI().getBookmarkManager().isShowing())
-					showStatus("Bookmark added");
+					showBanner("Bookmark added");
 			}
 		} else if (canvas != null) {
 			canvas.bookmarkCursorLocation();
@@ -194,7 +194,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		final Picker picker = univ.getPicker();
 		final Content c = picker.getPickedContent(p.x, p.y);
 		if (null == c) {
-			showStatus("No content available at cursor location");
+			showBanner("No content available at cursor location");
 			return null;
 		}
 		return picker.getPickPointGeometry(c, p.x, p.y);
@@ -297,9 +297,23 @@ class QueueJumpingKeyListener implements KeyListener {
 		tracerPlugin.getUI().showStatus(msg, true);
 	}
 
+	/**
+	 * Displays a banner over the canvas the user is working on, falling back to the status bar if the canvas is
+	 * not available. Like {@link #showStatus(String)}, it does not steal focus from the canvas
+	 */
+	void showBanner(final String msg) {
+		final java.awt.Component parent = (univ != null) ? univ.getCanvas() : canvas;
+		if (parent == null || !parent.isShowing()) {
+			showStatus(msg);
+			return;
+		}
+		sc.fiji.snt.gui.GuiUtils.displayBanner(msg, java.awt.Color.BLACK, parent,
+				javax.swing.SwingConstants.SOUTH, true);
+	}
+
 	boolean calledFromUniv(final boolean warnIfNonApplicableKey) {
 		if (univ != null && warnIfNonApplicableKey)
-			showStatus("Shortcut does not apply to Leg. 3D Viewer...");
+			showBanner("Shortcut does not apply to Leg. 3D Viewer...");
 		return univ != null;
 	}
 
@@ -684,10 +698,10 @@ class QueueJumpingKeyListener implements KeyListener {
 				final char keyChar = e.getKeyChar();
 				if (keyChar == 'w' || keyChar == 'W') {
 					Toolbar.getInstance().setTool(Toolbar.WAND);
-					showStatus("Wand Tool selected");
+					showBanner("Wand Tool selected");
 				} else if (keyChar == 'h' || keyChar == 'H') {
 					Toolbar.getInstance().setTool(Toolbar.HAND);
-					showStatus("Hand Tool selected");
+					showBanner("Hand Tool selected");
 				} else {
 					keyPressed(e);
 				}
@@ -704,7 +718,7 @@ class QueueJumpingKeyListener implements KeyListener {
 			final Picker picker = univ.getPicker();
 			final Content c = picker.getPickedContent(me.getX(), me.getY());
 			if (null == c) {
-				showStatus("No content picked!");
+				showBanner("No content picked!");
 				return;
 			}
 			showStatus("Retrieving content...");

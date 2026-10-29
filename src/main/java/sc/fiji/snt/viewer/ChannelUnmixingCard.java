@@ -68,7 +68,7 @@ class ChannelUnmixingCard {
         if (prompt)
             GuiUtils.errorPrompt(msg);
         else
-            owner.showViewerMessage(msg);
+            owner.showViewerBanner(msg);
     }
 
     /**

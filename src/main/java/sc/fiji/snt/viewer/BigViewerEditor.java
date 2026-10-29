@@ -672,7 +672,8 @@ final class BigViewerEditor {
 	private void showMessage(final PathNodeEditor.Result r) {
 		if (r.message() == null) return;
 		if (r.modal()) viewer.getGuiUtils().error(r.message());
-		else viewer.showViewerMessage(r.message());
+		else if (r.ok()) viewer.showViewerMessage(r.message());
+		else viewer.showViewerBanner(r.message());
 	}
 
 	private void doDelete() {

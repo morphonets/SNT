@@ -249,8 +249,7 @@ public class Bvv extends AbstractBigViewer {
                         maxY = Math.max(maxY, world[1]);
                     }
                     if (x < minX || x > maxX || y < minY || y > maxY) {
-                        getViewer().getViewer().showMessage(
-                                "Outside image bounds: Align view to a principal axis and retry");
+                        showViewerBanner("Outside image bounds: Align view to a principal axis and retry");
                         return null;
                     }
                 }
@@ -260,7 +259,7 @@ public class Bvv extends AbstractBigViewer {
             SNTUtils.log("BVV: ray-max found no peak near the clicked point; using focal-plane position");
             return pos.positionAsDoubleArray();
         } catch (final Exception ex) {
-            getViewer().getViewer().showMessage("Could not resolve a position for this click; please click again");
+            showViewerBanner("Could not resolve a position for this click; please click again");
             SNTUtils.log("BVV: getClickedPosition() fallback failed (" + ex.getMessage() + ")");
             return null;
         }

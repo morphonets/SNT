@@ -225,6 +225,11 @@ public class SNTUI extends JDialog {
         if (bdvSNT != null) bdvSNT.setTracingLockedByPause(locked);
     }
 
+    /** Displays a banner over every open Bvv/Bdv canvas (e.g., to confirm a global state change) */
+    private void showBigViewersBanner(final String msg) {
+        for (final AbstractBigViewer v : getOpenBigViewers()) v.showViewerBanner(msg);
+    }
+
     /** Bvv/Bdv counterpart of {@link SNT#enableEditMode(boolean)}: (de)activates their Edit Mode interaction layer */
     void setBigViewersEditMode(final boolean enabled) {
         for (final AbstractBigViewer v : getOpenBigViewers()) v.onSntEditModeChanged(enabled);
@@ -5284,13 +5289,18 @@ public class SNTUI extends JDialog {
         final JCheckBoxMenuItem pauseTracing = GuiUtils.MenuItems.checkboxMenuItem("Pause Tracing",
                 plugin.tracingHalted,
                 e -> {
+                    final boolean requested = ((JCheckBoxMenuItem) e.getSource()).isSelected();
                     if (!plugin.isStreamMode() && !accessToTracingCanvas()) {
                         noValidImageDataError();
                     } else {
                         plugin.pauseTracing(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
                     }
                     // tracingHalted, not currentState: TRACING_PAUSED is redirected to STREAMING
-                    ((JCheckBoxMenuItem) e.getSource()).setSelected(plugin.tracingHalted); // re-sync
+                    final boolean halted = plugin.tracingHalted;
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(halted); // re-sync
+                    if (halted == requested) // skip if the change was refused
+                        showBigViewersBanner(halted ? "Tracing paused. Resume it from Quick Toggles or contextual menu"
+                                : "Tracing resumed");
                 },
                 KeyStroke.getKeyStroke("shift P"));
         // Not materialized-crop-dependent (see the popupMenuWillBecomeVisible listener below for why),
@@ -5303,13 +5313,18 @@ public class SNTUI extends JDialog {
         final JCheckBoxMenuItem stopSNT = GuiUtils.MenuItems.checkboxMenuItem("Pause SNT",
                 currentState == SNT_PAUSED,
                 e -> {
-                    plugin.pause(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
+                    final boolean requested = ((JCheckBoxMenuItem) e.getSource()).isSelected();
+                    plugin.pause(requested, true);
                     // currentState, not getTracingCanvas().isEventsDisabled(): the canvas is null without
                     // a materialized crop (pure streaming), which would NPE here; currentState is set by
                     // the same plugin.pause() call above and (unlike TRACING_PAUSED/READY) SNT_PAUSED is
                     // never redirected to STREAMING by SNTUI#changeState, so it is a reliable, canvas-
                     // independent read of the state that call just produced.
-                    ((JCheckBoxMenuItem) e.getSource()).setSelected(currentState == SNT_PAUSED); // re-sync
+                    final boolean paused = currentState == SNT_PAUSED;
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(paused); // re-sync
+                    if (paused == requested) // skip if the change was refused
+                        showBigViewersBanner(paused ? "SNT paused. Resume it from Quick Toggles or contextual menu"
+                                : "SNT resumed");
                 },
                 null);
         // Not materialized-crop-dependent (see the popupMenuWillBecomeVisible listener below for why),

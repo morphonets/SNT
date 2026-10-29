@@ -681,6 +681,29 @@ public abstract class AbstractBigViewer {
     public abstract void showViewerMessage(String msg);
 
     /**
+     * Displays a message in a banner centered at the bottom of the viewer's canvas. Unlike
+     * {@link #showViewerMessage}, the text is wrapped and the display time scales with its length, making
+     * it suitable for warnings, errors and hints that may take longer to read. A click dismisses it. Falls
+     * back to {@link #showViewerMessage} if the canvas is not available. Safe to call from any thread.
+     *
+     * @param msg the message to show (plain text)
+     */
+    public void showViewerBanner(final String msg) {
+        if (msg == null || msg.isBlank()) return;
+        final Component canvas = getViewerCanvas();
+        if (canvas == null || !canvas.isShowing()) {
+            showViewerMessage(msg);
+            return;
+        }
+        final int maxChars = 60;
+        final String text = (msg.length() <= maxChars) ? msg
+                : "<html><div width=" + com.formdev.flatlaf.util.UIScale.scale(380) + ">"
+                + msg.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        final int timeoutMs = Math.clamp(2500L + 50L * msg.length(), 4000, 12000);
+        GuiUtils.displayBanner(text, java.awt.Color.BLACK, canvas, SwingConstants.SOUTH, true, timeoutMs);
+    }
+
+    /**
      * Updates the persistent progress bar docked at the bottom of this viewer's card panel.
      * Unlike {@link #showViewerMessage}, it stays visible until reset.
      * <ul>
@@ -3469,7 +3492,7 @@ public abstract class AbstractBigViewer {
                 // Resolving a click's world position against a transform that's still moving would silently place a bad
                 // node or miss a fork target, so the click is dropped instead; the status row (set by the recenter
                 // listener, where applicable) already reads "Stabilizing..."
-                showViewerMessage("Scene still stabilizing, please click again");
+                showViewerBanner("Scene still stabilizing, please click again");
                 return;
             }
 
@@ -3880,7 +3903,7 @@ public abstract class AbstractBigViewer {
         }
 
         private void reportLiveWarnings(final java.util.List<sc.fiji.snt.analysis.curation.PlausibilityCheck.Warning> w) {
-            if (w != null && !w.isEmpty()) showViewerMessage("Warning: " + w.getFirst().message());
+            if (w != null && !w.isEmpty()) showViewerBanner("Warning: " + w.getFirst().message());
         }
 
         /**
@@ -4067,8 +4090,8 @@ public abstract class AbstractBigViewer {
                     try {
                         final Path result = get();
                         if (result == null) {
-                            showViewerMessage(cancelled
-                                    ? "Search cancelled" : "Segment could not be traced (out of bounds?)");
+                            if (cancelled) showViewerMessage("Search cancelled");
+                            else showViewerBanner("Segment could not be traced (out of bounds?)");
                         } else if (tempPath == null) {
                             tempPath = result;
                             // Renders in the same selectedColor as toBeCombinedPath (see recolor()),
@@ -4083,7 +4106,7 @@ public abstract class AbstractBigViewer {
                         }
                         if (result != null) drawSegment(tempPath);
                     } catch (final Exception ex) {
-                        showViewerMessage(ex.getMessage());
+                        showViewerBanner(java.util.Objects.toString(ex.getMessage(), ex.getClass().getSimpleName()));
                         SNTUtils.error("Error tracing segment", ex); // only displayed in debug mode
                     } finally {
                         // Honor a finish request that arrived while this segment was still in flight,
