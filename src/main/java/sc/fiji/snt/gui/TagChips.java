@@ -47,7 +47,7 @@ public final class TagChips {
 	private static final int CHIP_VPAD = 1; // vertical padding inside each chip
 	private static final float SWATCH_SCALE = .8f; // swatch size relative to chip height
 	private static final Pattern SPLIT = Pattern.compile(",\\s*");
-	private static final Pattern META = Pattern.compile("\\[[^\\]]+\\]");
+	private static final Pattern META = Pattern.compile("\\[[^]]+]");
 
 	private record Chip(String text, Color color) {}
 

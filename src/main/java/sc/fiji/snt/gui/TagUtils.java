@@ -71,7 +71,7 @@ public final class TagUtils {
 	public static String[] getTagsFromEntry(final String entry) {
 		final String tagString = getTagStringFromEntry(entry);
 		if (tagString.isEmpty()) return new String[] {};
-		return tagString.split("\\s*(,|\\s)\\s*");
+		return tagString.split("\\s*([,\\s])\\s*");
 	}
 
 	public static String getTagStringFromEntry(final String entry) {

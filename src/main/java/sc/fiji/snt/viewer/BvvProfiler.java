@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
+ * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -177,7 +177,7 @@ public final class BvvProfiler {
             for (Class<?> c = reader.getClass(); c != null; c = c.getSuperclass()) {
                 collectInterfaces(c, ifaces);
             }
-            final N5Reader proxy = (N5Reader) Proxy.newProxyInstance(reader.getClass().getClassLoader(),
+            return (N5Reader) Proxy.newProxyInstance(reader.getClass().getClassLoader(),
                     ifaces.toArray(new Class<?>[0]), (p, method, args) -> {
                         final long t0 = System.nanoTime();
                         final int n = IN_FLIGHT.incrementAndGet();
@@ -194,7 +194,6 @@ public final class BvvProfiler {
                             if (result != null && method.getName().startsWith("read")) countDecoded(method, result);
                         }
                     });
-            return proxy;
         } catch (final RuntimeException ex) {
             out("could not proxy N5 reader: " + ex);
             return reader;
@@ -287,7 +286,7 @@ public final class BvvProfiler {
             }
         }
         if (edt == null) return;
-        final ThreadInfo ti = ManagementFactory.getThreadMXBean().getThreadInfo(edt.getId(), MAX_FRAMES);
+        final ThreadInfo ti = ManagementFactory.getThreadMXBean().getThreadInfo(edt.threadId(), MAX_FRAMES);
         if (ti == null) return;
         final StringBuilder sb = new StringBuilder("EDT unresponsive for >").append(waitedMs)
                 .append(" ms, state=").append(ti.getThreadState());
