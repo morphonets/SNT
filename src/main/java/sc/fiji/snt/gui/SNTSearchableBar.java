@@ -320,6 +320,7 @@ public class SNTSearchableBar extends SearchableBar {
 	protected void installComponents() {
 
 		final JToolBar tb = new JToolBar();
+		tb.setOpaque(false); // let the bar's own background show through
 		// close button (if any)
 		if ((getVisibleButtons() & SHOW_CLOSE) != 0) {
 			tb.add(_closeButton);

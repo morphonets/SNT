@@ -4514,13 +4514,16 @@ public class Viewer3D {
             add(scrollPane);
             scrollPane.revalidate();
             add(searchableBar);
-            searchableBar.addStatusBarComponent(hintsButton());
-            searchableBar.addStatusBarComponent(GuiUtils.Toolbars.separator());
 
             for (final JComponent c : GuiUtils.Buttons.calloutTourControls(calloutGroup(),
                     "the viewer's interface", this::startTour))
                 searchableBar.addStatusBarComponent(c);
+            searchableBar.addStatusBarComponent(GuiUtils.Toolbars.separator());
+            searchableBar.addStatusBarComponent(hintsButton());
+            searchableBar.addStatusBarComponent(GuiUtils.Toolbars.separator());
+            searchableBar.addStatusBarComponent(helpButton());
             progressBar = new ProgressBar();
+            progressBar.setBackground(SNTColor.average(List.of(searchableBar.getBackground(), progressBar.getBackground())));
             add(progressBar);
             final JPanel buttons = buttonPanel();
             add(buttons);
@@ -4583,6 +4586,11 @@ public class Viewer3D {
                 index[0] = (index[0] + 1) % hints.size();
             });
             return button;
+        }
+
+        private JButton helpButton() {
+            return GuiUtils.Buttons.OptionsButton(GLYPH.QUESTION_CIRCLE, 1f,
+                    GuiUtils.MenuItems.helpMenu(cmdFinder).getPopupMenu());
         }
 
         private String calloutGroup() {
@@ -4839,17 +4847,15 @@ public class Viewer3D {
                             return;
                         final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                         if (managerList.isSelectionEmpty() && !all) return;
-                        final String tags = mgrGuiUtils.getString("Enter one or more tags (space or "
-                                        + "comma- separated list) to be assigned to selected items. Tags encoding "
-                                        + "a color (e.g., 'red', 'lightblue') will be use to highlight entries. "
-                                        + "After dismissing this dialog:<ul>"
-                                        + "<li>Double-click on an object to edit its tags</li>"
-                                        + "<li>Double-click on '" + CheckBoxList.ALL_ENTRY
-                                        + "' to add tags to the entire list</li></ul>",
-                                "Add Tag(s)", "");
-                        if (tags == null)
-                            return; // user pressed cancel
-                        managerList.applyTagToSelectedItems(tags, all);
+                        final Set<String> existingTags = managerList.getUniqueTags(all);
+                        final Set<String> tags = mgrGuiUtils.getStringSet(
+                                "Enter one or more tags (comma separated list):<br>" +
+                                        "Clearing the field will remove existing tags.<br>" +
+                                        "Tags encoding a color (e.g., 'red', 'lightblue', '#ff0000') are displayed as swatches.",
+                                "Edit Tag(s)", existingTags);
+                        if (tags == null || (tags.isEmpty() && existingTags.isEmpty()))
+                            return; // user pressed cancel or nothing to do
+                        managerList.replaceTagsOfSelectedItems(tags, all);
                     }
                     case TOGGLE_DARK_MODE -> setEnableDarkMode(!isDarkModeOn());
                     case TOGGLE_CONTROL_PANEL -> toggleControlPanel();
@@ -5990,7 +5996,7 @@ public class Viewer3D {
             new Action(Action.SCENE_SHORTCUTS_NOTIFICATION, KeyEvent.VK_H, false, false); // register alternative shortcut
             utilsMenu.add(menuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false), GLYPH.KEYBOARD));
             final JMenu helpMenu = GuiUtils.MenuItems.helpMenu(cmdFinder);
-            helpMenu.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
+            helpMenu.setIcon(IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE));
             utilsMenu.add(helpMenu);
             return utilsMenu;
         }
@@ -7728,6 +7734,27 @@ public class Viewer3D {
             }
         }
 
+        private int[] tagTargetIndices(final boolean allOtherwiseSelectedOnly) {
+            final int[] indices = (allOtherwiseSelectedOnly) ? IntStream.range(0, getModel().getSize()).toArray() : getSelectedIndices();
+            return Arrays.stream(indices).filter(i -> i != getCheckBoxListSelectionModel().getAllEntryIndex()).toArray();
+        }
+
+        /** Unique tags of the items that would be affected by {@link #replaceTagsOfSelectedItems} */
+        Set<String> getUniqueTags(final boolean allOtherwiseSelectedOnly) {
+            final List<String> entries = new ArrayList<>();
+            for (final int i : tagTargetIndices(allOtherwiseSelectedOnly))
+                entries.add(getModel().getElementAt(i).toString());
+            return TagUtils.getUniqueTags(entries);
+        }
+
+        @SuppressWarnings("unchecked")
+        void replaceTagsOfSelectedItems(final Collection<String> tags, final boolean allOtherwiseSelectedOnly) {
+            for (final int i : tagTargetIndices(allOtherwiseSelectedOnly)) {
+                final String entry = getModel().getElementAt(i).toString();
+                ((DefaultListModel<String>) getModel()).set(i, TagUtils.setTags(entry, tags));
+            }
+        }
+
         @SuppressWarnings("unchecked")
         void removeTagsFromSelectedItems(final boolean allOtherwiseSelectedOnly) {
             final int[] indices = (allOtherwiseSelectedOnly) ? IntStream.range(0, getModel().getSize()).toArray() : getSelectedIndices();
@@ -7746,6 +7773,7 @@ public class Viewer3D {
             private final Icon meshIcon;
             private final Icon annotationIcon;
             private boolean iconVisible;
+            private final TagChips chips = new TagChips();
 
             CustomListRenderer(final CheckboxListEditable checkboxListEditable,
                                final DefaultListCellRenderer templateInstance) {
@@ -7767,7 +7795,9 @@ public class Viewer3D {
                                                           final boolean isSelected, final boolean cellHasFocus) {
                 final JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected,
                         cellHasFocus);
-                final String labelText = TagUtils.removeAllTags(label.getText());
+                chips.clear();
+                final String taggedText = label.getText();
+                final String labelText = TagUtils.removeAllTags(taggedText);
                 if (CheckBoxList.ALL_ENTRY.toString().equals(labelText))
                     return label;
                 if (iconVisible) {
@@ -7780,97 +7810,21 @@ public class Viewer3D {
                 } else {
                     label.setIcon(null);
                 }
-                final String[] tags = TagUtils.getTagsFromEntry(label.getText());
-                for (final String tag : tags) {
-                    final ColorRGB c = ColorRGB.fromHTMLColor(tag);
-                    if (c != null && c.getARGB() != label.getBackground().getRGB()) {
-                        label.setForeground(new java.awt.Color(c.getRed(), c.getGreen(), c.getBlue()));
-                        break;
-                    }
-                }
+                chips.setChips(TagChips.parseCustom(taggedText), null);
+                if (!chips.isEmpty()) label.setText(labelText);
                 return label;
             }
-        }
 
-    }
-
-    static final class TagUtils {
-
-        private TagUtils(){}
-
-        static String getCleansedTag(final String candidate) {
-            return candidate.replace("{", "").replace("}", "");
-        }
-
-        static String applyColor(final String entry, final ColorRGB color) {
-            final String[] existingTags = getTagsFromEntry(entry);
-            for (final String existingTag : existingTags) {
-                final ColorRGB c = ColorRGB.fromHTMLColor(existingTag);
-                if (c != null) {
-                    entry.replace(existingTag, color.toHTMLColor());
-                    return entry;
-                }
+            @Override
+            public Dimension getPreferredSize() {
+                final Dimension d = super.getPreferredSize();
+                return new Dimension(d.width + chips.extraWidth(this), d.height);
             }
-            if (!entry.contains("}")) {
-                final StringBuilder sb = new StringBuilder(entry);
-                sb.append(" {").append(color.toHTMLColor()).append("}");
-                return sb.toString();
-            } else {
-                return entry.replace("}", ", " + color.toHTMLColor() + "}");
-            }
-        }
 
-        static String applyTag(final String entry, final String tag) {
-            final String cleansedTag = getCleansedTag(tag);
-            if (cleansedTag.trim().isEmpty()) return entry;
-            if (!entry.contains("}")) {
-                final StringBuilder sb = new StringBuilder(entry);
-                sb.append(" {").append(cleansedTag).append("}");
-                return sb.toString();
-            } else {
-                return entry.replace("}", ", " + cleansedTag + "}");
-            }
-        }
-
-        static String removeAllTags(final String entry) {
-            final int delimiterIdx = entry.indexOf(" {");
-            if (delimiterIdx == -1) {
-                return entry;
-            } else {
-                return entry.substring(0, delimiterIdx);
-            }
-        }
-
-        static String[] getTagsFromEntry(final String entry) {
-            final String tagString = getTagStringFromEntry(entry);
-            if (tagString.isEmpty()) return new String[] {};
-            return tagString.split("\\s*(,|\\s)\\s*");
-        }
-
-        static String getTagStringFromEntry(final String entry) {
-            final int openingDlm = entry.indexOf(" {");
-            final int closingDlm = entry.lastIndexOf('}');
-            if (closingDlm > openingDlm) {
-                return entry.substring(openingDlm + 2, closingDlm);
-            }
-            return "";
-        }
-
-        static String getUntaggedEntry(final String entry) {
-            final int openingDlm = entry.indexOf(" {");
-            if (openingDlm == -1) {
-                return entry;
-            } else {
-                return entry.substring(0, openingDlm);
-            }
-        }
-
-        static String[] getUntaggedAndTaggedLabels(final String entry) {
-            final int openingDlm = entry.indexOf(" {");
-            if (openingDlm == -1) {
-                return new String[] {entry, entry};
-            } else {
-                return new String[] {entry.substring(0, openingDlm), entry};
+            @Override
+            protected void paintComponent(final Graphics g) {
+                super.paintComponent(g);
+                chips.paint(g, this);
             }
         }
 

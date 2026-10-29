@@ -4468,7 +4468,7 @@ public class GuiUtils {
 			mi.setIcon(IconFactory.menuIcon(GLYPH.COMMENTS));
 			helpMenu.add(mi);
 			mi = openURL("FAQs", URL + "faq");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
+			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE));
 			helpMenu.add(mi);
 			mi = openURL("Known Issues", "https://github.com/morphonets/SNT/issues");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.BUG));
@@ -4517,12 +4517,12 @@ public class GuiUtils {
 
 		public static JMenuItem openHelpURL(final String label, final String URL) {
 			final JMenuItem mi = openURL(label, URL);
-			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
+			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE));
 			return mi;
 		}
 
 		public static JMenuItem showHelpOnCountingSpines(final boolean streamMode, final Action postDialogAction) {
-			final JMenuItem mi = new JMenuItem("Spine/Varicosity Analysis Help", IconFactory.menuIcon(GLYPH.QUESTION));
+			final JMenuItem mi = new JMenuItem("Spine/Varicosity Analysis Help", IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE));
 			mi.addActionListener(e -> {
 				if (postDialogAction == null) {
 					GuiUtils.showHTMLDialog(spineHelpMsg(streamMode), "Annotating Spines/Varicosities");

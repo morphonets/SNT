@@ -519,7 +519,7 @@ public class ScriptInstaller {
 
 	private JMenuItem about() {
 		final JMenuItem mItem = new JMenuItem("About SNT Scripts...");
-		mItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+		mItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
 		final String scriptsDir = getScriptsDirPath();
 		mItem.addActionListener(e -> guiUtils.showHTMLDialog(
             "<HTML><div WIDTH=500>This menu lists scripting routines that " //

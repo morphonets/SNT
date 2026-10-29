@@ -446,7 +446,7 @@ public class MeasureUI extends JFrame {
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
 			jmi = GuiUtils.MenuItems.openURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics");
-			jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+			jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
 			optionsMenu.add(jmi);
 			optionsButton.addMouseListener(new MouseAdapter() {
 
@@ -649,7 +649,7 @@ public class MeasureUI extends JFrame {
 			mi.addActionListener(e -> invertSelection());
 			pMenu.add(mi);
 			pMenu.addSeparator();
-			mi = new JMenuItem("Define Highlighted Metric...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+			mi = new JMenuItem("Define Highlighted Metric...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
 			mi.addActionListener(e -> getHelpOnHighlightedMetric());
 			pMenu.add(mi);
 			return pMenu;
@@ -723,7 +723,7 @@ public class MeasureUI extends JFrame {
 			MetricListRenderer(final JList<?> list) {
 				// The reference icon's width only depends on the list's font size, not on color,
 				// so it's safe to build once, up front.
-				iconWidth = IconFactory.get(IconFactory.GLYPH.QUESTION, list.getFont().getSize() * 1.5f, null).getIconWidth();
+				iconWidth = IconFactory.get(IconFactory.GLYPH.QUESTION_CIRCLE, list.getFont().getSize() * 1.5f, null).getIconWidth();
 				// Placeholder tint, just so helpIcon/helpIconHover have valid dimensions the moment
 				// extraWidth() is consulted during dialog layout, before the list is ever painted.
 				// list.getSelectionForeground() -- the color we actually want -- isn't reliably
@@ -738,11 +738,11 @@ public class MeasureUI extends JFrame {
 				helpIconColor = color;
 				// Only visible when the row is selected; tinted with the selection foreground so it
 				// reads consistently with the row's own (also selection-colored) text
-				final Icon glyph = IconFactory.listIcon(list, IconFactory.GLYPH.QUESTION, color);
+				final Icon glyph = IconFactory.listIcon(list, IconFactory.GLYPH.QUESTION_CIRCLE, color);
 				helpIcon = IconFactory.fixedWidthIcon(glyph, iconWidth);
 				// Only visible when the row is selected AND the mouse is hovering it; contrasted
 				// against the selection foreground so it additionally signals "clickable"
-				final Icon hoverGlyph = IconFactory.listIcon(list, IconFactory.GLYPH.QUESTION,
+				final Icon hoverGlyph = IconFactory.listIcon(list, IconFactory.GLYPH.QUESTION_CIRCLE,
 						SNTColor.contrastColor(color));
 				helpIconHover = IconFactory.fixedWidthIcon(hoverGlyph, iconWidth);
 			}

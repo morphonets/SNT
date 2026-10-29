@@ -19,6 +19,7 @@ Drag and drop reconstruction or mesh files (or folders of them) onto the list to
 Press Esc to interrupt a batch import in progress
 Right-click on the list for more options, including selecting items and toggling the search bar
 Type in the search bar to find items in the list by name
+Tags that encode a color (e.g., 'red' or '#ff0000') are displayed as color swatches next to the entry
 
 # Commands
 Menu commands act on the items selected in the list. If nothing is selected, you are asked whether to run the command on all items

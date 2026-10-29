@@ -184,7 +184,7 @@ public class IconFactory {
         POINTER('\uf245', true), //
         PLUS('\uf0fe', false), //
         PREVIOUS('\uf35b', false), //
-        QUESTION('\uf059', false), //
+        QUESTION_CIRCLE('\uf059', false), //
         QUIT('\uf011', true), //
         RECYCLE('\uf1b8', true), //
         REDO('\uf01e', true), //
@@ -278,13 +278,15 @@ public class IconFactory {
     // DEF_COLOR, DISABLED_COLOR, ICON_CACHE and FADerivedIcon.DEF_SIZE are all derived from the
     // active Look and Feel but cached forever once resolved. Without this listener, switching
     // themes mid-session updates every native eaves these stuck on whatever the LaF used to be.
-    // NodeIcon is specific to the Path Manager tree and remain unaffected
+    // NodeIcon instances resolve their L&F-dependent metrics/colors at construction, so
+    // the cache is cleared as well
     static {
         UIManager.addPropertyChangeListener(evt -> {
             if ("lookAndFeel".equals(evt.getPropertyName())) {
                 DEF_COLOR = null;
                 DISABLED_COLOR = null;
                 ICON_CACHE.clear();
+                IconFactory.NODE_ICON_CACHE.clear();
                 FADerivedIcon.resetDefSize();
             }
         });
@@ -795,6 +797,28 @@ public class IconFactory {
         return FADerivedIcon.defSize();
     }
 
+    /** Arc for rounded swatches: FlatLaf's "Component.arc" capped to half of size, if available */
+    static int swatchArc(final int size) {
+        final int lafArc = UIManager.getInt("Component.arc");
+        if (lafArc > 0) return Math.min(lafArc, size / 2);
+        return Math.max(2, size / 4);
+    }
+
+    /**
+     * Paints a rounded swatch of w x h pixels (the outline spans w-1 x h-1). Null colors are skipped
+     */
+    static void paintSwatch(final Graphics2D g2, final int x, final int y, final int w, final int h,
+                            final int arc, final Color fill, final Color contour) {
+        if (fill != null) {
+            g2.setColor(fill);
+            g2.fillRoundRect(x, y, w - 1, h - 1, arc, arc);
+        }
+        if (contour != null) {
+            g2.setColor(contour);
+            g2.drawRoundRect(x, y, w - 1, h - 1, arc, arc);
+        }
+    }
+
     /* Creation of colorful JTree node icons */
 
     // NodeIcon instances are cached by their (color, kind) combination: PathManagerUI's
@@ -811,13 +835,14 @@ public class IconFactory {
 
     private static class NodeIcon implements Icon {
 
-        private static final int SIZE = preferredIconSize();
-        private static final int ARC_SIZE = preferredArcSize(SIZE);
-        private static final Color FOREGROUND_COLOR = UIManager.getColor("Tree.foreground");
         private final static Color[] Q_COLORS = new Color[]{
                 new Color(0xFE646F), new Color(0x60B7FF), //
                 new Color(0x44C4A1), new Color(0xFED402), //
                 new Color(0x80FFFFFF, true)};
+        // Resolved at construction: the cache is cleared when the L&F changes
+        private final int size = preferredIconSize();
+        private final int arc = swatchArc(size);
+        private final Color foreground = UIManager.getColor("Tree.foreground");
         final Color fillColor;
         final Color typeColor;
         final boolean multiColor;
@@ -832,7 +857,7 @@ public class IconFactory {
             if (multiColor) {
                 this.typeColor = Color.BLACK;
             } else if (fillColor == null) {
-                this.typeColor = FOREGROUND_COLOR;
+                this.typeColor = foreground;
             } else {
                 this.typeColor = SNTColor.contrastColor(fillColor);
             }
@@ -847,13 +872,6 @@ public class IconFactory {
             return (size % 2 == 0) ? size - 1 : size;
         }
 
-        // Arc radius from FlatLaf, scaling from iconSize if FlatLaf not available
-        static int preferredArcSize(final int iconSize) {
-            final int lafArc = UIManager.getInt("Component.arc");
-            if (lafArc > 0) return Math.min(lafArc, iconSize / 2);
-            return Math.max(2, iconSize / 4);
-        }
-
         @Override
         public void paintIcon(final Component c, final Graphics g, final int x, final int y) { //http://stackoverflow.com/a/7984734
             final Graphics2D g2 = (Graphics2D) g;
@@ -861,8 +879,8 @@ public class IconFactory {
             if (multiColor) { // Path has multiple node colors
                 // Clip to the rounded outline so quadrant fills don't bleed into corners.
                 final Shape clip = g2.getClip();
-                g2.clip(new java.awt.geom.RoundRectangle2D.Float(x, y, SIZE - 1, SIZE - 1, ARC_SIZE, ARC_SIZE));
-                final int qSize = SIZE / 2;
+                g2.clip(new java.awt.geom.RoundRectangle2D.Float(x, y, size - 1, size - 1, arc, arc));
+                final int qSize = size / 2;
                 g2.setColor(Q_COLORS[0]);
                 g2.fillRect(x, y, qSize, qSize); // top-left
                 g2.setColor(Q_COLORS[1]);
@@ -872,32 +890,29 @@ public class IconFactory {
                 g2.setColor(Q_COLORS[3]);
                 g2.fillRect(x + qSize, y + qSize, qSize, qSize); // bottom-right
                 g2.setColor(Q_COLORS[4]);
-                g2.fillRect(x + (SIZE - qSize) / 2, y + (SIZE - qSize) / 2, qSize, qSize); // center
+                g2.fillRect(x + (size - qSize) / 2, y + (size - qSize) / 2, qSize, qSize); // center
                 g2.setClip(clip); // restore clip before drawing contour
-            } else if (fillColor != null) { // monochrome path
-                g2.setColor(fillColor);
-                g2.fillRoundRect(x, y, SIZE - 1, SIZE - 1, ARC_SIZE, ARC_SIZE);
+                paintSwatch(g2, x, y, size, size, arc, null, foreground);
+            } else { // monochrome path (or no color: contour only)
+                paintSwatch(g2, x, y, size, size, arc, fillColor, foreground);
             }
-            // draw contour
-            g2.setColor(FOREGROUND_COLOR);
-            g2.drawRoundRect(x, y, SIZE - 1, SIZE - 1,ARC_SIZE,ARC_SIZE);
             if (isLeaf) return;
             // draw 'minus' or 'plus'
             g2.setStroke(new BasicStroke(1.5f));
             g2.setColor(typeColor);
-            g2.drawLine(x + 2, y + SIZE / 2, x + SIZE - 3, y + SIZE / 2);
+            g2.drawLine(x + 2, y + size / 2, x + size - 3, y + size / 2);
             if (!isExpanded)
-                g2.drawLine(x + SIZE / 2, y + 2, x + SIZE / 2, y + SIZE - 3);
+                g2.drawLine(x + size / 2, y + 2, x + size / 2, y + size - 3);
         }
 
         @Override
         public int getIconWidth() {
-            return SIZE;
+            return size;
         }
 
         @Override
         public int getIconHeight() {
-            return SIZE;
+            return size;
         }
     }
 
@@ -911,8 +926,7 @@ public class IconFactory {
 
         @Override
         protected void paintIcon(Component c, Graphics2D g ) {
-            g.setColor( color );
-            g.fillRoundRect( 1, 1, width - 2, height - 2, 5, 5 );
+            paintSwatch(g, 1, 1, width - 1, height - 1, swatchArc(Math.min(width, height)), color, null);
         }
     }
 }

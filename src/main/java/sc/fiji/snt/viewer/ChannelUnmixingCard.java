@@ -423,7 +423,7 @@ class ChannelUnmixingCard {
         }
         optionsMenu.add(scriptItem);
         optionsMenu.addSeparator();
-        final JMenuItem helpItem = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+        final JMenuItem helpItem = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
         helpItem.addActionListener(e -> GuiUtils.openURL("https://imagej.net/plugins/snt/snt-stream#channel-unmixing"));
         optionsMenu.add(helpItem);
         bottomBar.addSeparator();

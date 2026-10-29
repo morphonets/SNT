@@ -101,7 +101,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private static final Pattern LENGTH_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_LENGTH + "\\d+\\.?\\d+\\s?.+\\w+]");
     private static final Pattern RADIUS_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+]");
     private static final Pattern MARKER_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_MARKER + "\\d+]");
-    private static final Pattern TAG_SPLIT_PATTERN = Pattern.compile(",\\s*");
 
     private final HelpfulJTree tree;
     private final SNT plugin;
@@ -381,7 +380,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         fillMenu.add(jmi);
         fillMenu.addSeparator();
         jmi = GuiUtils.MenuItems.openURL("<HTML>Help on <i>Filling", FillManagerUI.FILLING_URI);
-        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
         fillMenu.add(jmi);
 
         final JMenu process = new JMenu("Process");
@@ -1915,36 +1914,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private static class NodeRender extends DefaultTreeCellRenderer {
 
         private static final long serialVersionUID = 1L;
-
-        // Chip geometry (pixels)
-        private static final int CHIP_GAP = 4; // space before first chip and between chips
-        private static final int CHIP_HPAD = 4; // horizontal padding inside each chip
-        private static final int CHIP_VPAD = 1; // vertical padding inside each chip
-
-        // Matches individual [metadata] blocks in the path name
-        private static final Pattern META_CHIP_PATTERN = Pattern.compile("\\[[^\\]]+\\]");
-
-        // Colors and arc resolved once at class load (NodeRender lives for the UI lifetime)
-        private static final int CHIP_ARC;
-        private static final Color CHIP_FILL;
-        private static final Color CHIP_BORDER;
-        private static final Color CHIP_TEXT;
-
-        static {
-            final int arc = UIManager.getInt("Component.arc");
-            CHIP_ARC = (arc > 0) ? Math.min(arc, 8) : 4;
-            final Color fg = UIManager.getColor("Tree.textForeground"); // Tree.foreground is unused. See formdev.com/flatlaf/components/tree/
-            final Color base = (fg != null) ? fg : Color.DARK_GRAY;
-            final int r = base.getRed(), gn = base.getGreen(), b = base.getBlue();
-            CHIP_BORDER = new Color(r, gn, b, 50);
-            CHIP_TEXT = base;
-            CHIP_FILL = new Color(r, gn, b, 8);
-        }
-
-        // Per-cell state populated in getTreeCellRendererComponent
-        private String[] customChips; // from {tag, tag} -- one chip per comma-separated entry
-        private String[] metaChips; // from [Ch:1], [Z:3], etc. -- one chip per [] block
-        private Font chipFont; // cached smaller font for chips
+        private final TagChips chips = new TagChips();
 
         public NodeRender() {
             super();
@@ -1953,38 +1923,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             setLeafIcon(IconFactory.nodeIcon(null, true, false));
         }
 
-        /** Custom tags: content inside {} split by comma (empties skipped); null if none. */
-        private static String[] parseCustomChips(final String name, final int curly) {
-            final int closingCurly = name.lastIndexOf('}');
-            if (closingCurly <= curly) return null;
-            final String[] parts = TAG_SPLIT_PATTERN.split(name.substring(curly + 1, closingCurly));
-            // filter empties without stream allocation
-            int count = 0;
-            for (final String s : parts) if (!s.isEmpty()) count++;
-            if (count == 0) return null;
-            final String[] chips = new String[count];
-            int i = 0;
-            for (final String s : parts) if (!s.isEmpty()) chips[i++] = s;
-            return chips;
-        }
-
-        /** Metadata tags: bracket-delimited blocks in the displayed text, without brackets; null if none. */
-        private static String[] parseMetaChips(final String displayed) {
-            final var m = META_CHIP_PATTERN.matcher(displayed);
-            final List<String> metaList = new ArrayList<>();
-            while (m.find()) {
-                final String match = m.group();
-                metaList.add(match.substring(1, match.length() - 1));
-            }
-            return metaList.isEmpty() ? null : metaList.toArray(new String[0]);
-        }
-
         @Override
         public Component getTreeCellRendererComponent(final JTree tree,
                                                       final Object value, final boolean selected, final boolean expanded,
                                                       final boolean isLeaf, final int row, final boolean focused) {
             final Component c = super.getTreeCellRendererComponent(tree, value,
                     selected, expanded, isLeaf, row, focused);
+            chips.clear();
 
             final TreePath tp = tree.getPathForRow(row);
             if (tp == null) return c;
@@ -2005,91 +1950,32 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final String displayed = getText(); // set by the super call above
             final int curly = name.indexOf('{');
             final int bracket = displayed.indexOf('[');
-            if (curly < 0 && bracket < 0) {
-                customChips = null;
-                metaChips = null;
-                return c;
-            }
-
-            customChips = (curly >= 0) ? parseCustomChips(name, curly) : null;
+            if (curly < 0 && bracket < 0) return c;
 
             // Metadata tags: scan displayed (= toString()) so [axon], [Single Point],
             // and [] blocks appended after {} are all captured
-            metaChips = (bracket >= 0) ? parseMetaChips(displayed) : null;
+            chips.setChips((curly >= 0) ? TagChips.parseCustom(name) : null,
+                    (bracket >= 0) ? TagChips.parseMeta(displayed) : null);
 
             // Clean display text. Base is derived from getName() so toString()
-            if (customChips != null || metaChips != null) {
+            if (!chips.isEmpty()) {
                 final String base = (curly >= 0) ? name.substring(0, curly).trim() : name;
                 // strip any [] embedded in name that appear before '{'
-                setText(bracket >= 0 ? META_CHIP_PATTERN.matcher(base).replaceAll("").trim() : base);
-                if (chipFont == null) // lazily derive chip font once
-                    chipFont = getFont().deriveFont(Font.PLAIN, getFont().getSize2D() * .85f);
+                setText(bracket >= 0 ? TagChips.stripMeta(base) : base);
             }
-
             return c;
         }
 
         @Override
         public Dimension getPreferredSize() {
             final Dimension d = super.getPreferredSize();
-            if (customChips == null && metaChips == null) return d;
-            return new Dimension(d.width + totalChipsWidth(), d.height);
-        }
-
-        private int totalChipsWidth() {
-            if (chipFont == null) return 0;
-            final FontMetrics fm = getFontMetrics(chipFont);
-            int w = CHIP_GAP;
-            if (customChips != null)
-                for (final String t : customChips) w += fm.stringWidth(t) + CHIP_HPAD * 2 + CHIP_GAP;
-            if (metaChips != null)
-                for (final String t : metaChips) w += fm.stringWidth(t) + CHIP_HPAD * 2 + CHIP_GAP;
-            return w;
+            return new Dimension(d.width + chips.extraWidth(this), d.height);
         }
 
         @Override
         protected void paintComponent(final Graphics g) {
             super.paintComponent(g);
-            if (customChips == null && metaChips == null) return;
-
-            final Graphics2D g2 = (Graphics2D) g.create();
-            GuiUtils.setRenderingHints(g2);
-
-            // Position chips immediately after the label text
-            int x = getInsets().left;
-            final Icon icon = getIcon();
-            if (icon != null) x += icon.getIconWidth() + getIconTextGap();
-            final String text = getText();
-            if (text != null && !text.isEmpty())
-                x += getFontMetrics(getFont()).stringWidth(text);
-            x += CHIP_GAP;
-            g2.setFont(chipFont);
-            final FontMetrics fm = g2.getFontMetrics();
-            final int chipH = fm.getAscent() + fm.getDescent() + CHIP_VPAD * 2;
-            final int chipY = (getHeight() - chipH) / 2;
-            // Currently, we are not distinguishing custom tags from metadata tags, but in the future
-            // we could distinguish them here
-            if (customChips != null)
-                for (final String tag : customChips)
-                    x = paintChip(g2, tag, x, chipY, chipH, fm, CHIP_FILL);
-            if (metaChips != null)
-                for (final String tag : metaChips)
-                    x = paintChip(g2, tag, x, chipY, chipH, fm, CHIP_FILL);
-
-            g2.dispose();
-        }
-
-        // Paints one chip and returns the x position for the next chip.
-        private int paintChip(final Graphics2D g2, final String tag, final int x, final int y,
-                              final int h, final FontMetrics fm, final Color fill) {
-            final int w = fm.stringWidth(tag) + CHIP_HPAD * 2;
-            g2.setColor(fill);
-            g2.fillRoundRect(x, y, w, h, CHIP_ARC, CHIP_ARC);
-            g2.setColor(NodeRender.CHIP_BORDER);
-            g2.drawRoundRect(x, y, w, h, CHIP_ARC, CHIP_ARC);
-            g2.setColor(CHIP_TEXT);
-            g2.drawString(tag, x + CHIP_HPAD, y + fm.getAscent() + CHIP_VPAD);
-            return x + w + CHIP_GAP;
+            chips.paint(g, this);
         }
     }
 
@@ -6024,10 +5910,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     public static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
-        final TreeSet<String> uniqueTags = new TreeSet<>();
-        paths.forEach(p -> uniqueTags.addAll(Arrays.asList(TAG_SPLIT_PATTERN.split(extractTagsFromPath(p)))));
-        uniqueTags.remove("");
-        return uniqueTags;
+        return TagUtils.getUniqueTags(paths.stream().map(Path::getName).toList());
     }
 
     /** Builds the top navigation toolbar */

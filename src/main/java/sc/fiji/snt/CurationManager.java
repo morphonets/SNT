@@ -338,7 +338,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         popup.add(discardTypeItem);
         // Explain issue: open documentation page anchored to the relevant check
-        final JMenuItem explainItem = new JMenuItem("Help on Issue...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+        final JMenuItem explainItem = new JMenuItem("Help on Issue...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
         explainItem.addActionListener(e -> {
             final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
             if (warnings.size() != 1) {
