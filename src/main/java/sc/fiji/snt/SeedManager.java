@@ -254,37 +254,15 @@ public class SeedManager extends JPanel {
             overlay.setUnknownConfidenceColor(null); // resets to default; see SeedOverlay#setUnknownConfidenceColor
             jmi.setIcon(IconFactory.nodeIcon(overlay.getUnknownConfidenceColor()));
             sntui.showStatus("Seed fallback color reset", true);
-            if (jmi.getParent() instanceof JPopupMenu popup && popup.getInvoker() != null) {
-                final Component invoker = popup.getInvoker();
-                SwingUtilities.invokeLater(() -> popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2));
-            }
+            GuiUtils.MenuItems.reshowPopup(jmi);
         });
         return jmi;
     }
 
     private JMenuItem getTransparencyMenuItem() {
-        final IconActionableMenuItem jmi = new IconActionableMenuItem("Transparency...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
-        jmi.setToolTipText("<HTML>Adjust transparency of seed markers.<br>Click icon to reset.");
-        jmi.addActionListener(e -> {
-            // overlay.getTransparency() is an OPACITY multiplier (1.0 = fully opaque),
-            // same misnomer as Bvv.RenderingOptions. The prompt asks for transparency
-            // (0% = opaque, 100% = invisible)
-            final int defaultPct = (int) Math.round((1.0 - overlay.getTransparency()) * 100);
-            final Integer pct = sntui.guiUtils.getPercentage("Seed-overlay transparency (%):",
-                    "Transparency", defaultPct);
-            if (pct == null) return;
-            overlay.setTransparency((100 - pct) / 100.0);
-        });
-        jmi.setIconHoverIcon(IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
-        jmi.addIconActionListener(e -> {
-            overlay.setTransparency(1); // default: fully opaque
-            sntui.showStatus("Seed transparency reset", true);
-            if (jmi.getParent() instanceof JPopupMenu popup && popup.getInvoker() != null) {
-                final Component invoker = popup.getInvoker();
-                SwingUtilities.invokeLater(() -> popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2));
-            }
-        });
-        return jmi;
+        // overlay.getTransparency() is an OPACITY multiplier (1.0 = fully opaque)
+        return GuiUtils.MenuItems.transparencyItem("seed markers", () -> sntui.guiUtils,
+                overlay::getTransparency, overlay::setTransparency, s -> sntui.showStatus(s, true));
     }
 
     private JMenuItem getRescaleConfidenceMenuItem() {

@@ -56,6 +56,9 @@ public class SNTSearchableBar extends SearchableBar {
 	protected List<AbstractButton> _extraButtons;
 
 	private String statusLabelPlaceholder;
+	// no initializers: installComponents() runs from the super constructor
+	private List<JComponent> statusBarComponents;
+	private JToolBar statusTools;
 	private String objectDescription;
 	private GuiUtils guiUtils;
 	private JPopupMenu optionsMenu;
@@ -348,7 +351,16 @@ public class SNTSearchableBar extends SearchableBar {
 		add(tb, BorderLayout.NORTH);
 		// status label
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			add(statusLabel(), BorderLayout.CENTER);
+			final JPanel statusRow = new JPanel(new BorderLayout());
+			statusRow.setOpaque(false);
+			statusRow.add(statusLabel(), BorderLayout.CENTER);
+			statusTools = new JToolBar();
+			statusTools.setFloatable(false);
+			statusTools.setBorder(null);
+			statusTools.setOpaque(false);
+			if (statusBarComponents != null) statusBarComponents.forEach(statusTools::add);
+			statusRow.add(statusTools, BorderLayout.EAST);
+			add(statusRow, BorderLayout.CENTER);
 		}
 	}
 
@@ -532,6 +544,22 @@ public class SNTSearchableBar extends SearchableBar {
 	 */
 	public void addOptionsMenuItem(final JMenuItem item) {
 		appendToOptionsMenu(List.of(item));
+	}
+
+	/**
+	 * Adds a component (e.g., a button) to the right-hand side of the status row.
+	 * Ignored if the status label is not displayed (see {@link #SHOW_STATUS})
+	 *
+	 * @param component the component to be added
+	 */
+	public void addStatusBarComponent(final JComponent component) {
+		if (statusBarComponents == null) statusBarComponents = new ArrayList<>();
+		statusBarComponents.add(component);
+		if (statusTools != null) {
+			statusTools.add(component);
+			statusTools.revalidate();
+			statusTools.repaint();
+		}
 	}
 
 	public void setStatus(final String text) {

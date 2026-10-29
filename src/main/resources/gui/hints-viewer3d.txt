@@ -1,0 +1,26 @@
+# SNT Tips -- Reconstruction Viewer
+# Lines starting with # are comments and will be ignored
+# Tips are plain text, not HTML: '&', '<', '>' are escaped automatically
+# 'ctrlKey()'' will be replaced by 'Cmd' on macOS; 'Ctrl' on linux/Windows
+
+# Navigation
+Press H over the scene for a list of mouse and keyboard shortcuts, or F1 for the full list
+Double-click on the scene to start an animated rotation
+Ctrl+click on the scene to cycle through the view modes
+Press R to reset the view; press R twice to reload the scene
+Press F to fit the scene to the visible objects
+Press S to save a snapshot of the scene
+Press D to toggle dark mode, and A to toggle the axes
+
+# Interface
+Use the Command Palette (ctrlKey()+Shift+P) to quickly find any command
+Press Shift+C to toggle the control panel, Shift+S to toggle the status bar and Shift+F for full screen
+Drag and drop reconstruction or mesh files (or folders of them) onto the list to load them
+Press Esc to interrupt a batch import in progress
+Right-click on the list for more options, including selecting items and toggling the search bar
+Type in the search bar to find items in the list by name
+
+# Commands
+Menu commands act on the items selected in the list. If nothing is selected, you are asked whether to run the command on all items
+Click on the icon next to 'Transparency...' in the Trees and Meshes menus to reset transparency
+Use Color Mapping in the Trees menu to color-code reconstructions by morphometric traits

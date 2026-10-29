@@ -162,19 +162,26 @@ public class TreeUtils {
      *                    the centroid of all tips; if {@code false}, the longest
      *                    geodesic path is used
      * @return the rotation angle in degrees, or {@code Double.NaN} if it cannot
-     *         be computed (e.g., single-node tree)
+     *         be computed (e.g., single-node tree, or tree with multiple roots)
      */
     public static double computeUprightAngle(final Tree tree, final boolean useCentroid) {
-        final Path refPath;
-        if (useCentroid) {
-            refPath = tree.get(0).createPath();
-            refPath.addNode(tree.getRoot());
-            final Set<PointInImage> tips = new TreeStatistics(tree).getTips();
-            tips.remove(tree.getRoot());
-            if (!tips.isEmpty()) refPath.addNode(SNTPoint.average(tips));
-        } else {
-            refPath = tree.getGraph().getLongestPath(true);
+        Path refPath;
+        try {
+            if (useCentroid) {
+                refPath = tree.get(0).createPath();
+                refPath.addNode(tree.getRoot());
+                final Set<PointInImage> tips = new TreeStatistics(tree).getTips();
+                tips.remove(tree.getRoot());
+                if (!tips.isEmpty()) refPath.addNode(SNTPoint.average(tips));
+            } else {
+                refPath = tree.getGraph().getLongestPath(true);
+            }
+        } catch (final IllegalStateException | IllegalArgumentException ignored) {
+            // e.g., multiple roots or disconnected components
+            return Double.NaN;
         }
+        // null if tree has a single node
+        if (refPath == null) return Double.NaN;
         final double extensionAngle = refPath.getExtensionAngleXY();
         if (Double.isNaN(extensionAngle)) return Double.NaN;
         return -extensionAngle; // negate: compass bearing to rotation correction

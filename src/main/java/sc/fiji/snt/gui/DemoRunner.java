@@ -27,11 +27,15 @@ import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
+import sc.fiji.snt.annotation.AllenCompartment;
+import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bvv;
+import sc.fiji.snt.viewer.OBJMesh;
+import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
@@ -39,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -87,7 +92,7 @@ public class DemoRunner {
 		prefs = null;
 		context.inject(this);
 		priorUIState = -1;
-		entries = List.of(demo02(), demo04(), demo10());
+		entries = List.of(demo10(), demo02(), demo04());
 	}
 
 	private Demo demo01() {
@@ -396,8 +401,43 @@ public class DemoRunner {
 				return sntService.demoTrees();
 			}
 
+			@Override
+			public void addTo(final Viewer3D viewer) {
+				final List<Tree> trees = getTrees();
+				if (trees == null) return;
+				viewer.addTrees(trees, "unique");
+				try {
+					viewer.loadRefBrain("mouse"); // bundled with SNT
+				} catch (final RuntimeException ex) {
+					SNTUtils.error("Could not load brain contour", ex);
+				}
+				// Meshes of the compartment(s) containing the somata, in their CCF color. These
+				// are downloaded: if offline, the scene is displayed without them
+				final Map<Integer, AllenCompartment> somaCompartments = new LinkedHashMap<>();
+				final Map<Integer, String> hemispheres = new HashMap<>();
+				for (final Tree tree : trees) {
+					final Path.PathNode root = tree.getRoot();
+					if (root == null) continue;
+					if (root.getAnnotation() instanceof AllenCompartment c) {
+						somaCompartments.putIfAbsent(c.id(), c);
+						// restrict mesh to one hemisphere only if all cells in the compartment share it
+						hemispheres.merge(c.id(), AllenUtils.getHemisphere(tree), (h1, h2) -> h1.equals(h2) ? h1 : "both");
+					}
+				}
+				somaCompartments.forEach((id, compartment) -> {
+					final OBJMesh mesh = compartment.getMesh();
+					if (mesh != null) {
+						mesh.setDisplayedHemisphere(hemispheres.get(id));
+						viewer.add(mesh);
+					}
+				});
+				viewer.zoomTo(trees);
+				viewer.setAnimationEnabled(true);
+				viewer.showMessage("<HTML>Demo successfully loaded.<br>Double-click the scene to stop animation", true);
+			}
+
 		};
-		entry.summary = "Dendrites of 4 pyramidal neurons in the mouse primary motor and somatosensory cortex. Reconstructions contain neuropil annotations, allowing for brain area analyses.";
+		entry.summary = "Dendrites of 4 pyramidal neurons in the mouse primary motor and somatosensory cortex. Reconstructions contain neuropil annotations, allowing for brain area analyses. In Reconstruction Viewer, the brain contour and, if online, the soma compartment are also displayed.";
 		entry.data = "JSON (654KB)";
 		entry.source = "MouseLight database (AA0001-AA0004)";
 		entry.online = false;
@@ -684,7 +724,8 @@ public class DemoRunner {
 						.setContents(new java.awt.datatransfer.StringSelection(entries.get(index).link()), null));
 		final String choice = new GuiUtils(ui).getChoice(
 				"Which dataset/tutorial?<br>NB: Remote data may take a while to download", "Load Demo Dataset/Tutorial", choices,
-				descriptions, defChoice, (list, index) -> entries.get(index).icon(list), List.of(copyLink));
+				descriptions, defChoice, (list, index) -> entries.get(index).icon(list),
+				(snt != null) ? List.of(copyLink) : null); // display copy snt:// link button only if SNT is available
 		if (choice == null)
 			return null;
 		if (prefs != null)
@@ -921,6 +962,17 @@ public class DemoRunner {
 
 		public List<Tree> getTrees() {
 			return null; // default as several demos don't have associated tree(s)
+		}
+
+		/**
+		 * Adds this demo's reconstruction(s) to a Reconstruction Viewer. Demos may override this to
+		 * render additional content. Does nothing if the demo has no reconstructions
+		 *
+		 * @param viewer the viewer to be populated
+		 */
+		public void addTo(final Viewer3D viewer) {
+			final List<Tree> trees = getTrees();
+			if (trees != null) viewer.addTrees(trees, "unique");
 		}
 
 		@Override

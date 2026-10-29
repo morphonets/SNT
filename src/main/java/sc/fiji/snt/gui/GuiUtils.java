@@ -2066,61 +2066,198 @@ public class GuiUtils {
 	 * @param background     the background color
 	 * @param parent         the component the banner is displayed over
 	 * @param position       a {@link SwingConstants} location flag (e.g.,
-	 *                       {@code NORTH_EAST}) as accepted by
-	 *                       {@link JidePopup#showPopup(int, Component)}
-	 * @param dismissOnMove  if true, the banner is dismissed by mouse
-	 *                       movements over {@code parent}. If false, only
-	 *                       clicks dismiss it (and it stays up longer)
+	 *                       {@code NORTH_EAST}) relative to {@code parent}
+	 * @param dismissOnMove  if true, the banner is short-lived (4s), otherwise
+	 *                       it stays up longer (10s). In both cases, a click
+	 *                       dismisses it
 	 */
 	public static void displayBanner(final String msg, final Color background, final Component parent,
 			final int position, final boolean dismissOnMove) {
-		final JLabel label = new JLabel(msg);
-		label.setHorizontalAlignment(SwingConstants.CENTER);
-		if (!msg.startsWith("<HTML>"))
-			label.setFont(label.getFont().deriveFont(label.getFont().getSize2D() * 2.5f));
-		final int margin = label.getFontMetrics(label.getFont()).stringWidth("XX");
-		label.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
-		final JidePopup popup = new JidePopup();
-		popup.add(label);
-		final MouseAdapter adapter = new MouseAdapter() {
-			@Override
-			public void mouseMoved(final MouseEvent e) {
-				if (dismissOnMove) dismiss();
-			}
-			@Override
-			public void mouseClicked(final MouseEvent e) {
-				dismiss();
-			}
-			@Override
-			public void mouseDragged(final MouseEvent e) {
-				if (dismissOnMove) dismiss();
-			}
-			@Override
-			public void mousePressed(final MouseEvent e) {
-				dismiss();
-			}
-			void dismiss() {
-				popup.removeMouseListener(this);
-				parent.removeMouseListener(this);
-				popup.hidePopup(true);
-				parent.requestFocusInWindow();
-			}
-		};
-		popup.addMouseListener(adapter);
-		if (parent != null) {
-			popup.setOwner(parent);
-			parent.addMouseListener(adapter);
+		if (parent == null || !parent.isShowing()) return;
+		final Window owner = SwingUtilities.getWindowAncestor(parent);
+		final boolean translucent = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice()
+				.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
+		final Color bg = (background == null) ? Color.BLACK : background;
+		SwingUtilities.invokeLater(() -> {
+			if (!parent.isShowing()) return;
+			new Banner(owner, msg, bg, SNTColor.contrastColor(bg), translucent).display(parent, position,
+					dismissOnMove, (dismissOnMove) ? 4000 : 10000);
+		});
+	}
+
+	/** Rounded, outlined, fading toast used by displayBanner() */
+	private static final class Banner extends JWindow {
+
+		private static final long serialVersionUID = 1L;
+		private static final int SHADOW = 2; // transparent padding around the outline
+		private final boolean translucent;
+		private final Color fill;
+		private final Color edge;
+		private float alpha;
+		private Timer fader;
+		private Timer hold;
+		private boolean closing;
+		private Runnable cleanup;
+		private static Banner current;
+		private final boolean lightBg;
+
+		Banner(final Window owner, final String msg, final Color bg, final Color fg, final boolean translucent) {
+			super(owner);
+			this.translucent = translucent;
+			lightBg = (bg.getRed() + bg.getGreen() + bg.getBlue()) > 3 * 128;
+			fill = new Color(bg.getRed(), bg.getGreen(), bg.getBlue(), translucent ? 235 : 255);
+			edge = new Color(fg.getRed(), fg.getGreen(), fg.getBlue(), lightBg ? 60 : 80);
+			alpha = translucent ? 0f : 1f;
+			setType(Window.Type.POPUP);
+			setFocusableWindowState(false);
+			setBackground(translucent ? new Color(0, 0, 0, 0) : bg);
+			final JLabel label = new JLabel(msg);
+			label.setForeground(fg);
+			label.setHorizontalAlignment(SwingConstants.CENTER);
+			if (!msg.regionMatches(true, 0, "<html", 0, 5))
+				label.setFont(label.getFont().deriveFont(label.getFont().getSize2D() * 1.3f));
+			final int padH = label.getFontMetrics(label.getFont()).stringWidth("XXX");
+			final int padV = padH / 2;
+			label.setBorder(BorderFactory.createEmptyBorder(SHADOW + padV, SHADOW + padH, SHADOW + padV,
+					SHADOW + padH));
+			final JPanel content = new JPanel(new BorderLayout()) {
+				private static final long serialVersionUID = 1L;
+				@Override
+				public void paint(final Graphics g) {
+					final Graphics2D g2 = (Graphics2D) g.create();
+					g2.setComposite(AlphaComposite.SrcOver.derive(Math.max(0f, Math.min(1f, alpha))));
+					super.paint(g2);
+					g2.dispose();
+				}
+				@Override
+				protected void paintComponent(final Graphics g) {
+					final Graphics2D g2 = (Graphics2D) g.create();
+					g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+					final int arc = UIScale.scale(18);
+					final int w = getWidth() - 2 * SHADOW;
+					final int h = getHeight() - 2 * SHADOW;
+					g2.setColor(fill);
+					g2.fillRoundRect(SHADOW, SHADOW, w, h, arc, arc);
+					g2.setColor(edge);
+					g2.drawRoundRect(SHADOW, SHADOW, w - 1, h - 1, arc, arc);
+					g2.dispose();
+				}
+			};
+			content.setOpaque(false);
+			content.add(label, BorderLayout.CENTER);
+			setContentPane(content);
+			pack();
 		}
-		label.setForeground(SNTColor.contrastColor(background));
-		label.setBackground(background);
-		popup.setBackground(background);
-		popup.getContentPane().setBackground(background);
-		popup.setReturnFocusToOwner(true);
-		popup.setTransient(true);
-		popup.setMovable(false);
-		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
-		popup.setTimeout((dismissOnMove) ? 4000 : 10000);
-		SwingUtilities.invokeLater(() -> popup.showPopup(position, parent));
+
+		void display(final Component parent, final int position, final boolean dismissOnMove, final int timeout) {
+			final Window owner = getOwner();
+			final MouseAdapter parentListener = new MouseAdapter() {
+				@Override
+				public void mousePressed(final MouseEvent e) {
+					dismiss();
+				}
+			};
+			final ComponentAdapter ownerListener = new ComponentAdapter() {
+				@Override
+				public void componentMoved(final ComponentEvent e) {
+					closeNow();
+				}
+				@Override
+				public void componentHidden(final ComponentEvent e) {
+					closeNow();
+				}
+			};
+			// another window (e.g., the console) taking over: do not float above it
+			final WindowAdapter focusListener = new WindowAdapter() {
+				@Override
+				public void windowDeactivated(final WindowEvent e) {
+					closeNow();
+				}
+				@Override
+				public void windowIconified(final WindowEvent e) {
+					closeNow();
+				}
+			};
+			parent.addMouseListener(parentListener);
+			if (owner != null) {
+				owner.addComponentListener(ownerListener);
+				owner.addWindowListener(focusListener);
+			}
+			getContentPane().addMouseListener(new MouseAdapter() {
+				@Override
+				public void mousePressed(final MouseEvent e) {
+					dismiss();
+				}
+			});
+			cleanup = () -> {
+				parent.removeMouseListener(parentListener);
+				if (owner != null) {
+					owner.removeComponentListener(ownerListener);
+					owner.removeWindowListener(focusListener);
+				}
+			};
+			// place relative to parent
+			final Point p = parent.getLocationOnScreen();
+			final Dimension d = getSize();
+			final int m = UIScale.scale(24) - SHADOW;
+			final boolean west = position == SwingConstants.WEST || position == SwingConstants.NORTH_WEST
+					|| position == SwingConstants.SOUTH_WEST;
+			final boolean east = position == SwingConstants.EAST || position == SwingConstants.NORTH_EAST
+					|| position == SwingConstants.SOUTH_EAST;
+			final boolean north = position == SwingConstants.NORTH || position == SwingConstants.NORTH_EAST
+					|| position == SwingConstants.NORTH_WEST;
+			final boolean south = position == SwingConstants.SOUTH || position == SwingConstants.SOUTH_EAST
+					|| position == SwingConstants.SOUTH_WEST;
+			final int x = (west) ? p.x + m : (east) ? p.x + parent.getWidth() - d.width - m
+					: p.x + (parent.getWidth() - d.width) / 2;
+			final int y = (north) ? p.y + m : (south) ? p.y + parent.getHeight() - d.height - m
+					: p.y + (parent.getHeight() - d.height) / 2;
+			setLocation(x, y);
+			// only one banner at a time: translucent banners would otherwise stack
+			if (current != null) current.closeNow();
+			current = this;
+			setVisible(true);
+			animate(1f, null);
+			hold = new Timer(timeout, e -> dismiss());
+			hold.setRepeats(false);
+			hold.start();
+		}
+
+		private void animate(final float target, final Runnable done) {
+			if (fader != null) fader.stop();
+			if (!translucent) {
+				alpha = target;
+				if (done != null) done.run();
+				return;
+			}
+			fader = new Timer(15, null);
+			fader.addActionListener(e -> {
+				alpha = (target > alpha) ? Math.min(target, alpha + 0.12f) : Math.max(target, alpha - 0.12f);
+				repaint();
+				if (alpha == target) {
+					fader.stop();
+					if (done != null) done.run();
+				}
+			});
+			fader.start();
+		}
+
+		void dismiss() {
+			if (closing) return;
+			closing = true;
+			if (hold != null) hold.stop();
+			if (cleanup != null) cleanup.run();
+			animate(0f, this::closeNow);
+		}
+
+		void closeNow() {
+			closing = true;
+			if (hold != null) hold.stop();
+			if (fader != null) fader.stop();
+			if (cleanup != null) cleanup.run();
+			dispose();
+			if (current == this) current = null;
+		}
 	}
 
 	public static void addTooltip(final JComponent c, final String text) {
@@ -3436,6 +3573,13 @@ public class GuiUtils {
 		return null;
 	}
 
+	public static class Toolbars {
+
+		public static JComponent separator() {
+			return new JToolBar.Separator(null);
+		}
+	}
+
 	/**
 	 * Stateful "visiting zoom" helper used by widgets that navigate the canvas with "GoTo"-type of actions
 	 * The default zoom is roughly two zoom steps above the current canvas magnification, falling back to
@@ -3760,6 +3904,65 @@ public class GuiUtils {
 				}
 			});
 			return helpItem;
+		}
+
+		/**
+		 * Menu item that prompts for a transparency percentage. Clicking its icon
+		 * resets to fully opaque
+		 *
+		 * @param what       short description of the target (e.g., "meshes"), used in the
+		 *                   prompt and tooltip
+		 * @param gui        supplies the GuiUtils used for the prompt (evaluated on use)
+		 * @param opacity    supplies the current opacity [0, 1], used to pre-fill the
+		 *                   prompt. A null return aborts the action (e.g., invalid selection)
+		 * @param setOpacity applies the new opacity [0, 1]
+		 * @param status     optional consumer of status messages (may be null)
+		 * @return the menu item. Its icon resets to fully opaque
+		 */
+		public static JMenuItem transparencyItem(final String what, final Supplier<GuiUtils> gui,
+		                                         final Supplier<Double> opacity, final DoubleConsumer setOpacity,
+		                                         final Consumer<String> status) {
+			return transparencyItem(what, gui, opacity, 1d, setOpacity, status);
+		}
+
+		/**
+		 * As {@link #transparencyItem(String, Supplier, Supplier, DoubleConsumer, Consumer)}, but
+		 * clicking the icon resets to the specified default
+		 *
+		 * @param defaultOpacity the opacity [0, 1] restored by the icon
+		 */
+		public static JMenuItem transparencyItem(final String what, final Supplier<GuiUtils> gui,
+		                                         final Supplier<Double> opacity, final double defaultOpacity,
+		                                         final DoubleConsumer setOpacity, final Consumer<String> status) {
+			final IconActionableMenuItem jmi = new IconActionableMenuItem("Transparency...",
+					IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
+			jmi.setToolTipText("<HTML>Adjust transparency of " + what + ".<br>Click icon to reset to "
+					+ Math.round((1d - defaultOpacity) * 100) + "%");
+			jmi.addActionListener(e -> {
+				final Double current = opacity.get();
+				if (current == null) return;
+				// prompt is in transparency (0% is opaque) but values are opacity
+				final int defaultPct = (int) Math.round((1d - current) * 100);
+				final Integer pct = gui.get().getPercentage("Transparency of " + what + " (%):",
+						"Transparency", defaultPct);
+				if (pct == null) return;
+				setOpacity.accept((100 - pct) / 100d);
+			});
+			jmi.setIconHoverIcon(IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+			jmi.addIconActionListener(e -> {
+				setOpacity.accept(defaultOpacity);
+				if (status != null) status.accept("Transparency reset");
+				reshowPopup(jmi);
+			});
+			return jmi;
+		}
+
+		/** Re-displays the popup menu hosting the specified item (e.g., after an icon click closed it) */
+		public static void reshowPopup(final JMenuItem item) {
+			if (item.getParent() instanceof JPopupMenu popup && popup.getInvoker() != null) {
+				final Component invoker = popup.getInvoker();
+				SwingUtilities.invokeLater(() -> popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2));
+			}
 		}
 
 		public static void addSeparator(final JPopupMenu menu, final String header) {
@@ -5650,6 +5853,50 @@ public class GuiUtils {
 				default -> label.setIcon(IconFactory.accentIcon(Colors.infoColor(), true));
 			}
 			return label;
+		}
+
+		/**
+		 * Buttons controlling an onboarding tour (see {@link CalloutManager}): a button that starts or advances the
+		 * tour, and a pause/resume toggle that is only visible while the tour is running. Both are kept in sync with
+		 * the tour's state, however it changes (e.g., Escape pausing it)
+		 *
+		 * @param group   the {@link CalloutManager} group the tour callouts were registered under
+		 * @param subject what the tour is about, used in the tooltip (e.g., "the viewer's interface")
+		 * @param onStart task that starts the tour (or advances it, if already running)
+		 * @return a two-element array: the start/advance button and the pause/resume toggle
+		 */
+		public static JComponent[] calloutTourControls(final Object group, final String subject,
+		                                               final Runnable onStart) {
+			final Icon tourOnIcon = IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
+					1f, IconFactory.selectedColor(), 2);
+			final Icon tourOffIcon = IconFactory.buttonIcon(GLYPH.PERSON_CHALKBOARD, IconFactory.secondaryColor(), 1f);
+			final String startTip = "<html>Start the onboarding tour of " + subject + "</html>";
+			final JButton tour = new JButton(tourOffIcon);
+			tour.setDisabledIcon(IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
+					1f, IconFactory.disabledColor(), 2));
+			tour.setToolTipText(startTip);
+			tour.addActionListener(e -> onStart.run());
+			// only visible while the tour is playing: icon shows the action a click takes (pause)
+			final JToggleButton pause = new JToggleButton();
+			IconFactory.assignIcon(pause, GLYPH.PAUSE, GLYPH.PLAY, IconFactory.selectedColor(), 1f);
+			pause.setVisible(false);
+			pause.setToolTipText("<html>Pause/resume tour (or press Escape)</html>");
+			pause.addItemListener(e -> {
+				if (e.getStateChange() == ItemEvent.SELECTED)
+					CalloutManager.pause(group);
+				else
+					CalloutManager.resume(group);
+			});
+			CalloutManager.addStateListener(() -> {
+				final boolean active = CalloutManager.isActive(group);
+				final boolean paused = CalloutManager.isPaused(group);
+				tour.setIcon(active ? tourOnIcon : tourOffIcon);
+				tour.setToolTipText(active ? "<html>Move to next callout</html>" : startTip);
+				tour.setEnabled(!paused);
+				pause.setVisible(active);
+				pause.setSelected(paused);
+			}, group);
+			return new JComponent[] { tour, pause };
 		}
 
 		public static JButton keyboardCheatSheetButton(final Color color, final float scalingFactor) {

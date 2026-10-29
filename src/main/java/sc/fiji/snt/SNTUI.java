@@ -5108,47 +5108,11 @@ public class SNTUI extends JDialog {
     private JPanel statusBar() {
         final JToolBar toolbar = new JToolBar();
 
-        // onboard tour buttons
-        final Icon tourOnIcon = IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
-                1f, IconFactory.selectedColor(), 2);
-        final Icon tourOffIcon = IconFactory.buttonIcon(GLYPH.PERSON_CHALKBOARD, IconFactory.secondaryColor(), 1f);
-        final JButton calloutTour = new JButton(tourOffIcon);
-        calloutTour.setDisabledIcon(IconFactory.doubleIcon(GLYPH.PERSON_CHALKBOARD, GLYPH.CIRCLE_RIGHT,
-                1f, IconFactory.disabledColor(), 2));
-        calloutTour.setToolTipText("<html>Start the onboarding tour of SNT's interface</html>");
-
-        // Resume-pause button (hidden by default). Default (unselected) glyph is PAUSE: The button is only visible
-        // while the tour is playing, so the icon it starts with must show the action a click would take (pause it),
-        // consistent with the selected (paused) state showing PLAY
-        final JToggleButton resumePauseTour = new JToggleButton();
-        IconFactory.assignIcon(resumePauseTour, GLYPH.PAUSE, GLYPH.PLAY, IconFactory.selectedColor(), 1f);
-        resumePauseTour.setVisible(false);
-        resumePauseTour.setToolTipText("<html>Pause/resume tour (or press Escape)</html>");
-
-        // Add listeners to the buttons
-        calloutTour.addActionListener(e -> showCallouts(true));
-        resumePauseTour.addItemListener(e -> {
-            if (e.getStateChange() == ItemEvent.SELECTED)
-                CalloutManager.pause(calloutGroup());
-            else
-                CalloutManager.resume(calloutGroup());
-        });
-
-        // Centralize button's look into a single source of truth: whenever CalloutManager's state changes for any
-        // reason: Escape pausing the chain, or a callout's own "Got It!" button running it to completion will keep
-        // everything in sync
-        final Runnable refreshTourControls = () -> {
-            final boolean active = CalloutManager.isActive(calloutGroup());
-            final boolean paused = CalloutManager.isPaused(calloutGroup());
-            calloutTour.setIcon(active ? tourOnIcon : tourOffIcon);
-            calloutTour.setToolTipText((active)
-                    ? "<html>Move to next callout</html>"
-                    : "<html>Start the onboarding tour of SNT's interface</html>");
-            calloutTour.setEnabled(!paused);
-            resumePauseTour.setVisible(active);
-            resumePauseTour.setSelected(paused);
-        };
-        CalloutManager.addStateListener(refreshTourControls, calloutGroup());
+        // onboard tour buttons (start/advance, and pause/resume while the tour is running)
+        final JComponent[] tourControls = GuiUtils.Buttons.calloutTourControls(calloutGroup(),
+                "SNT's interface", () -> showCallouts(true));
+        final JButton calloutTour = (JButton) tourControls[0];
+        final JToggleButton resumePauseTour = (JToggleButton) tourControls[1];
 
         // Hints button (left-aligned)
         final JButton hintsIndicator = new JButton(IconFactory.buttonIcon(GLYPH.BULB_2, IconFactory.secondaryColor(), 1f));

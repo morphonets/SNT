@@ -700,7 +700,7 @@ public class Tree implements TreeProperties, Cloneable {
 	 * @return the root node, or null if the main primary path is undefined for this
 	 *         tree.
 	 */
-	public PointInImage getRoot() {
+	public Path.PathNode getRoot() {
 		if (isEmpty()) return null;
 		Path rootPath = get(0);
 		if (size() == 1) return rootPath.getNodeWithoutChecks(0);

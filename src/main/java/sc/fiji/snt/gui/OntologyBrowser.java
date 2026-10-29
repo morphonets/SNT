@@ -767,7 +767,7 @@ public class OntologyBrowser extends JPanel {
          *
          * @param panel the panel to add
          */
-        public void setBottomPanel(final JPanel panel) {
+        public void setBottomPanel(final JComponent panel) {
             add(panel, BorderLayout.SOUTH);
         }
 
