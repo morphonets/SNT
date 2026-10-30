@@ -54,6 +54,7 @@ public class ColorMapper {
 	protected boolean integerScale;
 	protected double min = Double.MAX_VALUE;
 	protected double max = Double.NEGATIVE_INFINITY;
+	protected String measurement;
 	private Color nanColor;
 
 	/**
@@ -73,6 +74,7 @@ public class ColorMapper {
 			"colorTable cannot be null");
 		if (measurement == null) throw new IllegalArgumentException(
 			"measurement cannot be null");
+		this.measurement = measurement;
 		this.colorTable = colorTable;
 		// Implementation left to extending classes
 	}
@@ -242,6 +244,38 @@ public class ColorMapper {
 	 */
 	public double[] getMinMax() {
 		return new double[] { min, max };
+	}
+
+	/**
+	 * Gets the measurement last mapped by this mapper.
+	 *
+	 * @return the measurement (e.g., "Path length"), or null if no mapping has
+	 *         been performed (or the mapper does not track it)
+	 */
+	public String getMeasurement() {
+		return measurement;
+	}
+
+	/**
+	 * Gets the last mapped measurement, with its physical unit if known (e.g.,
+	 * "Path length (µm)").
+	 *
+	 * @return the measurement label, or null if no mapping has been performed
+	 */
+	public String getMeasurementLabel() {
+		if (measurement == null) return null;
+		final String unit = getMeasurementUnit();
+		return (unit == null || unit.isBlank()) ? measurement : measurement + " (" + unit + ")";
+	}
+
+	/**
+	 * Gets the physical unit of the last mapped measurement. Subclasses should
+	 * override this if units are known.
+	 *
+	 * @return the unit, or an empty string if unknown/not applicable
+	 */
+	protected String getMeasurementUnit() {
+		return "";
 	}
 
 	/**

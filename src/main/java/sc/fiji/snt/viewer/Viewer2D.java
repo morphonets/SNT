@@ -250,13 +250,27 @@ public class Viewer2D extends TreeColorMapper {
 	public void addColorBarLegend(final ColorTable colorTable, final double min,
 		final double max)
 	{
+		addColorBarLegend(colorTable, min, max, null);
+	}
+
+	/**
+	 * Adds a color bar legend (LUT ramp) with a title.
+	 *
+	 * @param colorTable the color table
+	 * @param min the minimum value in the color table
+	 * @param max the maximum value in the color table
+	 * @param title the legend title. Null or blank for none
+	 */
+	public void addColorBarLegend(final ColorTable colorTable, final double min,
+		final double max, final String title)
+	{
 		final double previousMin = this.min;
 		final double previousMax = this.max;
 		final ColorTable previousColorTable = this.colorTable;
 		this.min = min;
 		this.max = max;
 		this.colorTable = colorTable;
-		addColorBarLegend();
+		addColorBarLegend(title);
 		this.min = previousMin;
 		this.max = previousMax;
 		this.colorTable = previousColorTable;
@@ -272,7 +286,7 @@ public class Viewer2D extends TreeColorMapper {
 		final double[] minMax = colorMapper.getMinMax();
 		final boolean prevIntegerScale = integerScale;
 		this.integerScale = colorMapper.isIntegerScale();
-		addColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1]);
+		addColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1], colorMapper.getMeasurementLabel());
 		this.integerScale = prevIntegerScale;
 	}
 
@@ -283,11 +297,16 @@ public class Viewer2D extends TreeColorMapper {
 	 * measurement.
 	 */
 	public void addColorBarLegend() {
+		addColorBarLegend(getMeasurementLabel());
+	}
+
+	private void addColorBarLegend(final String title) {
 		if (min >= max || colorTable == null) {
 			return;
 		}
 		chart = getChart();
-		chart.addColorBarLegend(null, colorTable, min, max, (integerScale) ? 0 : 2);
+		chart.addColorBarLegend((title == null || title.isBlank()) ? null : title, colorTable, min, max,
+				(integerScale) ? 0 : 2);
 	}
 
 	/**

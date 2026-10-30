@@ -156,6 +156,7 @@ public class NodeColorMapper extends ColorMapper {
 		final String normMeasurement = NodeStatistics.getStandardizedMetric(measurement);
 		if (normMeasurement.equalsIgnoreCase("unknown"))
 			throw new UnknownMetricException("Unrecognized metric: " + measurement);
+		this.measurement = normMeasurement;
 		if (BRANCH_LENGTH.equals(normMeasurement) || BRANCH_ORDER.equals(normMeasurement)) {
             nodeStatistics.assessIfBranchesHaveBeenAssigned();
             if (!nodeStatistics.isBranchesAssigned()) {
@@ -224,6 +225,11 @@ public class NodeColorMapper extends ColorMapper {
 	 */
 	public Set<String> getAvailableLuts() {
 		return tColorMapper.getAvailableLuts();
+	}
+
+	@Override
+	protected String getMeasurementUnit() {
+		return (lasMeasurementTree == null) ? "" : TreeColorMapper.unitOf(lasMeasurementTree, measurement);
 	}
 
 	@Override

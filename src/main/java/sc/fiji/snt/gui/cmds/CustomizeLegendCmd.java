@@ -37,7 +37,7 @@ import java.util.HashMap;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Customize Legend...")
+@Plugin(type = Command.class, visible = false, label = "Customize Legend...", initializer = "init")
 public class CustomizeLegendCmd extends ContextCommand {
 
 	@Parameter(label = "Min:")
@@ -46,11 +46,42 @@ public class CustomizeLegendCmd extends ContextCommand {
 	@Parameter(label = "Max:")
 	private double max;
 
-	@Parameter(label = "Font size:")
+	@Parameter(label = "Title:", required = false, persist = false,
+			description = "Vertical label beside the tick labels. Empty for none")
+	private String label;
+
+	@Parameter(label = "Font size:", min = "1")
 	private double fSize;
 
+	@Parameter(label = "Number of ticks:", min = "0", required = false, persist = false,
+			description = "0 for automatic placement")
+	private int ticks;
+
+	@Parameter(label = "Decimal places:", min = "0", max = "10", required = false, persist = false)
+	private int decimals;
+
+	@Parameter(label = "Scientific notation", required = false, persist = false)
+	private boolean scientific;
+
+	// Current legend settings (min, max, fSize, label, ticks, decimals, scientific)
+	@Parameter(required = false, persist = false)
+	private HashMap<String, Object> defaults;
+
 	@Parameter(required = false)
-	private HashMap<String, Double> outMap;
+	private HashMap<String, Object> outMap;
+
+	@SuppressWarnings("unused")
+	private void init() {
+		if (defaults == null)
+			return;
+		min = ((Number) defaults.getOrDefault("min", min)).doubleValue();
+		max = ((Number) defaults.getOrDefault("max", max)).doubleValue();
+		fSize = ((Number) defaults.getOrDefault("fSize", fSize)).doubleValue();
+		ticks = ((Number) defaults.getOrDefault("ticks", ticks)).intValue();
+		decimals = ((Number) defaults.getOrDefault("decimals", decimals)).intValue();
+		scientific = (boolean) defaults.getOrDefault("scientific", scientific);
+		label = (String) defaults.getOrDefault("label", label);
+	}
 
 	/*
 	 * (non-Javadoc)
@@ -63,6 +94,10 @@ public class CustomizeLegendCmd extends ContextCommand {
 		outMap.put("min", min);
 		outMap.put("max", max);
 		outMap.put("fSize", fSize);
+		outMap.put("label", (label == null) ? "" : label.trim());
+		outMap.put("ticks", ticks);
+		outMap.put("decimals", decimals);
+		outMap.put("scientific", scientific);
 	}
 
 	/* IDE debug method **/

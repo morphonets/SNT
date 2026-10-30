@@ -1220,7 +1220,9 @@ public class SNTCommandFinder {
         }
 
         void addProHint(final JToolBar parent) {
-            final FadableHintLabel label = new FadableHintLabel("HINT: ↑↓ to navigate, ↵ to run, $ to filter scripts, Esc to close ");
+            final FadableHintLabel label = new FadableHintLabel(// scripts are only available in SNTUI
+                    String.format("HINT: ↑↓ to navigate, ↵ to run,%sEsc to close ",
+                            (sntui==null) ? " " : " $ to filter scripts, "));
             ToolbarButtons.styleLabel(label);
             label.setBackground(parent.getBackground());
             parent.add(label);

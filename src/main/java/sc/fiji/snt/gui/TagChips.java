@@ -28,6 +28,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -49,19 +52,48 @@ public final class TagChips {
 	private static final Pattern SPLIT = Pattern.compile(",\\s*");
 	private static final Pattern META = Pattern.compile("\\[[^]]+]");
 
+	// Tags are re-parsed every time a cell is rendered: cache the color lookups
+	private static final Map<String, Optional<Color>> COLORS = new ConcurrentHashMap<>();
+	private static final int MAX_CACHED_COLORS = 1024;
+
 	private record Chip(String text, Color color) {}
+
+	private static Color colorOf(final String tag) {
+		if (COLORS.size() > MAX_CACHED_COLORS) COLORS.clear();
+		return COLORS.computeIfAbsent(tag, t -> {
+			final ColorRGB c = ColorRGB.fromHTMLColor(t);
+			return Optional.ofNullable((c == null) ? null : new Color(c.getRed(), c.getGreen(), c.getBlue()));
+		}).orElse(null);
+	}
 
 	private final List<Chip> chips = new ArrayList<>();
 	private Font baseFont;
 	private Font chipFont;
 
-	/** Custom tags: content inside {} split by comma (empties skipped); null if none */
+	/**
+	 * Custom tags of a name: content inside {} split by comma (empties skipped).
+	 * The opening brace may be anywhere (e.g., Path names)
+	 *
+	 * @return the tags, or null if none
+	 */
 	public static String[] parseCustom(final String name) {
-		final int curly = name.indexOf('{');
-		final int closingCurly = name.lastIndexOf('}');
-		if (curly < 0 || closingCurly <= curly) return null;
+		return parseCustom(name, false);
+	}
+
+	/**
+	 * Custom tags: content inside {} split by comma (empties skipped)
+	 *
+	 * @param spaceDelimited if true the opening brace must be preceded by a space (i.e., the " {" delimiter used
+	 *                       by {@link TagUtils}, e.g., list entries)
+	 * @return the tags, or null if none
+	 */
+	public static String[] parseCustom(final String name, final boolean spaceDelimited) {
+		final String opening = (spaceDelimited) ? " {" : "{";
+		final int open = name.indexOf(opening);
+		final int close = name.lastIndexOf('}');
+		if (open < 0 || close <= open) return null;
 		final List<String> list = new ArrayList<>();
-		for (final String s : SPLIT.split(name.substring(curly + 1, closingCurly))) {
+		for (final String s : SPLIT.split(name.substring(open + opening.length(), close))) {
 			if (!s.isEmpty()) list.add(s);
 		}
 		return list.isEmpty() ? null : list.toArray(new String[0]);
@@ -96,8 +128,7 @@ public final class TagChips {
 		chips.clear();
 		if (custom != null) {
 			for (final String tag : custom) {
-				final ColorRGB c = ColorRGB.fromHTMLColor(tag);
-				chips.add(new Chip(tag, (c == null) ? null : new Color(c.getRed(), c.getGreen(), c.getBlue())));
+				chips.add(new Chip(tag, colorOf(tag)));
 			}
 		}
 		if (meta != null) {
@@ -157,8 +188,8 @@ public final class TagChips {
 			x += label.getFontMetrics(label.getFont()).stringWidth(text);
 		x += CHIP_GAP;
 
+		final FontMetrics fm = metrics(label); // also (re)sets chipFont
 		g2.setFont(chipFont);
-		final FontMetrics fm = g2.getFontMetrics();
 		final int h = height(fm);
 		final int y = (label.getHeight() - h) / 2;
 		for (final Chip chip : chips) {

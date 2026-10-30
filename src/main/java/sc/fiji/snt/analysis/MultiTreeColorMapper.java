@@ -136,11 +136,17 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 		mapInternal(cMeasurement, colorTable);
 	}
 
+	@Override
+	protected String getMeasurementUnit() {
+		return (mappedTrees.isEmpty()) ? "" : unitOf(mappedTrees.get(0).tree, measurement);
+	}
+
 	public void mapRootDistanceToCentroid(final AllenCompartment compartment, final ColorTable colorTable) {
 		if (compartment == null || colorTable == null) throw new IllegalArgumentException("compartment/colorTable cannot be null");
 		final OBJMesh mesh = compartment.getMesh();
 		if (mesh == null) throw new IllegalArgumentException("Cannot proceed: compartment mesh is not available");
 		integerScale = false;
+		this.measurement = "Root distance to centroid";
 		this.colorTable = colorTable;
 		for (final MappedTree mt : mappedTrees) {
 			final PointInImage root = mt.tree.getRoot();

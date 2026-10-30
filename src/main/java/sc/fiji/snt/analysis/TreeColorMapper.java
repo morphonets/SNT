@@ -630,6 +630,20 @@ public class TreeColorMapper extends ColorMapper {
 		return "unknown";
 	}
 
+	@Override
+	protected String getMeasurementUnit() {
+		if (!mappedTrees.isEmpty()) return unitOf(mappedTrees.get(0), measurement);
+		if (paths != null && !paths.isEmpty()) return unitOf(new Tree(paths), measurement);
+		return "";
+	}
+
+	static String unitOf(final Tree tree, final String measurement) {
+		if (tree == null || measurement == null) return "";
+		String spatialUnit = String.valueOf(tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, ""));
+		if (spatialUnit.isBlank() || BoundingBox.UNSET_SPACING_UNIT.equals(spatialUnit)) spatialUnit = "";
+		return TreeStatistics.getUnit(measurement, spatialUnit, tree.is3D());
+	}
+
 	protected static String getNormalizedMeasurement(final String measurement) {
 		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
 			// This is just so that we can use capitalized strings in the GUI

@@ -26,29 +26,19 @@ import ij.ImagePlus;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
+import org.scijava.util.ColorRGB;
 import sc.fiji.snt.*;
+import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.viewer.AbstractBigViewer;
-import sc.fiji.snt.viewer.Bvv;
-import sc.fiji.snt.viewer.OBJMesh;
-import sc.fiji.snt.viewer.Viewer3D;
-import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.*;
+import sc.fiji.snt.viewer.*;
 
 import javax.swing.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.function.Consumer;
-import java.util.Scanner;
 
 /**
  * Manages loading and running of demonstration datasets and reconstructions in SNT.
@@ -146,8 +136,26 @@ public class DemoRunner {
 				return List.of(getTree());
 			}
 
+			@Override
+			public void addTo(final Viewer3D viewer) {
+				final Tree tree = getTree();
+				if (tree == null) return;
+				viewer.setEnableDarkMode(false);
+				final TreeColorMapper mapper = new TreeColorMapper();
+				mapper.map(tree, TreeColorMapper.PATH_EXT_ANGLE, ColorMaps.ICE);
+				viewer.addColorBarLegend(mapper);
+				viewer.add(tree);
+				viewer.setSomasDisplayed(List.of(tree.getLabel()), true);
+				viewer.setScaleBarUnit(tree.getProperties().getProperty(Tree.KEY_SPATIAL_UNIT));
+				viewer.setScaleBarDisplayed(true);
+				viewer.setAnimationEnabled(true);
+				viewer.zoomTo(tree); // just in case the scene was not empty before demo started
+				viewer.showMessage("<HTML>Demo successfully loaded.<br>Click on the scene to stop animation", true);
+			}
+
 		};
-		entry.summary = "Reconstructed dendrites of an adult born dentate granule cell in the hippocampal dentate gyrus (rat).";
+		entry.summary = "Reconstructed dendrites of an adult born dentate granule cell in the hippocampal dentate gyrus (rat). " +
+				"In Reconstruction Viewer, the cell is color-coded by path extension angle, with a matching color legend";
 		entry.data = "SWC (92KB)";
 		entry.source = """
 				Beining et al. 2017 (PMID 27514866),
@@ -225,8 +233,50 @@ public class DemoRunner {
 				return List.of(getTree());
 			}
 
+			@Override
+			public void addTo(final Viewer3D viewer) {
+				final Tree tree = getTree();
+				if (tree == null) return;
+
+				viewer.setEnableDarkMode(false);
+
+				final double cutoff = 120; // Tips have a bimodal distribution of distances to root: split them at a cutoff (in um)
+				final PointInImage root = tree.getRoot();
+				final List<PointInImage> proximalTips = new ArrayList<>();
+				final List<PointInImage> distalTips = new ArrayList<>();
+				for (final PointInImage tip : new TreeStatistics(tree).getTips()) {
+					if (tip.distanceTo(root) <= cutoff) proximalTips.add(tip);
+					else distalTips.add(tip);
+				}
+
+				final ColorRGB[] colors = SNTColor.getDistinctColorsColorblindSafe(3);
+				viewer.setSceneUpdatesEnabled(false); // bulk operation: refresh only once at the end
+				try {
+					viewer.add(tree);
+					// tree must be recolored via the viewer: tree.setColor() has no effect once the tree is in the scene
+					viewer.setTreeColor(List.of(tree.getLabel()), colors[0], null);
+					if (proximalTips.size() > 3) { // a convex hull requires at least 4 points
+						final Annotation3D proximalSurface = viewer.annotateSurface(proximalTips, "Tips (proximal)", true);
+						proximalSurface.setColor(colors[1], 90);
+					}
+					if (distalTips.size() > 3) {
+						final Annotation3D distalSurface = viewer.annotateSurface(distalTips, "Tips (distal)", true);
+						distalSurface.setColor(colors[2], 90);
+					}
+					viewer.setScaleBarUnit(tree.getProperties().getProperty(Tree.KEY_SPATIAL_UNIT));
+					viewer.setScaleBarDisplayed(true);
+				} finally {
+					viewer.setSceneUpdatesEnabled(true);
+				}
+				viewer.zoomTo(tree); // just in case the scene was not empty before demo started
+				viewer.showMessage("<HTML>Demo successfully loaded.", true);
+			}
+
 		};
-		entry.summary = "Downloads a Drosophila olfactory projection neuron and respective ground truth 3D reconstruction (radii included).";
+		entry.summary = "Downloads a Drosophila olfactory projection neuron and respective ground truth 3D reconstruction (radii included). " +
+				"In Reconstruction Viewer, terminal tips are split by distance to the root (proximal vs. distal) " +
+				"and each group is enclosed by its 3D convex hull, highlighting how tips are spatially distributed " +
+				"relative to the arbor.";
 		entry.data = "Image (3D; 1-channel confocal image, 15MB) and SWC reconstruction (78KB)";
 		entry.source = "DIADEM dataset, PMID 17382886";
 		// entry.tracingsURL =
@@ -433,11 +483,14 @@ public class DemoRunner {
 				});
 				viewer.zoomTo(trees);
 				viewer.setAnimationEnabled(true);
-				viewer.showMessage("<HTML>Demo successfully loaded.<br>Double-click the scene to stop animation", true);
+				viewer.showMessage("<HTML>Demo successfully loaded.<br>Click on the scene to stop animation", true);
 			}
 
 		};
-		entry.summary = "Dendrites of 4 pyramidal neurons in the mouse primary motor and somatosensory cortex. Reconstructions contain neuropil annotations, allowing for brain area analyses. In Reconstruction Viewer, the brain contour and, if online, the soma compartment are also displayed.";
+		entry.summary = "Dendrites of 4 pyramidal neurons in the mouse primary motor and somatosensory cortex. " +
+				"Reconstructions contain neuropil annotations, allowing for brain area analyses. " +
+				"In Reconstruction Viewer, cells are displayed together with the mouse brain contour and, " +
+				"if online, the hemisphere mesh of the compartment(s) containing their somata.";
 		entry.data = "JSON (654KB)";
 		entry.source = "MouseLight database (AA0001-AA0004)";
 		entry.online = false;

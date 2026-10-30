@@ -297,6 +297,7 @@ public class Viewer3D {
 
     /* Color Bar */
     private ColorLegend cBar;
+    private String lastColorCodeLabel;
 
     /* Manager */
     private CheckboxListEditable managerList;
@@ -927,6 +928,73 @@ public class Viewer3D {
      */
     public void setEnableAxes(final boolean enable){
         chart.setAxeDisplayed(enable);
+    }
+
+    /**
+     * Toggles the display of a scale bar in the bottom-left corner of the scene.
+     * The scale bar assumes that scene coordinates are in micrometers, unless a
+     * different unit has been specified through {@link #setScaleBarUnit(String)}.
+     *
+     * @param displayed true to display the scale bar, false to hide it
+     * @see #setScaleBarUnit(String)
+     * @see #isScaleBarDisplayed()
+     */
+    public void setScaleBarDisplayed(final boolean displayed) {
+        chart.overlayAnnotation.scaleBarEnabled = displayed;
+    }
+
+    /**
+     * Checks whether the scale bar is being displayed.
+     *
+     * @return true if the scale bar is displayed
+     * @see #setScaleBarDisplayed(boolean)
+     */
+    public boolean isScaleBarDisplayed() {
+        return chart.overlayAnnotation.scaleBarEnabled;
+    }
+
+    /**
+     * Sets the base unit of the scene coordinates, used to compute the scale bar length. The unit is parsed by
+     * {@link BoundingBox#sanitizedUnit(String)}, so common aliases (e.g., "um", "micron") are accepted.
+     *
+     * @param unit the unit of scene coordinates: "&micro;m", "nm", "mm", "cm", "m"
+     *          Unrecognized units are ignored.
+     * @see #setScaleBarDisplayed(boolean)
+     */
+    public void setScaleBarUnit(final String unit) {
+        final String sanitized = BoundingBox.sanitizedUnit(unit);
+        final String symbol;
+        final double toUm;
+        if (GuiUtils.micrometer().equals(sanitized) || BoundingBox.UNSET_SPACING_UNIT.equals(sanitized)) {
+            symbol = sanitized;
+            toUm = 1.0;
+        } else {
+            switch (sanitized.trim().toLowerCase()) {
+                case "nm", "nanometer", "nanometers", "nanometre", "nanometres" -> {
+                    symbol = "nm";
+                    toUm = 0.001;
+                }
+                case "mm", "millimeter", "millimeters", "millimetre", "millimetres" -> {
+                    symbol = "mm";
+                    toUm = 1000.0;
+                }
+                case "cm", "centimeter", "centimeters", "centimetre", "centimetres" -> {
+                    symbol = "cm";
+                    toUm = 10000.0;
+                }
+                case "m", "meter", "meters", "metre", "metres" -> {
+                    symbol = "m";
+                    toUm = 1000000.0;
+                }
+                default -> {
+                    SNTUtils.log("Scale bar: unrecognized unit ignored: " + unit);
+                    return;
+                }
+            }
+        }
+        chart.overlayAnnotation.scaleBarUnit = symbol;
+        chart.overlayAnnotation.scaleBarToUm = toUm;
+        chart.overlayAnnotation.scaleBarUnitSet = true;
     }
 
     /**
@@ -1772,8 +1840,23 @@ public class Viewer3D {
      *                    etc.)
      */
     public <T extends sc.fiji.snt.analysis.ColorMapper> void addColorBarLegend(final T colorMapper) {
+        addColorBarLegend(colorMapper, colorMapper.getMeasurementLabel());
+    }
+
+    /**
+     * Adds a color bar legend (LUT ramp) from a {@link ColorMapper}, with a
+     * custom title.
+     *
+     * @param colorMapper the class extending ColorMapper ({@link TreeColorMapper},
+     *                    etc.)
+     * @param title       the vertical title displayed beside the tick labels.
+     *                    Null or blank for none
+     */
+    public <T extends sc.fiji.snt.analysis.ColorMapper> void addColorBarLegend(final T colorMapper,
+                                                                                final String title)
+    {
         final double[] minMax = colorMapper.getMinMax();
-        addColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1]);
+        addColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1], title);
     }
 
     /**
@@ -1787,6 +1870,22 @@ public class Viewer3D {
                                   final double max)
     {
         addColorBarLegend(colorTable, min, max, false);
+    }
+
+    /**
+     * Adds a color bar legend (LUT ramp) with a title, using default settings.
+     *
+     * @param colorTable the color table
+     * @param min        the minimum value in the color table
+     * @param max        the maximum value in the color table
+     * @param title      the vertical title displayed beside the tick labels.
+     *                   Null or blank for none
+     */
+    public void addColorBarLegend(final ColorTable colorTable, final double min,
+                                  final double max, final String title)
+    {
+        addColorBarLegend(colorTable, min, max,
+                new Font(Font.SANS_SERIF, Font.PLAIN, (int) GuiUtils.uiFontSize()), 5, 2, title);
     }
 
     /**
@@ -1817,6 +1916,28 @@ public class Viewer3D {
         updateColorBarLegend(min, max, -1);
     }
 
+    /**
+     * Updates all the properties of the existing color bar legend. Does nothing
+     * if no legend exists.
+     *
+     * @param min        the minimum value in the color table
+     * @param max        the maximum value in the color table
+     * @param fontSize   the font size of tick labels and title. Ignored if not
+     *                   positive
+     * @param steps      the number of ticks. Tick placement is computed
+     *                   automatically if negative
+     * @param decimals   the number of decimal places of tick labels
+     * @param scientific whether tick labels should use scientific notation
+     * @param title      the vertical title displayed beside the tick labels.
+     *                   Null or blank for none
+     */
+    public void updateColorBarLegend(final double min, final double max, final float fontSize,
+                                     final int steps, final int decimals, final boolean scientific,
+                                     final String title)
+    {
+        if (cBar != null) cBar.update(min, max, fontSize, steps, decimals, scientific, title);
+    }
+
     private void updateColorBarLegend(final double min, final double max, final float fSize)
     {
         if (cBar != null) cBar.update(min, max, fSize);
@@ -1837,8 +1958,31 @@ public class Viewer3D {
     public void addColorBarLegend(final ColorTable colorTable, final double min,
                                   final double max, final Font font, final int steps, final int precision)
     {
+        addColorBarLegend(colorTable, min, max, font, steps, precision, null);
+    }
+
+    /**
+     * Adds a color bar legend (LUT ramp) with a title.
+     *
+     * @param colorTable the color table
+     * @param min        the minimum value in the color table
+     * @param max        the maximum value in the color table
+     * @param font       the font the legend font.
+     * @param steps      the number of ticks in the legend. Tick placement is
+     *                   computed automatically if negative.
+     * @param precision  the number of decimal places of tick labels. scientific
+     *                   notation is used if negative.
+     * @param title      the vertical title displayed beside the tick labels.
+     *                   Null or blank for none
+     */
+    public void addColorBarLegend(final ColorTable colorTable, final double min,
+                                  final double max, final Font font, final int steps, final int precision,
+                                  final String title)
+    {
         cBar = new ColorLegend(new ColorTableMapper(colorTable, min, max), font,
                 steps, precision);
+        // title must be set before the legend is added to the chart
+        cBar.setLabel(title);
         chart.add(cBar.get(), viewUpdatesEnabled);
     }
 
@@ -2598,8 +2742,20 @@ public class Viewer3D {
         });
         final MultiTreeColorMapper mapper = new MultiTreeColorMapper(trees);
         mapper.map(measurement, colorTable);
+        lastColorCodeLabel = mapper.getMeasurementLabel();
         shapeTrees.forEach(ShapeTree::rebuildShape);
         return mapper.getMinMax();
+    }
+
+    /**
+     * Gets the label (measurement and unit, e.g., "Path length (µm)") of the
+     * last color coding performed through {@code colorCode()}. Useful as legend
+     * title.
+     *
+     * @return the label, or null if no color coding has been performed
+     */
+    public String getColorCodeLabel() {
+        return lastColorCodeLabel;
     }
 
     /**
@@ -3476,30 +3632,31 @@ public class Viewer3D {
     private class ColorLegend extends AWTColorbarLegend {
 
         private final Shape shape;
-        private final Font font;
         private final ColorTableMapper mapper;
-        private final int precision;
+        private final Font baseFont;
+        private float fontSize; // unscaled
+        private int steps; // negative for automatic
+        private int decimals;
+        private boolean scientific;
+        private String label;
 
         private ColorLegend(final ColorLegend colorLegend, final Chart chart) {
             super(new Shape(), chart);
             shape = (Shape) drawable;
-            this.font = colorLegend.font;
+            this.baseFont = colorLegend.baseFont;
+            this.fontSize = colorLegend.fontSize;
+            this.steps = colorLegend.steps;
+            this.decimals = colorLegend.decimals;
+            this.scientific = colorLegend.scientific;
             this.mapper = new ColorTableMapper(colorLegend.mapper.getColorTable(), colorLegend.mapper.getMin(), colorLegend.mapper.getMax());
             shape.setColorMapper(mapper);
-            this.precision = colorLegend.precision;
             shape.setLegend(this);
             updateColors();
-            if (colorLegend.provider instanceof SmartTickProvider)
-                provider = new SmartTickProvider(colorLegend.provider.getSteps());
-            else
-                provider = new RegularTickProvider(colorLegend.provider.getSteps());
-            if (colorLegend.renderer instanceof ScientificNotationTickRenderer)
-                renderer = new ScientificNotationTickRenderer(-1 * colorLegend.precision);
-            else
-                renderer = new FixedDecimalTickRenderer(colorLegend.precision);
+            updateTickSettings();
             if (imageGenerator == null)
                 init();
-            imageGenerator.setAWTFont(font);
+            applyFont();
+            setLabel(colorLegend.label);
         }
 
         public ColorLegend(final ColorTableMapper mapper, final Font font,
@@ -3507,33 +3664,80 @@ public class Viewer3D {
         {
             super(new Shape(), chart);
             shape = (Shape) drawable;
-            final double pixelSize = pixelSize(frame);
-            updatePixelScale(new Coord2d(pixelSize));
-            this.font = font.deriveFont((float) (font.getSize() * pixelSize));
-            final int spacer = this.font.getSize() / 2;
-            setMargin(new org.jzy3d.maths.Margin(spacer, spacer, spacer, spacer));
-            this.precision = precision;
+            updatePixelScale(new Coord2d(pixelSize(frame)));
+            this.baseFont = font;
+            this.fontSize = font.getSize2D();
+            this.steps = steps;
+            this.decimals = Math.abs(precision);
+            this.scientific = precision < 0;
             shape.setColorMapper(this.mapper = mapper);
             shape.setLegend(this);
             updateColors();
-            provider = (steps < 0) ? new SmartTickProvider(5) : new RegularTickProvider(steps);
-            renderer = (precision < 0) ? new ScientificNotationTickRenderer(-1 *
-                    precision) : new FixedDecimalTickRenderer(precision);
+            updateTickSettings();
             if (imageGenerator == null) init();
-            imageGenerator.setAWTFont(this.font);
+            applyFont();
         }
 
         ColorLegend(final ColorTableMapper mapper) {
             this(mapper, new Font(Font.SANS_SERIF, Font.PLAIN, (int)GuiUtils.uiFontSize()), 5, 2);
         }
 
-        void update(final double min, final double max, final float fontSize) {
-            shape.getColorMapper().setMin(min);
-            shape.getColorMapper().setMax(max);
-            if (fontSize > 0)
-                imageGenerator.setAWTFont(imageGenerator.getAWTFont().deriveFont((float) (fontSize * pixelSize(frame))));
+        /** Sets the vertical label drawn beside the tick labels (null for none) */
+        void setLabel(final String label) {
+            this.label = (label == null || label.isBlank()) ? null : label;
+            ((ColorbarImageGenerator) imageGenerator).setLabel(this.label);
+        }
+
+        private void applyFont() {
+            final Font f = baseFont.deriveFont((float) (fontSize * pixelSize(frame)));
+            imageGenerator.setAWTFont(f);
+            final int spacer = f.getSize() / 2;
+            setMargin(new org.jzy3d.maths.Margin(spacer, spacer, spacer, spacer));
+        }
+
+        private void updateTickSettings() {
+            provider = (steps < 0) ? new SmartTickProvider(5) : new RegularTickProvider(steps);
+            renderer = scientific ? new ScientificNotationTickRenderer(decimals)
+                    : new FixedDecimalTickRenderer(decimals);
+            if (imageGenerator != null)
+                ((ColorbarImageGenerator) imageGenerator).setTicks(provider, renderer);
+        }
+
+        double min() { return mapper.getMin(); }
+        double max() { return mapper.getMax(); }
+        float fontSize() { return fontSize; }
+        int steps() { return steps; }
+        int decimals() { return decimals; }
+        boolean scientific() { return scientific; }
+        String label() { return label; }
+
+        /**
+         * Updates all legend settings.
+         *
+         * @param fontSize unscaled font size. Ignored if not positive
+         * @param steps    number of ticks. Automatic placement if negative
+         */
+        void update(final double min, final double max, final float fontSize,
+                    final int steps, final int decimals, final boolean scientific,
+                    final String label)
+        {
+            mapper.setMin(min);
+            mapper.setMax(max);
             ((ColorbarImageGenerator) imageGenerator).setMin(min);
             ((ColorbarImageGenerator) imageGenerator).setMax(max);
+            if (fontSize > 0) {
+                this.fontSize = fontSize;
+                applyFont();
+            }
+            this.steps = (steps >= 0 && steps < 2) ? 2 : steps;
+            this.decimals = Math.max(0, decimals);
+            this.scientific = scientific;
+            updateTickSettings();
+            setLabel(label);
+        }
+
+        void update(final double min, final double max, final float fontSize) {
+            update(min, max, fontSize, steps, decimals, scientific, label);
         }
 
         ColorLegend duplicate(final Chart chart) {
@@ -3585,6 +3789,17 @@ public class Viewer3D {
             addTextHeightToVerticalMargin = false;
         }
 
+        private String label;
+
+        private void setLabel(final String label) {
+            this.label = (label == null || label.isBlank()) ? null : label;
+        }
+
+        private void setTicks(final ITickProvider provider, final ITickRenderer renderer) {
+            this.tickProvider = provider;
+            this.tickRenderer = renderer;
+        }
+
         private void setMin(final double min) {
             this.min = min;
         }
@@ -3594,9 +3809,52 @@ public class Viewer3D {
         }
 
         @Override
-        protected int getPreferredWidth(int maxTextWidth) {
-            // jzy3d getPreferredWidth() method does not take into account pixelScale
-            return (int) (maxTextWidth * pixelScale.getX()) + getTextToBarHorizontalMargin() + getBarWidth();
+        protected int getPreferredWidth(final int maxTextWidth) {
+            // jzy3d's estimate is unreliable with pixelScale: compute the actual
+            // width from the font metrics of the tick labels (and label, if any)
+            final Graphics2D g = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB).createGraphics();
+            try {
+                g.setFont(getAWTFont());
+                final FontMetrics fm = g.getFontMetrics();
+                int w = getBarWidth() + textGap() + maxTickWidth(fm);
+                if (label != null) w += textGap() + fm.getAscent() + fm.getDescent();
+                return w + 2;
+            } finally {
+                g.dispose();
+            }
+        }
+
+        private int textGap() {
+            return (int) (this.textToBarHorizontalMargin * pixelScale.getX());
+        }
+
+        private int maxTickWidth(final FontMetrics fm) {
+            int maxW = 0;
+            if (tickProvider != null) {
+                for (final double tick : tickProvider.generateTicks(min, max))
+                    maxW = Math.max(maxW, fm.stringWidth(tickRenderer.format(tick)));
+            }
+            return maxW;
+        }
+
+        private void drawLabel(final int height, final int xStart, final Graphics2D graphic) {
+            if (label == null) return;
+            final Graphics2D g = (Graphics2D) graphic.create();
+            try {
+                g.setFont(graphic.getFont());
+                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                final FontMetrics fm = g.getFontMetrics();
+                // truncate to bar height
+                String txt = label;
+                while (txt.length() > 1 && fm.stringWidth(txt) > height)
+                    txt = txt.substring(0, txt.length() - 2) + "\u2026";
+                // text reads top to bottom: glyph ascent extends towards +x
+                g.translate(xStart + textGap() + fm.getDescent(), (height - fm.stringWidth(txt)) / 2);
+                g.rotate(Math.PI / 2);
+                g.drawString(txt, 0, 0);
+            } finally {
+                g.dispose();
+            }
         }
 
         @Override
@@ -3613,6 +3871,7 @@ public class Viewer3D {
                     String txt = this.tickRenderer.format(tick);
                     graphic.drawString(txt, xpos, ypos);
                 }
+                drawLabel(height, xpos + maxTickWidth(graphic.getFontMetrics()), graphic);
             }
 
         }
@@ -4519,6 +4778,10 @@ public class Viewer3D {
                     "the viewer's interface", this::startTour))
                 searchableBar.addStatusBarComponent(c);
             searchableBar.addStatusBarComponent(GuiUtils.Toolbars.separator());
+            if (!isSNTInstance()) {
+                demosButton = demosButton();
+                searchableBar.addStatusBarComponent(demosButton);
+            }
             searchableBar.addStatusBarComponent(hintsButton());
             searchableBar.addStatusBarComponent(GuiUtils.Toolbars.separator());
             searchableBar.addStatusBarComponent(helpButton());
@@ -4543,6 +4806,8 @@ public class Viewer3D {
             CalloutManager.showAllOrAdvance(group);
         }
 
+        private JButton demosButton; // null for SNT-instance viewers
+
         private void registerCallouts(final JComponent list, final JPanel buttons) {
             final String group = calloutGroup();
             final Component canvas = (chart == null) ? null : (Component) chart.getCanvas();
@@ -4558,9 +4823,13 @@ public class Viewer3D {
                     + "Files can be dragged and dropped onto this list.", group, order++);
             CalloutManager.add(searchableBar, CalloutManager.AUTO,
                     "Type here to find items in the list by name.", group, order++);
+            if (demosButton != null) {
+                CalloutManager.add(demosButton, CalloutManager.AUTO,
+                        "Eager to test drive? Click to load demo data<br>and explore the viewer.", group, order++);
+            }
             final String[] msgs = {
                     "Scene controls: Reset or fit the view,<br>toggle axes, scale bar, dark mode, etc.",
-                    "Use these options to load and customize the<br>rendering of neuronal reconstructions.<br>You can also use it to load demo data.",
+                    "Use these options to load and customize the<br>rendering of neuronal reconstructions.",
                     "Use these options to load and customize 3D meshes<br>such as brain compartments or neuropils.",
                     "Actions related to geometric annotations<br>(vectors, cross-sectional planes, etc.) are listed here.",
                     "Reference brains: Load standardized brains and atlases<br>for common animal models (Drosophila, Mouse, and Zebrafish).",
@@ -5093,7 +5362,7 @@ public class Viewer3D {
             menu.setIcon(IconFactory.menuIcon(GLYPH.RULER));
             final JCheckBoxMenuItem toggle = new JCheckBoxMenuItem("Display Scale Bar");
             toggle.addItemListener(e -> {
-                chart.overlayAnnotation.scaleBarEnabled = toggle.isSelected();
+                setScaleBarDisplayed(toggle.isSelected());
                 if (toggle.isSelected() && !chart.overlayAnnotation.scaleBarUnitSet)
                     mgrGuiUtils.tempMsg("Scale bar assumes " + chart.overlayAnnotation.scaleBarUnit
                             + ". Use Set Base Unit... to change.");
@@ -5105,13 +5374,7 @@ public class Viewer3D {
                         "Specify the base unit of the scene coordinates:",
                         "Scale Bar Unit", choices, chart.overlayAnnotation.scaleBarUnit);
                 if (choice == null) return;
-                chart.overlayAnnotation.scaleBarUnit = choice;
-                chart.overlayAnnotation.scaleBarUnitSet = true;
-                switch (choice) {
-                    case "nm" -> chart.overlayAnnotation.scaleBarToUm = 0.001;
-                    case "mm" -> chart.overlayAnnotation.scaleBarToUm = 1000.0;
-                    default -> chart.overlayAnnotation.scaleBarToUm = 1.0; // um, pixelw
-                }
+                setScaleBarUnit(choice);
             });
             menu.add(unitItem);
             return menu;
@@ -6403,10 +6666,6 @@ public class Viewer3D {
             tracesMenu.add(menuItem("Load & Compare Groups...", GLYPH.MAGIC,
                     e -> runImportCmd(GroupAnalyzerCmd.class, null)));
             tracesMenu.add(remoteDatabaseMenu());
-            if (!isSNTInstance()) {
-                tracesMenu.addSeparator();
-                tracesMenu.add(loadDemoMenuItem());
-            }
 
             GuiUtils.MenuItems.addSeparator(tracesMenu, "Style");
             addCustomizeTreeCommands(tracesMenu);
@@ -6463,39 +6722,51 @@ public class Viewer3D {
             return menu;
         }
 
-        private JMenuItem loadDemoMenuItem() {
-            final JMenuItem mi = new JMenuItem("Load Demo(s)...", IconFactory.menuIcon(GLYPH.GRADUATION_CAP));
-            mi.addActionListener(e -> {
+        private JButton demosButton() {
+            final JButton button = new JButton(IconFactory.buttonIcon(GLYPH.GRADUATION_CAP, IconFactory.secondaryColor(), 1f));
+            button.setToolTipText("Load demo data...");
+            button.setActionCommand("Load Demo(s)..."); // label in cmdFinder
+            button.addActionListener(e -> {
                 try {
-                    final DemoRunner demoRunner = new DemoRunner(SNTUtils.getContext());
-                    final Demo choice = demoRunner.getChoice();
-                    if (choice != null) {
-                        // off the EDT: some demos download content
-                        final SwingWorker<Void, Void> worker = new SwingWorker<>() {
-                            @Override
-                            protected Void doInBackground() {
-                                choice.addTo(Viewer3D.this);
-                                return null;
-                            }
-
-                            @Override
-                            protected void done() {
-                                try {
-                                    get();
-                                } catch (final InterruptedException | ExecutionException ex) {
-                                    mgrGuiUtils.error("Demo could not be loaded: " + ex.getMessage());
-                                    SNTUtils.error("Demo failed", ex);
-                                }
-                            }
-                        };
-                        worker.execute();
+                    final Demo choice = new DemoRunner(SNTUtils.getContext()).getChoice();
+                    if (choice == null) return;
+                    if (!isEmptyScene()) {
+                        final Boolean wipe = mgrGuiUtils.getConfirmation2(
+                                "Scene is not empty. Clear it before loading the demo?",
+                                "Clear Scene?", "Clear Scene", "No. Append Demo Data");
+                        if (wipe == null) return; // dialog dismissed
+                        if (wipe) wipeScene();
                     }
+                    loadDemo(choice);
                 } catch (final Throwable ex) {
                     mgrGuiUtils.error(ex.getMessage());
                     SNTUtils.error(ex);
                 }
             });
-            return mi;
+            cmdFinder.register(button, "Neuronal Arbors");
+            return button;
+        }
+
+        private void loadDemo(final Demo demo) {
+            // off the EDT: some demos download content
+            final SwingWorker<Void, Void> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() {
+                    demo.addTo(Viewer3D.this);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                    } catch (final InterruptedException | ExecutionException ex) {
+                        mgrGuiUtils.error("Demo could not be loaded: " + ex.getMessage());
+                        SNTUtils.error("Demo failed", ex);
+                    }
+                }
+            };
+            worker.execute();
         }
 
         private JMenu legendMenu() {
@@ -6521,7 +6792,15 @@ public class Viewer3D {
                     @Override
                     public Object doInBackground() {
                         try {
-                            cmdModule = cmdService.run(CustomizeLegendCmd.class, true).get();
+                            final HashMap<String, Object> defaults = new HashMap<>();
+                            defaults.put("min", cBar.min());
+                            defaults.put("max", cBar.max());
+                            defaults.put("fSize", cBar.fontSize());
+                            defaults.put("ticks", Math.max(0, cBar.steps()));
+                            defaults.put("decimals", cBar.decimals());
+                            defaults.put("scientific", cBar.scientific());
+                            defaults.put("label", (cBar.label() == null) ? "" : cBar.label());
+                            cmdModule = cmdService.run(CustomizeLegendCmd.class, true, "defaults", defaults).get();
                         }
                         catch (final InterruptedException | ExecutionException ignored) {
                             return null;
@@ -6535,12 +6814,19 @@ public class Viewer3D {
                             return; // user pressed cancel or chose nothing
                         }
                         @SuppressWarnings("unchecked")
-                        final HashMap<String, Double> outMap = (HashMap<String, Double>) cmdModule.getInput("outMap");
+                        final HashMap<String, Object> outMap = (HashMap<String, Object>) cmdModule.getInput("outMap");
                         if (outMap == null) {
                             mgrGuiUtils.error("Command execution failed.");
                             return;
                         }
-                        updateColorBarLegend(outMap.get("min"), outMap.get("max"), outMap.get("fSize").floatValue());
+                        final int ticks = (Integer) outMap.get("ticks");
+                        updateColorBarLegend(((Number) outMap.get("min")).doubleValue(),
+                                ((Number) outMap.get("max")).doubleValue(),
+                                ((Number) outMap.get("fSize")).floatValue(),
+                                (ticks == 0) ? -1 : ticks,
+                                (Integer) outMap.get("decimals"),
+                                (Boolean) outMap.get("scientific"),
+                                (String) outMap.get("label"));
                     }
                 }
                 (new GetLegendSettings()).execute();
@@ -7749,9 +8035,14 @@ public class Viewer3D {
 
         @SuppressWarnings("unchecked")
         void replaceTagsOfSelectedItems(final Collection<String> tags, final boolean allOtherwiseSelectedOnly) {
-            for (final int i : tagTargetIndices(allOtherwiseSelectedOnly)) {
-                final String entry = getModel().getElementAt(i).toString();
-                ((DefaultListModel<String>) getModel()).set(i, TagUtils.setTags(entry, tags));
+            model.setListenersEnabled(false); // single refresh at the end
+            try {
+                for (final int i : tagTargetIndices(allOtherwiseSelectedOnly)) {
+                    final String entry = getModel().getElementAt(i).toString();
+                    ((DefaultListModel<String>) getModel()).set(i, TagUtils.setTags(entry, tags));
+                }
+            } finally {
+                model.setListenersEnabled(true);
             }
         }
 
@@ -7810,7 +8101,7 @@ public class Viewer3D {
                 } else {
                     label.setIcon(null);
                 }
-                chips.setChips(TagChips.parseCustom(taggedText), null);
+                chips.setChips(TagChips.parseCustom(taggedText, true), null);
                 if (!chips.isEmpty()) label.setText(labelText);
                 return label;
             }
@@ -8047,7 +8338,7 @@ public class Viewer3D {
             // Collect soma data (soma is still rendered with Sphere/Tube)
             if (validSoma) {
                 for (final Path p : tree.list()) {
-                    if (Path.SWC_SOMA != p.getSWCType()) continue;
+                    if (Path.SWC_SOMA != p.getSWCType() || !p.isPrimary()) continue;
                     for (int i = 0; i < p.size(); i++) {
                         final PointInImage pim = p.getNode(i);
                         final SWCPoint swcPoint = new SWCPoint(-1, Path.SWC_SOMA, pim.x, pim.y, pim.z,
@@ -8293,6 +8584,7 @@ public class Viewer3D {
         {
             final TreeColorMapper colorizer = new TreeColorMapper();
             colorizer.map(tree, measurement, colorTable);
+            lastColorCodeLabel = colorizer.getMeasurementLabel();
             rebuildShape();
             return colorizer.getMinMax();
         }

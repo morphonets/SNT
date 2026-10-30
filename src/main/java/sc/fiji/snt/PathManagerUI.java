@@ -5910,7 +5910,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     public static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
-        return TagUtils.getUniqueTags(paths.stream().map(Path::getName).toList());
+        return TagUtils.getUniqueTags(paths.stream().map(Path::getName).toList(), false);
     }
 
     /** Builds the top navigation toolbar */

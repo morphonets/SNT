@@ -684,14 +684,14 @@ public class Tree implements TreeProperties, Cloneable {
 	}
 
 	/**
-	 * Checks whether this Tree has a valid soma annotation, i.e., only a single
+	 * Checks whether this Tree has a valid soma annotation, i.e., a single
 	 * primary path tagged with {@link Path#SWC_SOMA}.
 	 *
 	 * @return Returns true, if soma annotation is valid.
 	 */
 	public boolean validSoma() {
-		final List<Path> somas = tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType()).toList();
-		return somas.size() == 1 && somas.stream().allMatch(Path::isPrimary);
+		// Non-primary soma-typed paths (e.g., stray single-node somas) are ignored
+		return tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType() && path.isPrimary()).count() == 1;
 	}
 
 	/**

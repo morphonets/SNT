@@ -352,7 +352,7 @@ public class SciViewSNT {
 			for (final Path p : tree.list()) {
 
 				// Stash soma coordinates
-				if (validSoma && Path.SWC_SOMA == p.getSWCType()) {
+				if (validSoma && Path.SWC_SOMA == p.getSWCType() && p.isPrimary()) {
 					for (int i = 0; i < p.size(); i++) {
 						final PointInImage pim = p.getNodeWithoutChecks(i);
 						pim.v = p.getNodeRadius(i);

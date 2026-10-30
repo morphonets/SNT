@@ -35,7 +35,7 @@ def run():
     dend_tree = loader.getTree('dendrite')
     axon_tree = loader.getTree('axon')
 
-    # Color code axons: map path order to color table
+    # Color code axons: map distance to soma to color table
     print("... Done. Assigning LUT to axonal arbor...")
     mapper = TreeColorMapper(context)
     mapper.map(axon_tree, "distance to soma", "Ice.lut")

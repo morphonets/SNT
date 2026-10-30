@@ -192,7 +192,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 					min = (float) limits[0];
 					max = (float) limits[1];
 				}
-				recViewer.addColorBarLegend(colorTable, min, max);
+				recViewer.addColorBarLegend(colorTable, min, max, recViewer.getColorCodeLabel());
 				if (setProgress) recViewer.getManagerPanel().showProgress(0, 0);
 
 			if (pmcSkipped) {
