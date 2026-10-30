@@ -72,9 +72,10 @@ tree = loader.getTree()
 tree.setColor("yellow")
 viewer.add(tree)
 
-// Add extracted branch points color-coded by order
+// Add extracted branch points color-coded by branch length
 mapper = new NodeColorMapper(nodeStats)
 mapper.map("branch length", "Ice.lut")
+viewer.addColorBarLegend(mapper)
 annot = viewer.annotatePoints(bps, "Thalamic BPs")
 annot.setSize(10)
 

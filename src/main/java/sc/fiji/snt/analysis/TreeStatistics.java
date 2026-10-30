@@ -334,7 +334,7 @@ public class TreeStatistics extends ContextCommand {
             Y_COORDINATES, Z_COORDINATES//
     };
 
-    private static boolean exactMetricMatch;
+    private boolean exactMetricMatch;
     @Parameter
     protected StatusService statusService;
 
@@ -513,7 +513,7 @@ public class TreeStatistics extends ContextCommand {
         final TreeStatistics holder = new TreeStatistics(iterator.next());
         if (trees.size() == 1) return holder;
         holder.tree.setLabel(getLabelFromTreeCollection(trees));
-        final String normMeasurement = getNormalizedMeasurement(metric);
+        final String normMeasurement = resolveMetric(metric);
         final DescriptiveStatistics holderStats = holder.getDescriptiveStats(normMeasurement);
         while (iterator.hasNext()) {
             final Tree tree = iterator.next();
@@ -534,188 +534,142 @@ public class TreeStatistics extends ContextCommand {
         return (sb.isEmpty()) ? "Grouped Cells" : sb.toString().trim();
     }
 
-    protected static String tryReallyHardToGuessMetric(final String guess) {
-        final String normGuess = guess.toLowerCase();
-        // Try specific patterns first
-        String result = guessSpecialMetrics(normGuess);
-        if (result != null) return result;
-        result = guessLengthMetrics(normGuess);
-        if (result != null) return result;
-        result = guessAngleMetrics(normGuess);
-        if (result != null) return result;
-        result = guessNodeMetrics(normGuess);
-        if (result != null) return result;
-        result = guessRadiusMetrics(normGuess);
-        if (result != null) return result;
-        result = guessSpineMetrics(normGuess);
-        if (result != null) return result;
-        result = guessCoordinateMetrics(normGuess);
-        if (result != null) return result;
-        if (normGuess.contains("values") || normGuess.contains("intensit")) {
-            return VALUES;
+    /** Lazily initialized (it depends on MultiTreeStatistics, which extends this class) */
+    private static final class Resolver {
+        static final MetricResolver INSTANCE;
+        static {
+            final List<String> all = new ArrayList<>(Arrays.asList(ALL_FLAGS));
+            all.addAll(MultiTreeStatistics.getMetrics());
+            all.addAll(getMetrics("deprecated"));
+            INSTANCE = new MetricResolver("morphometric", all, TreeStatistics::guessMetric);
         }
-        return "unknown";
-    }
-
-    private static String guessSpecialMetrics(final String normGuess) {
-        if (normGuess.contains("contrac")) {
-            return (normGuess.contains("path")) ? PATH_CONTRACTION : BRANCH_CONTRACTION;
-        }
-        if (normGuess.contains("remote") && normGuess.contains("angle")) {
-            return REMOTE_BIF_ANGLES;
-        }
-        if (normGuess.contains("partition") && normGuess.contains("asymmetry")) {
-            return PARTITION_ASYMMETRY;
-        }
-        if (normGuess.contains("fractal")) {
-            return (normGuess.contains("path")) ? PATH_FRACTAL_DIMENSION : BRANCH_FRACTAL_DIMENSION;
-        }
-        if (normGuess.contains("path") && normGuess.contains("order")) {
-            return PATH_ORDER;
-        }
-        return null;
-    }
-
-    private static String guessLengthMetrics(final String normGuess) {
-        if (!(normGuess.contains("length") || normGuess.contains("cable"))) {
-            return null;
-        }
-        if (normGuess.contains("term")) return TERMINAL_LENGTH;
-        if (normGuess.contains("prim")) return PRIMARY_LENGTH;
-        if (normGuess.contains("inner")) return INNER_LENGTH;
-        if (normGuess.contains("path")) return PATH_LENGTH;
-        return BRANCH_LENGTH;
-    }
-
-    private static String guessAngleMetrics(final String normGuess) {
-        if (!normGuess.contains("angle")) {
-            return null;
-        }
-        // Extension angles with specific path types
-        if (normGuess.contains("ext")) {
-            return guessExtensionAngleMetrics(normGuess);
-        }
-        // Default branch extension angles
-        return guessPlaneSpecificAngle(normGuess,
-                BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY);
-    }
-
-    private static String guessExtensionAngleMetrics(final String normGuess) {
-        if (normGuess.contains("path")) {
-            if (normGuess.contains("rel")) return PATH_EXT_ANGLE_REL;
-            return guessPlaneSpecificAngle(normGuess, PATH_EXT_ANGLE, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ,
-                    PATH_EXT_ANGLE_ZY);
-        }
-        if (normGuess.contains("term")) {
-            return guessPlaneSpecificAngle(normGuess, TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_XY,
-                    TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY);
-        }
-        if (normGuess.contains("prim")) {
-            return guessPlaneSpecificAngle(normGuess, PRIMARY_EXTENSION_ANGLE, PRIMARY_EXTENSION_ANGLE_XY,
-                    PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY);
-        }
-        if (normGuess.contains("inner")) {
-            return guessPlaneSpecificAngle(normGuess, INNER_EXTENSION_ANGLE, INNER_EXTENSION_ANGLE_XY,
-                    INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY);
-        }
-        return null;
-    }
-
-    private static String guessPlaneSpecificAngle(final String normGuess,
-                                                  final String default3DAngle, final String xyAngle,
-                                                  final String xzAngle, final String zyAngle) {
-        if (normGuess.contains("xy")) return xyAngle;
-        if (normGuess.contains("xz")) return xzAngle;
-        if (normGuess.contains("zy")) return zyAngle;
-        return default3DAngle;
-    }
-
-    private static String guessNodeMetrics(final String normGuess) {
-        if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
-            return N_BRANCH_POINTS;
-        }
-        if (normGuess.contains("nodes")) {
-            return N_NODES;
-        }
-        if (normGuess.contains("node") && (normGuess.contains("dis") || normGuess.contains("dx"))) {
-            if (normGuess.contains("sq")) return INTER_NODE_DISTANCE_SQUARED;
-            if (normGuess.contains("angle")) return INTER_NODE_ANGLE;
-            return INTER_NODE_DISTANCE;
-        }
-        return null;
-    }
-
-    private static String guessRadiusMetrics(final String normGuess) {
-        if (!normGuess.contains("radi")) {
-            return null;
-        }
-
-        if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
-            return (normGuess.contains("path")) ? PATH_MEAN_RADIUS : BRANCH_MEAN_RADIUS;
-        }
-        return NODE_RADIUS;
-    }
-
-    private static String guessSpineMetrics(final String normGuess) {
-        if (!(normGuess.contains("spines") || normGuess.contains("varicosities"))) {
-            return null;
-        }
-
-        if (normGuess.contains("dens") || normGuess.contains("path")) {
-            return PATH_SPINE_DENSITY;
-        }
-        return N_SPINES;
-    }
-
-    private static String guessCoordinateMetrics(final String normGuess) {
-        if (normGuess.matches(".*\\bx\\b.*")) return X_COORDINATES;
-        if (normGuess.matches(".*\\by\\b.*")) return Y_COORDINATES;
-        if (normGuess.matches(".*\\bz\\b.*")) return Z_COORDINATES;
-        return null;
-    }
-
-    protected static String getNormalizedMeasurement(final String measurement) {
-        if (isExactMetricMatch()) return measurement;
-        for (final String flag : ALL_FLAGS) {
-            if (flag.equalsIgnoreCase(measurement)) return flag;
-        }
-        for (final String flag : MultiTreeStatistics.getMetrics()) {
-            if (flag.equalsIgnoreCase(measurement)) return flag;
-        }
-        for (final String flag : getMetrics("deprecated")) {
-            if (flag.equalsIgnoreCase(measurement)) return flag;
-        }
-        final String normMeasurement = tryReallyHardToGuessMetric(measurement);
-        if (!measurement.equals(normMeasurement)) {
-            SNTUtils.log("\"" + normMeasurement + "\" assumed");
-            if ("unknown".equals(normMeasurement)) {
-                throw new UnknownMetricException("Unrecognizable measurement! " + "Maybe you meant one of the following?: " + Arrays.toString(ALL_FLAGS));
-            }
-        }
-        return normMeasurement;
     }
 
     /**
-     * Checks if 'fuzzy matching' of metrics is active.
-     * @return true if exact string matching is active, false if approximate matching is active
+     * Resolves a metric specified in a loose manner (e.g., "# bps") to a metric
+     * supported by this class.
+     *
+     * @param metric the metric (case-insensitive)
+     * @return the supported metric
+     * @throws UnknownMetricException if metric could not be resolved
      */
-    public static boolean isExactMetricMatch() {
+    protected static String resolveMetric(final String metric) throws UnknownMetricException {
+        return Resolver.INSTANCE.resolve(metric, false);
+    }
+
+    /**
+     * Resolves a metric to a metric supported by this class, honoring
+     * {@link #isExactMetricMatch()}
+     */
+    protected String getNormalizedMeasurement(final String measurement) throws UnknownMetricException {
+        return Resolver.INSTANCE.resolve(measurement, exactMetricMatch);
+    }
+
+    private static String guessMetric(final MetricResolver.Words w) {
+        final boolean path = w.any("path");
+        final boolean branch = w.any("branch");
+        final boolean rel = w.any("rel");
+        // Inter-node metrics
+        if (w.is("internode") || (w.any("inter") && w.any("node"))) {
+            if (w.any("angle")) return INTER_NODE_ANGLE;
+            return (w.any("sq")) ? INTER_NODE_DISTANCE_SQUARED : INTER_NODE_DISTANCE;
+        }
+        // Misc
+        if (w.any("contrac")) return (path) ? PATH_CONTRACTION : BRANCH_CONTRACTION;
+        if (w.any("fractal")) return (path) ? PATH_FRACTAL_DIMENSION : BRANCH_FRACTAL_DIMENSION;
+        if (w.any("partition") && w.any("asym")) return PARTITION_ASYMMETRY;
+        if (w.any("remote") && w.any("angle")) return REMOTE_BIF_ANGLES;
+        if (path && w.any("order")) return PATH_ORDER;
+        if (w.any("strahler", "horton")) return (w.any("ratio")) ? STRAHLER_RATIO : STRAHLER_NUMBER;
+        if (w.any("surface")) return (path) ? PATH_SURFACE_AREA : (branch) ? BRANCH_SURFACE_AREA : SURFACE_AREA;
+        if (w.any("volume")) return (path) ? PATH_VOLUME : (branch) ? BRANCH_VOLUME : VOLUME;
+        // Lengths
+        if (w.any("length", "cable")) {
+            if (w.any("term")) return TERMINAL_LENGTH;
+            if (w.any("prim")) return PRIMARY_LENGTH;
+            if (w.any("inner")) return INNER_LENGTH;
+            if (path) return PATH_LENGTH;
+            return (w.any("cable")) ? LENGTH : BRANCH_LENGTH;
+        }
+        // Angles
+        if (w.any("angle")) {
+            if (w.any("diameter")) return planeAngle(w, GRAPH_DIAMETER_ANGLE, GRAPH_DIAMETER_ANGLE_XY,
+                    GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY);
+            if (path) return (rel) ? PATH_EXT_ANGLE_REL : planeAngle(w, PATH_EXT_ANGLE, PATH_EXT_ANGLE_XY,
+                    PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY);
+            if (w.any("term")) return (rel) ? TERMINAL_EXTENSION_ANGLE_REL : planeAngle(w, TERMINAL_EXTENSION_ANGLE,
+                    TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY);
+            if (w.any("prim")) return planeAngle(w, PRIMARY_EXTENSION_ANGLE, PRIMARY_EXTENSION_ANGLE_XY,
+                    PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY);
+            if (w.any("inner")) return (rel) ? INNER_EXTENSION_ANGLE_REL : planeAngle(w, INNER_EXTENSION_ANGLE,
+                    INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY);
+            return (rel) ? BRANCH_EXTENSION_ANGLE_REL : planeAngle(w, BRANCH_EXTENSION_ANGLE,
+                    BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY);
+        }
+        // Counts
+        if (w.any("bp") || (branch && w.any("point")) || w.any("junction")) return N_BRANCH_POINTS;
+        if (w.any("tip")) return N_TIPS;
+        if (w.any("branches")) {
+            if (w.any("prim")) return N_PRIMARY_BRANCHES;
+            if (w.any("term")) return N_TERMINAL_BRANCHES;
+            if (w.any("inner")) return N_INNER_BRANCHES;
+            return N_BRANCHES;
+        }
+        if (w.any("nodes")) return (path) ? N_PATH_NODES : N_NODES;
+        // Radii
+        if (w.any("radi")) {
+            if (w.any("mean", "avg", "average")) return (path) ? PATH_MEAN_RADIUS : BRANCH_MEAN_RADIUS;
+            return NODE_RADIUS;
+        }
+        // Spines
+        if (w.any("spine", "varicosit")) {
+            if (w.any("dens")) return PATH_SPINE_DENSITY;
+            return (path) ? PATH_N_SPINES : N_SPINES;
+        }
+        if (w.any("values", "intens")) return VALUES;
+        // Coordinates
+        if (w.is("x")) return X_COORDINATES;
+        if (w.is("y")) return Y_COORDINATES;
+        if (w.is("z")) return Z_COORDINATES;
+        return null;
+    }
+
+    private static String planeAngle(final MetricResolver.Words w, final String default3D, final String xy,
+                                     final String xz, final String zy) {
+        if (w.is("xy")) return xy;
+        if (w.is("xz")) return xz;
+        if (w.is("zy")) return zy;
+        return default3D;
+    }
+
+    /**
+     * Checks if 'fuzzy matching' of metrics is disabled for this instance.
+     *
+     * @return true if only exact (case and punctuation insensitive) matching is
+     *         active, false if loose phrases such as "# bps" are also matched
+     */
+    public boolean isExactMetricMatch() {
         return exactMetricMatch;
     }
 
     /**
-     * Sets whether approximate string matching ('fuzzy matching') should be used when retrieving metrics.
-     * @param exactMetricMatch exact string matching is used if true, approximate if false
+     * Sets whether loose phrases (e.g., "# bps" or "n junctions") should be
+     * matched to the closest supported metric when retrieving metrics. By
+     * default, they are. Names that differ from a supported metric only in case,
+     * spacing or punctuation are always matched.
+     *
+     * @param exactMetricMatch if true, loose phrases are not matched and an
+     *                         {@link UnknownMetricException} is thrown instead
      */
-    public static void setExactMetricMatch(final boolean exactMetricMatch) {
-        TreeStatistics.exactMetricMatch = exactMetricMatch;
+    public void setExactMetricMatch(final boolean exactMetricMatch) {
+        this.exactMetricMatch = exactMetricMatch;
     }
 
     /**
      * Computes the specified metric.
      *
      * @param metric the single-value metric to be computed (case-insensitive). While it is expected to be an element
-     *               of {@link #getAllMetrics()}, if {@link #isExactMetricMatch()} is set, {@code metric} can be
+     *               of {@link #getAllMetrics()}, unless {@link #isExactMetricMatch()} is set, {@code metric} can be
      *               specified in a loose manner: If {@code metric} is not initially recognized, a heuristic will match
      *               it to the closest entry in the list of possible metrics. E.g., "# bps", "n junctions", will be both
      *               mapped to  {@link #N_BRANCH_POINTS}. Details on the matching are printed to the Console when in
@@ -758,7 +712,9 @@ public class TreeStatistics extends ContextCommand {
             default -> {
                 if (metric.startsWith("Sholl: "))
                     yield getShollMetric(metric);
-                yield new TreeStatistics(tree).getSummaryStats(metric).getMean();
+                final TreeStatistics ts = new TreeStatistics(tree);
+                ts.setExactMetricMatch(exactMetricMatch);
+                yield ts.getSummaryStats(metric).getMean();
             }
         };
     }
@@ -882,7 +838,7 @@ public class TreeStatistics extends ContextCommand {
         final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics() : metrics;
         for (final String metric : measuringMetrics) {
             final String unit = getUnit(metric);
-            final String metricHeader = (unit.length() > 1) ? metric + " (" + unit + ")" : metric;
+            final String metricHeader = AnalysisUtils.getMetricLabel(metric, unit);
             if (groupByType) {
                 for (final int type : tree.getSWCTypes(false)) {
                     restrictToSWCType(type);
@@ -2060,20 +2016,49 @@ public class TreeStatistics extends ContextCommand {
      * @return physical unit
      */
     public String getUnit(final String metric) {
+        return getUnit(metric, getSpatialUnit(), tree.is3D());
+    }
+
+    /**
+     * Returns the physical unit associated with the specified metric. This is the
+     * single source of truth for metric units: histograms, tables and color
+     * legends all rely on it.
+     *
+     * @param metric      the metric to be queried (case-insensitive)
+     * @param spatialUnit the spatial unit of the coordinates being measured. If
+     *                    null or empty, metrics whose unit depends on it are
+     *                    reported as unit-less
+     * @param is3D        whether the measured structure is 3D
+     * @return physical unit, or an empty string if the metric is dimensionless
+     * @see #getUnit(String)
+     */
+    public static String getUnit(final String metric, final String spatialUnit, final boolean is3D) {
+        if (metric == null) return "";
         final String m = metric.toLowerCase();
-        if (TreeStatistics.WIDTH.equals(metric) || TreeStatistics.HEIGHT.equals(metric) || TreeStatistics.DEPTH.equals(metric)
-                || m.contains("length") || m.contains("radius") || m.contains("distance")) {
-            return getSpatialUnit();
-        } else if (m.contains("volume")) {
-            return getSpatialUnit() + "³";
-        } else if (m.contains("surface area")) {
-            return getSpatialUnit() + "²";
-        } else if (TreeStatistics.CONVEX_HULL_SIZE.equals(metric)) {
-            return getSpatialUnit() + ((tree.is3D()) ? "³" : "²");
-        } else if (TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE.equals(metric)) {
-            return getSpatialUnit() + ((tree.is3D()) ? "²" : "");
-        } else if (RootAngleAnalyzer.MEAN_DIRECTION.equals(metric) || REMOTE_BIF_ANGLES.equals(metric) || m.contains("extension angle"))
-            return "°";
+        final String su = (spatialUnit == null) ? "" : spatialUnit;
+        if (ROOT_ANGLE_B_FACTOR.equals(metric) || ROOT_ANGLE_C_BIAS.equals(metric))
+            return ""; // dimensionless indices computed from root angles
+        // Angles do not depend on the spatial unit
+        if (ROOT_ANGLE_M_DIRECTION.equals(metric) || RootAngleAnalyzer.MEAN_DIRECTION.equals(metric)
+                || m.contains("angle"))
+            return "\u00b0";
+        if (su.isEmpty()) return "";
+        if (m.contains("squared"))
+            return su + "\u00b2";
+        if (m.contains("volume"))
+            return su + "\u00b3";
+        if (m.contains("surface area"))
+            return su + "\u00b2";
+        if (CONVEX_HULL_SIZE.equals(metric))
+            return su + ((is3D) ? "\u00b3" : "\u00b2");
+        if (CONVEX_HULL_BOUNDARY_SIZE.equals(metric))
+            return su + ((is3D) ? "\u00b2" : "");
+        if (m.contains("density"))
+            return su + "\u207b\u00b9"; // e.g., spines per length
+        if (WIDTH.equals(metric) || HEIGHT.equals(metric) || DEPTH.equals(metric)
+                || m.contains("length") || m.contains("radius") || m.contains("distance")
+                || m.contains("coordinates"))
+            return su;
         return "";
     }
 

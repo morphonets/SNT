@@ -558,37 +558,19 @@ public class NodeStatistics <T extends PointInImage> {
 		return frame;
 	}
 
-	protected static String getStandardizedMetric(final String guess) {
-		if (Arrays.asList(ALL_FLAGS).contains(guess)) {
-			return guess;
-		}
-		final String normGuess = guess.toLowerCase();
-        if (normGuess.contains("nearest") && normGuess.contains("neighbor")) {
-            return NEAREST_NEIGHBOR_DISTANCE;
-        }
-		if (normGuess.matches(".*\\bx\\b.*")) {
-			return X_COORDINATES;
-		}
-		if (normGuess.matches(".*\\by\\b.*")) {
-			return Y_COORDINATES;
-		}
-		if (normGuess.matches(".*\\bz\\b.*")) {
-			return Z_COORDINATES;
-		}
-		if (normGuess.contains("rad")) {
-			return RADIUS;
-		}
-		if (normGuess.contains("val") || normGuess.contains("int")) {
-			return VALUES;
-		}
-		if (normGuess.contains("len")) {
-			return BRANCH_LENGTH;
-		}
-		if (normGuess.contains("ord") || normGuess.contains("strahler") || normGuess.contains("horton")
-				|| normGuess.contains("h-s")) {
-			return BRANCH_ORDER;
-		}
-		return "unknown";
+	private static final MetricResolver RESOLVER = new MetricResolver("node", Arrays.asList(ALL_FLAGS),
+			NodeStatistics::guessMetric);
+
+	private static String guessMetric(final MetricResolver.Words w) {
+		if (w.any("nearest") && w.any("neighbo")) return NEAREST_NEIGHBOR_DISTANCE;
+		if (w.is("x")) return X_COORDINATES;
+		if (w.is("y")) return Y_COORDINATES;
+		if (w.is("z")) return Z_COORDINATES;
+		if (w.any("radi")) return RADIUS;
+		if (w.any("val", "intens")) return VALUES;
+		if (w.any("len")) return BRANCH_LENGTH;
+		if (w.any("order", "strahler", "horton") || (w.is("h") && w.is("s"))) return BRANCH_ORDER;
+		return null;
 	}
 
 	/**
@@ -622,16 +604,15 @@ public class NodeStatistics <T extends PointInImage> {
 		return branchesAssigned;
 	}
 
-	protected static String getNormalizedMeasurement(final String measurement) {
-		final String normMeasurement = getStandardizedMetric(measurement);
-		if (!measurement.equals(normMeasurement)) {
-			SNTUtils.log("\"" + normMeasurement + "\" assumed");
-			if ("unknown".equals(normMeasurement)) {
-				throw new UnknownMetricException("Unrecognizable measurement! "
-						+ "Maybe you meant one of the following?: " + Arrays.toString(ALL_FLAGS));
-			}
-		}
-		return normMeasurement;
+	/**
+	 * Resolves a metric specified in a loose manner to a supported metric
+	 *
+	 * @param measurement the metric (case-insensitive)
+	 * @return the supported metric
+	 * @throws UnknownMetricException if metric could not be resolved
+	 */
+	protected static String getNormalizedMeasurement(final String measurement) throws UnknownMetricException {
+		return RESOLVER.resolve(measurement);
 	}
 
 	protected void assessIfBranchesHaveBeenAssigned() {

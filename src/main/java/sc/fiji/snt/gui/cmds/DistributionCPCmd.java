@@ -142,8 +142,6 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 		} else {
 			swcTypes = "all";
 		}
-		final boolean exactMatchState = MultiTreeStatistics.isExactMetricMatch();
-		MultiTreeStatistics.setExactMetricMatch(true);
 		if (histogramChoice.toLowerCase().contains("single series")) {
 			runSingleSeriesStats();
 		} else {
@@ -159,7 +157,6 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 			}
 			error(error);
 		}
-		MultiTreeStatistics.setExactMetricMatch(exactMatchState);
 		resetUI();
 	}
 

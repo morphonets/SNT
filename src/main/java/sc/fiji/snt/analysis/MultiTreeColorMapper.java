@@ -217,37 +217,28 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 		}
 	}
 
-	 private String getNormalizedMeasurementInternal(final String measurement) {
-		for (final String s : MULTI_TREE_FLAGS) {
-			if (s.equalsIgnoreCase(measurement)) return s;
-		}
-		// Check known single-tree metrics before fuzzy guessing, so that e.g.
-		// "Horton-Strahler orders" is not mis-routed to STRAHLER_NUMBER
-		if (getMetrics().stream().anyMatch(measurement::equalsIgnoreCase)) {
-			return getNormalizedMeasurement(measurement);
-		}
-		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
-		if (!measurement.equals(normMeasurement)) {
-			SNTUtils.log("\"" + normMeasurement + "\" assumed");
-			if ("unknown".equals(normMeasurement)) {
-				throw new IllegalArgumentException("Unrecognizable measurement! "
-						+ "Maybe you meant one of the following?: " + Arrays.toString(MULTI_TREE_FLAGS));
-			}
-		}
-		return normMeasurement;
+	private static final MetricResolver RESOLVER = new MetricResolver("color mapping",
+			Stream.concat(Arrays.stream(MULTI_TREE_FLAGS), TreeColorMapper.getMetrics().stream()).toList(),
+			MultiTreeColorMapper::guessMultiTreeMetric);
+
+	private static String guessMultiTreeMetric(final MetricResolver.Words w) {
+		if (w.any("assign")) return ASSIGNED_VALUE;
+		if (w.any("cable")) return CABLE_LENGTH;
+		if (w.is("id") || w.is("cell")) return ID;
+		if (w.any("highest") && w.any("order")) return HIGHEST_PATH_ORDER;
+		if (w.any("tip")) return N_TIPS;
+		if (w.any("branches")) return N_BRANCHES;
+		if (w.any("horton", "strahler")) return STRAHLER_NUMBER;
+		// Single-tree metrics (the resolver validates the result)
+		return TreeColorMapper.guessMetric(w);
 	}
 
-	private String tryReallyHardToGuessMetric(final String guess) {
-		if (guess.toLowerCase().contains("assign"))
-			return ASSIGNED_VALUE;
-		else if (guess.toLowerCase().contains("cable"))
-			return CABLE_LENGTH;
-		else if (guess.toLowerCase().contains("id"))
-			return ID;
-		else if (guess.toLowerCase().contains("horton") || guess.toLowerCase().contains("strahler") || guess.toLowerCase().contains("root"))
-			return STRAHLER_NUMBER;
-		else
-			return TreeColorMapper.getNormalizedMeasurement(guess);
+	private String getNormalizedMeasurementInternal(final String measurement) throws UnknownMetricException {
+		return resolveMetric(measurement);
+	}
+
+	static String resolveMetric(final String measurement) throws UnknownMetricException {
+		return RESOLVER.resolve(measurement);
 	}
 
 	public List<Tree> sortedMappedTrees() {

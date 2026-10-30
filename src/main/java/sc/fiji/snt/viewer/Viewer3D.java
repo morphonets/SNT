@@ -761,6 +761,7 @@ public class Viewer3D {
             final ViewportMode viewPortMode = view.getCamera().getViewportMode();
             final Coord3d currentViewPoint = view.getViewPoint();
             final BoundingBox3d currentBox = view.getBounds();
+            final boolean autoFit = view.getBoundsMode() == ViewBoundMode.AUTO_FIT;
             final boolean isAnimating = mouseController.isAnimating();
             setAnimationEnabled(false);
             chart.stopAllThreads();
@@ -782,7 +783,8 @@ public class Viewer3D {
             view.setCameraMode(currentCameraMode);
             view.getCamera().setViewportMode(viewPortMode);
             view.setViewPoint(currentViewPoint);
-            view.setBoundsManual(currentBox);
+            // Do not freeze bounds if they were automatic: meshes may not have mounted yet
+            if (!autoFit) view.setBoundsManual(currentBox);
             // Invalidate GL buffer handles from the disposed context so all VBOs
             // re-upload their data on first draw in the new context.
             plottedTrees.values().forEach(ShapeTree::invalidateGL);
@@ -2095,7 +2097,8 @@ public class Viewer3D {
             // ones are typically scripted). Delayed until canvas is realized. Dismissed by mouse
             if (frame.hasManager()) {
                 final Timer bannerTimer = new Timer(750, e -> {
-                    if (frame != null && keyController != null && ((Component) chart.getCanvas()).isShowing())
+                    if (frame != null && keyController != null && isEmptyScene()
+                            && ((Component) chart.getCanvas()).isShowing())
                         keyController.showHelp(false);
                 });
                 bannerTimer.setRepeats(false);
@@ -2419,7 +2422,9 @@ public class Viewer3D {
 
     private boolean isEmptyScene() {
         try {
-            return view.getScene().getGraph().getAll().isEmpty();
+            // color legends are empty shapes: they do not count as scene content
+            return view.getScene().getGraph().getAll().stream()
+                    .noneMatch(d -> d != null && !(d.hasLegend() && d.isLegendDisplayed()));
         } catch (final Exception ignored) {
             return true;
         }

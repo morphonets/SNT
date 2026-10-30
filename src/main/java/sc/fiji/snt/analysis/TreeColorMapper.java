@@ -25,7 +25,6 @@ package sc.fiji.snt.analysis;
 import net.imagej.ImageJ;
 import net.imglib2.display.ColorTable;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.apache.commons.text.WordUtils;
 import org.scijava.Context;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
@@ -115,6 +114,9 @@ public class TreeColorMapper extends ColorMapper {
 			TAG_FILENAME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES
 	};
 
+	private static final MetricResolver RESOLVER = new MetricResolver("color mapping", Arrays.asList(ALL_FLAGS),
+			TreeColorMapper::guessMetric);
+
 	protected List<Path> paths;
 	private int internalCounter = 1;
 	private final List<Tree> mappedTrees;
@@ -153,7 +155,9 @@ public class TreeColorMapper extends ColorMapper {
 		final ColorTable colorTable)
 	{
 		map(measurement, colorTable);
-		final String cMeasurement = getNormalizedMeasurement(measurement);
+		final String cMeasurement = (INTERNAL_COUNTER.equals(measurement)) ? measurement
+				: getNormalizedMeasurement(measurement);
+		this.measurement = cMeasurement; // so that getMeasurement() is always a standard metric
 		switch (cMeasurement) {
 			case STRAHLER_ORDERS:
 				assignStrahlerOrderToNodeValues();
@@ -474,6 +478,7 @@ public class TreeColorMapper extends ColorMapper {
 			throw new IllegalArgumentException("Center unknown");
 		}
 		paths = tree.list();
+		this.measurement = "Sholl inters.";
 		this.colorTable = colorTable;
 		final boolean useFitted = stats.validFit();
 		SNTUtils.log("Mapping to fitted values: " + useFitted);
@@ -510,20 +515,9 @@ public class TreeColorMapper extends ColorMapper {
 	public void map(final Tree tree, final String measurement,
 		final ColorTable colorTable)
 	{
-		try {
-			this.paths = tree.list();
-			mapToProperty(measurement, colorTable);
-			mappedTrees.add(tree);
-		} catch (final IllegalArgumentException ignored) {
-			final String educatedGuess = tryReallyHardToGuessMetric(measurement);
-			System.out.println("Mapping to \""+ measurement +"\" failed. Assuming \""+ educatedGuess+"\"");
-			if ("unknown".equals(educatedGuess))
-				throw new IllegalArgumentException("Unknown parameter: "+ measurement);
-			else {
-				mapToProperty(educatedGuess, colorTable);
-				mappedTrees.add(tree);
-			}
-		}
+		this.paths = tree.list();
+		mapToProperty(measurement, colorTable);
+		mappedTrees.add(tree);
 	}
 
 	/**
@@ -559,75 +553,36 @@ public class TreeColorMapper extends ColorMapper {
 		map(tree, measurement, lut);
 	}
 
-	private static String tryReallyHardToGuessMetric(final String guess) {
-		final String normGuess = guess.toLowerCase();
-		if (normGuess.contains("inter") && normGuess.contains("node")) {
-			return (normGuess.contains("angle")) ? INTER_NODE_ANGLE : INTER_NODE_DISTANCE;
+	static String guessMetric(final MetricResolver.Words w) {
+		final boolean path = w.any("path");
+		if (w.is("internode") || (w.any("inter") && w.any("node"))) {
+			return (w.any("angle")) ? INTER_NODE_ANGLE : INTER_NODE_DISTANCE;
 		}
-		if (normGuess.contains("soma") || normGuess.contains("path d")) {
-			return PATH_DISTANCE;
+		if (w.any("soma") || (path && w.any("dist"))) return PATH_DISTANCE;
+		if (w.any("length", "cable")) return PATH_LENGTH;
+		if (w.any("strahler", "horton") || (w.is("h") && w.is("s"))) return STRAHLER_ORDERS;
+		if (w.any("sholl", "inters")) return SHOLL_COUNTS;
+		if (path && w.any("order")) return PATH_ORDER;
+		if (path && w.any("angle")) {
+			if (w.any("rel")) return PATH_EXT_ANGLE_REL;
+			if (w.is("xy")) return PATH_EXT_ANGLE_XY;
+			if (w.is("xz")) return PATH_EXT_ANGLE_XZ;
+			if (w.is("zy")) return PATH_EXT_ANGLE_ZY;
+			return PATH_EXT_ANGLE;
 		}
-		if (normGuess.contains("length") || normGuess.contains("cable")) {
-			return PATH_LENGTH;
+		if (w.any("bp") || (w.any("branch") && w.any("point")) || w.any("junction")) return N_BRANCH_POINTS;
+		if (w.any("nodes")) return N_NODES;
+		if (w.any("radi")) return (w.any("mean", "avg", "average")) ? PATH_MEAN_RADIUS : NODE_RADIUS;
+		if (w.any("spine", "varicosit")) {
+			return (w.any("mean", "avg", "average", "dens")) ? PATH_AVG_SPINE_DENSITY : N_SPINES;
 		}
-		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
-			return STRAHLER_ORDERS;
-		}
-		if (normGuess.contains("sholl") || normGuess.contains("inters")) {
-			return SHOLL_COUNTS;
-		}
-		if (normGuess.contains("path") && normGuess.contains("order")) {
-			return PATH_ORDER;
-		}
-		if (normGuess.contains("path") && normGuess.contains("angle")) {
-			if (normGuess.contains("xz"))
-				return PATH_EXT_ANGLE_XZ;
-			else if (normGuess.contains("zy"))
-				return PATH_EXT_ANGLE_ZY;
-			else
-				return PATH_EXT_ANGLE_XY;
-		}
-		if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
-			return N_BRANCH_POINTS;
-		}
-		if (normGuess.contains("nodes")) {
-			return N_NODES;
-		}
-		if (normGuess.contains("radi")) {
-			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
-				return PATH_MEAN_RADIUS;
-			}
-			else {
-				return NODE_RADIUS;
-			}
-		}
-		if (normGuess.contains("spines") || normGuess.contains("varicosities")) {
-			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average") || normGuess.contains("dens")) {
-				return PATH_AVG_SPINE_DENSITY;
-			}
-			else {
-				return N_SPINES;
-			}
-		}
-		if (normGuess.contains("values") || normGuess.contains("intensit")) {
-			return VALUES;
-		}
-		if (normGuess.contains("tag") || normGuess.contains("name") || normGuess.contains("label")) {
-			return TAG_FILENAME;
-		}
-		if (normGuess.contains("frame")) {
-			return PATH_FRAME;
-		}
-		if (normGuess.matches(".*\\bx\\b.*")) {
-			return X_COORDINATES;
-		}
-		if (normGuess.matches(".*\\by\\b.*")) {
-			return Y_COORDINATES;
-		}
-		if (normGuess.matches(".*\\bz\\b.*")) {
-			return Z_COORDINATES;
-		}
-		return "unknown";
+		if (w.any("values", "intens")) return VALUES;
+		if (w.any("tag", "name", "label", "file")) return TAG_FILENAME;
+		if (w.any("frame")) return PATH_FRAME;
+		if (w.is("x")) return X_COORDINATES;
+		if (w.is("y")) return Y_COORDINATES;
+		if (w.is("z")) return Z_COORDINATES;
+		return null;
 	}
 
 	@Override
@@ -644,21 +599,15 @@ public class TreeColorMapper extends ColorMapper {
 		return TreeStatistics.getUnit(measurement, spatialUnit, tree.is3D());
 	}
 
-	protected static String getNormalizedMeasurement(final String measurement) {
-		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
-			// This is just so that we can use capitalized strings in the GUI
-			// and lower case strings in scripts
-			return WordUtils.capitalize(measurement, '-');
-		}
-		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
-		if (!measurement.equals(normMeasurement)) {
-			SNTUtils.log("\"" + normMeasurement + "\" assumed");
-			if ("unknown".equals(normMeasurement)) {
-				throw new IllegalArgumentException("Unrecognizable measurement! "
-						+ "Maybe you meant one of the following?: " + Arrays.toString(ALL_FLAGS));
-			}
-		}
-		return normMeasurement;
+	/**
+	 * Resolves a metric specified in a loose manner to a supported mapping metric
+	 *
+	 * @param measurement the metric (case-insensitive)
+	 * @return the supported metric
+	 * @throws UnknownMetricException if metric could not be resolved
+	 */
+	protected static String getNormalizedMeasurement(final String measurement) throws UnknownMetricException {
+		return RESOLVER.resolve(measurement);
 	}
 
 	/**

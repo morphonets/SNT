@@ -114,7 +114,8 @@ public class AnalysisUtils {
 	}
 
 	/**
-	 * Assembles a label from a measurements metric and a spatial unit
+	 * Assembles a label from a metric and its unit, as resolved by
+	 * {@link TreeStatistics#getUnit(String, String, boolean)}
 	 *
 	 * @param standardMetric SNT's supported metric, e.g.,
 	 *                       {@link TreeStatistics#BRANCH_VOLUME}
@@ -122,52 +123,25 @@ public class AnalysisUtils {
 	 * @return the metric label, e.g., "Branch volume (µm³)"
 	 */
 	public static String getMetricLabel(final String standardMetric, final Tree tree) {
-		final String unit = (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "? units");
-		switch (standardMetric) {
-		case TreeStatistics.CONVEX_HULL_SIZE:
-			if (tree.is3D()) {
-				return String.format("%s (%s³)", standardMetric, unit);
-			} else {
-				return String.format("%s (%s²)", standardMetric, unit);
-			}
-		case TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE:
-			if (tree.is3D()) {
-				return String.format("%s (%s²)", standardMetric, unit);
-			} else {
-				return String.format("%s (%s)", standardMetric, unit);
-			}
-			default:
-				return getMetricLabel(standardMetric, unit);
-		}
+		final String spatialUnit = (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "? units");
+		return getMetricLabel(standardMetric, TreeStatistics.getUnit(standardMetric, spatialUnit, tree.is3D()));
 	}
 
 	/**
-	 * Assembles a label from a measurements metric and a spatial unit
-	 * 
+	 * Assembles a label from a metric and its own unit.
+	 *
 	 * @param standardMetric SNT's supported metric, e.g.,
 	 *                       {@link TreeStatistics#BRANCH_VOLUME}
-	 * @param unit          the associated spatial uni (e.g., "µm")
-	 * @return the metric label, e.g., "Branch volume (µm³)"
+	 * @param metricUnit     the unit of the metric (e.g., "µm³"), as returned by
+	 *                       {@link TreeStatistics#getUnit(String)}. Not the
+	 *                       spatial unit of the data
+	 * @return the metric label, e.g., "Branch volume (µm³)", or just the metric
+	 *         if unit is null/blank
 	 */
-	public static String getMetricLabel(final String standardMetric, final String unit) {
-		if (unit == null || unit.isEmpty())
+	public static String getMetricLabel(final String standardMetric, final String metricUnit) {
+		if (metricUnit == null || metricUnit.isBlank())
 			return standardMetric;
-		return switch (standardMetric) {
-			case TreeStatistics.BRANCH_LENGTH, TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE, TreeStatistics.DEPTH,
-				 TreeStatistics.HEIGHT, TreeStatistics.INNER_LENGTH, TreeStatistics.INTER_NODE_DISTANCE,
-				 TreeStatistics.LENGTH, TreeStatistics.NODE_RADIUS, TreeStatistics.BRANCH_MEAN_RADIUS,
-				 TreeStatistics.PATH_MEAN_RADIUS, TreeStatistics.PATH_LENGTH, TreeStatistics.PRIMARY_LENGTH,
-				 TreeStatistics.TERMINAL_LENGTH, TreeStatistics.WIDTH, MultiTreeStatistics.AVG_BRANCH_LENGTH,
-				 MultiTreeStatistics.INNER_LENGTH, MultiTreeStatistics.PRIMARY_LENGTH,
-				 MultiTreeStatistics.TERMINAL_LENGTH, ShollAnalyzer.CENTROID_RADIUS, ShollAnalyzer.ENCLOSING_RADIUS,
-                 ShollAnalyzer.MAX_FITTED_RADIUS, TreeStatistics.SHOLL_MAX_FITTED_RADIUS ->
-                    String.format("%s (%s)", standardMetric, unit);
-            case TreeStatistics.INTER_NODE_DISTANCE_SQUARED, TreeStatistics.SURFACE_AREA ->
-                    String.format("%s (%s²)", standardMetric, unit);
-            case TreeStatistics.BRANCH_VOLUME, TreeStatistics.PATH_VOLUME, TreeStatistics.VOLUME ->
-                    String.format("%s (%s³)", standardMetric, unit);
-            default -> standardMetric + " (" + unit + ")";
-        };
+		return standardMetric + " (" + metricUnit + ")";
 	}
 
 	/* Converts nodes to single point paths: useful to allow Tree-based classes to parse isolated nodes */

@@ -847,7 +847,7 @@ public class MeasureUI extends JFrame {
 			// row-header scan (org.scijava.table.Table#getRowIndex) on every write
 			final int treeRow = getOrCreateRow(tree.getLabel());
 			final TreeStatistics tStats = new TreeStatistics(tree);
-			TreeStatistics.setExactMetricMatch(true);
+			tStats.setExactMetricMatch(true);
 			for (int row = 0; row < tableModel.getRowCount(); ++row) {
 				if (!atLeastOneStatChosen(row)) continue;
 				final String metric = (String) tableModel.getValueAt(row, 0);

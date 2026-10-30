@@ -153,9 +153,7 @@ public class NodeColorMapper extends ColorMapper {
 	 */
 	@Override
 	public void map(final String measurement, final ColorTable colorTable) {
-		final String normMeasurement = NodeStatistics.getStandardizedMetric(measurement);
-		if (normMeasurement.equalsIgnoreCase("unknown"))
-			throw new UnknownMetricException("Unrecognized metric: " + measurement);
+		final String normMeasurement = NodeStatistics.getNormalizedMeasurement(measurement);
 		this.measurement = normMeasurement;
 		if (BRANCH_LENGTH.equals(normMeasurement) || BRANCH_ORDER.equals(normMeasurement)) {
             nodeStatistics.assessIfBranchesHaveBeenAssigned();

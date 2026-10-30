@@ -217,7 +217,7 @@ public class GroupedTreeStatistics {
 	}
 
 	private SNTChart getHistogram(final String measurement, final boolean polar) {
-		final String normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement);
+		final String normMeasurement = TreeStatistics.resolveMetric(measurement);
 		// Retrieve all HistogramDatasetPlus instances
 		final double[] limits = new double[] {Double.MAX_VALUE, Double.NEGATIVE_INFINITY};
 		for (final String groupLabel : getGroups()) {
@@ -271,7 +271,7 @@ public class GroupedTreeStatistics {
 	 * @see TreeStatistics#getMetric(String)
 	 */
 	public SNTChart getBoxPlot(final String measurement) {
-		final String normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement);
+		final String normMeasurement = TreeStatistics.resolveMetric(measurement);
 		final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
 		groups.forEach((label, mstats) -> {
 			final HDPlus hdp = mstats.new HDPlus(normMeasurement);
