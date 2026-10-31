@@ -137,7 +137,7 @@ public class GraphViewer {
             if (editor == null) initEditor();
             final JFrame frame = editor.createFrame(getContext());
             if (title != null) frame.setTitle(title);
-            GuiUtils.removeIcon(frame);
+            GuiUtils.Windows.removeIcon(frame);
             //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
             SwingUtilities.invokeLater(() -> frame.setVisible(true));
             return frame;

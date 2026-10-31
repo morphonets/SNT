@@ -77,7 +77,6 @@ import org.jfree.data.xy.XYSeriesCollection;
 import org.scijava.command.CommandService;
 import org.scijava.plot.CategoryChart;
 import org.scijava.table.Column;
-import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.viewer.plot.jfreechart.*;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
@@ -189,7 +188,7 @@ public class SNTChart extends ChartPanel {
 				}
 			});
 		}
-		GuiUtils.addCloseShortcut(frame);
+		GuiUtils.Windows.addCloseShortcut(frame);
 		return frame;
 	}
 
@@ -1655,7 +1654,7 @@ public class SNTChart extends ChartPanel {
 //		}
 		if (!getFrame().isVisible()) {
 			if (openInstances.isEmpty())
-				AWTWindows.centerWindow(this.getFrame());
+				GuiUtils.Windows.center(this.getFrame());
 			else
 				getFrame().setLocationRelativeTo(openInstances.getLast());
 		}
@@ -2275,7 +2274,7 @@ public class SNTChart extends ChartPanel {
 	public static void tile(final Collection<SNTChart> charts) {
 		final List<JFrame> frames = new ArrayList<>();
 		charts.forEach(oi -> frames.add(oi.getFrame()));
-		GuiUtils.tile(frames, charts.size() > 4);
+		GuiUtils.Windows.tile(frames, charts.size() > 4);
 	}
 
 	/**

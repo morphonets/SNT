@@ -2367,21 +2367,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private void displayLegend(final ColorMapper mapper, final ColorTable colorTable) {
-        final JFrame newFrame = AnalysisUtils.colorRampLegend("Issue Severity Legend",
+        final JFrame newFrame = AnalysisUtils.colorRampLegend("Issue Severity",
                 (colorTable != null) ? colorTable : ColorMaps.VIRIDIS, mapper.getMinMax()[0], mapper.getMinMax()[1]);
+        newFrame.setTitle("Issue Severity Legend");
         if (heatMapLegend == null) {
             heatMapLegend = newFrame;
             heatMapLegend.setLocationRelativeTo(panel);
         } else {
-            newFrame.setExtendedState(heatMapLegend.getExtendedState());
-            newFrame.setLocation(heatMapLegend.getLocation());
-            // Respect a size the user dragged larger than what colorRampLegend() just packed for, but do not shrink
-            // below the freshly-measured content size
-            final Dimension size = new Dimension(
-                    Math.max(heatMapLegend.getWidth(), newFrame.getWidth()),
-                    Math.max(heatMapLegend.getHeight(), newFrame.getHeight()));
-            newFrame.setMinimumSize(size);
-            newFrame.setSize(size);
+            GuiUtils.Windows.applyDimensions(newFrame, heatMapLegend);
             heatMapLegend.dispose();
             heatMapLegend = newFrame;
         }

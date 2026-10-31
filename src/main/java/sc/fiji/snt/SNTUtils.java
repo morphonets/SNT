@@ -283,7 +283,7 @@ public class SNTUtils {
 		final long now = System.currentTimeMillis();
 		if (now - lastUINoticeMs < UI_NOTICE_THROTTLE_MS) return; // dropped: logService above already recorded it
 		lastUINoticeMs = now;
-		GuiUtils.Notices.queueNotice(string, null, GuiUtils::showConsole, level);
+		GuiUtils.Notices.queueNotice(string, null, GuiUtils.Windows::showConsole, level);
 	}
 
 	public static void csvQuoteAndPrint(final PrintWriter pw, final Object o) {
@@ -580,7 +580,7 @@ public class SNTUtils {
 		SNT.verbose = b;
 		if (isDebugMode()) {
 			log("Entering debug mode...");
-			if (getInstance() != null && getInstance().getUI() != null) GuiUtils.showConsole();
+			if (getInstance() != null && getInstance().getUI() != null) GuiUtils.Windows.showConsole();
 		}
 	}
 

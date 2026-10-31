@@ -842,7 +842,7 @@ public class CalloutManager {
      * excluded), so callouts are never placed on top of them
      */
     private static Rectangle usableScreenBounds(final Component c) {
-        return GuiUtils.usableScreenBounds(c);
+        return GuiUtils.Windows.usableScreenBounds(c);
     }
 
     /**

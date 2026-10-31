@@ -665,7 +665,7 @@ public class CostPalette extends Thread {
             if (parent != null)
                 setLocationRelativeTo(parent);
             else
-                GuiUtils.centerWindow(this, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
+                GuiUtils.Windows.center(this, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
             new GuiUtils(this.getCanvas()).tempMsg(
                     "Scroll the stack to inspect each variant; pick from the dropdown then Apply.", 4000);
         }

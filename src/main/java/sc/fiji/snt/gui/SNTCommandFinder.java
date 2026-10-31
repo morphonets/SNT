@@ -872,11 +872,11 @@ public class SNTCommandFinder {
         // the palette is never placed behind them
         final Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
         if (focused != null && focused != frame) {
-            GuiUtils.setLocationRelativeTo(frame, focused);
+            GuiUtils.Windows.setLocationRelativeTo(frame, focused);
         } else if (sntui != null) {
-            GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
+            GuiUtils.Windows.center(frame, sntui, sntui.getPathManager());
         } else if (viewer3D != null) {
-            GuiUtils.setLocationRelativeTo(frame, viewer3D.getFrame());
+            GuiUtils.Windows.setLocationRelativeTo(frame, viewer3D.getFrame());
         }
     }
 

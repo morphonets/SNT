@@ -95,7 +95,6 @@ import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
-import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 import org.scijava.util.FileUtils;
@@ -3925,7 +3924,7 @@ public class Viewer3D {
             super();
             setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
             GuiUtils.LAF.setLookAndFeel();
-            GuiUtils.removeIcon(this);
+            GuiUtils.Windows.removeIcon(this);
             final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
             STATUS_DEF_UNLOCKED = (includeManager)
                     ? "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette..."
@@ -3934,9 +3933,9 @@ public class Viewer3D {
             initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" + title);
             if (PlatformUtils.isLinux()) new MultiDisplayUtil(this);
             if (gConfiguration == null)
-                AWTWindows.centerWindow(this);
+                GuiUtils.Windows.center(this);
             else
-                AWTWindows.centerWindow(gConfiguration.getBounds(), this);
+                GuiUtils.Windows.center(this, gConfiguration.getBounds());
             //setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
             setMinimumSize(new Dimension((int) (DEF_WIDTH * .5), (int) (DEF_HEIGHT * .5))); // fix macOS issue in which
             // frame is collapsed

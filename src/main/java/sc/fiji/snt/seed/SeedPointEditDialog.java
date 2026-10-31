@@ -93,7 +93,7 @@ public class SeedPointEditDialog {
         this.originals = new ArrayList<>(indices.size());
         for (final int i : indices) originals.add(overlay.get(i));
 
-        final Window owner = (parent == null) ? GuiUtils.getActiveWindow() : parent;
+        final Window owner = (parent == null) ? GuiUtils.Windows.getActiveWindow() : parent;
 
         final String title = bulk
                 ? "Edit " + originals.size() + " Seed Points"

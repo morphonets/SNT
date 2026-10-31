@@ -37,7 +37,6 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.jspecify.annotations.NonNull;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.awt.AWTWindows;
 import sc.fiji.snt.NearPoint;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
@@ -235,7 +234,7 @@ public class SigmaPalette extends Thread {
 			if (parent == null)
 				setLocationRelativeTo((snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow()); // after pack()
 			else
-				AWTWindows.centerWindow(parent, this);
+				GuiUtils.Windows.center(this, parent);
 			repaint(); // is this really needed?
 			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
 		}

@@ -117,7 +117,7 @@ public class TimeProfiler extends PathProfiler {
             SNTUtils.error("TimeProfiler", ex);
         } finally {
             resetUI();
-            GuiUtils.tile(shownPlots, false);
+            GuiUtils.Windows.tile(shownPlots, false);
         }
     }
 

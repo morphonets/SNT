@@ -148,11 +148,7 @@ public class GuiUtils {
 	}
 
 	public void setParentToActiveWindow() {
-		setParent(getActiveWindow());
-	}
-
-	public static Window getActiveWindow() {
-		return KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+		setParent(Windows.getActiveWindow());
 	}
 
 	public void setParent(final Component parent) {
@@ -403,7 +399,7 @@ public class GuiUtils {
 
 	public JDialog floatingMsg(final String msg, final boolean autodismiss) {
 		final JDialog dialog = new FloatingDialog(msg);
-		if (autodismiss) GuiUtils.setAutoDismiss(dialog);
+		if (autodismiss) Windows.setAutoDismiss(dialog);
 		makeVisible(dialog, false);
 		return dialog;
 	}
@@ -1923,139 +1919,13 @@ public class GuiUtils {
 		final JOptionPane optionPane = new JOptionPane(getLabel(msg), type, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = optionPane.createDialog(parent, title);
 		if (parent != null) {
-			centerOnParent(parent, d); // we could also use d.setLocationRelativeTo(parent);
+			Windows.center(d, parent); // we could also use d.setLocationRelativeTo(parent);
 		}
 		makeVisible(d, true);
 		final Object result = optionPane.getValue();
 		return (result instanceof Integer) ? (Integer) result : SwingDialog.UNKNOWN_OPTION;
 	}
 
-	public static void centerOnParent(final Component parent, final Window dialog) {
-		if (parent == null || !parent.isShowing()) {
-			dialog.setLocationRelativeTo(null);
-			return;
-		}
-		final java.awt.Point screenLoc = parent.getLocationOnScreen();
-		final Rectangle screenBounds = new Rectangle(screenLoc.x, screenLoc.y,
-				parent.getWidth(), parent.getHeight());
-		centerOnParent(screenBounds, parent.getGraphicsConfiguration(), dialog);
-	}
-
-	public static void centerOnParent(final Rectangle parentBounds, final Window dialog) {
-		if (parentBounds == null) {
-			dialog.setLocationRelativeTo(null);
-			return;
-		}
-		// Get screen containing the center of the bounding rectangle
-		final GraphicsConfiguration gc = getGraphicsConfigurationAt(
-				parentBounds.x + parentBounds.width / 2,
-				parentBounds.y + parentBounds.height / 2);
-		centerOnParent(parentBounds, gc, dialog);
-	}
-
-	private static void centerOnParent(final Rectangle parentBounds, final GraphicsConfiguration gc, final Window dialog) {
-		final Dimension dialogSize = dialog.getSize();
-
-		int x = parentBounds.x + (parentBounds.width - dialogSize.width) / 2;
-		int y = parentBounds.y + (parentBounds.height - dialogSize.height) / 2;
-
-		// Ensure dialog stays within screen bounds
-		final Rectangle screenBounds = gc.getBounds();
-		x = Math.clamp(x, screenBounds.x, screenBounds.x + screenBounds.width - dialogSize.width);
-		y = Math.clamp(y, screenBounds.y, screenBounds.y + screenBounds.height - dialogSize.height);
-
-		dialog.setLocation(x, y);
-	}
-
-	private static GraphicsConfiguration getGraphicsConfigurationAt(int x, int y) {
-		for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
-			GraphicsConfiguration gc = gd.getDefaultConfiguration();
-			if (gc.getBounds().contains(x, y)) {
-				return gc;
-			}
-		}
-		// Fallback to default screen
-		return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-	}
-
-	/**
-	 * The screen area actually usable for positioning windows on {@code c}'s screen, i.e., its
-	 * {@link GraphicsConfiguration} bounds shrunk by the OS-reported screen insets (taskbar, dock, menu bar)
-	 */
-	public static Rectangle usableScreenBounds(final Component c) {
-		final GraphicsConfiguration gc = c.getGraphicsConfiguration();
-		final Rectangle bounds = gc.getBounds();
-		final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
-		return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
-				bounds.width - insets.left - insets.right, bounds.height - insets.top - insets.bottom);
-	}
-
-
-	/**
-	 * Positions a target window relative to a reference window while preventing it from
-	 * being hidden behind system docks, taskbars, or menu bars across macOS, Windows, and Linux.
-	 *
-	 * <p><b>Precondition:</b> The target window must have its size initialized
-	 *
-	 * @param target    the window to be positioned (e.g., JFrame, JDialog); cannot be null
-	 * @param reference the reference window to position relative to; if null or not visible,
-	 *                  the target window centers on the primary screen launcher bounds
-	 */
-	public static void setLocationRelativeTo(final Window target, final Window reference) {
-		if (target == null) {
-			throw new IllegalArgumentException("Target window cannot be null.");
-		}
-
-		// 1. Initial baseline positioning relative to the component
-		target.setLocationRelativeTo(reference);
-
-		// 2. Resolve the correct monitor: prefer reference's screen if it is showing, else target's own
-		final Component gcSource = (reference != null && reference.isShowing()) ? reference : target;
-
-		// 3. Usable area of that screen (taskbar/dock/menu bar excluded)
-		final Rectangle usable = usableScreenBounds(gcSource);
-
-		// 4. Clamp the coordinates to stay completely within the safe zone
-		final int finalX = Math.clamp(target.getX(), usable.x, usable.x + usable.width - target.getWidth());
-		final int finalY = Math.clamp(target.getY(), usable.y, usable.y + usable.height - target.getHeight());
-
-		// 5. Apply safely-clamped bounds back to the target frame
-		target.setLocation(finalX, finalY);
-	}
-
-	/**
-	 * Positions a target window immediately to the right of a reference window, clamped to
-	 * stay within the screen's usable bounds (docks/taskbars excluded). Falls back to
-	 * {@link #centerOnParent(Component, Window)} if the reference is unavailable, or to
-	 * {@link #setLocationRelativeTo(Window, Window)} if there is no room to its right
-	 * (e.g., the reference sits near the screen's right edge)
-	 *
-	 * <p><b>Precondition:</b> The target window must have its size initialized
-	 *
-	 * @param target    the window to be positioned (e.g., JFrame, JDialog); cannot be null
-	 * @param reference the window to position beside; if null or not showing, target centers
-	 *                  on the primary screen instead
-	 */
-	public static void setLocationNextTo(final Window target, final Window reference) {
-		if (target == null) {
-			throw new IllegalArgumentException("target cannot be null");
-		}
-		if (reference == null || !reference.isShowing()) {
-			centerOnParent((Component) null, target);
-			return;
-		}
-		final Rectangle usable = usableScreenBounds(reference);
-		final Rectangle refBounds = reference.getBounds();
-		final int x = refBounds.x + refBounds.width;
-		if (x + target.getWidth() > usable.x + usable.width) {
-			// no room to the right on this screen: fall back to centering on the reference
-			setLocationRelativeTo(target, reference);
-			return;
-		}
-		final int minY = usable.y;
-		final int maxY = usable.y + usable.height - target.getHeight();
-		target.setLocation(x, Math.clamp(refBounds.y, minY, maxY));
-	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {
 		displayBanner(msg, background, parent, SwingConstants.CENTER, true);
@@ -3029,25 +2899,6 @@ public class GuiUtils {
 		return (PlatformUtils.isMac()) ? "Cmd" : "Ctrl";
 	}
 
-	public static Window getConsole() {
-		for (final Window w : JFrame.getWindows()) {
-			if (w instanceof JFrame && ("Console".equals(((JFrame) w).getTitle()))) {
-				return w;
-			}
-		}
-		return null;
-	}
-
-	/** Brings the (scijava) console pane to front */
-	public static void showConsole() {
-		try {
-			final ConsolePane<?> console = SNTUtils.getContext().service(UIService.class).getDefaultUI().getConsolePane();
-			if (console != null) console.show();
-		} catch (final Exception ignored) {
-			// do nothing
-		}
-	}
-
 	public static void setRenderingHints(final Graphics2D g2 ) {
 		g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON );
 		g2.setRenderingHint( RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE );
@@ -3064,13 +2915,6 @@ public class GuiUtils {
 		cp.gridx = 0;
 		cp.gridy = 0;
 		return cp;
-	}
-
-	public static void removeIcon(final Object rootPaneContainerOrWindow) {
-		if (rootPaneContainerOrWindow instanceof RootPaneContainer)
-			((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
-		else if (rootPaneContainerOrWindow instanceof Window)
-			((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
 	}
 
 	public static void enableComponents(final java.awt.Container container,
@@ -3218,77 +3062,6 @@ public class GuiUtils {
 			fileChooser.rescanCurrentDirectory();
 		});
 		return fileChooser;
-	}
-
-	public static void setAutoDismiss(final JDialog dialog) {
-		final int DELAY = 3000;
-		final Timer timer = new Timer(DELAY, e -> dialog.dispose());
-		timer.setRepeats(false);
-		dialog.addMouseListener(new MouseAdapter() {
-
-			private long lastUpdate;
-
-			@Override
-			public void mouseClicked(final MouseEvent e) {
-				dialog.dispose();
-			}
-
-			@Override
-			public void mouseExited(final MouseEvent e) {
-				if (System.currentTimeMillis() - lastUpdate > DELAY) dialog.dispose();
-				else timer.start();
-			}
-
-			@Override
-			public void mouseEntered(final MouseEvent e) {
-				lastUpdate = System.currentTimeMillis();
-				timer.stop();
-			}
-
-		});
-		timer.start();
-	}
-
-	public static void tile(final List<? extends Window> windowList, final boolean resize) {
-		if (windowList == null || windowList.isEmpty()) return;
-
-		final List<? extends Window> windows = List.copyOf(windowList);
-		final int n = windows.size();
-
-		// Get screen bounds
-		final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-		final Rectangle screen = ge.getMaximumWindowBounds();
-
-		// Calculate grid dimensions
-		final int cols = (int) Math.ceil(Math.sqrt(n));
-		final int rows = (int) Math.ceil((double) n / cols);
-
-		// Calculate tile size with small gap
-		final int gap = 2;
-		final int tileWidth = (resize)
-				? (screen.width - (cols + 1) * gap) / cols
-				: windows.stream().mapToInt(w -> w.getSize().width).max().orElse(500);
-		final int tileHeight = (resize)
-				? (screen.height - (rows + 1) * gap) / rows
-				: windows.stream().mapToInt(w -> w.getSize().height).max().orElse(500);
-
-		// Position windows in grid
-		for (int i = 0; i < n; i++) {
-			final int col = i % cols;
-			final int row = i / cols;
-			final int x = screen.x + gap + col * (tileWidth + gap);
-			final int y = screen.y + gap + row * (tileHeight + gap);
-
-			final Window window = windows.get(i);
-			if (resize) {
-				window.setBounds(x, y, tileWidth, tileHeight);
-			} else {
-				window.setLocation(x, y);
-			}
-			window.toFront();
-		}
-
-		SwingUtilities.invokeLater(() -> windows.forEach(w -> w.setVisible(true)));
 	}
 
 
@@ -3550,35 +3323,6 @@ public class GuiUtils {
 		return tabbedPane;
 	}
 
-	public static void centerWindow(final Window dialogToCenter, final Window... windows) {
-		if (dialogToCenter == null) {
-			throw new IllegalArgumentException("dialogToCenter must not be null");
-		}
-		if (windows == null || windows.length == 0) {
-			centerOnParent((Component)null, dialogToCenter);
-			return;
-		}
-		// the bounding rectangle that encompasses all windows
-		Rectangle boundingRect = new Rectangle(windows[0].getBounds());
-		for (final Window w : windows) {
-			if (w != null) boundingRect = boundingRect.union(w.getBounds());
-		}
-		centerOnParent(boundingRect, dialogToCenter);
-	}
-
-	public static void addCloseShortcut(final JFrame frame) {
-		// Add Ctrl+W (Linux/Windows) or Cmd+W (Mac) to close window
-		final int closeModifier = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-		frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-				.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, closeModifier), "closeWindow");
-		frame.getRootPane().getActionMap().put("closeWindow", new AbstractAction() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
-			}
-		});
-	}
-
 	public static void closeAllPlots() {
 		try {
 			SNTChart.closeAll();
@@ -3613,6 +3357,261 @@ public class GuiUtils {
 
 		public static JComponent separator() {
 			return new JToolBar.Separator(null);
+		}
+	}
+
+	public static class Windows {
+
+		public static void applyDimensions(final Window window, final Window reference) {
+			if (window instanceof Frame f1 && reference instanceof Frame f2) {
+				f1.setExtendedState(f2.getExtendedState());
+			}
+			window.setLocation(reference.getLocation());
+			window.setMinimumSize(reference.getMinimumSize());
+			window.setSize(reference.getSize());
+			window.setMaximumSize(reference.getMaximumSize());
+			window.setPreferredSize(reference.getPreferredSize());
+		}
+
+		/**
+		 * Centers a window on the union of the bounds of the showing reference components, on the
+		 * screen holding the center of that union. Centers on the default screen when no reference
+		 * is showing (or none is given)
+		 */
+		public static void center(final Window target, final Component... references) {
+			Rectangle union = null;
+			if (references != null) {
+				for (final Component c : references) {
+					if (c == null || !c.isShowing()) continue;
+					final Rectangle r = new Rectangle(c.getLocationOnScreen(), c.getSize());
+					union = (union == null) ? r : union.union(r);
+				}
+			}
+			center(target, union);
+		}
+
+		/**
+		 * Centers a window on the given screen bounds, clamped to the screen holding their center.
+		 * Centers on the default screen if {@code bounds} is null
+		 */
+		public static void center(final Window target, final Rectangle bounds) {
+			if (target == null) {
+				throw new IllegalArgumentException("target must not be null");
+			}
+			if (bounds == null) {
+				target.setLocationRelativeTo(null);
+				return;
+			}
+			final Rectangle screen = getGraphicsConfigurationAt(bounds.x + bounds.width / 2,
+					bounds.y + bounds.height / 2).getBounds();
+			final Dimension size = target.getSize();
+			final int x = bounds.x + (bounds.width - size.width) / 2;
+			final int y = bounds.y + (bounds.height - size.height) / 2;
+			target.setLocation(Math.clamp(x, screen.x, screen.x + screen.width - size.width),
+					Math.clamp(y, screen.y, screen.y + screen.height - size.height));
+		}
+
+		public static Window getActiveWindow() {
+			return KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+		}
+
+		private static GraphicsConfiguration getGraphicsConfigurationAt(int x, int y) {
+			for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+				GraphicsConfiguration gc = gd.getDefaultConfiguration();
+				if (gc.getBounds().contains(x, y)) {
+					return gc;
+				}
+			}
+			// Fallback to default screen
+			return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+		}
+
+		/**
+		 * The screen area actually usable for positioning windows on {@code c}'s screen, i.e., its
+		 * {@link GraphicsConfiguration} bounds shrunk by the OS-reported screen insets (taskbar, dock, menu bar)
+		 */
+		public static Rectangle usableScreenBounds(final Component c) {
+			final GraphicsConfiguration gc = c.getGraphicsConfiguration();
+			final Rectangle bounds = gc.getBounds();
+			final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+			return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
+					bounds.width - insets.left - insets.right, bounds.height - insets.top - insets.bottom);
+		}
+
+		/**
+		 * Positions a target window relative to a reference window while preventing it from
+		 * being hidden behind system docks, taskbars, or menu bars across macOS, Windows, and Linux.
+		 *
+		 * <p><b>Precondition:</b> The target window must have its size initialized
+		 *
+		 * @param target    the window to be positioned (e.g., JFrame, JDialog); cannot be null
+		 * @param reference the reference window to position relative to; if null or not visible,
+		 *                  the target window centers on the primary screen launcher bounds
+		 */
+		public static void setLocationRelativeTo(final Window target, final Window reference) {
+			if (target == null) {
+				throw new IllegalArgumentException("Target window cannot be null.");
+			}
+
+			// 1. Initial baseline positioning relative to the component
+			target.setLocationRelativeTo(reference);
+
+			// 2. Resolve the correct monitor: prefer reference's screen if it is showing, else target's own
+			final Component gcSource = (reference != null && reference.isShowing()) ? reference : target;
+
+			// 3. Usable area of that screen (taskbar/dock/menu bar excluded)
+			final Rectangle usable = usableScreenBounds(gcSource);
+
+			// 4. Clamp the coordinates to stay completely within the safe zone
+			final int finalX = Math.clamp(target.getX(), usable.x, usable.x + usable.width - target.getWidth());
+			final int finalY = Math.clamp(target.getY(), usable.y, usable.y + usable.height - target.getHeight());
+
+			// 5. Apply safely-clamped bounds back to the target frame
+			target.setLocation(finalX, finalY);
+		}
+
+		/**
+		 * Positions a target window immediately to the right of a reference window, clamped to
+		 * stay within the screen's usable bounds (docks/taskbars excluded). Falls back to
+		 * {@link #center(Window, Component...)} if the reference is unavailable, or to
+		 * {@link #setLocationRelativeTo(Window, Window)} if there is no room to its right
+		 * (e.g., the reference sits near the screen's right edge)
+		 *
+		 * <p><b>Precondition:</b> The target window must have its size initialized
+		 *
+		 * @param target    the window to be positioned (e.g., JFrame, JDialog); cannot be null
+		 * @param reference the window to position beside; if null or not showing, target centers
+		 *                  on the primary screen instead
+		 */
+		public static void setLocationNextTo(final Window target, final Window reference) {
+			if (target == null) {
+				throw new IllegalArgumentException("target cannot be null");
+			}
+			if (reference == null || !reference.isShowing()) {
+				center(target);
+				return;
+			}
+			final Rectangle usable = usableScreenBounds(reference);
+			final Rectangle refBounds = reference.getBounds();
+			final int x = refBounds.x + refBounds.width;
+			if (x + target.getWidth() > usable.x + usable.width) {
+				// no room to the right on this screen: fall back to centering on the reference
+				setLocationRelativeTo(target, reference);
+				return;
+			}
+			final int minY = usable.y;
+			final int maxY = usable.y + usable.height - target.getHeight();
+			target.setLocation(x, Math.clamp(refBounds.y, minY, maxY));
+		}
+
+		public static Window getConsole() {
+			for (final Window w : JFrame.getWindows()) {
+				if (w instanceof JFrame && ("Console".equals(((JFrame) w).getTitle()))) {
+					return w;
+				}
+			}
+			return null;
+		}
+
+		/** Brings the (scijava) console pane to front */
+		public static void showConsole() {
+			try {
+				final ConsolePane<?> console = SNTUtils.getContext().service(UIService.class).getDefaultUI().getConsolePane();
+				if (console != null) console.show();
+			} catch (final Exception ignored) {
+				// do nothing
+			}
+		}
+
+		public static void removeIcon(final Object rootPaneContainerOrWindow) {
+			if (rootPaneContainerOrWindow instanceof RootPaneContainer)
+				((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
+			else if (rootPaneContainerOrWindow instanceof Window)
+				((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
+		}
+
+		public static void setAutoDismiss(final JDialog dialog) {
+			final int DELAY = 3000;
+			final Timer timer = new Timer(DELAY, e -> dialog.dispose());
+			timer.setRepeats(false);
+			dialog.addMouseListener(new MouseAdapter() {
+
+				private long lastUpdate;
+
+				@Override
+				public void mouseClicked(final MouseEvent e) {
+					dialog.dispose();
+				}
+
+				@Override
+				public void mouseExited(final MouseEvent e) {
+					if (System.currentTimeMillis() - lastUpdate > DELAY) dialog.dispose();
+					else timer.start();
+				}
+
+				@Override
+				public void mouseEntered(final MouseEvent e) {
+					lastUpdate = System.currentTimeMillis();
+					timer.stop();
+				}
+
+			});
+			timer.start();
+		}
+
+		public static void tile(final List<? extends Window> windowList, final boolean resize) {
+			if (windowList == null || windowList.isEmpty()) return;
+
+			final List<? extends Window> windows = List.copyOf(windowList);
+			final int n = windows.size();
+
+			// Get screen bounds
+			final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+			final Rectangle screen = ge.getMaximumWindowBounds();
+
+			// Calculate grid dimensions
+			final int cols = (int) Math.ceil(Math.sqrt(n));
+			final int rows = (int) Math.ceil((double) n / cols);
+
+			// Calculate tile size with small gap
+			final int gap = 2;
+			final int tileWidth = (resize)
+					? (screen.width - (cols + 1) * gap) / cols
+					: windows.stream().mapToInt(w -> w.getSize().width).max().orElse(500);
+			final int tileHeight = (resize)
+					? (screen.height - (rows + 1) * gap) / rows
+					: windows.stream().mapToInt(w -> w.getSize().height).max().orElse(500);
+
+			// Position windows in grid
+			for (int i = 0; i < n; i++) {
+				final int col = i % cols;
+				final int row = i / cols;
+				final int x = screen.x + gap + col * (tileWidth + gap);
+				final int y = screen.y + gap + row * (tileHeight + gap);
+
+				final Window window = windows.get(i);
+				if (resize) {
+					window.setBounds(x, y, tileWidth, tileHeight);
+				} else {
+					window.setLocation(x, y);
+				}
+				window.toFront();
+			}
+
+			SwingUtilities.invokeLater(() -> windows.forEach(w -> w.setVisible(true)));
+		}
+
+		public static void addCloseShortcut(final JFrame frame) {
+			// Add Ctrl+W (Linux/Windows) or Cmd+W (Mac) to close window
+			final int closeModifier = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+			frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+					.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, closeModifier), "closeWindow");
+			frame.getRootPane().getActionMap().put("closeWindow", new AbstractAction() {
+				@Override
+				public void actionPerformed(final ActionEvent e) {
+					frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
+				}
+			});
 		}
 	}
 
@@ -5278,7 +5277,7 @@ public class GuiUtils {
 						}
 						return;
 					}
-					addCloseShortcut(frame);
+					Windows.addCloseShortcut(frame);
 					final JTable jTable = findComponent(frame, JTable.class);
 					if (jTable != null) {
 						final JPopupMenu menu = enhanceTablePopupMenu(table, jTable);

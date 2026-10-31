@@ -306,7 +306,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		//TODO: use ij1 for now because it detects if the location is valid. 
 		final Point loc = ij.Prefs.getLocation(WIN_LOC);
 		if (loc == null)
-			GuiUtils.setLocationNextTo(frame, ij.IJ.getInstance());
+			GuiUtils.Windows.setLocationNextTo(frame, ij.IJ.getInstance());
 		else
 			frame.setLocation(loc);
 		frame.setVisible(true);
@@ -344,7 +344,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	@SuppressWarnings("unused")
 	public static void resetFrameLocation() {
 		ij.Prefs.saveLocation(WIN_LOC, null); // convenience methods for macro access
-		if (frame != null) GuiUtils.setLocationNextTo(frame, ij.IJ.getInstance());
+		if (frame != null) GuiUtils.Windows.setLocationNextTo(frame, ij.IJ.getInstance());
 	}
 
 	public static boolean isVisible() {

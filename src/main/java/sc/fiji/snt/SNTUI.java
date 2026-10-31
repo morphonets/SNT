@@ -425,7 +425,7 @@ public class SNTUI extends JDialog {
             }
         });
 
-        GuiUtils.removeIcon(this);
+        GuiUtils.Windows.removeIcon(this);
 
         assert SwingUtilities.isEventDispatchThread();
         final JTabbedPane tabbedPane = initTabbedPane();
@@ -4302,10 +4302,10 @@ public class SNTUI extends JDialog {
         final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.menuIcon(GLYPH.CODE));
         consoleJMI.addActionListener(e -> {
             try {
-                Window console = GuiUtils.getConsole();
+                Window console = GuiUtils.Windows.getConsole();
                 if (console == null) {
-                    GuiUtils.showConsole();
-                    console = GuiUtils.getConsole();
+                    GuiUtils.Windows.showConsole();
+                    console = GuiUtils.Windows.getConsole();
                     positionConsole(console);
                 } else if (!console.isVisible()) {
                     // NB: Fiji creates the Console frame during its own startup (hidden, at a fixed location),
@@ -5736,7 +5736,7 @@ public class SNTUI extends JDialog {
         setBounds(usable.x, usable.y, w, h);
         pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, usable.y, w, h);
         fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, usable.y);
-        positionConsole(GuiUtils.getConsole());
+        positionConsole(GuiUtils.Windows.getConsole());
         final int nextColumnX = pmUI.getLocation().x + w + InternalUtils.MARGIN;
         return new DialogLayout(nextColumnX, usable.y, usable.x + usable.width, usable.y + usable.height, w, h);
     }
@@ -6985,7 +6985,7 @@ public class SNTUI extends JDialog {
 
         /** Usable screen bounds (i.e., excluding taskbar/dock/menu bar) for whatever screen {@code c} is on. */
         static Rectangle usableScreenBounds(final Component c) {
-            return GuiUtils.usableScreenBounds(c);
+            return GuiUtils.Windows.usableScreenBounds(c);
         }
 
         static String getImportActionName(final int type) {
