@@ -5169,6 +5169,17 @@ public class SNT extends MultiDThreePanes implements
 		statusService.showProgress((int) proportion, 1); // FIXME:
 	}
 
+	/**
+	 * Displays, in the Legacy 3D Viewer, the correspondences between the current reconstruction
+	 * and another one.
+	 *
+	 * @param tracesFile  the file with the reconstruction to be compared against
+	 * @param c           the color used to render the imported reconstruction
+	 * @param maxDistance the confinement distance for node correspondence
+	 * @deprecated The Legacy 3D Viewer is no longer supported and no replacement display is
+	 *             available. The correspondences themselves can still be computed with
+	 *             {@link PathAndFillManager#getCorrespondences(PathAndFillManager, double)}.
+	 */
 	@Deprecated
 	public void showCorrespondencesTo(final File tracesFile, final Color c,
 									  final double maxDistance)
