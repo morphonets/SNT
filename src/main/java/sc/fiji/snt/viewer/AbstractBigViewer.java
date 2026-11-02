@@ -1230,8 +1230,20 @@ public abstract class AbstractBigViewer {
     }
 
     /** Ctrl (Cmd on macOS) + G: prompts for a location to fly to */
-    protected static final KeyStroke GO_TO_KEYSTROKE = KeyStroke.getKeyStroke(KeyEvent.VK_G,
-            java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
+    protected static final KeyStroke GO_TO_KEYSTROKE = KeyStroke.getKeyStroke(KeyEvent.VK_G, menuShortcutMask());
+
+    /**
+     * Menu shortcut modifier (Cmd on macOS, Ctrl elsewhere). Safe to call from static initializers in headless
+     * JVMs, where {@code Toolkit.getMenuShortcutKeyMaskEx()} throws a {@link java.awt.HeadlessException}.
+     */
+    private static int menuShortcutMask() {
+        try {
+            return java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        } catch (final java.awt.HeadlessException ignored) {
+            return System.getProperty("os.name", "").toLowerCase().contains("mac")
+                    ? InputEvent.META_DOWN_MASK : InputEvent.CTRL_DOWN_MASK;
+        }
+    }
 
     /** Script-ready lines of the keyframes captured with the K hotkey since the last reset */
     private final List<String> capturedKeyframes = new ArrayList<>();

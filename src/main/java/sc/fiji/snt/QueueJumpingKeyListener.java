@@ -45,7 +45,17 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+	private static final int CTRL_CMD_MASK = menuShortcutMask();
+
+	/** Headless-safe: Toolkit.getMenuShortcutKeyMaskEx() throws in headless JVMs, which would break class loading */
+	private static int menuShortcutMask() {
+		try {
+			return Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+		} catch (final java.awt.HeadlessException ignored) {
+			return System.getProperty("os.name", "").toLowerCase().contains("mac")
+					? java.awt.event.InputEvent.META_DOWN_MASK : java.awt.event.InputEvent.CTRL_DOWN_MASK;
+		}
+	}
 	private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
 	/* Define the keys that are always parsed by IJ listeners */
 	private static final int[] IJ_KEYS = new int[]{ //
