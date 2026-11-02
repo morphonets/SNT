@@ -1262,9 +1262,10 @@ public class Viewer3D {
     private void addTreeInternal(final Tree tree) {
         final String label = getUniqueLabel(plottedTrees, "Tree ", tree.getLabel());
         final ShapeTree shapeTree = new ShapeTree(tree);
+        // Assemble before publishing so other threads never see a half-built tree
+        shapeTree.setDisplayed(true);
         plottedTrees.put(label, shapeTree);
         addItemToManager(label);
-        shapeTree.setDisplayed(true);
         chart.add(shapeTree.get(), viewUpdatesEnabled);
     }
 
@@ -8285,6 +8286,7 @@ public class Viewer3D {
         private Wireframeable somaSubShape;
         private Coord3d translationReset;
         private float opacity = 1f;
+        private boolean assembled;
 
         ShapeTree(final Tree tree) {
             super();
@@ -8315,8 +8317,8 @@ public class Viewer3D {
             if (arborVBO != null) arborVBO.setDisplayed(displayed);
         }
 
-        Shape get() {
-            if (components == null || components.isEmpty()) assembleShape();
+        synchronized Shape get() {
+            if (!assembled) assembleShape();
             return this;
         }
 
@@ -8333,7 +8335,7 @@ public class Viewer3D {
             translationReset = new Coord3d(0f, 0f, 0f);
         }
 
-        private void assembleShape() {
+        private synchronized void assembleShape() {
 
             final List<SWCPoint> somaPoints = new ArrayList<>();
             final List<java.awt.Color> somaColors = new ArrayList<>();
@@ -8380,6 +8382,7 @@ public class Viewer3D {
                 if (arborVBO != null) arborVBO.setOpacity(opacity);
                 applySomaOpacity(somaSubShape);
             }
+            assembled = true;
         }
 
         private void assembleSoma(final List<SWCPoint> somaPoints,
@@ -8450,7 +8453,7 @@ public class Viewer3D {
             return s;
         }
 
-        void rebuildShape() {
+        synchronized void rebuildShape() {
             if (isDisplayed()) {
                 clear();
                 assembleShape();
