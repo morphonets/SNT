@@ -347,6 +347,7 @@ public class MeasureUI extends JFrame {
 			c.weightx = 0.0; // do not fill width when resizing panel
 			c.gridheight = 1;
 			final JScrollPane metricListScrollPane = new JScrollPane(metricList);
+			GuiUtils.ScrollPanes.recolorTracks(metricListScrollPane, metricList.getBackground(), false);
 			// The help icon is painted over the cell, not part of its own preferred (text-only)
 			// width, so widen the list a tad to keep it from overlapping long metric names
 			final Dimension metricListPreferredSize = metricListScrollPane.getPreferredSize();

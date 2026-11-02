@@ -4771,6 +4771,7 @@ public class Viewer3D {
 
             });
             final JScrollPane scrollPane = new JScrollPane(managerList);
+            GuiUtils.ScrollPanes.recolorTracks(scrollPane, managerList.getBackground(), false);
             managerList.setComponentPopupMenu(popupMenu());
             scrollPane.setWheelScrollingEnabled(true);
             scrollPane.setViewportView(managerList);
