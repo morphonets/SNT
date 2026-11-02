@@ -44,7 +44,7 @@ group2Analyzers = getAnalyzers(group2Cells)
 	chartCombo.show()
 	taggedTrees = []
 	analyzers.each { taggedTrees.add(it.getTaggedTree("Ice.lut", 0, 80)) }
-	multiviewer = FigCreatorCmd.render(taggedTrees, "2d-vector, montage, zero-origin, in-place")
+	multiviewer = FigureUtils.render(taggedTrees, "2d-vector, montage, zero-origin, in-place")
 	multiviewer.setColorBarLegend("Ice.lut", 0, 80)
 	multiviewer.setTitle("Group " + (index+1))
 	multiviewer.show()
@@ -89,4 +89,4 @@ def detailStats(cell, analyzer) {
 // imports below
 import sc.fiji.snt.io.*
 import sc.fiji.snt.analysis.*
-import sc.fiji.snt.gui.cmds.FigCreatorCmd
+import sc.fiji.snt.viewer.FigureUtils

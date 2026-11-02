@@ -30,7 +30,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
-import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.viewer.FigureUtils;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.MultiViewer3D;
 import sc.fiji.snt.viewer.Viewer2D;
@@ -152,9 +152,9 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		final Object result;
 		final boolean montage = style.toLowerCase().contains("montage") && trees.size() > 1;
 		if (montage)
-			result = montage(renderingTrees, type + " " + view, false);
+			result = FigureUtils.montage(renderingTrees, type + " " + view, false);
 		else
-			result = singleScene(renderingTrees, type + " " + view, false);
+			result = FigureUtils.singleScene(renderingTrees, type + " " + view, false);
         switch (result) {
             case ImagePlus imagePlus -> {
                 imagePlus.show();
@@ -186,100 +186,16 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		resetUI();
 	}
 
-	private static Viewer3D.ViewMode getView(final String flag) {
-		final String lcFlag = flag.toLowerCase();
-		if (lcFlag.contains("xz") || lcFlag.contains("zx"))
-			return Viewer3D.ViewMode.XZ;
-		if (lcFlag.contains("yz") || lcFlag.contains("zy"))
-			return Viewer3D.ViewMode.YZ;
-		return Viewer3D.ViewMode.DEFAULT;
-	}
-
-	private static Object montage(final Collection<Tree> renderingTrees, final String renderOptions, final boolean display) {
-		final String flags = renderOptions.toLowerCase();
-		if (flags.contains("skel") || flags.contains("raster") || flags.contains("image")) {
-			final ImagePlus result = ImpUtils.combineSkeletons(renderingTrees, true);
-			if (display) result.show();
-			return result;
-		} else if (flags.contains("2d") || flags.contains("vector")) {
-			final MultiViewer2D result = new MultiViewer2D(renderingTrees);
-			if (display) result.show();
-			return result;
-		} else if (flags.contains("3d") || flags.contains("interactive")) {
-			final MultiViewer3D result = new MultiViewer3D(renderingTrees);
-			result.setViewMode(getView(renderOptions));
-			if (display) result.show();
-			return result;
-		} else {
-			throw new IllegalArgumentException("Unrecognized option: '" + renderOptions + "'");
-		}
-	}
-
-	private static Object singleScene(final Collection<Tree> renderingTrees, final String renderOptions, final boolean display) {
-		final String flags = renderOptions.toLowerCase();
-		if (flags.contains("skel") || flags.contains("raster") || flags.contains("image")) {
-			final ImagePlus result = ImpUtils.combineSkeletons(renderingTrees);
-			if (display) result.show();
-			return result;
-		} else if (flags.contains("2d") || flags.contains("view")) {
-			final Viewer2D result = new Viewer2D();
-			result.add(renderingTrees);
-			if (display) result.show();
-			return result;
-		} else if (flags.contains("3d") || flags.contains("interactive")) {
-			final Viewer3D result = new Viewer3D();
-			result.add(renderingTrees);
-			result.setViewMode(getView(renderOptions));
-            result.zoomTo("visible");
-			if (display) result.show();
-			return result;
-		} else {
-			throw new IllegalArgumentException("Unrecognized option: '" + renderOptions + "'");
-		}
-	}
-
 	/**
 	 * Convenience method to quickly display a collection of {@link Tree}s
 	 *
 	 * @param trees         the collection of trees to be rendered
-	 * @param renderOptions A string of flags (comma or space separated) specifying rendering options:
-	 *                      Example: "montage,2d-raster,xy,zero-origin,upright-geodesic,show"
-	 *                      <p>
-	 *                      <b>Multi-panel flag:</b><br>
-	 *                      <code>montage</code>: whether a multi-panel montage (1 cell/pane) should be obtained in
-	 *                      {@link  MultiViewer2D}/{@link  MultiViewer3D} as opposed to a single-scene<br>
-	 *                      <b>Viewer-type flag (only one allowed):</b><br>
-	 *                      <code>2d-raster</code>: trees are rendered as 2D skeletonized images<br>
-	 *                      <code>2d-vector</code>: trees are rendered in a static (non-interactive) Viewer2D<br>
-	 *                      <code>3d</code>: trees are rendered in interactive Viewer3D canvas(es)<br>
-	 *                      <b>View flag (only one allowed):</b><br>
-	 *                      <code>xz</code>: whether trees should be displayed in a XZ view (default is XY)<br>
-	 *                      <code>zy</code>: whether trees should be displayed in a ZY view (default is XY)<br>
-	 *                      <b>Translation flag:</b><br>
-	 *                      <code>zero-origin</code>: whether trees should be  translated so that their roots/somas are
-	 *                      displayed at a common origin (0,0,0)<br>
-	 *                      <b>Rotation flags (only one allowed):</b><br>
-	 *                      <code>upright-geodesic</code>: whether each tree should be rotated to vertically align its graph
-	 *                      geodesic<br>
-	 *                      <code>upright-tips</code>: whether each tree should be rotated to vertically align its
-	 *                      [root, tips centroid] vector<br>
-	 *                      <code>"r#"</code>: With # specifying a positive integer (e.g., r90): each tree is rotated by the
-	 *                      specified angle (in degrees)<br>
-	 *                      <b>Other flags:</b><br>
-	 *                      <code>in-place</code>: whether any transformation should be applied in-place (i.e., without
-	 *                      duplicating the input collection)<br>
-	 *                      <code>show</code>: whether the viewer should be immediately displayed
-	 *                      </p>
-	 * @return a reference to the viewer. Either an {@link ImagePlus}, {@link Viewer2D}, {@link Viewer3D},
-	 *         {@link MultiViewer2D} or {@link MultiViewer3D}
-	 * @see Tree#transform(Collection, String, boolean)
+	 * @param renderOptions string of flags, see {@link FigureUtils#render(Collection, String)}
+	 * @return a reference to the viewer
+	 * @deprecated Use {@link FigureUtils#render(Collection, String)} instead.
 	 */
+	@Deprecated
 	public static Object render(final Collection<Tree> trees, final String renderOptions) {
-		final String flags = renderOptions.toLowerCase();
-		final Collection<Tree> renderingTrees = Tree.transform(trees, flags, flags.contains("in-place"));
-		if (flags.contains("montage"))
-			return montage(renderingTrees, flags, flags.contains("show"));
-		else
-			return singleScene(renderingTrees, flags, flags.contains("show"));
+		return FigureUtils.render(trees, renderOptions);
 	}
 }
