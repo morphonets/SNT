@@ -2016,7 +2016,19 @@ public class TreeStatistics extends ContextCommand {
      * @return physical unit
      */
     public String getUnit(final String metric) {
-        return getUnit(metric, getSpatialUnit(), tree.is3D());
+        final String resolved = Resolver.INSTANCE.resolveOrNull(metric);
+        final String m = (resolved == null) ? metric : resolved;
+        // Dimensionality only matters for convex hull metrics: do not touch the
+        // structure otherwise (it may be empty, e.g., in MultiTreeStatistics)
+        final boolean hull = CONVEX_HULL_SIZE.equals(m) || CONVEX_HULL_BOUNDARY_SIZE.equals(m);
+        return getUnit(m, getSpatialUnit(), hull && isTree3D());
+    }
+
+    /**
+     * Whether the structure being measured is 3D. Empty structures are not
+     */
+    protected boolean isTree3D() {
+        return !tree.isEmpty() && tree.is3D();
     }
 
     /**

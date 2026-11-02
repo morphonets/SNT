@@ -226,6 +226,12 @@ public class MultiTreeStatistics extends TreeStatistics {
 		throw new IllegalArgumentException("Operation currently not supported in MultiTreeStatistics");
 	}
 
+	/** The group is 3D if any of its (non-empty) trees is */
+	@Override
+	protected boolean isTree3D() {
+		return groupOfTrees.stream().anyMatch(t -> !t.isEmpty() && t.is3D());
+	}
+
 	@Override
 	public ShollAnalyzer getShollAnalyzer() {
 		throw new IllegalArgumentException("Operation currently not supported in MultiTreeStatistics");
@@ -297,8 +303,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 		try {
 			return getHistogram(normMeasurement, datasetPlus);
 		} catch (final IllegalArgumentException ex) {
-			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
-					ex);
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics: "
+					+ ex.getMessage(), ex);
 		}
 	}
 
@@ -311,8 +317,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 			chart.setTitle("Polar Hist. " + tree.getLabel());
 			return chart;
 		} catch (final IllegalArgumentException ex) {
-			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
-					ex);
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics: "
+					+ ex.getMessage(), ex);
 		}
 	}
 
@@ -322,8 +328,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 		try {
 			return datasetPlus.getTable();
 		} catch (final IllegalArgumentException ex) {
-			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
-					ex);
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics: "
+					+ ex.getMessage(), ex);
 		}
 	}
 	@Override
