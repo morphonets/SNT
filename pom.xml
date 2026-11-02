@@ -133,6 +133,9 @@
 		<license.excludes>%regex[.*main/resources/.*|.*/macros/.*]</license.excludes>
 
 		<scijava.jvm.version>21</scijava.jvm.version>
+
+		<!-- Keep real parameter names in class files for PySNT stubs -->
+		<maven.compiler.parameters>true</maven.compiler.parameters>
 		<doclint>none</doclint>
 		<!--
 			WORKAROUND: jzy3d-native-jogl-awt has an invalid automatic module
