@@ -154,7 +154,7 @@
 		<fastutil.version>8.5.19</fastutil.version>
 		<flatlaf-jide-oss.version>3.7.2</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
-		<logback.version>1.6.5</logback.version>
+		<logback.version>1.6.6</logback.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
