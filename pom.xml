@@ -243,6 +243,13 @@
 		<dependency>
 			<groupId>net.imagej</groupId>
 			<artifactId>imagej-ops</artifactId>
+			<exclusions>
+				<!-- Needs Nashorn (removed in Java 15): fails to instantiate (logged as an error) and is not used by SNT -->
+				<exclusion>
+					<groupId>org.scijava</groupId>
+					<artifactId>scripting-javascript</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>net.imagej</groupId>
