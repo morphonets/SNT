@@ -3469,6 +3469,7 @@ public class PathAndFillManager extends DefaultHandler implements
     /* (non-Javadoc)
      * @see ij3d.UniverseListener#contentAdded(ij3d.Content)
      */
+    /** @deprecated Part of the legacy 3D Viewer listener interface. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
     @Override
     @Deprecated
     public void contentAdded(final Content c) {}
@@ -3476,6 +3477,7 @@ public class PathAndFillManager extends DefaultHandler implements
     /* (non-Javadoc)
      * @see ij3d.UniverseListener#contentRemoved(ij3d.Content)
      */
+    /** @deprecated Part of the legacy 3D Viewer listener interface. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
     @Override
     @Deprecated
     public void contentRemoved(final Content c) {}
@@ -3483,6 +3485,7 @@ public class PathAndFillManager extends DefaultHandler implements
     /* (non-Javadoc)
      * @see ij3d.UniverseListener#contentChanged(ij3d.Content)
      */
+    /** @deprecated Part of the legacy 3D Viewer listener interface. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
     @Override
     @Deprecated
     public void contentChanged(final Content c) {}
@@ -3490,6 +3493,7 @@ public class PathAndFillManager extends DefaultHandler implements
     /* (non-Javadoc)
      * @see ij3d.UniverseListener#contentSelected(ij3d.Content)
      */
+    /** @deprecated Part of the legacy 3D Viewer listener interface. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
     @Override
     @Deprecated
     public void contentSelected(final Content c) {
@@ -3503,6 +3507,7 @@ public class PathAndFillManager extends DefaultHandler implements
     /* (non-Javadoc)
      * @see ij3d.UniverseListener#canvasResized()
      */
+    /** @deprecated Part of the legacy 3D Viewer listener interface. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
     @Override
     @Deprecated
     public void canvasResized() {}
@@ -3510,6 +3515,7 @@ public class PathAndFillManager extends DefaultHandler implements
     /* (non-Javadoc)
      * @see ij3d.UniverseListener#universeClosed()
      */
+    /** @deprecated Part of the legacy 3D Viewer listener interface. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
     @Override
     @Deprecated
     public void universeClosed() {

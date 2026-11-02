@@ -3459,6 +3459,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param max   the maximum pixel intensity in the Tubeness image beyond which the cost function of the A* search
 	 *              is minimized.
 	 * @param wait  this parameter does nothing.
+	 * @deprecated Use {@link #startHessian(String, String, double[], double, double, String, int)} instead.
 	 */
 	@Deprecated
 	public void startHessian(final String image, final double sigma, final double max, final boolean wait)

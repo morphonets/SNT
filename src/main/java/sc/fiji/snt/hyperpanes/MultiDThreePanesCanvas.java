@@ -212,6 +212,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		current_z = z;
 	}
 
+	/** @deprecated Use {@link #updateCursor(double, double, double)} and {@link #setDrawCrosshairs(boolean)} instead. */
 	@Deprecated
 	public void setCrosshairs(final double x, final double y, final double z,
 		final boolean display)

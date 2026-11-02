@@ -684,6 +684,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *
 	 * @return a reference to the image tree, or null if data could not be retrieved
 	 * @see #demoTree()
+	 * @deprecated Use {@link #demoImage(String)} with "fractal" instead.
 	 */
 	@Deprecated
 	public ImagePlus demoTreeImage() {

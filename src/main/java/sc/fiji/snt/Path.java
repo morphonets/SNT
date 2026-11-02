@@ -1125,6 +1125,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		}
 	}
 
+	/** @deprecated Use {@link #detachFromParent()} instead. */
 	@Deprecated
 	public void unsetStartJoin() {
 		detachFromParent();
@@ -3633,6 +3634,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		}
 	}
 
+	/** @deprecated Legacy 3D Viewer support is deprecated. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
 	@Deprecated
 	public java.util.List<Point3f> getPoint3fList() {
 		final ArrayList<Point3f> linePoints = new ArrayList<>();
@@ -3642,6 +3644,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		return linePoints;
 	}
 
+	/** @deprecated Legacy 3D Viewer support is deprecated. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
 	@Deprecated
 	public Content addAsLinesTo3DViewer(final Image3DUniverse univ, final Color c,
 		final ImagePlus colorImage)
@@ -3649,6 +3652,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		return addAsLinesTo3DViewer(univ, Utils.toColor3f(c), colorImage);
 	}
 
+	/** @deprecated Legacy 3D Viewer support is deprecated. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
 	@Deprecated
 	protected Content addAsLinesTo3DViewer(final Image3DUniverse univ,
 		final Color3f c, final ImagePlus colorImage)
@@ -3657,6 +3661,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		return univ.addLineMesh(getPoint3fList(), c, safeName, true);
 	}
 
+	/** @deprecated Legacy 3D Viewer support is deprecated. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
 	@Deprecated
 	public Content addDiscsTo3DViewer(final Image3DUniverse univ, final Color c,
 		final ImagePlus colorImage)
@@ -3664,6 +3669,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		return addDiscsTo3DViewer(univ, Utils.toColor3f(c), colorImage);
 	}
 
+	/** @deprecated Legacy 3D Viewer support is deprecated. Use {@link sc.fiji.snt.viewer.Bvv} instead. */
 	@Deprecated
 	public Content addDiscsTo3DViewer(final Image3DUniverse univ, final Color3f c,
 		final ImagePlus colorImage)

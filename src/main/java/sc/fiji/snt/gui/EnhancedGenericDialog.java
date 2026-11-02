@@ -38,6 +38,7 @@ import java.awt.event.*;
  * button to display a drop-down menu, and labels featuring clickable
  * hyperlinks. Customizations are ignored if running headless. This class is
  * only used by IJ1 plugins and is thus deprecated.
+ * @deprecated Only used by IJ1 plugins, which are being phased out.
  */
 @Deprecated
 public class EnhancedGenericDialog extends GenericDialog {

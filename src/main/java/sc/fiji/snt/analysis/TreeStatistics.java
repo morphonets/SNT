@@ -457,6 +457,7 @@ public class TreeStatistics extends ContextCommand {
      *
      * @return the list of commonly used metrics.
      * @see #getMetrics(String)
+     * @deprecated Use {@link #getMetrics(String)} with "common" instead.
      */
     @Deprecated
     public static List<String> getMetrics() {

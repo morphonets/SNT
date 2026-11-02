@@ -45,12 +45,14 @@ public class GraphUtils {
 	private GraphUtils() {
 	}
 
+	/** @deprecated Use {@link DirectedWeightedGraph#DirectedWeightedGraph(Collection, boolean)} instead. */
 	@Deprecated
 	public static DirectedWeightedGraph createGraph(final Collection<SWCPoint> nodes,
 	                                                                              final boolean assignDistancesToWeights) {
 		return new DirectedWeightedGraph(nodes, assignDistancesToWeights);
 	}
 
+	/** @deprecated Use {@link Tree#getGraph()} instead. */
 	@Deprecated
 	public static DirectedWeightedGraph createGraph(final Tree tree) throws IllegalArgumentException {
 		return tree.getGraph();
@@ -61,6 +63,7 @@ public class GraphUtils {
 	 *
 	 * @param graph the graph to be converted.
 	 * @return the Tree, assembled from the graph vertices
+	 * @deprecated Use {@link DirectedWeightedGraph#getTree()} instead.
 	 */
 	@Deprecated
 	public static Tree createTree(final Graph<SWCPoint, ?> graph) {
@@ -70,6 +73,7 @@ public class GraphUtils {
 		return new Tree(graph.vertexSet(), "");
 	}
 
+	/** @deprecated Use {@link DirectedWeightedGraph#getSimplifiedGraph()} instead. */
 	@Deprecated
 	public static DirectedWeightedGraph getSimplifiedGraph(
 			final DirectedWeightedGraph graph) {

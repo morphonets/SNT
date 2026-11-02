@@ -1639,6 +1639,7 @@ public class SNTChart extends ChartPanel {
 		return false;
 	}
 
+	/** @deprecated Use {@code getFrame().setVisible(boolean)} or {@link #show()} instead. */
 	@Override
 	@Deprecated
 	public void setVisible(final boolean b) { // for backwards compatibility
