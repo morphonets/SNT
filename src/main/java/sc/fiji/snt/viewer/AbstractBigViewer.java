@@ -32,6 +32,9 @@ import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.ContextMenuCommand;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.SNTUtils;
+import ij.ImagePlus;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.IconFactory;
@@ -464,6 +467,8 @@ public abstract class AbstractBigViewer {
 
     protected AbstractBigViewer(final SNT snt) {
         this.snt = snt;
+        // Standalone instances: apply SNT's L&F before any Swing component is created (tethered ones inherit SNT's)
+        if (snt == null) GuiUtils.LAF.setLookAndFeel();
         lastInstance = this;
         renderingOptions.setStyle(getDefaultRenderingStyle());
         renderingOptions.load(getClass());
@@ -654,6 +659,57 @@ public abstract class AbstractBigViewer {
      * hosting a side panel next to it
      */
     public abstract Component getViewerCanvas();
+
+    /**
+     * Retrieves the current scene as an image.
+     *
+     * @return the bitmap image of the current scene, or {@code null} if the viewer is not initialized
+     */
+    public abstract ImagePlus snapshot();
+
+    /**
+     * Saves a snapshot of the current scene as a PNG image.
+     *
+     * @param filePath the absolute path of the destination file. If a directory, or {@code null}, a timestamped
+     *                 file is created (in {@code ~/Desktop/SNTsnapshots/} if {@code null})
+     * @return true, if the file was successfully saved
+     */
+    public boolean saveSnapshot(final String filePath) {
+        try {
+            final ImagePlus snapshot = snapshot();
+            if (snapshot == null) return false;
+            File outFile;
+            if (filePath == null) {
+                outFile = getSnapshotFile(null);
+            } else if (filePath.toLowerCase().endsWith(".png")) {
+                outFile = new File(filePath);
+            } else {
+                outFile = new File(filePath);
+                if (outFile.isDirectory()) outFile = getSnapshotFile(filePath);
+            }
+            outFile.mkdirs();
+            ImpUtils.save(snapshot, outFile.getAbsolutePath());
+            showViewerMessage("Snapshot saved: " + outFile.getName());
+            return true;
+        } catch (final IllegalArgumentException | java.io.IOException e) {
+            SNTUtils.error("IOException", e);
+            return false;
+        }
+    }
+
+    /**
+     * Gets a timestamped file for a new snapshot, creating its parent folder if needed.
+     *
+     * @param directory the base directory ({@code null} defaults to the user's home), in which a
+     *                  {@code Desktop/SNTsnapshots} folder is used
+     */
+    protected File getSnapshotFile(final String directory) throws java.io.IOException {
+        final java.nio.file.Path dir = java.nio.file.Paths.get(
+                (directory != null) ? directory : System.getProperty("user.home"), "Desktop", "SNTsnapshots");
+        java.nio.file.Files.createDirectories(dir);
+        final String ts = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss-SSS").format(new java.util.Date());
+        return dir.resolve(getClass().getSimpleName().toUpperCase() + "-" + ts + ".png").toFile();
+    }
 
     /**
      * Returns a snapshot of the current viewer-to-screen (world-to-screen) transform.

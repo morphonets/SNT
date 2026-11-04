@@ -31,6 +31,7 @@ import bdv.viewer.animate.SimilarityTransformAnimator;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.gui.GuiUtils;
 
 import javax.imageio.ImageIO;
@@ -205,11 +206,8 @@ final class KeyframeRecorder {
      */
     private static boolean saveFrame(final Component canvas, final File dir, final int index,
                                      final ExecutorService writer) {
-        final BufferedImage bi = new BufferedImage(canvas.getWidth(), canvas.getHeight(),
-                BufferedImage.TYPE_INT_RGB);
-        try {
-            GuiUtils.runOnEDT(() -> canvas.paint(bi.getGraphics()));
-        } catch (final RuntimeException e) {
+        final BufferedImage bi = ImpUtils.paintToBufferedImage(canvas);
+        if (bi == null) {
             SNTUtils.log("Screenshot failed at frame " + index);
             return false;
         }

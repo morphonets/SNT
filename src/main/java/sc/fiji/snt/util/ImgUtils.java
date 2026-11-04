@@ -441,7 +441,7 @@ public class ImgUtils {
         for (int d = 0; d < ndims; d++) {
             final CalibratedAxis srcAxis = img.axis(d);
             final double scale = srcAxis.averageScale(0, 1);
-            final double origin = min[d] * scale;
+            final double origin = srcAxis.calibratedValue(min[d]);
             final String unit = srcAxis.unit();
 
             final DefaultLinearAxis newAxis = (unit != null && !unit.isEmpty())

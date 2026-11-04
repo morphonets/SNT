@@ -1634,15 +1634,6 @@ public class Bvv extends AbstractBigViewer {
         };
     }
 
-    private File getSnapshotFile(final String directory) throws IOException {
-        final java.nio.file.Path dir = java.nio.file.Paths.get(
-                (directory != null) ? directory : System.getProperty("user.home"), "Desktop", "SNTsnapshots");
-        java.nio.file.Files.createDirectories(dir);
-        final String ts = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss-SSS")
-                .format(new java.util.Date());
-        return dir.resolve("BVV-" + ts + ".png").toFile();
-    }
-
     /**
      * Registers a mouse listener that centers the view on the clicked point.
      * Finds the intensity peak along the click ray (or falls back to the
@@ -2127,6 +2118,7 @@ public class Bvv extends AbstractBigViewer {
      *
      * @return the bitmap image of the current scene
      */
+    @Override
     public ImagePlus snapshot() {
         return snapshot("current");
     }
@@ -2183,36 +2175,6 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Saves a snapshot of current scene as a PNG image to the specified path.
-     *
-     * @param filePath the absolute path of the destination file
-     * @return true, if file was successfully saved
-     */
-    public boolean saveSnapshot(final String filePath) {
-        try {
-            final ImagePlus snapshot = snapshot();
-            File outFile;
-            if (filePath == null) {
-                outFile = getSnapshotFile(null);
-            } else if (filePath.toLowerCase().endsWith(".png")) {
-                outFile = new File(filePath);
-            } else {
-                outFile = new File(filePath);
-                if (outFile.isDirectory())
-                    outFile = getSnapshotFile(filePath);
-            }
-            outFile.mkdirs();
-            ImpUtils.save(snapshot, outFile.getAbsolutePath());
-            if (currentBvv != null)
-                currentBvv.getViewer().showMessage("Snapshot saved: " + outFile.getName());
-            return true;
-        } catch (final IllegalArgumentException | IOException e) {
-            SNTUtils.error("IOException", e);
-            return false;
-        }
-    }
-
-    /**
      * Captures the current canvas as a {@link ImagePlus}.
      * Waits up to 3 s for the renderer to deliver a fresh frame.
      * Must be called from a non-EDT thread.
@@ -2237,18 +2199,7 @@ public class Bvv extends AbstractBigViewer {
         } finally {
             viewerPanel.renderTransformListeners().remove(renderListener);
         }
-        final int w = canvas.getWidth();
-        final int h = canvas.getHeight();
-        if (w <= 0 || h <= 0) return null;
-        final java.awt.image.BufferedImage bi =
-                new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
-        try {
-            GuiUtils.runOnEDT(() -> canvas.paint(bi.getGraphics()));
-        } catch (final RuntimeException ex) {
-            SNTUtils.log("Snapshot failed: " + ex);
-            return null;
-        }
-        return new ImagePlus("BVV Snapshot", new ij.process.ColorProcessor(bi));
+        return ImpUtils.fromComponent("BVV Snapshot", canvas);
     }
 
     /**

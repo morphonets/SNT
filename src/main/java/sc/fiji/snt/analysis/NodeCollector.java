@@ -408,7 +408,7 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
         for (int d = 0; d < nDims; d++) {
             final net.imagej.axis.CalibratedAxis src = spatial.axis(d);
             final double scale = src.averageScale(0, 1);
-            final double origin = min[d] * scale;
+            final double origin = src.calibratedValue(min[d]);
             final String unit = src.unit();
             final net.imagej.axis.DefaultLinearAxis a =
                     (unit != null && !unit.isEmpty())

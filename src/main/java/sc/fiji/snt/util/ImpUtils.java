@@ -457,6 +457,44 @@ public class ImpUtils {
         return null;
     }
 
+    /**
+     * Paints a Swing/AWT component into an image. The painting is performed on the Event Dispatch Thread.
+     *
+     * @param component the component to be painted
+     * @return the painted image, or {@code null} if the component is null, has no size, or could not be painted
+     */
+    public static BufferedImage paintToBufferedImage(final Component component) {
+        if (component == null) return null;
+        final int w = component.getWidth();
+        final int h = component.getHeight();
+        if (w <= 0 || h <= 0) return null;
+        final BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        final Runnable paint = () -> component.paint(bi.getGraphics());
+        try {
+            if (javax.swing.SwingUtilities.isEventDispatchThread()) paint.run();
+            else javax.swing.SwingUtilities.invokeAndWait(paint);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (final java.lang.reflect.InvocationTargetException | RuntimeException e) {
+            SNTUtils.log("Painting of " + component.getClass().getSimpleName() + " failed: " + e);
+            return null;
+        }
+        return bi;
+    }
+
+    /**
+     * Paints a Swing/AWT component into an {@link ImagePlus} (RGB). See {@link #paintToBufferedImage(Component)}.
+     *
+     * @param title     the title of the returned image
+     * @param component the component to be painted
+     * @return the image, or {@code null} if the component could not be painted
+     */
+    public static ImagePlus fromComponent(final String title, final Component component) {
+        final BufferedImage bi = paintToBufferedImage(component);
+        return (bi == null) ? null : fromBufferedImage(title, bi);
+    }
+
     public static ImagePlus fromBufferedImage(final String title, final BufferedImage image) {
         return new ImagePlus(title, new ij.process.ColorProcessor(image));
     }

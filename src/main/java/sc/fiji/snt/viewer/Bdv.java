@@ -48,6 +48,7 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.CommandService;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.cmds.BdvRenderingOptionsCmd;
@@ -556,6 +557,16 @@ public class Bdv extends AbstractBigViewer {
             if (javax.swing.SwingUtilities.isEventDispatchThread()) frame.dispose();
             else javax.swing.SwingUtilities.invokeLater(frame::dispose);
         }
+    }
+
+    /**
+     * Retrieves the current scene as an image.
+     *
+     * @return the bitmap image of the current scene, or {@code null} if the viewer is not initialized
+     */
+    @Override
+    public ImagePlus snapshot() {
+        return ImpUtils.fromComponent("BDV Snapshot", getViewerCanvas());
     }
 
     @Override

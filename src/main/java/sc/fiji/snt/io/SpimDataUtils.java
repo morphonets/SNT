@@ -95,13 +95,81 @@ public class SpimDataUtils {
      * A single channel of a dataset at its highest resolution, as returned by {@link #openChannel}.
      *
      * @param img       the (lazy) full-resolution image of the channel
-     * @param spacing   voxel size at full resolution {@code {sx, sy, sz}} ({@code 1} if unknown)
+     * @param spacing   voxel size {@code {sx, sy, sz}} ({@code 1} if unknown)
      * @param unit      spatial unit, or {@code null} if unknown
      * @param name      channel name
      * @param nChannels number of channels in the dataset
+     * @param origin    world position of voxel {@code (0, 0, 0)} {@code {ox, oy, oz}}
      */
     public record ChannelData(RandomAccessibleInterval<?> img, double[] spacing, String unit, String name,
-                              int nChannels) {}
+                              int nChannels, double[] origin) {
+
+        /** Creates a channel whose origin is at {@code (0, 0, 0)} */
+        public ChannelData(final RandomAccessibleInterval<?> img, final double[] spacing, final String unit,
+                           final String name, final int nChannels) {
+            this(img, spacing, unit, name, nChannels, new double[]{0, 0, 0});
+        }
+
+        /**
+         * Gets the (lazy) image as a calibrated, named {@link ImgPlus}, with spatial axes carrying the voxel size
+         * and the origin, so that world coordinates (e.g., of markers) map to the right voxels
+         *
+         * @return the calibrated image, ready for SNT, BVV or {@link ImgUtils#crop}
+         */
+        public ImgPlus<?> toImgPlus() {
+            final ImgPlus<?> imgPlus = ImgUtils.wrapWithSpacing(img, spacing, unit);
+            for (int d = 0; d < Math.min(3, imgPlus.numDimensions()); d++) {
+                final net.imagej.axis.AxisType type = imgPlus.axis(d).type();
+                imgPlus.setAxis((unit == null || unit.isEmpty())
+                        ? new net.imagej.axis.DefaultLinearAxis(type, spacing[d], origin[d])
+                        : new net.imagej.axis.DefaultLinearAxis(type, unit, spacing[d], origin[d]), d);
+            }
+            imgPlus.setName(name);
+            return imgPlus;
+        }
+    }
+
+    /**
+     * A resolution level of a dataset, as returned by {@link #describe}.
+     *
+     * @param level   the level (0: full resolution)
+     * @param dims    dimensions in voxels {@code {x, y, z}}
+     * @param spacing voxel size {@code {sx, sy, sz}} at this level
+     * @param origin  world position of voxel {@code (0, 0, 0)} at this level
+     */
+    public record LevelInfo(int level, long[] dims, double[] spacing, double[] origin) {}
+
+    /**
+     * Summary of a dataset, as returned by {@link #describe}.
+     *
+     * @param name        display name
+     * @param nChannels   number of channels
+     * @param nTimepoints number of timepoints
+     * @param unit        spatial unit, or {@code null} if unknown
+     * @param remote      whether the dataset is read over the network
+     * @param chunkShape  chunk shape of the full resolution array {@code {x, y, z[, c, t]}}, or {@code null}
+     * @param levels      the resolution levels, from full resolution to coarsest
+     */
+    public record DatasetInfo(String name, int nChannels, int nTimepoints, String unit, boolean remote,
+                              int[] chunkShape, List<LevelInfo> levels) {
+        /** @return the number of resolution levels */
+        public int nLevels() {
+            return levels.size();
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder(name).append(": ").append(nChannels).append(" channel(s), ")
+                    .append(nTimepoints).append(" timepoint(s), ").append(remote ? "remote" : "local");
+            if (chunkShape != null) sb.append(", chunks ").append(Arrays.toString(chunkShape));
+            final String u = (unit == null) ? "" : " " + unit;
+            for (final LevelInfo l : levels)
+                sb.append("\n  level ").append(l.level()).append(": ").append(Arrays.toString(l.dims()))
+                        .append(" voxels, spacing ").append(Arrays.toString(l.spacing())).append(u)
+                        .append(", origin ").append(Arrays.toString(l.origin()));
+            return sb.toString();
+        }
+    }
 
     /**
      * Opens one channel of a dataset at full resolution, whatever its format: BDV {@code .xml} or Imaris
@@ -116,9 +184,26 @@ public class SpimDataUtils {
      * @throws IOException              if the dataset cannot be opened
      * @throws IllegalArgumentException if the format is unsupported or the indices are out of range
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public static ChannelData openChannel(final String path, final int channelIdx, final int timepoint)
             throws IOException {
+        return openChannel(path, channelIdx, timepoint, 0);
+    }
+
+    /**
+     * Opens one channel of a dataset at the specified resolution level. See
+     * {@link #openChannel(String, int, int)}.
+     *
+     * @param path       path or URL of the dataset
+     * @param channelIdx index of the channel (0-based)
+     * @param timepoint  index of the timepoint (0-based)
+     * @param level      resolution level (0: full resolution). See {@link #describe(String)}
+     * @return the channel, with the voxel size of the requested level
+     * @throws IOException              if the dataset cannot be opened
+     * @throws IllegalArgumentException if the format is unsupported or the indices are out of range
+     */
+    public static ChannelData openChannel(final String path, final int channelIdx, final int timepoint,
+                                          final int level) throws IOException {
+        if (level < 0) throw new IllegalArgumentException("Invalid level: " + level);
         final String lower = path.toLowerCase(Locale.ROOT);
         try {
             if (lower.endsWith(".xml") || lower.endsWith(".ims")) {
@@ -136,8 +221,12 @@ public class SpimDataUtils {
                 final var setup = setups.get(channelIdx);
                 if (!(seq.getImgLoader() instanceof bdv.ViewerImgLoader loader))
                     throw new IllegalArgumentException("Unsupported image loader: " + seq.getImgLoader().getClass());
-                final RandomAccessibleInterval<?> img = loader.getSetupImgLoader(setup.getId())
-                        .getImage(timepoints.get(timepoint).getId(), 0);
+                final var setupLoader = loader.getSetupImgLoader(setup.getId());
+                if (level >= setupLoader.numMipmapLevels())
+                    throw new IllegalArgumentException("Level " + level + " not found: dataset has "
+                            + setupLoader.numMipmapLevels() + " level(s)");
+                final RandomAccessibleInterval<?> img = setupLoader
+                        .getImage(timepoints.get(timepoint).getId(), level);
                 final double[] spacing = {1, 1, 1};
                 String unit = null;
                 if (setup.hasVoxelSize()) {
@@ -145,6 +234,8 @@ public class SpimDataUtils {
                     for (int d = 0; d < 3; d++) spacing[d] = vd.dimension(d);
                     unit = vd.unit();
                 }
+                final double[] factors = setupLoader.getMipmapResolutions()[level];
+                for (int d = 0; d < 3; d++) spacing[d] *= factors[d];
                 final String name = (setup.getName() == null || setup.getName().isBlank())
                         ? "channel" + channelIdx : setup.getName();
                 return new ChannelData(img, spacing, unit, name, setups.size());
@@ -160,17 +251,91 @@ public class SpimDataUtils {
                 throw new IllegalArgumentException("Timepoint " + timepoint + " not found: dataset has "
                         + n5.numTimepoints() + " timepoint(s)");
             final bdv.viewer.Source<?> src = n5.sources().get(channelIdx).getSpimSource();
-            final double[] spacing = {1, 1, 1};
-            String unit = null;
+            if (level >= src.getNumMipmapLevels())
+                throw new IllegalArgumentException("Level " + level + " not found: dataset has "
+                        + src.getNumMipmapLevels() + " level(s)");
+            final double[] spacing = levelSpacing(src, timepoint, level);
             final VoxelDimensions vd = src.getVoxelDimensions();
-            if (vd != null) {
-                for (int d = 0; d < 3; d++) spacing[d] = vd.dimension(d);
-                unit = vd.unit();
-            }
-            return new ChannelData(src.getSource(timepoint, 0), spacing, unit, src.getName(), n5.sources().size());
+            final String unit = (vd == null) ? null : vd.unit();
+            return new ChannelData(src.getSource(timepoint, level), spacing, unit, src.getName(),
+                    n5.sources().size(), levelOrigin(src, timepoint, level));
         } catch (final SpimDataException e) {
             throw new IOException("Could not open '" + path + "': " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Voxel size of a resolution level of a source: the voxel size of the full resolution level (if known)
+     * scaled by the ratio of the level's to the full resolution level's transform scale, so that it is correct
+     * regardless of whether the source transform already includes the calibration
+     */
+    private static double[] levelSpacing(final bdv.viewer.Source<?> src, final int timepoint, final int level) {
+        final double[] spacing = {1, 1, 1};
+        final VoxelDimensions vd = src.getVoxelDimensions();
+        final AffineTransform3D t0 = new AffineTransform3D();
+        final AffineTransform3D tl = new AffineTransform3D();
+        src.getSourceTransform(timepoint, 0, t0);
+        src.getSourceTransform(timepoint, level, tl);
+        for (int d = 0; d < 3; d++) {
+            double n0 = 0;
+            double nl = 0;
+            for (int r = 0; r < 3; r++) {
+                n0 += t0.get(r, d) * t0.get(r, d);
+                nl += tl.get(r, d) * tl.get(r, d);
+            }
+            n0 = Math.sqrt(n0);
+            nl = Math.sqrt(nl);
+            final double base = (vd != null) ? vd.dimension(d) : n0;
+            spacing[d] = (n0 > 0) ? base * nl / n0 : base;
+        }
+        return spacing;
+    }
+
+    /** World position of voxel (0, 0, 0) of a resolution level of a source */
+    private static double[] levelOrigin(final bdv.viewer.Source<?> src, final int timepoint, final int level) {
+        final AffineTransform3D t = new AffineTransform3D();
+        src.getSourceTransform(timepoint, level, t);
+        return new double[]{t.get(0, 3), t.get(1, 3), t.get(2, 3)};
+    }
+
+    /**
+     * Describes a dataset without reading its pixels: channels, timepoints, chunking and the dimensions and
+     * voxel size of each resolution level. Supports N5/OME-Zarr containers (local or remote), and single-level
+     * images (reported as one level). BDV XML and IMS datasets are not supported.
+     *
+     * @param path path or URL of the dataset
+     * @return the dataset summary
+     * @throws IllegalArgumentException if the dataset cannot be opened or its format is not supported
+     */
+    public static DatasetInfo describe(final String path) {
+        final Object resolved = resolvePathToSource(path);
+        if (resolved instanceof N5Sources(
+                List<SourceAndConverter<?>> sources, int numTimepoints, String name, int[] chunkShape, boolean remote
+        )) {
+            if (sources.isEmpty()) throw new IllegalArgumentException("No sources found in: " + path);
+            final bdv.viewer.Source<?> src = sources.getFirst().getSpimSource();
+            final VoxelDimensions vd = src.getVoxelDimensions();
+            final List<LevelInfo> levels = new ArrayList<>();
+            for (int l = 0; l < src.getNumMipmapLevels(); l++)
+                levels.add(new LevelInfo(l, src.getSource(0, l).dimensionsAsLongArray(), levelSpacing(src, 0, l),
+                        levelOrigin(src, 0, l)));
+            return new DatasetInfo(name, sources.size(), numTimepoints,
+                    (vd == null) ? null : vd.unit(), remote, chunkShape, levels);
+        }
+        if (resolved instanceof final ImgPlus<?> img) {
+            final double[] spacing = {1, 1, 1};
+            for (int d = 0; d < Math.min(3, img.numDimensions()); d++) spacing[d] = img.averageScale(d);
+            final long[] dims = new long[3];
+            Arrays.fill(dims, 1);
+            for (int d = 0; d < Math.min(3, img.numDimensions()); d++) dims[d] = img.dimension(d);
+            final int cIdx = img.dimensionIndex(net.imagej.axis.Axes.CHANNEL);
+            final int tIdx = img.dimensionIndex(net.imagej.axis.Axes.TIME);
+            final String unit = (img.numDimensions() > 0) ? img.axis(0).unit() : null;
+            return new DatasetInfo(img.getName(), (cIdx < 0) ? 1 : (int) img.dimension(cIdx),
+                    (tIdx < 0) ? 1 : (int) img.dimension(tIdx), unit, isRemoteUrl(path), null,
+                    List.of(new LevelInfo(0, dims, spacing, ImgUtils.getOrigins(img))));
+        }
+        throw new IllegalArgumentException("describe() does not support this format: " + path);
     }
 
     /**
@@ -850,24 +1015,28 @@ public class SpimDataUtils {
         for (int ch = 0; ch < nChannels; ch++) {
             final String chName = nChannels > 1 ? setupName + " Ch" + ch : setupName;
             viewSetups.append(String.format(Locale.US,
-                    "      <ViewSetup>\n" +
-                    "        <id>%d</id>\n" +
-                    "        <name>%s</name>\n" +
-                    "        <size>%s</size>\n" +
-                    "        <voxelSize>\n" +
-                    "          <unit>%s</unit>\n" +
-                    "          <size>%s</size>\n" +
-                    "        </voxelSize>\n" +
-                    "        <attributes>\n" +
-                    "          <channel>%d</channel>\n" +
-                    "        </attributes>\n" +
-                    "      </ViewSetup>\n",
+                    """
+                                  <ViewSetup>
+                                    <id>%d</id>
+                                    <name>%s</name>
+                                    <size>%s</size>
+                                    <voxelSize>
+                                      <unit>%s</unit>
+                                      <size>%s</size>
+                                    </voxelSize>
+                                    <attributes>
+                                      <channel>%d</channel>
+                                    </attributes>
+                                  </ViewSetup>
+                            """,
                     ch, chName, sizeStr, unit, vs, ch));
             channels.append(String.format(
-                    "        <Channel>\n" +
-                    "          <id>%d</id>\n" +
-                    "          <name>%s</name>\n" +
-                    "        </Channel>\n",
+                    """
+                                    <Channel>
+                                      <id>%d</id>
+                                      <name>%s</name>
+                                    </Channel>
+                            """,
                     ch, chName));
         }
 
@@ -875,14 +1044,16 @@ public class SpimDataUtils {
         final StringBuilder mipmaps = new StringBuilder();
         for (int ch = 0; ch < nChannels; ch++) {
             mipmaps.append(String.format(
-                    "    <MipmapResolutions setup=\"%d\">\n" +
-                    "      <subdivisions>\n" +
-                    "%s" +
-                    "      </subdivisions>\n" +
-                    "      <resolutions>\n" +
-                    "%s" +
-                    "      </resolutions>\n" +
-                    "    </MipmapResolutions>\n",
+                    """
+                                <MipmapResolutions setup="%d">
+                                  <subdivisions>
+                            %s\
+                                  </subdivisions>
+                                  <resolutions>
+                            %s\
+                                  </resolutions>
+                                </MipmapResolutions>
+                            """,
                     ch, subdivisions, resolutions));
         }
 
@@ -891,39 +1062,43 @@ public class SpimDataUtils {
         for (int t = 0; t < nTimepoints; t++) {
             for (int ch = 0; ch < nChannels; ch++) {
                 registrations.append(String.format(Locale.US,
-                        "      <ViewRegistration timepoint=\"%d\" setup=\"%d\">\n" +
-                        "        <ViewTransform type=\"affine\">\n" +
-                        "          <affine>%g 0.0 0.0 0.0 0.0 %g 0.0 0.0 0.0 0.0 %g 0.0</affine>\n" +
-                        "        </ViewTransform>\n" +
-                        "      </ViewRegistration>\n",
+                        """
+                                      <ViewRegistration timepoint="%d" setup="%d">
+                                        <ViewTransform type="affine">
+                                          <affine>%g 0.0 0.0 0.0 0.0 %g 0.0 0.0 0.0 0.0 %g 0.0</affine>
+                                        </ViewTransform>
+                                      </ViewRegistration>
+                                """,
                         t, ch, voxelSize[0], voxelSize[1], voxelSize[2]));
             }
         }
 
         final String xml = String.format(
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                "<SpimData version=\"0.2\">\n" +
-                "  <BasePath type=\"relative\">.</BasePath>\n" +
-                "  <SequenceDescription>\n" +
-                "    <ImageLoader format=\"bdv.n5\" version=\"1.0\">\n" +
-                "      <n5 type=\"relative\">%s</n5>\n" +
-                "    </ImageLoader>\n" +
-                "    <ViewSetups>\n" +
-                "%s" +
-                "      <Attributes name=\"channel\">\n" +
-                "%s" +
-                "      </Attributes>\n" +
-                "    </ViewSetups>\n" +
-                "    <Timepoints type=\"range\">\n" +
-                "      <first>0</first>\n" +
-                "      <last>%d</last>\n" +
-                "    </Timepoints>\n" +
-                "%s" +
-                "  </SequenceDescription>\n" +
-                "  <ViewRegistrations>\n" +
-                "%s" +
-                "  </ViewRegistrations>\n" +
-                "</SpimData>\n",
+                """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <SpimData version="0.2">
+                          <BasePath type="relative">.</BasePath>
+                          <SequenceDescription>
+                            <ImageLoader format="bdv.n5" version="1.0">
+                              <n5 type="relative">%s</n5>
+                            </ImageLoader>
+                            <ViewSetups>
+                        %s\
+                              <Attributes name="channel">
+                        %s\
+                              </Attributes>
+                            </ViewSetups>
+                            <Timepoints type="range">
+                              <first>0</first>
+                              <last>%d</last>
+                            </Timepoints>
+                        %s\
+                          </SequenceDescription>
+                          <ViewRegistrations>
+                        %s\
+                          </ViewRegistrations>
+                        </SpimData>
+                        """,
                 n5DirName, viewSetups, channels, nTimepoints - 1,
                 mipmaps, registrations);
 
