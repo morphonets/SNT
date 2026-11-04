@@ -1,5 +1,6 @@
 #@Double(label="Crop width/height (XY, calibrated units):", value=100, min=1) boxXY
 #@Double(label="Crop depth (Z, calibrated units):", value=100, min=0) boxZ
+#@boolean(label="Use current BVV slab as Z range, if active (overrides depth)", value=false) useSlab
 #@boolean(label="Use secondary (filtered) layer, if loaded") useSecondary
 #@SNTService snt
 #@UIService ui
@@ -13,12 +14,12 @@
  *          directly. This script bridges that gap for the case where only a small, local region is actually needed.
  *
  * Usage:   Press 'M' in the BVV/BDV canvas to mark the location of interest (see the viewer's Markers pane), then run
- *          this script: it crops around the most recently placed arker, however long ago it was placed.
+ *          this script: it crops around the most recently placed marker, however long ago it was placed.
  *
  * @see     Locations_Montage.groovy, for batch-cropping many locations from a file on disk
  */
 
-snt.requireVersion("5.0.14") // SNT version required to run this script
+snt.requireVersion("5.0.24") // SNT version required to run this script
 
 if (!snt.isActive() || snt.getUI() == null) {
     ui.showDialog("SNT does not appear to be running.", "Error")
@@ -47,9 +48,11 @@ if (markerPos == null) {
             + "then re-run this script.", "No Marker Found")
     return
 }
-cx = Math.round(markerPos.getX() / plugin.getPixelWidth())
-cy = Math.round(markerPos.getY() / plugin.getPixelHeight())
-cz = Math.round(markerPos.getZ() / plugin.getPixelDepth())
+// The offset accounts for the source's world origin (all zeros in the common case)
+off = plugin.getDefaultCanvasPixelOffset()
+cx = Math.round(markerPos.getX() / plugin.getPixelWidth() + off.getX())
+cy = Math.round(markerPos.getY() / plugin.getPixelHeight() + off.getY())
+cz = Math.round(markerPos.getZ() / plugin.getPixelDepth() + off.getZ())
 
 // Compute crop bounds (pixels), clamped to the data's extent
 ndims = data.numDimensions()
@@ -64,6 +67,15 @@ max[1] = Math.min(data.dimension(1) - 1, cy + hw)
 if (ndims > 2) {
     min[2] = Math.max(0, cz - hd)
     max[2] = Math.min(data.dimension(2) - 1, cz + hd)
+    // Slab bounds are world coordinates along the viewing axis (origin included)
+    slab = (useSlab && viewer instanceof Bvv && viewer.getSlabAxis() == 2) ? viewer.getSlab() : null
+    if (useSlab && slab == null)
+        println("No active slab along Z (XY view). Using the specified crop depth instead")
+    if (slab != null) {
+        zStep = plugin.getPixelDepth()
+        min[2] = Math.max(0, Math.round(slab[0] / zStep + off.getZ()))
+        max[2] = Math.min(data.dimension(2) - 1, Math.round(slab[1] / zStep + off.getZ()))
+    }
 }
 if (min[0] > max[0] || min[1] > max[1] || (ndims > 2 && min[2] > max[2])) {
     ui.showDialog("The last marker's position falls outside the current image data. Place a new "
@@ -81,7 +93,7 @@ imp.resetDisplayRange()
 imp.show()
 
 dimsStr = (0..<ndims).collect { max[it] - min[it] + 1 }.join("x")
-posStr = (0..<ndims).collect { [cx, cy, cz][it] }.join(", ")
+posStr = [cx, cy, cz].take(Math.min(ndims, 3)).join(", ")
 println("Extracted ${dimsStr} crop centered at pixel (${posStr})")
 println("This crop is now regular, in-RAM data: feed it to Weka classifier training, Sholl "
         + "analysis, or any command that requires full random access -- none of which run "
@@ -91,3 +103,4 @@ println("This crop is now regular, in-RAM data: feed it to Weka classifier train
 // Imports below
 import net.imglib2.view.Views
 import sc.fiji.snt.util.ImgUtils
+import sc.fiji.snt.viewer.Bvv

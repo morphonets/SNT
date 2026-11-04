@@ -1,4 +1,5 @@
 #@Integer(label="Channel (1-based, multichannel data only):", value=1, min=1) channel
+#@Boolean(label="Use current slab of the BVV viewer (overrides start/end):", value=false) useViewerSlab
 #@Double(label="Slab start (Z, calibrated units):", value=0, min=0) zStart
 #@Double(label="Slab end (Z, calibrated units; -1 for last plane):", value=-1, min=-1) zEnd
 #@Integer(label="Resolution level (pyramidal images only):", description="The resolution level to be projected:\n0: Full resolution\n1: 2nd highest resolution, etc.",value=0, min=0) level
@@ -14,13 +15,13 @@
  *          without loading them into RAM. Only a single channel is processed: wrap the code below in a loop to
  *          process several channels.
  *
- * Usage:   Load a (big) image in SNT and run this script. To restrict the slab to what is currently visible in the
- *          viewer, note the Z range (calibrated units) from the viewer's slab controls.
+ * Usage:   Load a (big) image in SNT and run this script. To project what is currently visible in BVV, activate
+ *          its slab view (XY orientation) and tick "Use current slab". Otherwise, specify the Z range manually.
  *
  * @see     Crop_Around_Marker.groovy, to materialize a small region around a marker
  */
 
-snt.requireVersion("5.0.19") // SNT version required to run this script
+snt.requireVersion("5.0.24") // SNT version required to run this script
 
 if (!snt.isActive()) {
     ui.showDialog("SNT does not appear to be running.", "Error")
@@ -57,8 +58,31 @@ if (viewer != null) {
 
 // Convert calibrated Z positions to 0-based plane coordinates (must be long)
 zAxis = 2
-zMin = (long) (data.min(zAxis) + Math.round(zStart / (plugin.getPixelDepth() * scale[2])))
-zMax = (zEnd >= 0) ? (long) (data.min(zAxis) + Math.round(zEnd / (plugin.getPixelDepth() * scale[2]))) : data.max(zAxis)
+if (useViewerSlab) {
+    // Slab bounds are in world coordinates (origin included) along the viewing axis
+    if (!(viewer instanceof Bvv) || viewer.getSlab() == null) {
+        ui.showDialog("The viewer slab is not active. Enable the BVV's slab view or untick 'Use current slab'.",
+                "No Slab")
+        return
+    }
+    if (viewer.getSlabAxis() != zAxis) {
+        ui.showDialog("The slab is not along Z. Switch BVV to the XY view or specify the Z range manually.",
+                "Slab Not Along Z")
+        return
+    }
+    slab = viewer.getSlab()
+    zOff = plugin.getDefaultCanvasPixelOffset().getZ() / scale[2] // world origin, in voxels of this level
+    zStep = plugin.getPixelDepth() * scale[2]
+    zMin = Math.max(data.min(zAxis), (long) Math.round(slab[0] / zStep + zOff))
+    zMax = Math.min(data.max(zAxis), (long) Math.round(slab[1] / zStep + zOff))
+    if (zMin > zMax) {
+        ui.showDialog("The slab falls outside the image data.", "Invalid Slab")
+        return
+    }
+} else {
+    zMin = (long) (data.min(zAxis) + Math.round(zStart / (plugin.getPixelDepth() * scale[2])))
+    zMax = (zEnd >= 0) ? (long) (data.min(zAxis) + Math.round(zEnd / (plugin.getPixelDepth() * scale[2]))) : data.max(zAxis)
+}
 
 depthCoded = !cmap.equalsIgnoreCase("none")
 
@@ -94,3 +118,4 @@ imp.show()
 import net.imglib2.view.Views
 import sc.fiji.snt.util.ColorMaps
 import sc.fiji.snt.util.ImgUtils
+import sc.fiji.snt.viewer.Bvv

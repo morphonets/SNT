@@ -2511,6 +2511,19 @@ public class Bvv extends AbstractBigViewer {
                 ? new double[]{renderingOptions.getSlabZMin(), renderingOptions.getSlabZMax()} : null;
     }
 
+    /**
+     * Gets the world axis currently aligned with the viewing (depth) direction,
+     * i.e., the axis along which {@link #getSlab()} bounds are expressed.
+     *
+     * @return 0 (X), 1 (Y) or 2 (Z), or -1 if the view is not aligned to one of
+     *         the canonical planes (XY, XZ or ZY)
+     */
+    public int getSlabAxis() {
+        final AffineTransform3D t = new AffineTransform3D();
+        getViewerPanel().state().getViewerTransform(t);
+        return canonicalDepthAxis(t);
+    }
+
     @Override
     protected void awaitRender(final Runnable trigger, final long settleMillis) throws InterruptedException {
         final VolumeViewerPanel vp = getViewerPanel();
