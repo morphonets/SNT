@@ -60,7 +60,22 @@ public class CrossoverFinder {
      */
     public static List<CrossoverEvent> find(final Collection<Path> paths, final Config cfg) {
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
+
+        // Stable ordinal for every path (input order), so that results do not depend on identity hash codes,
+        // which differ from one JVM session to the next
+        final Map<Path, Integer> order = new IdentityHashMap<>();
+        for (final Path p : paths) {
+            if (p != null) order.putIfAbsent(p, order.size());
+        }
         final double d2 = cfg.proximity * cfg.proximity;
+
+        // Self crossovers: cumulative cable length of each path, to measure how far two nodes of the same path
+        // are from each other along the path (see below)
+        final Map<Path, double[]> cumLengths = new IdentityHashMap<>();
+        if (cfg.includeSelfCrossovers) {
+            for (final Path p : order.keySet()) cumLengths.put(p, cumulativeLengths(p));
+        }
+        final double minSelfSeparation = SELF_SEPARATION_FACTOR * cfg.proximity;
 
         // Build node refs and a uniform hash grid for candidate mining
         final List<NodeRef> nodes = new ArrayList<>();
@@ -88,19 +103,29 @@ public class CrossoverFinder {
         for (NodeRef nr : nodes) grid.insert(nr.pos, nr);
 
         // Mine near pairs and group by (pathA, pathB)
-        final Map<PairKey, List<PairIdx>> byPair = new HashMap<>();
+        // NB: Insertion-ordered, so that events are always processed (and merged) in the same order
+        final Map<PairKey, List<PairIdx>> byPair = new LinkedHashMap<>();
         for (NodeRef a : nodes) {
             for (NodeRef b : grid.queryNeighborhood(a.pos)) {
                 if (a == b) continue;
                 if (!cfg.includeSelfCrossovers && a.path == b.path) continue;
                 if (cfg.sameCTOnly && (a.c != b.c || a.t != b.t)) continue;
-                // Avoid adjacent self-segment proximity
-                if (a.path == b.path && Math.abs(a.idx - b.idx) <= 2) continue;
+                // Avoid adjacent self-segment proximity. Node indices are not enough: with a node spacing much
+                // smaller than the proximity, neighboring stretches of any gently curved neurite are "near" each
+                // other. Require nodes of the same path to be well separated *along* the path
+                if (a.path == b.path) {
+                    if (Math.abs(a.idx - b.idx) <= 2) continue;
+                    final double[] cl = cumLengths.get(a.path);
+                    if (Math.abs(pathPosition(a, cl) - pathPosition(b, cl)) < minSelfSeparation) continue;
+                }
                 if (dist2(a.pos, b.pos) > d2) continue;
-                final PairKey key = PairKey.of(a.path, b.path);
+                final PairKey key = PairKey.of(a.path, b.path, order);
                 // Ignore midpoint–midpoint proximities; midpoints exist only to catch "T"-like node > segment cases
                 if (a.isMid() && b.isMid()) continue;
-                byPair.computeIfAbsent(key, k -> new ArrayList<>()).add(new PairIdx(a, b));
+                // Orient indices to match the key (A, B), so that both visits of the same pair, (a, b) and (b, a),
+                // yield identical entries (removed by dedupeInPlaceByIndices). For self pairs, smaller index first
+                final boolean swap = (a.path == b.path) ? a.idx > b.idx : a.path != key.a;
+                byPair.computeIfAbsent(key, k -> new ArrayList<>()).add(swap ? new PairIdx(b, a) : new PairIdx(a, b));
             }
         }
         if (byPair.isEmpty()) return Collections.emptyList();
@@ -266,6 +291,23 @@ public class CrossoverFinder {
     }
 
     // helpers ---------------------------------------------------------------
+
+    /** Minimum separation along a path (in multiples of the proximity) for two of its nodes to be self crossover candidates */
+    private static final double SELF_SEPARATION_FACTOR = 2.0;
+
+    /** Cumulative cable length (real-world units) at each node of a path */
+    private static double[] cumulativeLengths(final Path p) {
+        final double[] cum = new double[p.size()];
+        for (int i = 1; i < cum.length; i++) {
+            cum[i] = cum[i - 1] + Math.sqrt(dist2(toVec(p.getNode(i - 1)), toVec(p.getNode(i))));
+        }
+        return cum;
+    }
+
+    /** Position of a node (or segment midpoint) along its path, measured as cable length from the first node */
+    private static double pathPosition(final NodeRef nr, final double[] cumLengths) {
+        return nr.isMid() ? 0.5 * (cumLengths[nr.idx] + cumLengths[nr.idx + 1]) : cumLengths[nr.idx];
+    }
 
     private static Segment3D seg(final Path p, final int i) {
         final Vector3d a = toVec(p.getNode(i));
@@ -449,6 +491,8 @@ public class CrossoverFinder {
         /**
          * If {@code true}, report crossovers within the same path (self‑proximity).
          * If {@code false}, self pairs are ignored. Typically left {@code false}.
+         * <p>To avoid reporting neighboring stretches of a smoothly curving neurite, only nodes that are
+         * separated along the path by at least twice the {@link #proximity} are considered.</p>
          * <p>Default: {@code false}.</p>
          */
         boolean includeSelfCrossovers = false;
@@ -652,8 +696,8 @@ public class CrossoverFinder {
 
     private record PairKey(Path a, Path b) {
 
-        static PairKey of(Path p, Path q) {
-            return (System.identityHashCode(p) <= System.identityHashCode(q)) ? new PairKey(p, q) : new PairKey(q, p);
+        static PairKey of(Path p, Path q, Map<Path, Integer> order) {
+            return (order.get(p) <= order.get(q)) ? new PairKey(p, q) : new PairKey(q, p);
         }
 
         @Override
