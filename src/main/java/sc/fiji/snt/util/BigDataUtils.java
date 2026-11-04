@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.io;
+package sc.fiji.snt.util;
 
 import java.io.File;
 import java.io.IOException;
@@ -66,16 +66,17 @@ import org.janelia.saalfeldlab.n5.universe.N5Factory;
 import org.janelia.saalfeldlab.n5.universe.N5TreeNode;
 import org.janelia.saalfeldlab.n5.universe.metadata.N5Metadata;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.util.ImgUtils;
 import software.amazon.awssdk.regions.Region;
 
 /**
- * Utilities for working with {@link AbstractSpimData} and BigDataViewer XML
- * descriptors.
+ * Utilities for opening and describing big data (out-of-core) datasets: N5 and OME-Zarr containers (local, HTTP(S) or
+ * S3), BigDataViewer XML/HDF5 and Imaris files, and regular images, as {@link bdv.viewer.SourceAndConverter}s,
+ * {@link AbstractSpimData} or {@link ImgPlus}. These are the sources displayed by {@link sc.fiji.snt.viewer.Bvv} and
+ * {@link sc.fiji.snt.viewer.Bdv}, e.g., in SNT Stream.
  *
  * @author Tiago Ferreira
  */
-public class SpimDataUtils {
+public class BigDataUtils {
 
     /**
      * Overall wall-clock budget (seconds) for resolving a remote (S3/HTTPS) N5/Zarr container or image URL as per
@@ -85,7 +86,7 @@ public class SpimDataUtils {
      */
     private static final long NETWORK_TIMEOUT_SECONDS = 45;
 
-    private SpimDataUtils() {
+    private BigDataUtils() {
         // static utility class
     }
 

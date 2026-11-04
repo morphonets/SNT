@@ -39,7 +39,7 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.BoundingBox;
 
 import javax.swing.*;
@@ -408,8 +408,8 @@ class BvvUnmixEngine implements UnmixEngine {
                             sigSrcToWorld.get(0, 0),
                             sigSrcToWorld.get(1, 1),
                             effZCal};
-                    final SpimDataUtils.CalibratedSource<UnsignedShortType> src =
-                            new SpimDataUtils.CalibratedSource<>(mixed,
+                    final BigDataUtils.CalibratedSource<UnsignedShortType> src =
+                            new BigDataUtils.CalibratedSource<>(mixed,
                                     new UnsignedShortType(),
                                     srcT, srcName, mipCal, unit);
                     mixedSource = BvvFunctions.show((Source) src, 1, addOpt);

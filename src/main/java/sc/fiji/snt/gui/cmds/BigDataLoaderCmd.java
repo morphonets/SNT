@@ -44,7 +44,7 @@ import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.GLUtils;
@@ -325,16 +325,16 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /**
      * Converts a (possibly user-typed) {@link File} parameter back to the string form
-     * {@link SpimDataUtils#resolvePathToSource(String)} expects. {@code File#getAbsolutePath()} mangles
+     * {@link BigDataUtils#resolvePathToSource(String)} expects. {@code File#getAbsolutePath()} mangles
      * remote URLs (e.g. {@code https://.../dataset.ome.zarr}) by prepending the current working
      * directory, since a URL scheme isn't a recognized absolute-path prefix. Even {@code File#getPath()}
      * isn't a clean escape hatch here: by the time the typed text becomes a {@code File} at all, its own
      * constructor has already collapsed the URL's "://" down to ":/" (consecutive slashes are merged),
-     * so that has to be repaired too (see {@link SpimDataUtils#restoreUrlScheme(String)}).
+     * so that has to be repaired too (see {@link BigDataUtils#restoreUrlScheme(String)}).
      */
     private static String toPathString(final File f) {
-        return SpimDataUtils.isRemoteUrl(f.getPath())
-                ? SpimDataUtils.restoreUrlScheme(f.getPath())
+        return BigDataUtils.isRemoteUrl(f.getPath())
+                ? BigDataUtils.restoreUrlScheme(f.getPath())
                 : f.getAbsolutePath();
     }
 
@@ -352,7 +352,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final List<String> unreachable = new ArrayList<>();
         for (final Map.Entry<String, String> entry : byLabel.entrySet()) {
             final String path = entry.getValue();
-            if (SpimDataUtils.isRemoteUrl(path) && !SNTUtils.isReachable(path, REACHABILITY_TIMEOUT_MS))
+            if (BigDataUtils.isRemoteUrl(path) && !SNTUtils.isReachable(path, REACHABILITY_TIMEOUT_MS))
                 unreachable.add(entry.getKey() + ": " + path);
         }
         if (unreachable.isEmpty()) return true;
@@ -370,7 +370,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     private boolean checkContainerMetadata(final String[] filePaths) {
         for (int i = 0; i < Math.min(2, filePaths.length); i++) {
             final String path = filePaths[i];
-            if (SpimDataUtils.isRemoteUrl(path) || !looksLikeN5OrZarrDir(path)) continue;
+            if (BigDataUtils.isRemoteUrl(path) || !looksLikeN5OrZarrDir(path)) continue;
             SNTUtils.log("BVV: checking container metadata of " + path);
             final File dir = new File(path);
             if (!ImgUtils.hasN5ZarrMetadata(dir)) {
@@ -384,7 +384,7 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /** True if path is a .n5/.zarr directory (that exists), or a remote URL to one. Does not check its content */
     private static boolean looksLikeN5OrZarrDir(final String path) {
-        if (SpimDataUtils.isRemoteUrl(path)) {
+        if (BigDataUtils.isRemoteUrl(path)) {
             final String lower = path.toLowerCase();
             return lower.endsWith(".n5") || lower.endsWith(".n5/") || lower.endsWith(".zarr") || lower.endsWith(".zarr/");
         }
@@ -400,11 +400,11 @@ public class BigDataLoaderCmd extends ContextCommand {
      */
     private static boolean isN5OrZarrDir(final String path) {
         if (!looksLikeN5OrZarrDir(path)) return false;
-        return SpimDataUtils.isRemoteUrl(path) || ImgUtils.hasN5ZarrMetadata(new File(path));
+        return BigDataUtils.isRemoteUrl(path) || ImgUtils.hasN5ZarrMetadata(new File(path));
     }
 
     /**
-     * Fallback UI for when {@link SpimDataUtils#resolvePathToSource(String)} cannot auto-discover a dataset in an
+     * Fallback UI for when {@link BigDataUtils#resolvePathToSource(String)} cannot auto-discover a dataset in an
      * N5/Zarr container on its own (e.g. an ambiguous or unusually structured container). Lets the user pick a
      * dataset interactively.
      *
@@ -422,8 +422,8 @@ public class BigDataLoaderCmd extends ContextCommand {
         SwingUtilities.invokeLater(() -> {
             datasetDialog.run(selection -> {
                 try {
-                    final SpimDataUtils.N5Sources n5Sources =
-                            SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
+                    final BigDataUtils.N5Sources n5Sources =
+                            BigDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
                     // Same non-pyramidal-dataset risk as resolveBvvSources(), only relevant for BVV
                     if (viewer instanceof Bvv bvv) {
                         if (confirmPyramidOrAbort(n5Sources, n5ZarrDir)) showN5InBvv(bvv, n5Sources, n5ZarrDir);
@@ -504,7 +504,7 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /**
      * Resolves each path to a BVV-displayable source (an {@link ImgPlus}, {@link AbstractSpimData},
-     * or {@link SpimDataUtils.N5Sources}), enforcing the GPU's 3D texture size limit along the way.
+     * or {@link BigDataUtils.N5Sources}), enforcing the GPU's 3D texture size limit along the way.
      * N5/Zarr directories that can't be auto-discovered headlessly are collected into {@code
      * deferredPaths} instead, to be resolved later via the interactive {@link #datasetDialog}.
      *
@@ -528,7 +528,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             final Object source;
             try {
                 source = (i == 0 && cachedPrimarySource != null) ? cachedPrimarySource
-                        : SpimDataUtils.resolvePathToSource(path);
+                        : BigDataUtils.resolvePathToSource(path);
             } catch (final IllegalArgumentException e) {
                 if (isN5OrZarrDir(path)) {
                     SNTUtils.log("BVV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
@@ -538,7 +538,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                 }
                 throw e;
             }
-            if (source instanceof SpimDataUtils.N5Sources n5 && !n5.sources().isEmpty()
+            if (source instanceof BigDataUtils.N5Sources n5 && !n5.sources().isEmpty()
                     && n5.sources().getFirst().getSpimSource().getNumMipmapLevels() <= 1) {
                 final AbstractSpimData<?> sibling = pyramidalSiblingXml(path);
                 if (sibling != null) {
@@ -547,7 +547,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                     continue;
                 }
             }
-            if (source instanceof SpimDataUtils.N5Sources n5 && !confirmPyramidOrAbort(n5, path)) {
+            if (source instanceof BigDataUtils.N5Sources n5 && !confirmPyramidOrAbort(n5, path)) {
                 return null; // user chose Abort
             }
             if (source instanceof ImgPlus<?> img) {
@@ -635,10 +635,10 @@ public class BigDataLoaderCmd extends ContextCommand {
      * Shows N5/Zarr sources in {@code bvv}: makes them streamable, reports unfavorable chunking, checks the GPU tile
      * cache and builds a synthetic pyramid if they have none
      */
-    private void showN5InBvv(final Bvv bvv, final SpimDataUtils.N5Sources n5, final String path) {
+    private void showN5InBvv(final Bvv bvv, final BigDataUtils.N5Sources n5, final String path) {
         // Wrapped before the prefetch: the prefetch must see the final stack type, otherwise it touches
         // every voxel of level 0
-        final SpimDataUtils.N5Sources cellBacked = cellBacked(n5);
+        final BigDataUtils.N5Sources cellBacked = cellBacked(n5);
         BvvUtils.reportChunking(n5.name(), n5.chunkShape());
         if (awaitBvvSourcesReady(cellBacked)) {
             checkGpuCache(bvv, cellBacked.sources().size());
@@ -653,7 +653,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             final String path = resolved.paths().get(i);
             if (source instanceof AbstractSpimData<?> spim) {
                 bvv.show(spim, path);
-            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+            } else if (source instanceof BigDataUtils.N5Sources n5) {
                 showN5InBvv(bvv, n5, path);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
@@ -667,7 +667,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     /**
      * Outcome of {@link #startTracingSNT(File)}: the SNT instance it started, plus whatever
      * {@code primaryVolume} resolved to along the way (an {@link ImgPlus}, {@link AbstractSpimData},
-     * {@link SpimDataUtils.N5Sources}, or {@code null} if resolution failed). Callers that also need
+     * {@link BigDataUtils.N5Sources}, or {@code null} if resolution failed). Callers that also need
      * to display {@code primaryVolume} themselves (i.e. {@code filePaths[0]}) should reuse
      * {@link #primarySource} rather than resolving the same path a second time -- for a remote
      * (S3/HTTPS) container, N5/Zarr discovery is a real network round-trip, not a cheap local check.
@@ -698,7 +698,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * texture-size constraint, so there's no reason to degrade it to match a viewer's rendering limits.
      * <p>
      * When the primary volume instead resolves to an {@link AbstractSpimData} (e.g. IMS, BDV .xml
-     * multi-view containers) or {@link SpimDataUtils.N5Sources} (ambiguous N5/Zarr layouts still
+     * multi-view containers) or {@link BigDataUtils.N5Sources} (ambiguous N5/Zarr layouts still
      * pending the interactive dataset dialog), there is no {@code ImgPlus} to hand to the
      * {@code SNT(ImgPlus)} constructor. SNT instead starts blank ("Analysis Mode") and {@link
      * #applyFallbackCalibration} attempts to wire dimensions/calibration and the underlying pixel
@@ -712,12 +712,12 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (getContext() == null && ij.IJ.getInstance() == null) {
             new net.imagej.ImageJ().ui().showUI();
         }
-        Object primarySource = null; // ImgPlus, AbstractSpimData, or SpimDataUtils.N5Sources; null if resolution failed
+        Object primarySource = null; // ImgPlus, AbstractSpimData, or BigDataUtils.N5Sources; null if resolution failed
         ImgPlus<?> primaryImgPlus = null;
-        Object primaryFallbackSource = null; // AbstractSpimData or SpimDataUtils.N5Sources, for calibration only
+        Object primaryFallbackSource = null; // AbstractSpimData or BigDataUtils.N5Sources, for calibration only
         if (primaryVolume != null) {
             try {
-                primarySource = SpimDataUtils.resolvePathToSource(toPathString(primaryVolume));
+                primarySource = BigDataUtils.resolvePathToSource(toPathString(primaryVolume));
                 if (primarySource instanceof ImgPlus<?> img) {
                     primaryImgPlus = img;
                 } else {
@@ -751,12 +751,12 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /**
      * Extracts image dimensions/calibration and, when possible, the actual pixel data from a
-     * resolved {@link AbstractSpimData} or {@link SpimDataUtils.N5Sources} and applies them to
+     * resolved {@link AbstractSpimData} or {@link BigDataUtils.N5Sources} and applies them to
      * {@code snt} via {@link SNT#setImageMetadata}/{@link SNT#setImageData}. Without at least the
      * metadata call, {@code snt} keeps its all-zero default dimensions, which breaks bounds checks.
      * <p>
      * Dimensions/calibration mirror the equivalent logic in {@link Bvv#show(AbstractSpimData)}/
-     * {@link Bvv#show(SpimDataUtils.N5Sources)}, which populates BVV's own bounds for the same
+     * {@link Bvv#show(BigDataUtils.N5Sources)}, which populates BVV's own bounds for the same
      * reason. Pixel-data extraction is best-effort and wrapped separately: if it fails (e.g. an
      * unexpected {@code ImgLoader} implementation), tracing falls back to manual-only.
      * <p>
@@ -765,7 +765,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * registration transform beyond plain size/calibration (e.g. a non-identity {@code
      * ViewRegistration}, or BVV's own manual-transform mode) is <em>not</em> applied, so traced
      * world coordinates could diverge from what's rendered if such a transform is present. The
-     * {@link SpimDataUtils.N5Sources} branch does compensate for its own {@code Source}'s
+     * {@link BigDataUtils.N5Sources} branch does compensate for its own {@code Source}'s
      * translation (see {@link #applyWorldOriginOffset}), since that is the fallback path actually
      * exercised for typical headless N5/Zarr loading.
      */
@@ -788,7 +788,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                     SNTUtils.log("BVV: could not access pixel data from SpimData ImgLoader for A* search ("
                             + e.getMessage() + "); manual tracing only");
                 }
-            } else if (source instanceof SpimDataUtils.N5Sources n5Sources && !n5Sources.sources().isEmpty()) {
+            } else if (source instanceof BigDataUtils.N5Sources n5Sources && !n5Sources.sources().isEmpty()) {
                 final var spimSource = n5Sources.sources().getFirst().getSpimSource();
                 final var itvl = spimSource.getSource(0, 0); // timepoint 0, full-resolution level 0
                 final var vd = spimSource.getVoxelDimensions();
@@ -842,7 +842,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         for (final String path : filePaths) {
             final Object source;
             try {
-                source = SpimDataUtils.resolvePathToSource(path);
+                source = BigDataUtils.resolvePathToSource(path);
             } catch (final IllegalArgumentException e) {
                 if (isN5OrZarrDir(path)) {
                     SNTUtils.log("BDV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
@@ -854,7 +854,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             }
             if (source instanceof AbstractSpimData<?> spim) {
                 bdv.show(spim, path); // path-aware overload records the dataset path
-            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+            } else if (source instanceof BigDataUtils.N5Sources n5) {
                 bdv.show(n5, path);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
@@ -881,7 +881,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                 // Reuse filePaths[0]'s already-resolved source (see startTracingSNT) instead of
                 // re-running N5/Zarr discovery a second time for the same container.
                 source = (i == 0 && setup.primarySource() != null) ? setup.primarySource()
-                        : SpimDataUtils.resolvePathToSource(path);
+                        : BigDataUtils.resolvePathToSource(path);
             } catch (final IllegalArgumentException e) {
                 if (isN5OrZarrDir(path)) {
                     SNTUtils.log("BDV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
@@ -893,7 +893,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             }
             if (source instanceof AbstractSpimData<?> spim) {
                 bdv.show(spim, path); // path-aware overload records the dataset path
-            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+            } else if (source instanceof BigDataUtils.N5Sources n5) {
                 bdv.show(n5, path);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
@@ -913,7 +913,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         // Only pop open the standalone floating "Markers" dialog when this viewer has no SNT/SNTUI at all
         final boolean standalone = viewer.getSNT() == null || viewer.getSNT().getUI() == null;
         final String path = toPathString(markerFile);
-        if (SpimDataUtils.isRemoteUrl(path)) {
+        if (BigDataUtils.isRemoteUrl(path)) {
             // fileAvailable() below only makes sense for local files: there is no cheap way to check
             // a remote URL's existence without a network round-trip, so just attempt the load directly
             // and let BookmarkManager#load(String) report a clear error if the URL turns out to be bad
@@ -946,7 +946,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             return;
         }
         final String path = toPathString(seedFile);
-        if (!SpimDataUtils.isRemoteUrl(path) && !SNTUtils.fileAvailable(seedFile)) {
+        if (!BigDataUtils.isRemoteUrl(path) && !SNTUtils.fileAvailable(seedFile)) {
             error(String.format("%s does not exist or is not available.", seedFile.getName()));
             return;
         }
@@ -974,7 +974,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         if (recFiles == null) return;
         final String path = toPathString(recFiles);
         final Collection<Tree> trees = new ArrayList<>();
-        if (SpimDataUtils.isRemoteUrl(path)) {
+        if (BigDataUtils.isRemoteUrl(path)) {
             // fileAvailable()/getReconstructionFiles() below are local-filesystem-only checks. Tree.listFromFile()
             // already knows how to handle a remote URL directly (a single reconstruction file is streamed, a .zip is
             // downloaded/extracted and treated as a directory), so route straight through it instead for this case
@@ -1074,7 +1074,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * @return true if there is already a pyramid, or the user chose to build one locally; false if
      * the user chose to cancel
      */
-    private static boolean confirmPyramidOrAbort(final SpimDataUtils.N5Sources n5Sources, final String path) {
+    private static boolean confirmPyramidOrAbort(final BigDataUtils.N5Sources n5Sources, final String path) {
         if (n5Sources.sources().isEmpty()) return true; // nothing to check; downstream logic already handles this
         final int nLevels = n5Sources.sources().getFirst().getSpimSource().getNumMipmapLevels();
         if (nLevels > 1) return true;
@@ -1102,11 +1102,11 @@ public class BigDataLoaderCmd extends ContextCommand {
      * the sources are used as they are and only the coarser levels are synthesized (lazily)
      *
      * @param n5Sources the sources to rewrap
-     * @return an equivalent {@link SpimDataUtils.N5Sources} with pyramid-backed sources
+     * @return an equivalent {@link BigDataUtils.N5Sources} with pyramid-backed sources
      * @throws IllegalStateException if there is not enough memory to build the pyramid
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static SpimDataUtils.N5Sources withSyntheticPyramid(final SpimDataUtils.N5Sources n5Sources) {
+    private static BigDataUtils.N5Sources withSyntheticPyramid(final BigDataUtils.N5Sources n5Sources) {
         // Nothing to do (nor to log) if every source already has a pyramid
         if (n5Sources.sources().stream().allMatch(soc -> soc.getSpimSource().getNumMipmapLevels() > 1))
             return n5Sources;
@@ -1128,7 +1128,7 @@ public class BigDataLoaderCmd extends ContextCommand {
                             BvvUtils.synthesizeMipmapPyramid((Source) soc.getSpimSource(), 3, copyLocally),
                             soc.getConverter()))
                     .toList();
-            return new SpimDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name(), null,
+            return new BigDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name(), null,
                     n5Sources.remote());
         } catch (final OutOfMemoryError oom) {
             throw new IllegalStateException("Not enough memory to build a pyramid for '" + n5Sources.name()
@@ -1143,7 +1143,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * @param n5Sources the sources to check
      * @return {@code n5Sources} itself if no source needed wrapping, or an equivalent set of sources
      */
-    private static SpimDataUtils.N5Sources cellBacked(final SpimDataUtils.N5Sources n5Sources) {
+    private static BigDataUtils.N5Sources cellBacked(final BigDataUtils.N5Sources n5Sources) {
         final List<SourceAndConverter<?>> wrapped = new ArrayList<>();
         boolean changed = false;
         for (final SourceAndConverter<?> soc : n5Sources.sources()) {
@@ -1151,7 +1151,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             changed |= (w != soc);
             wrapped.add(w);
         }
-        return changed ? new SpimDataUtils.N5Sources(wrapped, n5Sources.numTimepoints(), n5Sources.name(),
+        return changed ? new BigDataUtils.N5Sources(wrapped, n5Sources.numTimepoints(), n5Sources.name(),
                 n5Sources.chunkShape(), n5Sources.remote()) : n5Sources;
     }
 
@@ -1170,7 +1170,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final File xml = new File(base.substring(0, base.length() - 3) + ".xml");
         if (!xml.isFile()) return null;
         try {
-            if (SpimDataUtils.resolvePathToSource(xml.getAbsolutePath()) instanceof AbstractSpimData<?> spim
+            if (BigDataUtils.resolvePathToSource(xml.getAbsolutePath()) instanceof AbstractSpimData<?> spim
                     && spim.getSequenceDescription().getImgLoader() instanceof bdv.ViewerImgLoader loader
                     && !spim.getSequenceDescription().getViewSetupsOrdered().isEmpty()
                     && loader.getSetupImgLoader(spim.getSequenceDescription().getViewSetupsOrdered().getFirst()
@@ -1191,7 +1191,7 @@ public class BigDataLoaderCmd extends ContextCommand {
      * @param n5Sources the sources about to be shown in BVV
      * @return true if the caller should proceed to show {@code n5Sources}; false if the user canceled
      */
-    private static boolean awaitBvvSourcesReady(final SpimDataUtils.N5Sources n5Sources) {
+    private static boolean awaitBvvSourcesReady(final BigDataUtils.N5Sources n5Sources) {
         for (final SourceAndConverter<?> soc : n5Sources.sources()) {
             if (!awaitBvvDataOrPrompt(soc.getSpimSource())) return false;
         }
@@ -1484,8 +1484,8 @@ public class BigDataLoaderCmd extends ContextCommand {
             ImgUtils.saveAsOmeZarr((ImgPlus) img, out, SNTPrefs.getThreads(), GuiUtils::setSplashMessage);
             convertedZarr = out;
             SNTUtils.log("BVV: conversion finished in " + (System.currentTimeMillis() - start) / 1000 + "s");
-            final Object resolved = SpimDataUtils.resolvePathToSource(out.getAbsolutePath());
-            if (resolved instanceof SpimDataUtils.N5Sources n5
+            final Object resolved = BigDataUtils.resolvePathToSource(out.getAbsolutePath());
+            if (resolved instanceof BigDataUtils.N5Sources n5
                     && (n5.sources().isEmpty() || n5.sources().getFirst().getSpimSource().getNumMipmapLevels() > 1))
                 return resolved;
             GuiUtils.errorPrompt("'" + out.getName() + "' was written but could not be read back as a "

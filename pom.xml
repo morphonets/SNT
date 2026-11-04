@@ -295,7 +295,7 @@
 			<artifactId>imglib2</artifactId>
 		</dependency>
 
-		<!-- N5 / OME-Zarr dependencies (see sc.fiji.snt.io.SpimDataUtils#resolveN5ToSources) -->
+		<!-- N5 / OME-Zarr dependencies (see sc.fiji.snt.util.BigDataUtils#resolveN5ToSources) -->
 		<dependency>
 			<groupId>org.janelia.saalfeldlab</groupId>
 			<artifactId>n5-ij</artifactId>

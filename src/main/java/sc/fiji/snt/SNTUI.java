@@ -3599,7 +3599,7 @@ public class SNTUI extends JDialog {
             final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir()
                     : plugin.getFilteredImageFile();
             // An N5/OME-Zarr secondary layer is a directory, not a single file, and SNT#loadSecondaryImage(File)
-            // (via SpimDataUtils#resolvePathToSource) supports resolving one
+            // (via BigDataUtils#resolvePathToSource) supports resolving one
             final File file = (plugin.isStreamMode())
                     ? guiUtils.getOpenFileOrDirectory("Choose Secondary Image", proposedFile)
                     : guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
@@ -7043,7 +7043,7 @@ public class SNTUI extends JDialog {
                 return ImportAction.NEUROLUCIDA;
             if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
                 return ImportAction.IMAGE;
-            if (SpimDataUtils.isRemoteUrl(filename))
+            if (BigDataUtils.isRemoteUrl(filename))
                 return ImportAction.URL;
             return -1;
         }

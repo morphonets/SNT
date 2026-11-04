@@ -35,7 +35,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.SNTUtils;
 import ij.ImagePlus;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
@@ -420,7 +420,7 @@ public abstract class AbstractBigViewer {
      */
     protected final Set<String> syncedPathManagerLabels = new HashSet<>();
 
-    /** Source file/URL of each dataset shown (keyed by identity: an {@link AbstractSpimData} or a {@link SpimDataUtils.N5Sources}) */
+    /** Source file/URL of each dataset shown (keyed by identity: an {@link AbstractSpimData} or a {@link BigDataUtils.N5Sources}) */
     protected final Map<Object, String> datasetPaths = new IdentityHashMap<>();
 
     /** Local OME-Zarr containers backing the loaded sources (see {@link #registerOmeZarrSource}) */
@@ -2105,7 +2105,7 @@ public abstract class AbstractBigViewer {
     /**
      * Gets the source file path/URL of a dataset shown in this viewer.
      *
-     * @param dataset an {@link AbstractSpimData} or {@link SpimDataUtils.N5Sources} instance shown in this viewer
+     * @param dataset an {@link AbstractSpimData} or {@link BigDataUtils.N5Sources} instance shown in this viewer
      * @return the path/URL, or an empty string if unknown
      */
     String getDatasetPath(final Object dataset) {

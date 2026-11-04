@@ -28,7 +28,7 @@ import net.imglib2.img.ImgView
 import net.imglib2.type.numeric.integer.UnsignedShortType
 import net.imglib2.view.Views
 import sc.fiji.snt.SNTPrefs
-import sc.fiji.snt.io.SpimDataUtils
+import sc.fiji.snt.util.BigDataUtils
 import sc.fiji.snt.util.ImgUtils
 
 import java.util.function.Consumer
@@ -106,8 +106,8 @@ println "Output: ${outDir.absolutePath}"
 def sigs = [], subs = []
 try {
     for (int t = 0; t < nTimepoints; t++) {
-        sigs << SpimDataUtils.openChannel(inputPath, sigChannel, t)
-        subs << SpimDataUtils.openChannel(inputPath, subChannel, t)
+        sigs << BigDataUtils.openChannel(inputPath, sigChannel, t)
+        subs << BigDataUtils.openChannel(inputPath, subChannel, t)
     }
 } catch (Exception e) {
     throw new IOException("Failed to open dataset: ${inputPath}\n" +

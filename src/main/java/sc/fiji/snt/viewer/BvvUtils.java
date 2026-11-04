@@ -49,7 +49,7 @@ import org.joml.Vector3f;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.awt.Point;
@@ -1047,11 +1047,11 @@ public final class BvvUtils {
      *                {@link ImgUtils#normalizeToXYZ})
      * @param nLevels number of extra coarser levels
      * @param <T>     pixel type
-     * @return one source per channel, ready for {@link sc.fiji.snt.viewer.Bvv#show(SpimDataUtils.N5Sources)}
+     * @return one source per channel, ready for {@link sc.fiji.snt.viewer.Bvv#show(BigDataUtils.N5Sources)}
      * @throws IllegalArgumentException if the axes layout is not XYZ[C]
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static <T extends RealType<T> & NativeType<T>> SpimDataUtils.N5Sources buildTiledPyramid(
+    public static <T extends RealType<T> & NativeType<T>> BigDataUtils.N5Sources buildTiledPyramid(
             final ImgPlus<T> img, final int nLevels) {
         final int cDim = img.dimensionIndex(net.imagej.axis.Axes.CHANNEL);
         final int nC = (cDim >= 0) ? (int) img.dimension(cDim) : 1;
@@ -1087,7 +1087,7 @@ public final class BvvUtils {
             SNTUtils.log("BVV: tiled pyramid for channel " + (c + 1) + "/" + nC + " built in "
                     + (System.currentTimeMillis() - start) + "ms");
         }
-        return new SpimDataUtils.N5Sources(sources, 1, name);
+        return new BigDataUtils.N5Sources(sources, 1, name);
     }
 
     /**
@@ -1584,7 +1584,7 @@ public final class BvvUtils {
      * {@code source} looks likely to fall back to BVV's non-pyramid-aware {@code SimpleStack3D}
      * renderer, without attempting to prevent it.
      * <p>
-     * Unlike the {@code SpimDataUtils.N5Sources} path, {@code BvvFunctions.show(AbstractSpimData,
+     * Unlike the {@code BigDataUtils.N5Sources} path, {@code BvvFunctions.show(AbstractSpimData,
      * BvvOptions)} builds its own {@code Source} instances internally (via {@code
      * BigDataViewer#initSetups}), so there is no hook to call {@link #preferMultiResolutionIfSafe}
      * on the actual instance before it first renders. {@code inferSourceStackType}'s check is a
@@ -1622,7 +1622,7 @@ public final class BvvUtils {
 
     /**
      * Diagnostic-only warning for the plain {@code ImgPlus} fallback path (see {@link
-     * SpimDataUtils#resolvePathToSource(String)}). Unlike {@link #preferMultiResolutionIfSafe}/
+     * BigDataUtils#resolvePathToSource(String)}). Unlike {@link #preferMultiResolutionIfSafe}/
      * {@link #warnIfLikelySimpleStack}, an {@code ImgPlus} always has a single mipmap level, so BVV
      * always renders it via the non-pyramid-aware {@code SimpleStack3D} path regardless of pixel
      * type or backing storage - there is no "is it structurally eligible for MULTIRESOLUTION"
@@ -1637,7 +1637,7 @@ public final class BvvUtils {
      * @param pathOrUrl the original path or URL {@code img} was resolved from
      */
     public static void warnIfLikelyRemoteImgPlus(final ImgPlus<?> img, final String pathOrUrl) {
-        if (!SpimDataUtils.isRemoteUrl(pathOrUrl)) return;
+        if (!BigDataUtils.isRemoteUrl(pathOrUrl)) return;
         SNTUtils.log("BVV: '" + img.getName() + "' was opened from a remote URL as a plain image "
                 + "(no pyramid); BVV will upload the full volume as a single texture, which may "
                 + "block the GUI on first paint while it downloads");

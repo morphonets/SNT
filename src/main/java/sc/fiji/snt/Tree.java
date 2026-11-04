@@ -45,7 +45,7 @@ import sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.SWCExportException;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -1392,7 +1392,7 @@ public class Tree implements TreeProperties, Cloneable {
 	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
 	 */
 	public static Collection<Tree> listFromFile(final String tracesOrJsonFile) throws IllegalArgumentException {
-		if (SpimDataUtils.isRemoteUrl(tracesOrJsonFile)) {
+		if (BigDataUtils.isRemoteUrl(tracesOrJsonFile)) {
 			return listFromRemoteFile(tracesOrJsonFile);
 		}
 		File f = getFile(tracesOrJsonFile, true);

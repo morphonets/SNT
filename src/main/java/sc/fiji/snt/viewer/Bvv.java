@@ -58,7 +58,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
@@ -835,7 +835,7 @@ public class Bvv extends AbstractBigViewer {
             final Object source = resolvePathToSource(path);
             if (source instanceof AbstractSpimData<?> sd) {
                 bvv.show(sd, path);
-            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+            } else if (source instanceof BigDataUtils.N5Sources n5) {
                 bvv.show(n5, path);
             } else {
                 //noinspection unchecked,rawtypes
@@ -850,10 +850,10 @@ public class Bvv extends AbstractBigViewer {
      * {@code .ims} and {@code .xml} files) or an {@link ImgPlus} (fallback).
      * Shared by {@link #open(String)} and {@link #open(String...)}.
      *
-     * @see sc.fiji.snt.io.SpimDataUtils#resolvePathToSource(String)
+     * @see sc.fiji.snt.util.BigDataUtils#resolvePathToSource(String)
      */
     private static Object resolvePathToSource(final String filePathOrUrl) {
-        return sc.fiji.snt.io.SpimDataUtils.resolvePathToSource(filePathOrUrl);
+        return sc.fiji.snt.util.BigDataUtils.resolvePathToSource(filePathOrUrl);
     }
 
     /**
@@ -870,13 +870,13 @@ public class Bvv extends AbstractBigViewer {
 
     /**
      * Opens sources loaded from an N5/OME-Zarr container and records its path (see
-     * {@link #show(SpimDataUtils.N5Sources)}).
+     * {@link #show(BigDataUtils.N5Sources)}).
      *
      * @param n5Sources  the sources to display
      * @param sourcePath the path/URL of the container; ignored if null or blank
      * @return list containing a single {@link BvvMultiSource} grouping all setups
      */
-    public List<BvvMultiSource> show(final SpimDataUtils.N5Sources n5Sources, final String sourcePath) {
+    public List<BvvMultiSource> show(final BigDataUtils.N5Sources n5Sources, final String sourcePath) {
         registerDatasetPath(n5Sources, sourcePath);
         return show(n5Sources);
     }
@@ -898,7 +898,7 @@ public class Bvv extends AbstractBigViewer {
         if (sources.isEmpty()) return Collections.emptyList();
 
         // This AbstractSpimData path has no hook to force the pyramid-aware renderer the way
-        // Bvv#show(SpimDataUtils.N5Sources) does, since BvvFunctions.show(spimData, opts) builds its
+        // Bvv#show(BigDataUtils.N5Sources) does, since BvvFunctions.show(spimData, opts) builds its
         // own Source instances internally. Just log if a setup looks likely to hit BVV's blocking
         // single-texture path, so a slow first paint on a BDV-XML/HDF5/IMS dataset is not mysterious
         for (final BvvStackSource<?> s : sources) {
@@ -926,14 +926,14 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Displays sources loaded from an N5 or OME-Zarr container (see {@link SpimDataUtils#resolvePathToSource(String)}),
+     * Displays sources loaded from an N5 or OME-Zarr container (see {@link BigDataUtils#resolvePathToSource(String)}),
      * using BVV's pyramid-aware GPU cache manager. Unlike {@link #show(AbstractSpimData)}, there is no BDV-XML
      * descriptor or {@link AbstractSpimData} involved: sources are built directly using  {@code n5-viewer_fiji}.
      *
      * @param n5Sources the sources to display
      * @return list containing a single {@link BvvMultiSource} grouping all setups
      */
-    public List<BvvMultiSource> show(final SpimDataUtils.N5Sources n5Sources) {
+    public List<BvvMultiSource> show(final BigDataUtils.N5Sources n5Sources) {
         // Whether this Bvv instance had no window at all before this call, distinct from bvvHandle's state
         // *during* the loop below, which changes as soon as the first channel is shown. Needed so "attach
         // control panel" further down still fires exactly once/
@@ -1331,7 +1331,7 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /** Derives a display name for N5/OME-Zarr sources, stripping any per-channel suffix. */
-    private String deriveDatasetName(final List<BvvStackSource<?>> sources, final SpimDataUtils.N5Sources n5Sources) {
+    private String deriveDatasetName(final List<BvvStackSource<?>> sources, final BigDataUtils.N5Sources n5Sources) {
         String datasetName = n5Sources.name();
         try {
             final String firstName = sources.getFirst().getSources().getFirst().getSpimSource().getName();
@@ -1544,7 +1544,7 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Builds a {@link sc.fiji.snt.io.SpimDataUtils.CalibratedSource} from a RAI,
+     * Builds a {@link sc.fiji.snt.util.BigDataUtils.CalibratedSource} from a RAI,
      * calibration, unit, and name, then calls
      * {@link BvvFunctions#show(bdv.viewer.Source, int, BvvOptions)} so the unit
      * propagates to the scale bar renderer. The {@code opts} passed in must NOT
@@ -1562,8 +1562,8 @@ public class Bvv extends AbstractBigViewer {
         t.set(cal[0], 0, 0);
         t.set(cal[1], 1, 1);
         t.set(cal[2], 2, 2);
-        final sc.fiji.snt.io.SpimDataUtils.CalibratedSource<T> src =
-                new sc.fiji.snt.io.SpimDataUtils.CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
+        final sc.fiji.snt.util.BigDataUtils.CalibratedSource<T> src =
+                new sc.fiji.snt.util.BigDataUtils.CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
         return BvvFunctions.show((bdv.viewer.Source) src, 1, opts);
     }
 
@@ -1571,7 +1571,7 @@ public class Bvv extends AbstractBigViewer {
      * Overload for timelapse data. {@code numTimepoints} sets the BVV time slider range.
      * The T axis is assumed to be the last dimension of {@code rai} (as produced by
      * {@code ImageJFunctions.wrapShort} on a single-channel hyperstack): the
-     * {@link sc.fiji.snt.io.SpimDataUtils.CalibratedSource} will slice along
+     * {@link sc.fiji.snt.util.BigDataUtils.CalibratedSource} will slice along
      * {@code rai.numDimensions()-1} to return the correct frame for each timepoint.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -1589,8 +1589,8 @@ public class Bvv extends AbstractBigViewer {
         // T is the outermost (last) dimension produced by ImageJFunctions.wrap for a
         // single-channel hyperstack [X, Y, Z, T]. timeDim=-1 for static volumes.
         final int timeDim = numTimepoints > 1 ? rai.numDimensions() - 1 : -1;
-        final sc.fiji.snt.io.SpimDataUtils.CalibratedSource<T> src =
-                new sc.fiji.snt.io.SpimDataUtils.CalibratedSource<>(rai, rai.getType(), t, name, cal, unit, timeDim);
+        final sc.fiji.snt.util.BigDataUtils.CalibratedSource<T> src =
+                new sc.fiji.snt.util.BigDataUtils.CalibratedSource<>(rai, rai.getType(), t, name, cal, unit, timeDim);
         return BvvFunctions.show((bdv.viewer.Source) src, Math.max(1, numTimepoints), opts);
     }
 
@@ -2735,7 +2735,7 @@ public class Bvv extends AbstractBigViewer {
                 Source<?> src = sac.getSpimSource();
                 if (src instanceof TransformedSource<?> ts)
                     src = ts.getWrappedSource();
-                if (src instanceof SpimDataUtils.CalibratedSource<?> cs)
+                if (src instanceof BigDataUtils.CalibratedSource<?> cs)
                     cs.setCalibration(cal, unit);
             }
             bvvHandle.getViewerPanel().requestRepaint();

@@ -28,7 +28,7 @@ import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.type.numeric.NumericType;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.CalloutManager;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.BoundingBox;
 import bdv.util.BdvFunctions;
 import bdv.util.BdvHandle;
@@ -486,14 +486,14 @@ public class Bdv extends AbstractBigViewer {
      * @param sourcePath the path/URL of the container; ignored if null or blank
      * @return list of BdvStackSources, one per setup
      */
-    public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources, final String sourcePath) {
+    public List<BdvStackSource<?>> show(final BigDataUtils.N5Sources n5Sources, final String sourcePath) {
         registerDatasetPath(n5Sources, sourcePath);
         return show(n5Sources);
     }
 
     /**
      * Opens sources loaded from an N5 or OME-Zarr container (see
-     * {@link SpimDataUtils#resolvePathToSource(String)}). Unlike
+     * {@link BigDataUtils#resolvePathToSource(String)}). Unlike
      * {@link #show(AbstractSpimData)}, there is no BDV-XML descriptor or
      * {@link AbstractSpimData} involved: sources are built directly from the
      * container's own N5/OME-NGFF metadata via {@code n5-viewer_fiji}.
@@ -501,7 +501,7 @@ public class Bdv extends AbstractBigViewer {
      * @param n5Sources the sources to display
      * @return list of BdvStackSources, one per setup
      */
-    public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources) {
+    public List<BdvStackSource<?>> show(final BigDataUtils.N5Sources n5Sources) {
         final boolean firstEverSource = bdvHandle == null;
         final List<BdvStackSource<?>> sources = new ArrayList<>();
         for (final SourceAndConverter<?> soc : n5Sources.sources()) {
@@ -987,7 +987,7 @@ public class Bdv extends AbstractBigViewer {
     }
 
     /**
-     * Wraps {@code rai} in a {@link sc.fiji.snt.io.SpimDataUtils.CalibratedSource} so that
+     * Wraps {@code rai} in a {@link sc.fiji.snt.util.BigDataUtils.CalibratedSource} so that
      * the BDV scale bar reads the correct physical unit (not "pixel"). The calibration
      * is taken from the current {@link #cal} and {@link #calUnit} fields.
      * <p>
@@ -1022,8 +1022,8 @@ public class Bdv extends AbstractBigViewer {
             }
         }
         final int timeDim = hasTime ? rai3d.numDimensions() - 1 : -1;
-        final SpimDataUtils.CalibratedSource src =
-                new SpimDataUtils.CalibratedSource(
+        final BigDataUtils.CalibratedSource src =
+                new BigDataUtils.CalibratedSource(
                         rai3d, (NumericType) rai3d.getType(), calToTransform(), name,
                         cal != null ? cal : new double[]{1, 1, 1},
                         calUnit != null ? calUnit : "pixel", timeDim);

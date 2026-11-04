@@ -82,7 +82,7 @@ import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedOverlayCanvasHandler;
@@ -4813,7 +4813,7 @@ public class SNT extends MultiDThreePanes implements
 		// Big-data formats (N5, Zarr, BDV .xml/.h5, IMS, remote URLs) aren't openable via the classic
 		// SCIFIO/Bio-Formats path openCachedDataImage() relies on, e.g.m  a BDV .xml companion of a
 		// large .h5 dataset fails there with "Could not find H5 file location in XML" (Bio-Formats
-		// trying, and failing, to parse it as its own HDF5-companion XML dialect). Try SpimDataUtils'
+		// trying, and failing, to parse it as its own HDF5-companion XML dialect). Try BigDataUtils'
 		// resolution first (the same one BigDataLoaderCmd's own volume fields use) and, on success,
 		// route through the RAI-based loadSecondaryImage() overload below, which also sidesteps
 		// openCachedDataImage()'s need for a classic tracing  canvas (xy) entirely.
@@ -4825,7 +4825,7 @@ public class SNT extends MultiDThreePanes implements
 		// path below. A dimension mismatch on an already-resolved big-data source must NOT fall back to it
 		Object resolvedSource = null;
 		try {
-			resolvedSource = SpimDataUtils.resolvePathToSource(file.getAbsolutePath());
+			resolvedSource = BigDataUtils.resolvePathToSource(file.getAbsolutePath());
 		} catch (final Exception e) {
 			SNTUtils.log("Secondary layer: '" + file.getName() + "' could not be resolved as a big-data "
 					+ "container (" + e.getMessage() + "); falling back to conventional image opening");
@@ -4850,7 +4850,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/**
 	 * Extracts a {@link RandomAccessibleInterval} for the currently active channel/frame from a
-	 * resolved big-data source (see {@link SpimDataUtils#resolvePathToSource(String)}), or
+	 * resolved big-data source (see {@link BigDataUtils#resolvePathToSource(String)}), or
 	 * {@code null} if {@code source} isn't one of the recognized types (the caller, {@link
 	 * #loadSecondaryImage(File)}, then falls back to conventional image opening).
 	 * <p>
@@ -4862,7 +4862,7 @@ public class SNT extends MultiDThreePanes implements
 	 * dimensions are wrong. Failing fast here, with the same message {@link #openCachedDataImage(File)}
 	 * gives for the same condition, avoids that.
 	 * <p>
-	 * For {@link AbstractSpimData} (BDV .xml/IMS) and {@link SpimDataUtils.N5Sources} (ambiguous
+	 * For {@link AbstractSpimData} (BDV .xml/IMS) and {@link BigDataUtils.N5Sources} (ambiguous
 	 * N5/Zarr layouts), only the first setup/source and timepoint 0 are used. This is the same
 	 * simplification {@code BigDataLoaderCmd#applyFallbackCalibration} already makes for the
 	 * <i>primary</i> volume in this same situation. A genuinely multichannel secondary layer of
@@ -4888,7 +4888,7 @@ public class SNT extends MultiDThreePanes implements
                     return null;
                 }
             }
-            case SpimDataUtils.N5Sources n5 when !n5.sources().isEmpty() ->
+            case BigDataUtils.N5Sources n5 when !n5.sources().isEmpty() ->
                     data = n5.sources().getFirst().getSpimSource().getSource(0, 0); // timepoint 0, full-resolution level 0
             case null, default -> {
                 return null; // unresolved / unrecognized type
@@ -5123,7 +5123,7 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * RAI-based overload of {@link #sameXYZDimensionsAsTracingData(ImagePlus)}, for candidate
 	 * sources that never go through an {@link ImagePlus} at all (e.g. a big-data secondary layer
-	 * resolved via {@link SpimDataUtils#resolvePathToSource(String)}). Compares XYZ dimensions
+	 * resolved via {@link BigDataUtils#resolvePathToSource(String)}). Compares XYZ dimensions
 	 * directly against {@link #getLoadedData()}, so unlike the {@link ImagePlus} overload this
 	 * works the same regardless of whether {@link #xy} exists.
 	 *

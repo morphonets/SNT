@@ -26,7 +26,7 @@ import mpicbg.spim.data.generic.AbstractSpimData;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.ScriptInstaller;
-import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.util.BigDataUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -111,7 +111,7 @@ class ChannelUnmixingCard {
      * Builds a "Channel Unmixing" card panel for two-channel subtraction.
      *
      * @param group    the channels to mix
-     * @param dataset  the backing dataset: an {@link AbstractSpimData}, a {@link SpimDataUtils.N5Sources}, or
+     * @param dataset  the backing dataset: an {@link AbstractSpimData}, a {@link BigDataUtils.N5Sources}, or
      *                 {@code null} for in-memory sources
      * @param engine   the viewer-specific back end computing and displaying the mix
      * @return a JPanel suitable for {@code CardPanel.addCard()}
@@ -448,7 +448,7 @@ class ChannelUnmixingCard {
         final int nTimepoints;
         if (dataset instanceof AbstractSpimData<?> spimData)
             nTimepoints = spimData.getSequenceDescription().getTimePoints().size();
-        else if (dataset instanceof SpimDataUtils.N5Sources n5)
+        else if (dataset instanceof BigDataUtils.N5Sources n5)
             nTimepoints = n5.numTimepoints();
         else
             nTimepoints = 1;
