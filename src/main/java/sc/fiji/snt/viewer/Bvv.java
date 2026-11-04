@@ -2103,9 +2103,9 @@ public class Bvv extends AbstractBigViewer {
             target.set(scale, 0, 0);
             target.set(scale, 1, 1);
             target.set(scale, 2, 2);
-            target.set(cw / 2.0 - scale * physW / 2.0, 0, 3);
-            target.set(ch / 2.0 - scale * physH / 2.0, 1, 3);
-            target.set(-scale * physZ / 2.0, 2, 3);
+            target.set(cw / 2.0 - scale * (origin()[0] + physW / 2.0), 0, 3);
+            target.set(ch / 2.0 - scale * (origin()[1] + physH / 2.0), 1, 3);
+            target.set(-scale * (origin()[2] + physZ / 2.0), 2, 3);
         } else {
             target = new AffineTransform3D();
         }
@@ -2355,6 +2355,162 @@ public class Bvv extends AbstractBigViewer {
             tracer.tracingOverlay.setCamParams(dCam, nearClip, farClip);
     }
 
+    /** World position of the first voxel (x, y, z) of the displayed volume: non-zero for sources with offset origins (e.g., OME-Zarr in world coordinates) */
+    private double[] origin() {
+        return primarySourceTranslation();
+    }
+
+    // Camera params (dCam, near, far) saved when a slab is set without slab controls (uncalibrated data)
+    private double[] slabSavedCam;
+
+    /**
+     * Detects which world axis (0=X, 1=Y, 2=Z) is aligned with viewer-depth (row 2 of the viewer transform), or -1
+     * if the view is not aligned to one of the three canonical planes (free/oblique rotation). Exactly one column of
+     * row 2 should account for the full scale, with the other two near 0.
+     */
+    private static int canonicalDepthAxis(final AffineTransform3D t) {
+        final double scale = Math.sqrt(
+                t.get(0, 0) * t.get(0, 0) + t.get(1, 0) * t.get(1, 0) + t.get(2, 0) * t.get(2, 0));
+        if (scale <= 0) return -1;
+        final double tol = scale * 0.01;
+        int axis = -1;
+        for (int k = 0; k < 3; k++) {
+            final double v = Math.abs(t.get(2, k));
+            if (Math.abs(v - scale) <= tol) {
+                if (axis != -1) return -1; // more than one axis near full scale: ambiguous
+                axis = k;
+            } else if (v > tol) {
+                return -1; // significant but not full-scale: an oblique rotation
+            }
+        }
+        return axis;
+    }
+
+    /** Bridge to the Slab View controls (null when they are not available). */
+    private interface SlabUi {
+        void set(double center, double thickness);
+        void clear();
+    }
+    private SlabUi slabUi;
+
+    /**
+     * Restricts rendering to a slab of the specified thickness centered on the
+     * plane currently in focus (the plane at the center of the viewer). Only
+     * the slab is rendered, which for tile-streamed sources (e.g., remote
+     * OME-Zarr) restricts loading to the blocks intersecting it. The view must
+     * be aligned to a canonical plane (XY, XZ or ZY), see
+     * {@link #setSlab(double, double)}.
+     * <p>
+     * Must be called from the EDT (see {@code pysnt.run_on_edt()}). For
+     * calibrated volumes this drives the <i>Slab View</i> controls, which
+     * stay in sync; the center is snapped to the voxel size along the viewing
+     * axis.
+     * </p>
+     *
+     * @param thickness slab thickness in calibrated units (e.g., &micro;m)
+     * @throws IllegalStateException if the view is not aligned to a canonical
+     *                               plane
+     * @throws IllegalArgumentException if thickness is not positive
+     * @see #clearSlab()
+     */
+    public void setSlab(final double thickness) {
+        setSlab(Double.NaN, thickness);
+    }
+
+    /**
+     * Restricts rendering to a slab of the specified thickness centered on a
+     * position along the current viewing axis. The view is moved so that the
+     * slab center is the plane in focus. The viewing axis is the one the view
+     * is currently aligned to (Z for the default XY view). Paths are clipped
+     * to the slab as well, unless <i>Slab Paths</i> was explicitly switched
+     * off in the controls. The thickness is clamped to the range allowed by
+     * the controls (one voxel to the full extent of the volume).
+     * <p>
+     * Must be called from the EDT (see {@code pysnt.run_on_edt()}). For
+     * calibrated volumes this drives the <i>Slab View</i> controls, which
+     * stay in sync; the center is snapped to the voxel size along the viewing
+     * axis.
+     * </p>
+     *
+     * @param center    slab center along the viewing axis, in calibrated units.
+     *                  NaN keeps the plane currently in focus
+     * @param thickness slab thickness in calibrated units (e.g., &micro;m)
+     * @throws IllegalStateException if the view is not aligned to a canonical
+     *                               plane (XY, XZ or ZY)
+     * @throws IllegalArgumentException if thickness is not positive
+     * @see #clearSlab()
+     */
+    public void setSlab(final double center, final double thickness) {
+        if (!(thickness > 0))
+            throw new IllegalArgumentException("Slab thickness must be positive");
+        final VolumeViewerPanel vp = getViewerPanel();
+        final AffineTransform3D t = new AffineTransform3D();
+        vp.state().getViewerTransform(t);
+        final int axis = canonicalDepthAxis(t);
+        if (axis < 0)
+            throw new IllegalStateException("Slab needs a view aligned to a canonical plane (XY/XZ/ZY)");
+        // Calibrated volumes: the Slab View controls are the single source of truth. Driving them keeps
+        // toggle, position, thickness and Slab Paths in sync with the scene, whoever changed the slab
+        if (slabUi != null) {
+            slabUi.set(center, thickness);
+            return;
+        }
+        // Fallback (no slab controls, i.e., uncalibrated data): apply the camera clipping directly
+        final double signedDepthScale = t.get(2, axis);
+        final double scale = Math.sqrt(t.get(0, 0) * t.get(0, 0) + t.get(1, 0) * t.get(1, 0)
+                + t.get(2, 0) * t.get(2, 0));
+        // World coordinate of the plane in focus, along the depth axis
+        double zCenter = -t.get(2, 3) / signedDepthScale;
+        if (!Double.isNaN(center)) {
+            zCenter = center;
+            t.set(-signedDepthScale * zCenter, 2, 3);
+            vp.state().setViewerTransform(t);
+        }
+        final double half = thickness / 2.0;
+        final double[] cam = getCamParams();
+        if (slabSavedCam == null) slabSavedCam = cam.clone();
+        final double screenHalf = scale * half;
+        applyCamParams(cam[0], screenHalf, screenHalf);
+        renderingOptions.setSlabZBounds(zCenter - half, zCenter + half);
+        renderingOptions.setClipPathsToSlab(true);
+        syncOverlays();
+        vp.requestRepaint();
+    }
+
+    /**
+     * Removes the slab set by {@link #setSlab(double)} (restoring the camera
+     * clipping in place before the slab was set).
+     * <p>
+     * Must be called from the EDT (see {@code pysnt.run_on_edt()}).
+     * </p>
+     */
+    public void clearSlab() {
+        if (slabUi != null) {
+            slabUi.clear();
+            return;
+        }
+        if (slabSavedCam != null) {
+            applyCamParams(slabSavedCam[0], slabSavedCam[1], slabSavedCam[2]);
+            slabSavedCam = null;
+        }
+        renderingOptions.clearSlabZBounds();
+        renderingOptions.setClipPathsToSlab(false);
+        renderingOptions.setClipAnnotationsToSlab(false);
+        syncOverlays();
+        getViewerPanel().requestRepaint();
+    }
+
+    /**
+     * Gets the slab set by {@link #setSlab(double)}.
+     *
+     * @return the slab bounds {min, max} along the viewing axis, in calibrated
+     *         units, or null if no slab is active
+     */
+    public double[] getSlab() {
+        return (renderingOptions.isSlabActive())
+                ? new double[]{renderingOptions.getSlabZMin(), renderingOptions.getSlabZMax()} : null;
+    }
+
     @Override
     protected void awaitRender(final Runnable trigger, final long settleMillis) throws InterruptedException {
         final VolumeViewerPanel vp = getViewerPanel();
@@ -2380,6 +2536,8 @@ public class Bvv extends AbstractBigViewer {
     @Override
     protected void disposeViewer() {
         SNTUtils.log("BVV: disposing viewer");
+        slabUi = null;
+        slabSavedCam = null;
         final VolumeViewerPanel vp = getViewerPanel();
         final VolumeViewerFrame frame = getViewerFrame();
         stopFrameProfiling();
@@ -2433,28 +2591,30 @@ public class Bvv extends AbstractBigViewer {
         final double py = cal[1] > 0 ? cal[1] : 1;
         final double pz = cal[2] > 0 ? cal[2] : 1;
         final double physX = dims[0] * px, physY = dims[1] * py, physZ = dims[2] * pz;
+        // World coordinates of the volume center
+        final double cX = origin()[0] + physX / 2.0, cY = origin()[1] + physY / 2.0, cZ = origin()[2] + physZ / 2.0;
         final AffineTransform3D t = new AffineTransform3D();
         switch (vMode) {
             case "default", "xy" -> {
                 final double s = Math.min(cw / physX, ch / physY);
                 t.set(s, 0, 0); t.set(s, 1, 1); t.set(s, 2, 2);
-                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
-                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
-                t.set(-s * physZ / 2.0, 2, 3);
+                t.set(cw / 2.0 - s * cX, 0, 3);
+                t.set(ch / 2.0 - s * cY, 1, 3);
+                t.set(-s * cZ, 2, 3);
             }
             case "xz" -> {
                 final double s = Math.min(cw / physX, ch / physZ);
                 t.set(s, 0, 0); t.set(s, 2, 1); t.set(s, 1, 2);
-                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
-                t.set(ch / 2.0 - s * physZ / 2.0, 1, 3);
-                t.set(-s * physY / 2.0, 2, 3);
+                t.set(cw / 2.0 - s * cX, 0, 3);
+                t.set(ch / 2.0 - s * cZ, 1, 3);
+                t.set(-s * cY, 2, 3);
             }
             case "yz" -> {
                 final double s = Math.min(cw / physZ, ch / physY);
                 t.set(s, 2, 0); t.set(s, 1, 1); t.set(s, 0, 2);
-                t.set(cw / 2.0 - s * physZ / 2.0, 0, 3);
-                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
-                t.set(-s * physX / 2.0, 2, 3);
+                t.set(cw / 2.0 - s * cZ, 0, 3);
+                t.set(ch / 2.0 - s * cY, 1, 3);
+                t.set(-s * cX, 2, 3);
             }
             default -> { return null; }
         }
@@ -3074,9 +3234,9 @@ public class Bvv extends AbstractBigViewer {
                         target.set(scale, 0, 0);
                         target.set(scale, 1, 1);
                         target.set(scale, 2, 2);
-                        target.set(cw / 2.0 - scale * physW / 2.0, 0, 3);
-                        target.set(ch / 2.0 - scale * physH / 2.0, 1, 3);
-                        target.set(-scale * physZ / 2.0, 2, 3);
+                        target.set(cw / 2.0 - scale * (origin()[0] + physW / 2.0), 0, 3);
+                        target.set(ch / 2.0 - scale * (origin()[1] + physH / 2.0), 1, 3);
+                        target.set(-scale * (origin()[2] + physZ / 2.0), 2, 3);
                         SNTUtils.log("BVV reset: scale=" + scale + " target=" + target);
                     } else {
                         target = new AffineTransform3D();
@@ -3175,6 +3335,7 @@ public class Bvv extends AbstractBigViewer {
                 final class SlabAxis {
                     int axis;
                     double step;
+                    double org; // world position of the first slice along this axis
                     double phys;
                     int nSlices;
                     double defThick;
@@ -3182,6 +3343,7 @@ public class Bvv extends AbstractBigViewer {
                     void set(final int axis) {
                         this.axis = axis;
                         this.step = cal[axis];
+                        this.org = origin()[axis];
                         this.phys = dims[axis] * cal[axis];
                         this.nSlices = Math.max(1, (int) Math.round(phys / step));
                         this.defThick = Math.max(step * 5, phys * 0.05);
@@ -3217,21 +3379,21 @@ public class Bvv extends AbstractBigViewer {
 
                 // Position readout is an editable spinner kept in sync with posSlider
                 final JSpinner posValue = GuiUtils.Fields.doubleSpinner(
-                        (slabAxis.nSlices / 2) * slabAxis.step, 0, slabAxis.nSlices * slabAxis.step,
-                        slabAxis.step, 1);
+                        slabAxis.org + (slabAxis.nSlices / 2) * slabAxis.step, slabAxis.org,
+                        slabAxis.org + slabAxis.nSlices * slabAxis.step, slabAxis.step, 1);
                 final boolean[] syncingPos = {false};
                 posSlider.addChangeListener(ev -> {
                     if (syncingPos[0]) return;
                     syncingPos[0] = true;
-                    posValue.setValue(posSlider.getValue() * slabAxis.step);
+                    posValue.setValue(slabAxis.org + posSlider.getValue() * slabAxis.step);
                     syncingPos[0] = false;
                 });
                 posValue.addChangeListener(ev -> {
                     if (syncingPos[0]) return;
                     syncingPos[0] = true;
                     final double v = ((Number) posValue.getValue()).doubleValue();
-                    posSlider.setValue((int) Math.round(v / slabAxis.step));
-                    posValue.setValue(posSlider.getValue() * slabAxis.step);
+                    posSlider.setValue((int) Math.round((v - slabAxis.org) / slabAxis.step));
+                    posValue.setValue(slabAxis.org + posSlider.getValue() * slabAxis.step);
                     syncingPos[0] = false;
                 });
 
@@ -3250,23 +3412,7 @@ public class Bvv extends AbstractBigViewer {
                 // viewer transform), or -1 if the view is not axis-aligned to any of the three canonical planes
                 // (free/oblique rotation). Exactly one column of row 2  should account for the full scale, with
                 // the other two near 0; anything else means no single world axis cleanly maps to viewer-depth
-                final java.util.function.ToIntFunction<AffineTransform3D> detectDepthAxis = t -> {
-                    final double scale = Math.sqrt(
-                            t.get(0, 0) * t.get(0, 0) + t.get(1, 0) * t.get(1, 0) + t.get(2, 0) * t.get(2, 0));
-                    if (scale <= 0) return -1;
-                    final double tol = scale * 0.01;
-                    int axis = -1;
-                    for (int k = 0; k < 3; k++) {
-                        final double v = Math.abs(t.get(2, k));
-                        if (Math.abs(v - scale) <= tol) {
-                            if (axis != -1) return -1; // more than one axis near full scale: ambiguous
-                            axis = k;
-                        } else if (v > tol) {
-                            return -1; // significant but not full-scale: an oblique rotation
-                        }
-                    }
-                    return axis;
-                };
+                final java.util.function.ToIntFunction<AffineTransform3D> detectDepthAxis = Bvv::canonicalDepthAxis;
 
                 // Reconfigures the slider/spinner ranges for slabAxis's (possibly just-changed) axis,
                 // clamping/replacing the thickness if it no longer fits, then recenters on the current
@@ -3276,7 +3422,8 @@ public class Bvv extends AbstractBigViewer {
                     updatingSlab[0] = true;
                     posSlider.setMaximum(slabAxis.nSlices);
                     final SpinnerNumberModel posModel = (SpinnerNumberModel) posValue.getModel();
-                    posModel.setMaximum(slabAxis.nSlices * slabAxis.step);
+                    posModel.setMinimum(slabAxis.org);
+                    posModel.setMaximum(slabAxis.org + slabAxis.nSlices * slabAxis.step);
                     posModel.setStepSize(slabAxis.step);
                     final SpinnerNumberModel thickModel = (SpinnerNumberModel) thickSpinner.getModel();
                     thickModel.setMinimum(slabAxis.step);
@@ -3293,11 +3440,12 @@ public class Bvv extends AbstractBigViewer {
                     viewerPanel.state().getViewerTransform(cur);
                     final double curSignedDepthScale = cur.get(2, slabAxis.axis);
                     if (curSignedDepthScale != 0) {
-                        final int sliderPos = (int) Math.round(-cur.get(2, 3) / (curSignedDepthScale * slabAxis.step));
+                        final int sliderPos = (int) Math.round(
+                                (-cur.get(2, 3) / curSignedDepthScale - slabAxis.org) / slabAxis.step);
                         posSlider.setValue(Math.max(0, Math.min(slabAxis.nSlices, sliderPos)));
                     }
                     updatingSlab[0] = false;
-                    final double zCenter = posSlider.getValue() * slabAxis.step;
+                    final double zCenter = slabAxis.org + posSlider.getValue() * slabAxis.step;
                     final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
                     applySlab(viewerPanel, slabAxis.axis, zCenter, halfThick * 2.0);
                     renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
@@ -3317,11 +3465,11 @@ public class Bvv extends AbstractBigViewer {
                     final double half = overlayRenderer.nearClip; // == farClip; both set equal by applySlab()
                     double minDepth = Double.POSITIVE_INFINITY, maxDepth = Double.NEGATIVE_INFINITY;
                     for (int cx = 0; cx <= 1; cx++) {
-                        final double x = cx * dims[0] * cal[0];
+                        final double x = origin()[0] + cx * dims[0] * cal[0];
                         for (int cy = 0; cy <= 1; cy++) {
-                            final double y = cy * dims[1] * cal[1];
+                            final double y = origin()[1] + cy * dims[1] * cal[1];
                             for (int cz = 0; cz <= 1; cz++) {
-                                final double z = cz * dims[2] * cal[2];
+                                final double z = origin()[2] + cz * dims[2] * cal[2];
                                 final double depth = t.get(2, 0) * x + t.get(2, 1) * y + t.get(2, 2) * z + t.get(2, 3);
                                 if (depth < minDepth) minDepth = depth;
                                 if (depth > maxDepth) maxDepth = depth;
@@ -3367,7 +3515,8 @@ public class Bvv extends AbstractBigViewer {
                         final double signedDepthScale = t.get(2, slabAxis.axis);
                         if (signedDepthScale == 0) return;
                         final double zCenter = -t.get(2, 3) / signedDepthScale;
-                        final int tick = Math.max(0, Math.min(slabAxis.nSlices, (int) Math.round(zCenter / slabAxis.step)));
+                        final int tick = Math.max(0, Math.min(slabAxis.nSlices,
+                                (int) Math.round((zCenter - slabAxis.org) / slabAxis.step)));
                         if (tick != posSlider.getValue()) {
                             posSlider.setValue(tick);
                         }
@@ -3522,7 +3671,7 @@ public class Bvv extends AbstractBigViewer {
 
                 final javax.swing.event.ChangeListener slabListener = ev -> {
                     if (slabOn[0] && !updatingSlab[0]) {
-                        final double zCenter = posSlider.getValue() * slabAxis.step;
+                        final double zCenter = slabAxis.org + posSlider.getValue() * slabAxis.step;
                         final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
                         applySlab(viewerPanel, slabAxis.axis, zCenter, halfThick * 2.0);
                         renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
@@ -3546,6 +3695,27 @@ public class Bvv extends AbstractBigViewer {
                     overlayRenderer.invalidateCache();
                     syncOverlays();
                 });
+
+                // Expose the slab controls to the public Bvv API (setSlab()/clearSlab()), so that scripted
+                // and interactive changes go through the same code path and the toolbar never gets out of sync
+                bvvInstance.slabUi = new SlabUi() {
+                    @Override
+                    public void set(final double center, final double thickness) {
+                        if (!slabOn[0]) slabToggle.doClick(); // activates and syncs position with the view
+                        if (!slabOn[0]) return;
+                        thickSpinner.setValue(Math.max(slabAxis.step, Math.min(slabAxis.phys, thickness)));
+                        if (!Double.isNaN(center)) {
+                            posSlider.setValue(Math.max(0, Math.min(slabAxis.nSlices,
+                                    (int) Math.round((center - slabAxis.org) / slabAxis.step))));
+                        }
+                        slabListener.stateChanged(null); // in case neither value changed
+                    }
+
+                    @Override
+                    public void clear() {
+                        if (slabOn[0]) slabToggle.doClick();
+                    }
+                };
 
                 GuiUtils.enableComponents(thickPanel, false); // slab disabled by default
                 GuiUtils.enableComponents(posPanel, false); // slab disabled at by default

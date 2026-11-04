@@ -2062,7 +2062,7 @@ public abstract class AbstractBigViewer {
     }
 
     /** Translation of the first source's sourceTransform (timepoint 0, level 0), or zeros if unavailable */
-    private double[] primarySourceTranslation() {
+    protected double[] primarySourceTranslation() {
         final double[] t = new double[3];
         try {
             final var state = getViewerState();
