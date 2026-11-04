@@ -273,27 +273,35 @@ public class BigDataUtils {
     private static double[] levelSpacing(final bdv.viewer.Source<?> src, final int timepoint, final int level) {
         final double[] spacing = {1, 1, 1};
         final VoxelDimensions vd = src.getVoxelDimensions();
-        final AffineTransform3D t0 = new AffineTransform3D();
-        final AffineTransform3D tl = new AffineTransform3D();
-        src.getSourceTransform(timepoint, 0, t0);
-        src.getSourceTransform(timepoint, level, tl);
+        final double[] n0 = transformScale(src, timepoint, 0);
+        final double[] nl = transformScale(src, timepoint, level);
         for (int d = 0; d < 3; d++) {
-            double n0 = 0;
-            double nl = 0;
-            for (int r = 0; r < 3; r++) {
-                n0 += t0.get(r, d) * t0.get(r, d);
-                nl += tl.get(r, d) * tl.get(r, d);
-            }
-            n0 = Math.sqrt(n0);
-            nl = Math.sqrt(nl);
-            final double base = (vd != null) ? vd.dimension(d) : n0;
-            spacing[d] = (n0 > 0) ? base * nl / n0 : base;
+            final double base = (vd != null) ? vd.dimension(d) : n0[d];
+            spacing[d] = (n0[d] > 0) ? base * nl[d] / n0[d] : base;
         }
         return spacing;
     }
 
+    /**
+     * Scale of the transform of a resolution level of a source, per axis: the length of each column of the
+     * source-to-world matrix (rotation/shear independent).
+     *
+     * @param src       the source
+     * @param timepoint the timepoint (0-based)
+     * @param level     the resolution level (0 is full resolution)
+     * @return the scale of {x, y, z}, in world units per voxel
+     */
+    public static double[] transformScale(final bdv.viewer.Source<?> src, final int timepoint, final int level) {
+        final AffineTransform3D t = new AffineTransform3D();
+        src.getSourceTransform(timepoint, level, t);
+        final double[] scale = new double[3];
+        for (int d = 0; d < 3; d++)
+            scale[d] = Math.sqrt(t.get(0, d) * t.get(0, d) + t.get(1, d) * t.get(1, d) + t.get(2, d) * t.get(2, d));
+        return scale;
+    }
+
     /** World position of voxel (0, 0, 0) of a resolution level of a source */
-    private static double[] levelOrigin(final bdv.viewer.Source<?> src, final int timepoint, final int level) {
+    public static double[] levelOrigin(final bdv.viewer.Source<?> src, final int timepoint, final int level) {
         final AffineTransform3D t = new AffineTransform3D();
         src.getSourceTransform(timepoint, level, t);
         return new double[]{t.get(0, 3), t.get(1, 3), t.get(2, 3)};

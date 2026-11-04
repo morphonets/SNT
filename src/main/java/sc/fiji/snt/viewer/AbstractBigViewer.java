@@ -1820,14 +1820,10 @@ public abstract class AbstractBigViewer {
         final int l = clampLevel(src.getNumMipmapLevels(), level);
         if (l == 0) return factors;
         final int t = Math.max(0, getCurrentTimepoint() - 1);
-        final AffineTransform3D t0 = new AffineTransform3D();
-        final AffineTransform3D tl = new AffineTransform3D();
-        src.getSourceTransform(t, 0, t0);
-        src.getSourceTransform(t, l, tl);
+        final double[] voxel0 = BigDataUtils.transformScale(src, t, 0);
+        final double[] voxelL = BigDataUtils.transformScale(src, t, l);
         for (int d = 0; d < 3; d++) {
-            final double voxel0 = Math.sqrt(t0.get(0, d) * t0.get(0, d) + t0.get(1, d) * t0.get(1, d) + t0.get(2, d) * t0.get(2, d));
-            final double voxelL = Math.sqrt(tl.get(0, d) * tl.get(0, d) + tl.get(1, d) * tl.get(1, d) + tl.get(2, d) * tl.get(2, d));
-            if (voxel0 > 0) factors[d] = voxelL / voxel0;
+            if (voxel0[d] > 0) factors[d] = voxelL[d] / voxel0[d];
         }
         return factors;
     }

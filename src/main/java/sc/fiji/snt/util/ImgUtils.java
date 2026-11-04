@@ -483,20 +483,44 @@ public class ImgUtils {
         final BoundingBox padded = box.clone();
         padded.expand(padding, padding, padding);
         final net.imagej.axis.AxisType[] types = {Axes.X, Axes.Y, Axes.Z};
-        final double[] lo = {padded.origin().x, padded.origin().y, padded.origin().z};
-        final double[] hi = {padded.originOpposite().x, padded.originOpposite().y, padded.originOpposite().z};
+        final double[] origin = new double[3];
+        final double[] spacing = new double[3];
+        for (int d = 0; d < 3; d++) {
+            origin[d] = getOrigin(img, types[d]);
+            spacing[d] = getSpacing(img, types[d]);
+        }
+        final long[][] bounds = worldToVoxelBounds(padded, origin, spacing);
+        for (int d = 0; d < 3; d++) {
+            final int dim = img.dimensionIndex(types[d]);
+            if (dim >= 0 && (bounds[1][d] < 0 || bounds[0][d] > img.dimension(dim) - 1))
+                throw new IllegalArgumentException("Bounding box does not overlap the image along " + types[d]);
+        }
+        return crop(img, bounds[0], bounds[1], 0, materialize);
+    }
+
+    /**
+     * Converts a bounding box in calibrated (world) coordinates to voxel indices of a grid defined by its origin and
+     * spacing: {@code voxel = (world - origin) / spacing}. The lower corner is floored and the upper corner ceiled, so
+     * the returned interval always contains the box. The result is not clamped to any image extent.
+     *
+     * @param box     the box, in world coordinates
+     * @param origin  world position of voxel (0, 0, 0), {x, y, z}
+     * @param spacing voxel size, {x, y, z}
+     * @return {min, max} where each is {x, y, z} (inclusive voxel indices)
+     * @throws IllegalArgumentException if the box is unset
+     */
+    public static long[][] worldToVoxelBounds(final BoundingBox box, final double[] origin, final double[] spacing) {
+        if (box == null || box.origin() == null || box.originOpposite() == null)
+            throw new IllegalArgumentException("Bounding box is unset");
+        final double[] lo = {box.origin().x, box.origin().y, box.origin().z};
+        final double[] hi = {box.originOpposite().x, box.originOpposite().y, box.originOpposite().z};
         final long[] min = new long[3];
         final long[] max = new long[3];
         for (int d = 0; d < 3; d++) {
-            final double origin = getOrigin(img, types[d]);
-            final double spacing = getSpacing(img, types[d]);
-            final int dim = img.dimensionIndex(types[d]);
-            min[d] = (long) Math.floor((Math.min(lo[d], hi[d]) - origin) / spacing);
-            max[d] = (long) Math.ceil((Math.max(lo[d], hi[d]) - origin) / spacing);
-            if (dim >= 0 && (max[d] < 0 || min[d] > img.dimension(dim) - 1))
-                throw new IllegalArgumentException("Bounding box does not overlap the image along " + types[d]);
+            min[d] = (long) Math.floor((Math.min(lo[d], hi[d]) - origin[d]) / spacing[d]);
+            max[d] = (long) Math.ceil((Math.max(lo[d], hi[d]) - origin[d]) / spacing[d]);
         }
-        return crop(img, min, max, 0, materialize);
+        return new long[][]{min, max};
     }
 
     /**

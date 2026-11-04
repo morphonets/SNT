@@ -1301,14 +1301,10 @@ public class SNT extends MultiDThreePanes implements
 		final double[] worldOriginOffset = getWorldOriginOffset();
 		final PointInImage lo = worldBox.origin();
 		final PointInImage hi = worldBox.originOpposite();
-		final long[] voxelMin = new long[3];
-		final long[] voxelMax = new long[3];
-		voxelMin[0] = (long) Math.floor((Math.min(lo.x, hi.x) - worldOriginOffset[0]) / cal.pixelWidth);
-		voxelMin[1] = (long) Math.floor((Math.min(lo.y, hi.y) - worldOriginOffset[1]) / cal.pixelHeight);
-		voxelMin[2] = (long) Math.floor((Math.min(lo.z, hi.z) - worldOriginOffset[2]) / cal.pixelDepth);
-		voxelMax[0] = (long) Math.ceil((Math.max(lo.x, hi.x) - worldOriginOffset[0]) / cal.pixelWidth);
-		voxelMax[1] = (long) Math.ceil((Math.max(lo.y, hi.y) - worldOriginOffset[1]) / cal.pixelHeight);
-		voxelMax[2] = (long) Math.ceil((Math.max(lo.z, hi.z) - worldOriginOffset[2]) / cal.pixelDepth);
+		final long[][] rawBounds = ImgUtils.worldToVoxelBounds(worldBox, worldOriginOffset,
+				new double[] { cal.pixelWidth, cal.pixelHeight, cal.pixelDepth });
+		final long[] voxelMin = rawBounds[0];
+		final long[] voxelMax = rawBounds[1];
 		if (SNTUtils.isDebugMode()) {
 			SNTUtils.log("resolveVoxelBounds: worldBox lo=(" + lo.x + "," + lo.y + "," + lo.z + ") hi=(" + hi.x + ","
 					+ hi.y + "," + hi.z + ") cal=(" + cal.pixelWidth + "," + cal.pixelHeight + "," + cal.pixelDepth

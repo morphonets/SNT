@@ -3463,13 +3463,14 @@ public class Bvv extends AbstractBigViewer {
                 // entirely outside that window, i.e. rendering has actually broken (nothing from the volume would show)
                 final java.util.function.Predicate<AffineTransform3D> slabStillVisible = t -> {
                     final double half = overlayRenderer.nearClip; // == farClip; both set equal by applySlab()
+                    final double[] org = origin(); // once per call: this runs on every rendered frame
                     double minDepth = Double.POSITIVE_INFINITY, maxDepth = Double.NEGATIVE_INFINITY;
                     for (int cx = 0; cx <= 1; cx++) {
-                        final double x = origin()[0] + cx * dims[0] * cal[0];
+                        final double x = org[0] + cx * dims[0] * cal[0];
                         for (int cy = 0; cy <= 1; cy++) {
-                            final double y = origin()[1] + cy * dims[1] * cal[1];
+                            final double y = org[1] + cy * dims[1] * cal[1];
                             for (int cz = 0; cz <= 1; cz++) {
-                                final double z = origin()[2] + cz * dims[2] * cal[2];
+                                final double z = org[2] + cz * dims[2] * cal[2];
                                 final double depth = t.get(2, 0) * x + t.get(2, 1) * y + t.get(2, 2) * z + t.get(2, 3);
                                 if (depth < minDepth) minDepth = depth;
                                 if (depth > maxDepth) maxDepth = depth;
