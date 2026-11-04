@@ -458,6 +458,48 @@ public class ImgUtils {
     }
 
     /**
+     * Crops the region of an {@link ImgPlus} defined by a bounding box in calibrated (world) coordinates, e.g., the
+     * extent of a {@link sc.fiji.snt.Tree}. The box is converted to voxels using the spacing and origin of the spatial
+     * axes of {@code img}, so it also works with images at coarser pyramid levels and with non-zero origins. The result
+     * is clamped to the image bounds.
+     *
+     * @param <T>         the pixel type
+     * @param img         the source ImgPlus
+     * @param box         the region to crop, in the (calibrated) coordinates of {@code img}'s axes
+     * @param padding     calibrated padding (in the units of {@code img}) added on all sides of the box
+     * @param materialize If false, only a view backed by the source ImgPlus is returned.
+     *                    If true, data is copied to a contiguous array, and singleton dimensions removed.
+     * @return the cropped ImgPlus, with the origin of its axes set to the position of the crop
+     * @throws IllegalArgumentException if the box is unset or does not overlap the image
+     * @see #crop(ImgPlus, long[], long[], boolean)
+     */
+    public static <T extends NumericType<T> & NativeType<T>> ImgPlus<T> crop(
+            final ImgPlus<T> img,
+            final BoundingBox box,
+            final double padding,
+            final boolean materialize) {
+        if (box == null || box.origin() == null || box.originOpposite() == null)
+            throw new IllegalArgumentException("Bounding box is unset");
+        final BoundingBox padded = box.clone();
+        padded.expand(padding, padding, padding);
+        final net.imagej.axis.AxisType[] types = {Axes.X, Axes.Y, Axes.Z};
+        final double[] lo = {padded.origin().x, padded.origin().y, padded.origin().z};
+        final double[] hi = {padded.originOpposite().x, padded.originOpposite().y, padded.originOpposite().z};
+        final long[] min = new long[3];
+        final long[] max = new long[3];
+        for (int d = 0; d < 3; d++) {
+            final double origin = getOrigin(img, types[d]);
+            final double spacing = getSpacing(img, types[d]);
+            final int dim = img.dimensionIndex(types[d]);
+            min[d] = (long) Math.floor((Math.min(lo[d], hi[d]) - origin) / spacing);
+            max[d] = (long) Math.ceil((Math.max(lo[d], hi[d]) - origin) / spacing);
+            if (dim >= 0 && (max[d] < 0 || min[d] > img.dimension(dim) - 1))
+                throw new IllegalArgumentException("Bounding box does not overlap the image along " + types[d]);
+        }
+        return crop(img, min, max, 0, materialize);
+    }
+
+    /**
      * Crop a region from a RandomAccessibleInterval using (x, y, z) pixel coordinates.
      * <p>
      * For RAIs without axis metadata, assumes ZYX dimension order.
@@ -1677,6 +1719,22 @@ public class ImgUtils {
         final Img<T> copy = new net.imglib2.img.cell.CellImgFactory<>(source.getType(), cellDims).create(zeroMin);
         LoopBuilder.setImages(zeroMin, copy).multiThreaded().forEachPixel((s, t) -> t.set(s));
         return copy;
+    }
+
+    /**
+     * Writes an image as a multiscale OME-Zarr using half of the available processors and no progress messages.
+     *
+     * @param img     image with X, Y, Z leading, followed by an optional channel axis and an optional time axis
+     * @param zarrDir the output directory (typically ending in {@code .ome.zarr}), which should not exist
+     * @param <T>     pixel type
+     * @throws IllegalArgumentException if the axes layout is not XYZ[C][T]
+     * @throws IOException              if writing fails
+     * @see #saveAsOmeZarr(ImgPlus, File, int, java.util.function.Consumer)
+     */
+    public static <T extends RealType<T> & NativeType<T>> void saveAsOmeZarr(final ImgPlus<T> img,
+                                                                              final File zarrDir)
+            throws IOException {
+        saveAsOmeZarr(img, zarrDir, Math.max(1, Runtime.getRuntime().availableProcessors() / 2), null);
     }
 
     /**
