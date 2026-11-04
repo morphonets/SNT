@@ -184,6 +184,14 @@ public class SNTService extends AbstractService implements ImageJService {
 
 	/**
 	 * Initializes SNT.
+	 * <p>
+	 * Headless operation: in headless mode no display canvases are assembled, but the image data
+	 * is still loaded so that tracing functions that do not require a GUI
+	 * (e.g., {@link SNT#autoTraceSync(java.util.List, sc.fiji.snt.util.PointInImage)} or
+	 * {@link AStarRefiner}) can be used. Note that instantiating {@link SNT} directly (e.g.,
+	 * {@code new SNT(imp)}) does <em>not</em> load pixel data: call {@link SNT#reloadImage(int, int)}
+	 * afterwards.
+	 * </p>
 	 *
 	 * @param imagePath the image to be traced. If starting with "demo:" followed by
 	 *                  the name of a demo dataset, SNT is initialized using the
@@ -208,6 +216,14 @@ public class SNTService extends AbstractService implements ImageJService {
 
 	/**
 	 * Initializes SNT.
+	 * <p>
+	 * Headless operation: in headless mode no display canvases are assembled, but the image data
+	 * is still loaded so that tracing functions that do not require a GUI
+	 * (e.g., {@link SNT#autoTraceSync(java.util.List, sc.fiji.snt.util.PointInImage)} or
+	 * {@link AStarRefiner}) can be used. Note that instantiating {@link SNT} directly (e.g.,
+	 * {@code new SNT(imp)}) does <em>not</em> load pixel data: call {@link SNT#reloadImage(int, int)}
+	 * afterwards.
+	 * </p>
 	 *
 	 * @param imp the image to be traced (null not allowed)
 	 * @param startUI Whether SNT's UI should also be initialized;
@@ -237,6 +253,14 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Initializes SNT from an {@link ImgPlus} image.
 	 * This is the imglib2 counterpart of {@link #initialize(ImagePlus, boolean)}.
+	 * <p>
+	 * Headless operation: in headless mode no display canvases are assembled, but the image data
+	 * is still loaded so that tracing functions that do not require a GUI
+	 * (e.g., {@link SNT#autoTraceSync(java.util.List, sc.fiji.snt.util.PointInImage)} or
+	 * {@link AStarRefiner}) can be used. Note that instantiating {@link SNT} directly (e.g.,
+	 * {@code new SNT(imp)}) does <em>not</em> load pixel data: call {@link SNT#reloadImage(int, int)}
+	 * afterwards.
+	 * </p>
 	 *
 	 * @param <T>     pixel type
 	 * @param img     the image to be traced (null not allowed)

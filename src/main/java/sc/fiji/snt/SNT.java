@@ -450,6 +450,12 @@ public class SNT extends MultiDThreePanes implements
 	 *     Note that the image is not displayed. For interactive display of the image call
 	 *     {@link #initialize(ImagePlus)}/{@link #startUI()} directly.
 	 * </p>
+	 * <p>
+	 *     Also note that this constructor does not load pixel data: for headless A* searches
+	 *     (e.g., {@link #autoTraceSync(List, PointInImage)} or {@link AStarRefiner}) call
+	 *     {@link #reloadImage(int, int) reloadImage(1, 1)} (or the channel/frame of interest) once
+	 *     the instance is created.
+	 * </p>
 	 *
 	 * @param sourceImage the source image
 	 * @throws IllegalArgumentException If sourceImage is of type 'RGB'
@@ -1665,16 +1671,19 @@ public class SNT extends MultiDThreePanes implements
 		xy_tracer_canvas = (InteractiveTracerCanvas) xy_canvas;
 		xz_tracer_canvas = (InteractiveTracerCanvas) xz_canvas;
 		zy_tracer_canvas = (InteractiveTracerCanvas) zy_canvas;
-		addListener(xy_tracer_canvas);
-		// Alt+Click -> edit the nearest seed under the cursor. Defers to SeedOverlay.nearest(...).
-		// Does nothing when  the overlay is empty. Should not interact with existing tracing handlers.
-		SeedOverlayCanvasHandler.install(xy_tracer_canvas, this);
+		// NB: No canvases are assembled in headless mode (see SNTService#initialize(ImagePlus, boolean))
+		if (xy_tracer_canvas != null) {
+			addListener(xy_tracer_canvas);
+			// Alt+Click -> edit the nearest seed under the cursor. Defers to SeedOverlay.nearest(...).
+			// Does nothing when  the overlay is empty. Should not interact with existing tracing handlers.
+			SeedOverlayCanvasHandler.install(xy_tracer_canvas, this);
+		}
 
 		if (accessToValidImageData()) {
 			loadDatasetFromImagePlus(getImagePlus());
 		}
 
-		if (!single_pane) {
+		if (!single_pane && xz_tracer_canvas != null && zy_tracer_canvas != null) {
 			final double min = xy.getDisplayRangeMin();
 			final double max = xy.getDisplayRangeMax();
 			xz.setDisplayRange(min, max);
@@ -1700,6 +1709,15 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
+	/**
+	 * (Re)loads the pixel data of the image associated with this instance for the specified
+	 * position. Does not require display canvases, so it is safe to call in headless mode (e.g., to
+	 * load the data of an instance created with {@link #SNT(ImagePlus)}).
+	 *
+	 * @param channel the channel to be traced (1-based)
+	 * @param frame   the frame to be traced (1-based)
+	 * @throws IllegalArgumentException if no image has been loaded, or if the position is invalid
+	 */
 	public void reloadImage(final int channel, final int frame) {
 		if (getImagePlus() == null || getImagePlus().getProcessor() == null)
 			throw new IllegalArgumentException("No image has yet been loaded.");
