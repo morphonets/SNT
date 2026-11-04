@@ -1859,6 +1859,16 @@ public class Path implements Comparable<Path>, Cloneable {
             throw new IllegalArgumentException("Replacement path cannot be null or empty");
         }
 
+        // Save children's branch points BEFORE modifying nodes: branchPointIndex refers
+        // to the current node list, so it cannot be dereferenced once nodes are replaced
+        final Map<Path, PointInImage> savedBranchPoints = new HashMap<>();
+        for (final Path child : children) {
+            final PointInImage bp = child.getBranchPoint();
+            if (bp != null) {
+                savedBranchPoints.put(child, bp.clone());
+            }
+        }
+
         // Clear current nodes and copy from replacement path
         nodes.clear();
         for (int i = 0; i < replacementPath.size(); i++) {
@@ -1879,14 +1889,12 @@ public class Path implements Comparable<Path>, Cloneable {
 
         // Update children's branch point indices to reflect new geometry
         for (final Path child : children) {
-            if (child.branchPointIndex >= 0) {
-                final PointInImage childBranchPoint = child.getBranchPoint();
-                if (childBranchPoint != null) {
-                    final int newIndex = indexNearestTo(
-                            childBranchPoint.x, childBranchPoint.y, childBranchPoint.z);
-                    if (newIndex != -1) {
-                        child.branchPointIndex = newIndex;
-                    }
+            final PointInImage childBranchPoint = savedBranchPoints.get(child);
+            if (childBranchPoint != null) {
+                final int newIndex = indexNearestTo(
+                        childBranchPoint.x, childBranchPoint.y, childBranchPoint.z);
+                if (newIndex != -1) {
+                    child.branchPointIndex = newIndex;
                 }
             }
         }

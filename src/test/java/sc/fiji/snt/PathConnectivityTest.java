@@ -307,4 +307,37 @@ public class PathConnectivityTest {
         assertNotSame(childPath1, clonedChild1);
         assertNotSame(childPath2, clonedChild2);
     }
+
+    @Test
+    public void testReplaceNodesWithDenserPathPreservesBranchPoints() {
+        // Replacement geometry has more nodes, e.g., as obtained from an A* re-trace
+        final Path denser = new Path(1.0, 1.0, 1.0, "um");
+        for (int x = 0; x <= 30; x += 5) {
+            denser.addNode(new PointInImage(x, 0, 0));
+        }
+        parentPath.replaceNodes(denser);
+
+        // Children must stay attached at the same locations (new indices), not at
+        // the nodes that happen to occupy their old indices in the new geometry
+        assertEquals(2, childPath1.getBranchPointIndex());
+        assertEquals(4, childPath2.getBranchPointIndex());
+        assertEquals(10, childPath1.getBranchPoint().x, 1e-9);
+        assertEquals(20, childPath2.getBranchPoint().x, 1e-9);
+        assertNotEquals(childPath1.getBranchPointIndex(), childPath2.getBranchPointIndex());
+    }
+
+    @Test
+    public void testReplaceNodesWithShorterPathPreservesBranchPoints() {
+        // Old branch point indices (1, 2) are out of range, or refer to other nodes
+        final Path coarser = new Path(1.0, 1.0, 1.0, "um");
+        coarser.addNode(new PointInImage(0, 0, 0));
+        coarser.addNode(new PointInImage(30, 0, 0));
+        parentPath.replaceNodes(coarser);
+
+        // Children snap to the closest node of the new geometry
+        assertEquals(0, childPath1.getBranchPointIndex());
+        assertEquals(1, childPath2.getBranchPointIndex());
+        assertSame(parentPath.getNode(0), childPath1.getBranchPoint());
+        assertSame(parentPath.getNode(1), childPath2.getBranchPoint());
+    }
 }
