@@ -101,6 +101,7 @@ Demo datasets (images and/or reconstructions) are either bundled in SNT (and thu
 | Hippocampal neuron (2D multichannel image)                                   | Downloaded. Part of ImageJ's _samples_ archive                                   |
 | Hippocampal neuron (2D timelapse image with partial reconstruction)          | Downloaded. [Cell Image Library dataset](http://cellimagelibrary.org/images/701) |
 | L-systems fractal (2D binary image with reconstruction)                      | Bundled. Generated programmatically                                              |
+| Marmoset V1 pyramidal neurons (3D 2-photon image, remote OME-Zarr) | Downloaded. Courtesy of Frederick Federer (Moran Eye Institute, University of Utah), via the [OME-Zarr Open SciVis Datasets](https://github.com/InsightSoftwareConsortium/OMEZarrOpenSciVisDatasets) (`marmoset_neurons`). Distributed under CC-BY-4.0 unless otherwise specified by the collection (see [AWS Open Data registry](https://registry.opendata.aws/ome-zarr-open-scivis/)) |
 | Mouse pyramidal neurons (reconstructions)                                    | Bundled. [MouseLight dataset](http://ml-neuronbrowser.janelia.org/)              |
 
 ## Dependencies
