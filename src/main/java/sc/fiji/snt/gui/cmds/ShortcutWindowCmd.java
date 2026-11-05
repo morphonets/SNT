@@ -78,6 +78,10 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private static JFrame frame;
 	private final ArrayList<JButton> buttons = new ArrayList<>();
 	private static final String WIN_LOC = "snt.sw.loc";
+	private static final String WIN_VISIBLE = "snt.sw.visible";
+	private static final String TOOL_NAME = "Neuroanatomy Shortcuts (alt+click for options) Action Tool";
+	private static final String ICON_VISIBLE = "C900T0b12ST6b12NTdb12TF1ed2";
+	private static final String ICON_HIDDEN = "C037T0b12ST6b12NTdb12T";
 
 
 	private JPanel getPanel() {
@@ -289,6 +293,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		if (frame != null) {
 			frame.setVisible(true);
 			frame.toFront();
+			visibilityChanged(true);
 			return;
 		}
 
@@ -315,6 +320,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			@Override
 			public void windowClosing(final WindowEvent e) {
 				ij.Prefs.saveLocation(WIN_LOC, frame.getLocation());
+				visibilityChanged(false);
 				super.windowClosing(e);
 			}
 			@Override
@@ -324,6 +330,39 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			}
 		});
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
+		visibilityChanged(true);
+	}
+
+	/**
+	 * Remembers the visibility state (so that it can be restored at the next
+	 * startup) and updates the icon of the toolbar button accordingly. Only
+	 * called on explicit show/hide/close actions, never on window disposal, since
+	 * windows may be disposed when Fiji quits
+	 */
+	private static void visibilityChanged(final boolean visible) {
+		ij.Prefs.set(WIN_VISIBLE, visible);
+		syncToolbarIcon(visible);
+	}
+
+	private static void syncToolbarIcon(final boolean visible) {
+		if (ij.IJ.getInstance() == null) return;
+		try {
+			ij.gui.Toolbar.setIcon(TOOL_NAME, visible ? ICON_VISIBLE : ICON_HIDDEN);
+		} catch (final Exception ex) {
+			SNTUtils.error("Could not update toolbar icon", ex);
+		}
+	}
+
+	/**
+	 * Displays the window only if it was visible when last used (default: true on
+	 * first run). Intended for the startup macro
+	 */
+	@SuppressWarnings("unused")
+	public static void showIfWasVisible() {
+		if (ij.Prefs.get(WIN_VISIBLE, true))
+			show();
+		else
+			syncToolbarIcon(false);
 	}
 
 	private void setIJMenuBarAsNeeded() {
@@ -369,12 +408,14 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			if (frame.isVisible() && frame.getState() == Frame.ICONIFIED)
 				frame.setState(Frame.NORMAL);
 			frame.setVisible(true);
+			visibilityChanged(true);
 		}
 	}
 
 	@SuppressWarnings("unused")
 	public static void hide() {
 		if (frame != null) frame.setVisible(false);
+		visibilityChanged(false);
 	}
 
 	/** Displays the "Options" prompt configuring the startup behavior of the panel */
