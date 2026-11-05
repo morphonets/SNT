@@ -2199,6 +2199,11 @@ public class Bvv extends AbstractBigViewer {
         } finally {
             viewerPanel.renderTransformListeners().remove(renderListener);
         }
+        // Preferred: read the pixels back on the GL thread, right after BVV has drawn its frame. Painting a
+        // GLJPanel into an off-screen Graphics (below) is not reliable: it may return stale/empty (noisy) content
+        final ImagePlus imp = BvvUtils.readBackFrame(viewerPanel);
+        if (imp != null) return imp;
+        SNTUtils.log("BVV snapshot: GL read-back failed. Falling back to component painting");
         return ImpUtils.fromComponent("BVV Snapshot", canvas);
     }
 

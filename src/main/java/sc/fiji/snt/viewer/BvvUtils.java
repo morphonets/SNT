@@ -659,7 +659,7 @@ public final class BvvUtils {
         final net.imglib2.RealRandomAccess<T> ra =
                 Views.interpolate(
                         Views.extendZero(rai),
-                        new NLinearInterpolatorFactory<T>()
+                        new NLinearInterpolatorFactory<>()
                 ).realRandomAccess();
 
         final double[] worldPt = new double[3];
@@ -1687,5 +1687,127 @@ public final class BvvUtils {
         SNTUtils.log(String.format("BVV camParams: physZ=%.1f zExtent=%.1f screen=%d → dCam=%.0f dClip=%.0f",
                 physZ, zExtent, (int) vpWidth, dCam, dClip));
         return new double[]{dCam, dClip, dClip};
+    }
+
+    /**
+     * Reads the last frame drawn by BVV from the GL framebuffer. A one-shot GL listener is added <i>after</i> BVV's own
+     * so that it is called once BVV has finished drawing, with the panel's framebuffer still bound. BVV flips Y itself
+     * (the GLJPanel does not flip), so rows are read as they are, top row first.
+     *
+     * @param viewerPanel the BVV viewer panel
+     * @return the frame, or null if it could not be read (e.g., timed out, only blank pixels were read, or the panel
+     *         is not GL-based)
+     */
+    static ImagePlus readBackFrame(final VolumeViewerPanel viewerPanel) {
+        final java.awt.Component canvas = viewerPanel.getDisplayComponent();
+        if (!(canvas instanceof com.jogamp.opengl.GLAutoDrawable glad)) return null;
+        // GLJPanel draws on the EDT: waiting for it from the EDT itself could only time out
+        if (javax.swing.SwingUtilities.isEventDispatchThread()) {
+            SNTUtils.log("BVV snapshot: read-back must not be called from the EDT");
+            return null;
+        }
+        final java.awt.image.BufferedImage[] result = new java.awt.image.BufferedImage[1];
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        final com.jogamp.opengl.GLEventListener reader = new com.jogamp.opengl.GLEventListener() {
+            @Override
+            public void init(final com.jogamp.opengl.GLAutoDrawable d) {}
+
+            @Override
+            public void dispose(final com.jogamp.opengl.GLAutoDrawable d) {}
+
+            @Override
+            public void reshape(final com.jogamp.opengl.GLAutoDrawable d, final int x, final int y, final int w,
+                                final int h) {}
+
+            @Override
+            public void display(final com.jogamp.opengl.GLAutoDrawable d) {
+                if (done.getCount() == 0) return;
+                try {
+                    final com.jogamp.opengl.util.awt.AWTGLReadBufferUtil util =
+                            new com.jogamp.opengl.util.awt.AWTGLReadBufferUtil(d.getGLProfile(), false);
+                    result[0] = util.readPixelsToBufferedImage(d.getGL(), 0, 0, d.getSurfaceWidth(),
+                            d.getSurfaceHeight(), false);
+                } catch (final RuntimeException ex) {
+                    SNTUtils.log("BVV snapshot: read-back failed: " + ex);
+                } finally {
+                    done.countDown();
+                }
+            }
+        };
+        glad.addGLEventListener(reader);
+        try {
+            canvas.repaint(); // triggers a display() call (BVV redraws its cached frame)
+            if (!done.await(3, java.util.concurrent.TimeUnit.SECONDS)) {
+                SNTUtils.log("BVV snapshot: timed out waiting for GL display()");
+                return null;
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } finally {
+            glad.removeGLEventListener(reader);
+        }
+        final java.awt.image.BufferedImage bi = result[0];
+        if (bi == null) {
+            SNTUtils.log("BVV snapshot: no image was read");
+            return null;
+        }
+        // Treat a completely black frame as a failed read
+        boolean blank = true;
+        for (int y = 0; blank && y < bi.getHeight(); y += 4)
+            for (int x = 0; x < bi.getWidth(); x += 4)
+                if ((bi.getRGB(x, y) & 0xffffff) != 0) {
+                    blank = false;
+                    break;
+                }
+        if (blank) {
+            SNTUtils.log("BVV snapshot: read-back frame is blank");
+            return null;
+        }
+        // The GL framebuffer only holds the volume: paths, annotations, scale bar, etc., are Java2D overlays that
+        // the panel draws on top of it when painting, so draw them (as the panel would) onto the captured frame
+        final Runnable drawOverlays = () -> {
+            final java.awt.Graphics2D g = bi.createGraphics();
+            try {
+                // A fresh off-screen Graphics lacks the hints that the panel's own one carries
+                g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+                        java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                // On HiDPI screens the GL surface is larger than the (point-sized) canvas that overlays draw for
+                if (canvas.getWidth() > 0 && canvas.getHeight() > 0) {
+                    final double sx = (double) bi.getWidth() / canvas.getWidth();
+                    final double sy = (double) bi.getHeight() / canvas.getHeight();
+                    g.scale(sx, sy);
+                    // Some overlays (e.g., the viewer's own text messages) read the clip bounds, null by default
+                    g.setClip(0, 0, canvas.getWidth(), canvas.getHeight());
+                }
+                // overlays() is typed as Listeners<>, but is backed by a Listeners.List, which exposes the renderers
+                final org.scijava.listeners.Listeners<bdv.viewer.OverlayRenderer> overlays =
+                        viewerPanel.getDisplay().overlays();
+                if (overlays instanceof org.scijava.listeners.Listeners.List<bdv.viewer.OverlayRenderer> renderers) {
+                    for (final bdv.viewer.OverlayRenderer r : renderers.list) {
+                        try {
+                            r.drawOverlays(g);
+                        } catch (final Throwable t) { // one faulty overlay should not discard the others
+                            SNTUtils.log("BVV snapshot: overlay " + r.getClass().getName() + " failed: " + t);
+                        }
+                    }
+                } else {
+                    SNTUtils.log("BVV snapshot: unexpected overlays type: " + overlays.getClass());
+                }
+            } finally {
+                g.dispose();
+            }
+        };
+        try {
+            if (javax.swing.SwingUtilities.isEventDispatchThread()) drawOverlays.run();
+            else javax.swing.SwingUtilities.invokeAndWait(drawOverlays);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (final java.lang.reflect.InvocationTargetException | RuntimeException e) {
+            SNTUtils.log("BVV snapshot: could not draw overlays: " + e
+                    + (e.getCause() != null ? " caused by " + e.getCause() : ""));
+        }
+        return sc.fiji.snt.util.ImpUtils.fromBufferedImage("BVV Snapshot", bi);
     }
 }
