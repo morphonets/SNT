@@ -3897,6 +3897,7 @@ public class Viewer3D {
         private AllenCCFNavigator allenNavigator;
         private ManagerPanel managerPanel;
         private int savedDividerLocation = -1;
+        private int savedDividerSize = -1;
         private JLabel status;
         private boolean managerVisible;
         private boolean statusVisible = true;
@@ -4046,28 +4047,36 @@ public class Viewer3D {
             return managerVisible;
         }
 
-        private int defaultDividerSize() {
-            return UIManager.getInt("SplitPane.dividerSize");
-        }
-
         void showManagerPanel() {
             if (managerPanel == null || managerVisible) return;
-            managerPanel.setVisible(true);
-            splitPane.setDividerSize(defaultDividerSize());
-            if (savedDividerLocation > 0 && savedDividerLocation < splitPane.getWidth() - 50)
-                splitPane.setDividerLocation(savedDividerLocation);
-            else
-                splitPane.setDividerLocation(splitPane.getWidth() - managerPanel.getPreferredSize().width);
+            restoreManager();
             managerVisible = true;
         }
 
         void hideManagerPanel() {
             if (managerPanel == null || !managerVisible) return;
+            collapseManager();
+            managerVisible = false;
+        }
+
+        /** Hides the manager and its divider, remembering the divider geometry */
+        private void collapseManager() {
             savedDividerLocation = splitPane.getDividerLocation();
+            if (splitPane.getDividerSize() > 0) savedDividerSize = splitPane.getDividerSize();
             managerPanel.setVisible(false);
             splitPane.setDividerSize(0);
             splitPane.setDividerLocation(1.0d);
-            managerVisible = false;
+        }
+
+        /** Undoes {@link #collapseManager()}, without touching managerVisible */
+        private void restoreManager() {
+            managerPanel.setVisible(true);
+            splitPane.setDividerSize(savedDividerSize > 0 ? savedDividerSize
+                    : javax.swing.UIManager.getInt("SplitPane.dividerSize"));
+            if (savedDividerLocation > 0 && savedDividerLocation < splitPane.getWidth() - 50)
+                splitPane.setDividerLocation(savedDividerLocation);
+            else
+                splitPane.setDividerLocation(splitPane.getWidth() - managerPanel.getPreferredSize().width);
         }
 
         private KeyAdapter getCmdFinderKeyAdapter() {
@@ -4126,6 +4135,7 @@ public class Viewer3D {
                    splitPane = GuiUtils.SplitPanes.nonDraggableRightSplitPane();
                 }
                 final JPanel leftPanel = new JPanel(new BorderLayout());
+                leftPanel.setBorder(null);
                 leftPanel.setBackground(status.getBackground());
                 leftPanel.add(canvas, BorderLayout.CENTER);
                 leftPanel.add(status, BorderLayout.SOUTH);
@@ -4217,7 +4227,7 @@ public class Viewer3D {
                 setSize(dim);
                 setLocation(loc);
                 setVisible(true);
-                if (managerPanel != null && managerVisible) showManagerPanel();
+                if (managerPanel != null && managerVisible) restoreManager();
                 if (lightController != null) lightController.setVisible(true);
                 if (allenNavigator != null) allenNavigator.dialog.setVisible(true);
                 status.setVisible(statusVisible);
@@ -4231,10 +4241,7 @@ public class Viewer3D {
                 loc = frame.getLocation();
                 // remember visibility but don't update the flag so exitFullScreen can restore
                 if (managerPanel != null && managerVisible) {
-                    savedDividerLocation = splitPane.getDividerLocation();
-                    managerPanel.setVisible(false);
-                    splitPane.setDividerSize(0);
-                    splitPane.setDividerLocation(1.0d);
+                    collapseManager();
                     // leave managerVisible = true so exitFullScreen restores it
                 }
                 if (lightController != null) lightController.setVisible(false);
@@ -4772,6 +4779,7 @@ public class Viewer3D {
 
             });
             final JScrollPane scrollPane = new JScrollPane(managerList);
+            scrollPane.setBorder(null);
             GuiUtils.ScrollPanes.recolorTracks(scrollPane, managerList.getBackground(), false);
             managerList.setComponentPopupMenu(popupMenu());
             scrollPane.setWheelScrollingEnabled(true);

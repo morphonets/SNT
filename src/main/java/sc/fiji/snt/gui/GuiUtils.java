@@ -6363,99 +6363,94 @@ public class GuiUtils {
 	public static class SplitPanes {
 
 		public static JSplitPane nonDraggableRightSplitPane() {
-			final JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+			// The divider is recreated whenever the UI is (re)installed (e.g., on LaF
+			// changes), so the non-draggable/clickable behavior must be reapplied then
+			final JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT) {
+				@Override
+				public void updateUI() {
+					super.updateUI();
+					SplitPanes.makeDividerClickable(this);
+				}
+			};
 			splitPane.setOneTouchExpandable(true);
-			splitPane.putClientProperty("JSplitPane.expandableSide", "left");
-			splitPane.putClientProperty(FlatClientProperties.STYLE,
-					"style: plain;" +
-					"arrowType: triangle;" + //oneTouchArrowColor; oneTouchHoverArrowColor
-					"oneTouchHoverArrowColor: " + SNTColor.colorToString(Colors.selectionColor()) + ";" +
-					"oneTouchArrowColor: " + SNTColor.colorToString(IconFactory.defaultColor()) + ";");
 			splitPane.setResizeWeight(1.0); // give all extra space to the left side
-			splitPane.setBorder(null);
-			// Non: resizable: reset cursor and vertically center the one-touch buttons along the divider's length
-			final javax.swing.plaf.basic.BasicSplitPaneDivider divider =
-					((javax.swing.plaf.basic.BasicSplitPaneUI) splitPane.getUI()).getDivider();
-			SplitPanes.applyDefaultCursor(divider);
-			SplitPanes.centerOneTouchButtons(splitPane, divider);
+			// FlatLaf customizations
+			final String hoverColor = SNTColor.colorToString(Colors.selectionColor());
+			final String pressedColor = SNTColor.colorToString(SNTColor.contrastHueColor(Colors.selectionColor()));
+
+			splitPane.putClientProperty("JSplitPane.expandableSide", "left"); // collapse only to the left
+			splitPane.putClientProperty(FlatClientProperties.STYLE,
+					"style: plain;" + // either grip (default) or plain
+							"border: null;" + // default should be already null
+							"oneTouchButtonsPlacement: center;" + // flatlaf 3.8
+							"arrowType: triangle;" + // chevron (default) or triangle
+							"hoverColor: " + hoverColor + ";" +
+							"pressedColor: " + pressedColor + ";" +
+							"oneTouchPressedArrowColor: " + pressedColor + ";" +
+							"oneTouchArrowColor: " + SNTColor.colorToString(IconFactory.defaultColor()) + ";" +
+							"oneTouchHoverArrowColor: " + hoverColor + ";" +
+							"oneTouchPressedArrowColor: " + pressedColor + ";");
+
 			return splitPane;
 		}
 
-		public static void applyDefaultCursor(final javax.swing.plaf.basic.BasicSplitPaneDivider divider) {
-			divider.setCursor(java.awt.Cursor.getDefaultCursor());
-		}
-
-		public static void centerOneTouchButtons(final javax.swing.JSplitPane splitPane,
-												 final javax.swing.plaf.basic.BasicSplitPaneDivider divider) {
-			divider.setLayout(new java.awt.LayoutManager() {
+		/**
+		 * Makes the divider of a split pane behave as a full-height toggle button:
+		 * dragging is disabled and clicking anywhere on the divider triggers its
+		 * one-touch (collapse/expand) button.
+		 */
+		static void makeDividerClickable(final JSplitPane splitPane) {
+			if (!(splitPane.getUI() instanceof javax.swing.plaf.basic.BasicSplitPaneUI ui)) return;
+			final javax.swing.plaf.basic.BasicSplitPaneDivider divider = ui.getDivider();
+			// Disable dragging by removing only the motion listener. The press/release
+			// listener is kept since LaF hover/pressed feedback may depend on it
+			for (final java.awt.event.MouseMotionListener l : divider.getMouseMotionListeners()) {
+				if (l.getClass().getEnclosingClass() == javax.swing.plaf.basic.BasicSplitPaneDivider.class)
+					divider.removeMouseMotionListener(l);
+			}
+			applyDefaultCursor(splitPane, "hand");
+			// One-touch buttons have their own cursor and are created lazily
+			// (when setOneTouchExpandable(true) is called), so catch them as added
+			divider.addContainerListener(new java.awt.event.ContainerAdapter() {
 				@Override
-				public void addLayoutComponent(final String name, final Component comp) {
+				public void componentAdded(final java.awt.event.ContainerEvent e) {
+					e.getChild().setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
 				}
-
+			});
+			divider.addMouseListener(new java.awt.event.MouseAdapter() {
 				@Override
-				public void removeLayoutComponent(final Component comp) {
-				}
-
-				@Override
-				public java.awt.Dimension preferredLayoutSize(final Container parent) {
-					return null;
-				}
-
-				@Override
-				public java.awt.Dimension minimumLayoutSize(final Container parent) {
-					return null;
-				}
-
-				@Override
-				public void layoutContainer(final Container parent) {
-					// Replicate FlatDividerLayout's visibility logic: when a side
-					// is collapsed, show only the button that can restore it.
-					// Otherwise, respect the expandableSide client property.
-					final Component[] comps = parent.getComponents();
-					final java.awt.Insets insets = splitPane.getInsets();
-					final int loc = splitPane.getDividerLocation();
-					final boolean horiz = splitPane.getOrientation() == javax.swing.JSplitPane.HORIZONTAL_SPLIT;
-					final boolean leftCollapsed = horiz
-							? loc <= insets.left
-							: loc <= insets.top;
-					final boolean rightCollapsed = horiz
-							? loc >= splitPane.getWidth() - divider.getWidth() - insets.right
-							: loc >= splitPane.getHeight() - divider.getHeight() - insets.bottom;
-					for (int i = 0; i < comps.length; i++) {
-						if (!(comps[i] instanceof javax.swing.JButton)) continue;
-						if (leftCollapsed || rightCollapsed) {
-							// Collapsed: show only the button that restores the collapsed side
-							comps[i].setVisible(i == 0 ? !leftCollapsed : !rightCollapsed);
-						} else {
-							final Object expandSide = splitPane.getClientProperty(
-									FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE);
-							if (FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE_LEFT.equals(expandSide))
-								comps[i].setVisible(i > 0);
-							else if (FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE_RIGHT.equals(expandSide))
-								comps[i].setVisible(i == 0);
+				public void mouseReleased(final java.awt.event.MouseEvent e) {
+					if (!javax.swing.SwingUtilities.isLeftMouseButton(e) || !divider.contains(e.getPoint()))
+						return;
+					// Same action as clicking the arrow: use the visible one-touch button
+					for (final Component c : divider.getComponents()) {
+						if (c instanceof javax.swing.AbstractButton b && b.isVisible() && b.isEnabled()) {
+							b.doClick(0);
+							return;
 						}
-					}
-					// Collect visible buttons and center them vertically
-					final java.util.List<Component> buttons = new java.util.ArrayList<>();
-					for (final Component c : comps) {
-						if (c instanceof javax.swing.JButton && c.isVisible())
-							buttons.add(c);
-					}
-					if (buttons.isEmpty()) return;
-					final int divW = parent.getWidth();
-					final int divH = parent.getHeight();
-					final int btnW = Math.min(divW, buttons.getFirst().getPreferredSize().width);
-					final int btnH = buttons.getFirst().getPreferredSize().height;
-					final int totalH = buttons.size() * btnH;
-					int y = (divH - totalH) / 2;
-					final int x = (divW - btnW) / 2;
-					for (final Component btn : buttons) {
-						btn.setBounds(x, y, btnW, btnH);
-						y += btnH;
 					}
 				}
 			});
 		}
+
+		/**
+		 * Sets the cursor of the divider (and its one-touch buttons): "hand", "move" or default
+		 */
+		public static void applyDefaultCursor(final JSplitPane splitPane, final String cursor) {
+			if (cursor == null || !(splitPane.getUI() instanceof javax.swing.plaf.basic.BasicSplitPaneUI ui))
+				return;
+			final javax.swing.plaf.basic.BasicSplitPaneDivider divider = ui.getDivider();
+			final int type = switch (cursor.toLowerCase()) {
+				case "hand" -> java.awt.Cursor.HAND_CURSOR;
+				case "move" -> java.awt.Cursor.MOVE_CURSOR;
+				default -> java.awt.Cursor.DEFAULT_CURSOR;
+			};
+			final java.awt.Cursor c = java.awt.Cursor.getPredefinedCursor(type);
+			divider.setCursor(c);
+			for (final Component child : divider.getComponents())
+				child.setCursor(c);
+		}
+
 	}
 
 	/** Semantic UI colors (error/warning/link/selection/disabled) and a shared color chooser. */
