@@ -41,6 +41,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -1600,8 +1601,8 @@ public abstract class AbstractBigViewer {
                     if (settings == null) settings = f;
                 } else if (f.isFile() && f.getName().toLowerCase().endsWith(".csv")) {
                     csvs.add(f);
-                } else if (f.isFile() && SNTUtils.isReconstructionFile(f, true)) {
-                    recs.add(f);
+                } else {
+                    recs.addAll(IOUtils.listReconstructionFiles(f));
                 }
             }
             final File sf = settings;

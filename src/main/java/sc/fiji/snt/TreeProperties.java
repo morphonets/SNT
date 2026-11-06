@@ -32,6 +32,7 @@ public interface TreeProperties {
 	String KEY_ID = "id";
 	String KEY_LABEL = "label";
 	String KEY_SOURCE = "source";
+	String KEY_FILE = "file";
 	String KEY_IMG = "img";
 	String KEY_IMG_CHANNEL = "channel";
 	String KEY_IMG_FRAME = "frame";

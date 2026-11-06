@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Static utilities for file I/O, namely the detection of reconstruction file formats.
@@ -163,6 +165,32 @@ public final class IOUtils {
 			return detectFormat(file) == ReconstructionFormat.NEUROLUCIDA;
 		} catch (final IOException | RuntimeException ex) {
 			return false;
+		}
+	}
+
+	/**
+	 * Flattens files and directories (searched recursively) into a list of reconstruction files, as
+	 * defined by {@link #isReconstructionFile(File, boolean)} with {@code sniffXml} set to true. Null
+	 * entries, unreadable directories and non-reconstruction files are skipped. Typically used to
+	 * process dropped items
+	 *
+	 * @param files the files and/or directories to be flattened. Null allowed
+	 * @return the reconstruction files found (empty if none)
+	 */
+	public static List<File> listReconstructionFiles(final File... files) {
+		final List<File> result = new ArrayList<>();
+		collectReconstructionFiles(files, result);
+		return result;
+	}
+
+	private static void collectReconstructionFiles(final File[] files, final List<File> result) {
+		if (files == null) return;
+		for (final File f : files) {
+			if (f == null) continue;
+			if (f.isDirectory())
+				collectReconstructionFiles(f.listFiles(), result);
+			else if (f.isFile() && isReconstructionFile(f, true))
+				result.add(f);
 		}
 	}
 }

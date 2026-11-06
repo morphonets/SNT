@@ -11,9 +11,9 @@
 
 
 """
-file:      Measure_Multiple_Files.py
+file:      Measure_Multiple_Reconstructions.py
 author:    Tiago Ferreira
-version:   20260925
+version:   20261106
 info:      Bulk measurements of reconstruction files using SNT
 """
 

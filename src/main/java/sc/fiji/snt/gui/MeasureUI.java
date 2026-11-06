@@ -30,16 +30,18 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.gui.cmds.DistributionCPCmd;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
@@ -48,6 +50,7 @@ import javax.swing.event.PopupMenuListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
 import java.io.Serial;
 import java.util.List;
 import java.util.*;
@@ -85,10 +88,22 @@ public class MeasureUI extends JFrame {
 	private boolean distinguishCompartments;
 	private String lastDirPath;
 	private final GuiUtils guiUtils;
+	// Trees being measured. Only modified on the EDT
+	private final List<Tree> trees;
 	private SNT plugin;
 	private JProgressBar bar;
 	private GenerateTableAction.BackgroundTask backgroundTask;
 
+
+	/**
+	 * Standalone constructor: opens with no trees, which can be added by dropping
+	 * reconstruction files (or folders) onto the dialog
+	 */
+	public MeasureUI() {
+		this(SNTUtils.getContext(), Collections.emptyList());
+		lastDirPath = System.getProperty("user.home");
+		installFileDrop();
+	}
 
 	public MeasureUI(final Collection<Tree> trees) {
 		this(SNTUtils.getContext(), trees);
@@ -108,7 +123,8 @@ public class MeasureUI extends JFrame {
 		//getRootPane().putClientProperty("Window.style", "small");
 		context.inject(this);
 		guiUtils = new GuiUtils(this);
-		panel = new MeasurePanel(trees);
+		this.trees = new ArrayList<>(trees);
+		panel = new MeasurePanel();
 		add(panel);
 		pack();
 		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -137,6 +153,67 @@ public class MeasureUI extends JFrame {
 		// Script friendly version
 		setLocationRelativeTo((plugin == null) ? null : plugin.getUI());
 		SwingUtilities.invokeLater(() -> super.setVisible(b));
+	}
+
+	// Only for the standalone constructor: when attached to other components the trees
+	// are managed by the parent, and adding trees here could put the two out of sync
+	private void installFileDrop() {
+		new FileDrop(panel, files -> {
+			if (backgroundTask != null && !backgroundTask.isDone()) {
+				UIManager.getLookAndFeel().provideErrorFeedback(this);
+				return;
+			}
+			final List<File> recs = IOUtils.listReconstructionFiles(files);
+			if (recs.isEmpty()) {
+				guiUtils.error("None of the dropped item(s) are reconstruction files.");
+				return;
+			}
+			new SwingWorker<List<Tree>, Void>() {
+
+				@Override
+				protected List<Tree> doInBackground() {
+					final List<Tree> loaded = new ArrayList<>();
+					for (final File f : recs) {
+						try {
+							final Collection<Tree> inFile = Tree.listFromFile(f.getAbsolutePath());
+							if (inFile != null) loaded.addAll(inFile);
+						} catch (final RuntimeException ex) {
+							SNTUtils.log("Could not load " + f.getName() + ": " + ex.getMessage());
+						}
+					}
+					return loaded;
+				}
+
+				@Override
+				protected void done() {
+					try {
+						final List<Tree> loaded = get();
+						if (loaded.isEmpty()) {
+							guiUtils.error("Dropped file(s) do not contain valid data.");
+							return;
+						}
+						addTrees(loaded);
+					} catch (final InterruptedException | java.util.concurrent.ExecutionException ex) {
+						SNTUtils.error("Import failed", ex);
+					}
+				}
+			}.execute();
+		});
+	}
+
+	private void addTrees(final Collection<Tree> newTrees) {
+		// Measurements are keyed by label: ensure dropped trees do not overwrite each other
+		final Set<String> labels = new HashSet<>();
+		trees.forEach(t -> labels.add(t.getLabel()));
+		for (final Tree tree : newTrees) {
+			final String base = tree.getLabel();
+			String label = base;
+			for (int i = 2; !labels.add(label); i++)
+				label = base + " (" + i + ")";
+			if (!label.equals(base)) tree.setLabel(label);
+			trees.add(tree);
+		}
+		panel.treesChanged();
 	}
 
 	public void setTable(final SNTTable table) {
@@ -184,7 +261,7 @@ public class MeasureUI extends JFrame {
 		private final JButton runButton;
 
 		@SuppressWarnings("unchecked")
-		MeasurePanel(final Collection<Tree> trees) {
+		MeasurePanel() {
 
 			// Stats table
 			final DefaultTableModel statsTableModelImpl = new DefaultTableModel() {
@@ -329,10 +406,7 @@ public class MeasureUI extends JFrame {
 			bar.setVisible(true);
 			bar.setFocusable(false);
 			bar.setMinimum(0);
-			bar.setMaximum(trees.size());
-			bar.setVisible(true);
 			bar.setStringPainted(true);
-			bar.setString(String.format("Measuring %d reconstruction(s)", trees.size()));
 
 			// remember previous state
 			loadPreferences();
@@ -370,8 +444,8 @@ public class MeasureUI extends JFrame {
 			add(statsTableScrollPane, c);
 
 			runButton = new JButton("Measure", IconFactory.buttonIcon(IconFactory.GLYPH.TABLE, 1.1f));
-			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
-			final JButton optionsButton = optionsButton(trees);
+			runButton.addActionListener(new GenerateTableAction(statsTableModel));
+			final JButton optionsButton = optionsButton();
 			final JToggleButton splitButton = splitButton();
 			final JToolBar toolbar = new JToolBar();
 			toolbar.setBorder(searchableBar.getBorder()); // top, left, bottom, right margins
@@ -388,6 +462,16 @@ public class MeasureUI extends JFrame {
 			c.gridwidth = 1;
 			c.weighty = 0.0; // do not allow panel to fill height when resizing pane
 			add(toolbar, c);
+			treesChanged();
+		}
+
+		// Syncs progress bar and run button with the list of trees
+		void treesChanged() {
+			bar.setMaximum(trees.size());
+			bar.setValue(0);
+			bar.setString(trees.isEmpty() ? "Drop reconstruction files here"
+					: String.format("Measuring %d reconstruction(s)", trees.size()));
+			runButton.setEnabled(!trees.isEmpty());
 		}
 
 		private JToggleButton splitButton() {
@@ -404,7 +488,7 @@ public class MeasureUI extends JFrame {
 			return button;
 		}
 
-		private JButton optionsButton(final Collection<Tree> trees) {
+		private JButton optionsButton() {
 			final JButton optionsButton = GuiUtils.Buttons.options();
 			optionsButton.setFont(
 					optionsButton.getFont().deriveFont(optionsButton.getFont().getSize2D()*1.1f)); // scale icon (font-based)
@@ -430,17 +514,20 @@ public class MeasureUI extends JFrame {
 			jmi = GuiUtils.MenuItems.summarize(() -> table, null);
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
-			optionsMenu.add( GuiUtils.MenuItems.distribution(() -> table));
+			jmi = new JMenuItem("Distribution Analysis...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
+			jmi.setToolTipText("Histograms of per-branch/node metrics pooled across the cells being measured");
+			jmi.addActionListener(e -> runDistributionCmd());
+			optionsMenu.add(jmi);
 			GuiUtils.MenuItems.addSeparator(optionsMenu, "Utilities:");
 			jmi = GuiUtils.MenuItems.renderQuick();
 			jmi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("trees", trees);
+				inputs.put("trees", new ArrayList<>(trees));
 				SNTUtils.getContext().getService(CommandService.class).run(FigCreatorCmd.class, true, inputs);
 			});
 			optionsMenu.add(jmi);
 			jmi = new JMenuItem("List Cell(s) Being Measured...", IconFactory.menuIcon(IconFactory.GLYPH.LIST));
-			jmi.addActionListener(e -> showDetails(trees));
+			jmi.addActionListener(e -> showDetails());
 			optionsMenu.add(jmi);
 			GuiUtils.MenuItems.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...", IconFactory.menuIcon(IconFactory.GLYPH.INFO));
@@ -459,32 +546,38 @@ public class MeasureUI extends JFrame {
 			return optionsButton;
 		}
 
-		private void showDetails(final Collection<Tree> trees) {
-			final StringBuilder sb = new StringBuilder("<HTML><div align='center'>");
-			sb.append("<table><tbody>");
-			sb.append("<tr style='border-top:1px solid; border-bottom:1px solid; '>");
-			sb.append("<td style='text-align: center;'><b>&nbsp;#&nbsp;</b></td>");
-			sb.append("<td style='text-align: center;'><b>Label</b></td>");
-			sb.append("<td style='text-align: center;'><b>Spatial Unit</b></td>");
-			sb.append("<td style='text-align: center;'><b>No. Compartments</b></td>");
-			sb.append("<td style='text-align: center;'><b>Source</b></td>");
-			sb.append("</tr>");
-			final int[] counter = { 1 };
-			trees.forEach(tree -> {
+		private void runDistributionCmd() {
+			if (trees.isEmpty()) {
+				guiUtils.error("There are no cells to analyze.");
+				return;
+			}
+			final Map<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", new ArrayList<>(trees));
+			inputs.put("calledFromPathManagerUI",false);
+			SNTUtils.getContext().getService(CommandService.class).run(DistributionCPCmd.class, true, inputs);
+		}
+
+		// Name of a local file or remote URL, or N/A if unknown
+		private String fileName(final String pathOrUrl) {
+			if (pathOrUrl == null || pathOrUrl.isEmpty()) return "N/A";
+			return pathOrUrl.substring(Math.max(pathOrUrl.lastIndexOf('/'), pathOrUrl.lastIndexOf('\\')) + 1);
+		}
+
+		private void showDetails() {
+			if (trees.isEmpty()) {
+				guiUtils.error("There are no cells to list.");
+				return;
+			}
+			final SNTTable details = new SNTTable();
+			for (final Tree tree : trees) {
 				final Properties props = tree.getProperties();
-				sb.append("<tr style='border-bottom:1px solid'>");
-				sb.append("<td style='text-align: center;'>").append(counter[0]++).append("</td>");
-				sb.append("<td style='text-align: center;'>").append(tree.getLabel()).append("</td>");
-				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SPATIAL_UNIT, "N/A"))
-						.append("</td>");
-				sb.append("<td style='text-align: center;'>").append( tree.getSWCTypes(false).size())
-				.append("</td>");
-				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SOURCE, "N/A"))
-						.append("</td>");
-				sb.append("</tr>");
-			});
-			sb.append("</tbody></table>");
-			GuiUtils.showHTMLDialog(sb.toString(), trees.size() + " Tree(s) Being Measured");
+				final int row = details.insertRow(tree.getLabel());
+				details.set("Spatial Unit", row, props.getOrDefault(Tree.KEY_SPATIAL_UNIT, "N/A"));
+				details.set("No. Compartments", row, tree.getSWCTypes(false).size());
+				details.set("File", row, fileName(props.getProperty(Tree.KEY_FILE)));
+				details.set("Source", row, props.getOrDefault(Tree.KEY_SOURCE, "N/A"));
+			}
+			details.show(trees.size() + " Cell(s) Being Measured");
 		}
 
 		private void showHelp() {
@@ -798,12 +891,12 @@ public class MeasureUI extends JFrame {
 
 		@Serial
 		private static final long serialVersionUID = 1L;
-		final Collection<Tree> trees;
 		final DefaultTableModel tableModel;
+		// Snapshot of the trees being measured by the current run
+		List<Tree> batch;
 
-		GenerateTableAction(final Collection<Tree> trees, final DefaultTableModel tableModel) {
+		GenerateTableAction(final DefaultTableModel tableModel) {
 			super("Run", null);
-			this.trees = trees;
 			this.tableModel = tableModel;
 		}
 
@@ -819,6 +912,7 @@ public class MeasureUI extends JFrame {
 			}
 			if (table == null)
 				table = new SNTTable();
+			batch = new ArrayList<>(trees);
 			backgroundTask =  new BackgroundTask((JButton) e.getSource());
 			backgroundTask.execute();
 		}
@@ -934,7 +1028,7 @@ public class MeasureUI extends JFrame {
 			@Override
 			protected Void doInBackground() {
 				int counter = 0;
-				for (final Tree tree : trees) {
+				for (final Tree tree : batch) {
 					publish(counter++);
 					SNTUtils.log("Processing #" + counter +" "+ tree.getLabel());
 					final Set<Integer> compartments = tree.getSWCTypes(false);
@@ -953,7 +1047,7 @@ public class MeasureUI extends JFrame {
 			protected void process(final List<Integer> chunks) {
 				final int i = chunks.getLast();
 				bar.setValue(i); // The last value is all we care about
-				bar.setString(String.format("Measuring %d/%d reconstruction(s)", i+1, trees.size()));
+				bar.setString(String.format("Measuring %d/%d reconstruction(s)", i+1, batch.size()));
 			}
 
 			@Override
@@ -963,8 +1057,7 @@ public class MeasureUI extends JFrame {
 					guiUtils.error("Measurements table is empty. Please make sure your choices are valid.");
 					return;
 				}
-				bar.setValue(0);
-				bar.setString(String.format("Measuring %d reconstruction(s)", trees.size()));
+				panel.treesChanged();
 				updateTable(true);
 			}
 
@@ -1194,9 +1287,7 @@ public class MeasureUI extends JFrame {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		GuiUtils.LAF.setLookAndFeel();
-		final SNTService sntService = ij.get(SNTService.class);
-//		final MeasureUI frame = new MeasureUI(Collections.singleton(sntService.demoTree()));
-		final MeasureUI frame = new MeasureUI(sntService.demoTrees());
+		final MeasureUI frame = new MeasureUI();
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
 	}
 

@@ -55,6 +55,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.io.MouseLightLoader;
 import net.imagej.ImgPlus;
 import net.imglib2.type.numeric.RealType;
@@ -608,6 +609,26 @@ public class SNTService extends AbstractService implements ImageJService {
 	 */
 	public Viewer3D newRecViewer(final boolean guiControls) {
 		return (guiControls) ? new Viewer3D(getContext()) : new Viewer3D();
+	}
+
+	/**
+	 * Instantiates a new standalone Measurements dialog (not yet displayed). Reconstruction files (or
+	 * folders) can be dropped onto it to be measured.
+	 *
+	 * @return The {@link MeasureUI} instance. Use {@code setVisible(true)} to display it
+	 */
+	public MeasureUI newMeasureUI() {
+		return new MeasureUI();
+	}
+
+	/**
+	 * Instantiates a new Measurements dialog (not yet displayed) for the specified trees.
+	 *
+	 * @param trees the trees to be measured
+	 * @return The {@link MeasureUI} instance. Use {@code setVisible(true)} to display it
+	 */
+	public MeasureUI newMeasureUI(final Collection<Tree> trees) {
+		return new MeasureUI(trees);
 	}
 
 	public SciViewSNT getOrCreateSciViewSNT() throws NoClassDefFoundError {

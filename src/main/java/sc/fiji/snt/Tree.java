@@ -1392,6 +1392,17 @@ public class Tree implements TreeProperties, Cloneable {
 	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
 	 */
 	public static Collection<Tree> listFromFile(final String tracesOrJsonFile) throws IllegalArgumentException {
+		final Collection<Tree> trees = listFromFileInternal(tracesOrJsonFile);
+		if (trees != null && !trees.isEmpty()) {
+			// Absolute path or URL. Not overridden if already set (e.g., files in a directory)
+			final String source = (BigDataUtils.isRemoteUrl(tracesOrJsonFile)) ? tracesOrJsonFile
+					: getFile(tracesOrJsonFile, true).getAbsolutePath();
+			trees.forEach(t -> t.getProperties().putIfAbsent(KEY_FILE, source));
+		}
+		return trees;
+	}
+
+	private static Collection<Tree> listFromFileInternal(final String tracesOrJsonFile) {
 		if (BigDataUtils.isRemoteUrl(tracesOrJsonFile)) {
 			return listFromRemoteFile(tracesOrJsonFile);
 		}
