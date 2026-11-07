@@ -33,7 +33,6 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.ContextMenuCommand;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.SNTUtils;
 import ij.ImagePlus;
 import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.gui.ScriptInstaller;

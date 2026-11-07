@@ -66,7 +66,7 @@ public class ShowCorrespondencesCmd extends ContextCommand {
 	@Override
 	public void run() {
 		try {
-			sntService.getPlugin().showCorrespondencesTo(file, new Color(color
+			sntService.getInstance().showCorrespondencesTo(file, new Color(color
 				.getARGB()), distance);
 		}
 		catch (final UnsupportedOperationException | NullPointerException exc) {

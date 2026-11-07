@@ -83,9 +83,11 @@ public class ShollPlot extends Plot {
 	private ShollStats stats;
 	private LinearProfileStats linearStats;
     private StringBuffer tempLegend;
-	private double xMin, xMax, yMin, yMax;
+	private double xMin;
+    private double xMax;
+    private double yMin;
 
-	/**
+    /**
 	 * Constructs a new empty Plot.
 	 * 
 	 * @param title  the plot title
@@ -177,7 +179,7 @@ public class ShollPlot extends Plot {
 		xMin = StatUtils.min(xValues);
 		xMax = StatUtils.max(xValues);
 		yMin = StatUtils.min(yValues);
-		yMax = StatUtils.max(yValues);
+        double yMax = StatUtils.max(yValues);
 		final boolean gridState = PlotWindow.noGridLines;
 		PlotWindow.noGridLines = false;
 		// Axis Limits cannot be the same: if there are no
@@ -320,7 +322,7 @@ public class ShollPlot extends Plot {
                     return title.replaceAll("SCOPE", stats.getProfile().getExtraMeasurement());
                 }
                 case INTERSECTIONS -> {
-                    return title.replaceAll("SCOPE", "No. Inters.");
+                    return title.replace("SCOPE", "No. Inters.");
                 }
             }
         }

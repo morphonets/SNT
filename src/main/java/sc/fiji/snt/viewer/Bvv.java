@@ -58,7 +58,6 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
-import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;

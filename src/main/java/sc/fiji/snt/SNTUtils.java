@@ -55,7 +55,6 @@ import sc.fiji.snt.gui.cmds.BigDataLoaderCmd;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.viewer.Viewer3D;
 
-import java.awt.*;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
@@ -81,8 +80,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

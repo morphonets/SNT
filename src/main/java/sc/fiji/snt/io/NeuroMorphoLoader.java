@@ -102,8 +102,8 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		final StringBuilder sb = new StringBuilder();
 		sb.append("https://neuromorpho.org/dableFiles/");
 		final String archive = (String) json.get("archive");
-		sb.append(archive.toLowerCase().replaceAll(" ", "%20"));
-		final String filename = cellId.replaceAll(" ", "%20");
+		sb.append(archive.toLowerCase().replace(" ", "%20"));
+		final String filename = cellId.replace(" ", "%20");
 		if (sourceVersion) {
 			sb.append("/Source-Version/");
 			sb.append(filename);

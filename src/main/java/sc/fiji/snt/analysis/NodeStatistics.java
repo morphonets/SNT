@@ -41,7 +41,6 @@ import org.jfree.data.category.DefaultCategoryDataset;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;

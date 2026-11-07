@@ -44,11 +44,10 @@ import java.util.Map;
 public class SNTPseudographComponent extends SNTGraphComponent{
 
     private static final long serialVersionUID = 1L;
-    private mxGraphLayout layout;
 
     public SNTPseudographComponent(SNTPseudographAdapter<?, ? extends DefaultWeightedEdge> adapter, Context context) {
         super(adapter, context);
-        layout = new mxCircleLayout(adapter);
+        final mxCircleLayout layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
     }

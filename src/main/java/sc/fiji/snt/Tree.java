@@ -45,7 +45,6 @@ import sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.SWCExportException;
-import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;

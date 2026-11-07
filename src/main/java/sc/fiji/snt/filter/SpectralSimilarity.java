@@ -79,7 +79,6 @@ public class SpectralSimilarity<T extends RealType<T>, U extends RealType<U>> ex
 
     private final double[] referenceColor;
     private final double[] normalizedRef;
-    private final double refMagnitude;
     private final double refSum;
     private final int numThreads;
     private final double intensityTolerance;
@@ -112,11 +111,8 @@ public class SpectralSimilarity<T extends RealType<T>, U extends RealType<U>> ex
         this.numThreads = Math.max(1, Math.min(numThreads, Runtime.getRuntime().availableProcessors()));
         this.intensityTolerance = intensityTolerance;
 
-        // Precompute normalized reference and magnitude
+        // Precompute normalized reference and intensity sum
         this.refSum = channelSum(referenceColor);
-        double mag = 0;
-        for (final double v : referenceColor) mag += v * v;
-        this.refMagnitude = Math.sqrt(mag);
         this.normalizedRef = referenceColor.clone();
         normalizeVector(this.normalizedRef);
     }

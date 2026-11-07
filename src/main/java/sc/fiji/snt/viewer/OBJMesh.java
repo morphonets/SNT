@@ -897,6 +897,7 @@ public class OBJMesh {
 		private float[] mtlKd;
 		private float mtlAlpha = 1f;
 
+		@SuppressWarnings("deprecation")
 		private void readMaterial(final URL objUrl, final String mtlName) {
 			try {
 				// Only relative paths within the OBJ's location are followed

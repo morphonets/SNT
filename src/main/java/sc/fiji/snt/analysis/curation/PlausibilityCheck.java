@@ -893,10 +893,6 @@ public final class PlausibilityCheck {
     }
 
     /**
-     * Detects paths that run very close to each other without being
-     * topologically connected. Wraps {@link CrossoverFinder}.
-     */
-    /**
      * Detects suspicious crossings between paths via {@link CrossoverFinder}:
      * X-shape near-coincidences where two paths almost touch. Complementary
      * to {@link BundledPaths} (||-shape parallel runs).

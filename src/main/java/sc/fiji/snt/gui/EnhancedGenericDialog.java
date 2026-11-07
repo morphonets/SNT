@@ -316,7 +316,7 @@ public class EnhancedGenericDialog extends GenericDialog {
 	}
 
 	/** Customizes macro recordings */
-	public static final void improveRecording() {
+	public static void improveRecording() {
 		if (Recorder.record) {
 			String recordString = "// Recording the legacy (IJ1) Sholl Analysis plugin. Please\n" 
 					+ "// note the changes in command names (e.g., from 'Sholl Analysis'\n"
@@ -365,20 +365,20 @@ public class EnhancedGenericDialog extends GenericDialog {
 		return GraphicsEnvironment.isHeadless();
 	}
 
-	protected final static String citationURL() {
+	protected static String citationURL() {
 		return "http://www.nature.com/nmeth/journal/v11/n10/full/nmeth.3125.html";
 	}
 
-	protected final static String citationMsg() {
+	protected static String citationMsg() {
 		return "Please be so kind as to cite this program in your own\n"
 				+ "research: Ferreira et al. Nat Methods 11, 982-4 (2014)";
 	}
 
-	public final static Color infoColor() {
+	public static Color infoColor() {
 		return Color.DARK_GRAY;
 	}
 
-	public final static Color warningColor() {
+	public static Color warningColor() {
 		return Color.RED;
 	}
 

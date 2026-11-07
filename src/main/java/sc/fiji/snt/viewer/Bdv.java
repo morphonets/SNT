@@ -48,7 +48,6 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.CommandService;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.cmds.BdvRenderingOptionsCmd;
@@ -57,7 +56,6 @@ import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.*;
 import java.util.List;

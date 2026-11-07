@@ -308,36 +308,41 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
     }
 
     private void outputSingleSomaResult(final SomaUtils.SomaResult result, final double[] spacing) {
-        if (OUTPUT_PATH.equals(outputChoice)) {
-            final Path path = result.toPath(spacing);
-            snt.getPathAndFillManager().addPath(path);
-            status("Soma added to Manager", true);
-        } else if (OUTPUT_BOOKMARK.equals(outputChoice) ) {
-            addSomaMarker(result, spacing, null);
-            status("Soma added as marker", true);
-            if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
-        } else if (OUTPUT_SEEDS.equals(outputChoice)) {
-            snt.getSeedOverlay().add(toSeedPoint(result, spacing, 1.0));
-            status("Soma added as seed", true);
-            if (ui != null) ui.selectTab("Seeds");
-        } else {
-            Roi roi = createOutputRoi(result);
-            if (roi == null && (OUTPUT_AREA_ROI.equals(outputChoice) || OUTPUT_CIRCLE_ROI.equals(outputChoice))) {
-                roi = result.createPointRoi();
+        switch (outputChoice) {
+            case OUTPUT_PATH -> {
+                final Path path = result.toPath(spacing);
+                snt.getPathAndFillManager().addPath(path);
+                status("Soma added to Manager", true);
             }
-            if (roi == null) {
-                error("Could not create ROI. Soma detection failed.");
-            } else {
-                if (imp != null) {
-                    imp.setRoi(roi);
-                } else {
-                    RoiManager rm = RoiManager.getInstance2();
-                    if (rm == null) rm = new RoiManager();
-                    rm.addRoi(roi);
+            case OUTPUT_BOOKMARK -> {
+                addSomaMarker(result, spacing, null);
+                status("Soma added as marker", true);
+                if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
+            }
+            case OUTPUT_SEEDS -> {
+                snt.getSeedOverlay().add(toSeedPoint(result, spacing, 1.0));
+                status("Soma added as seed", true);
+                if (ui != null) ui.selectTab("Seeds");
+            }
+            case null, default -> {
+                Roi roi = createOutputRoi(result);
+                if (roi == null && (OUTPUT_AREA_ROI.equals(outputChoice) || OUTPUT_CIRCLE_ROI.equals(outputChoice))) {
+                    roi = result.createPointRoi();
                 }
-                status("Soma ROI created", true);
-                if (roi instanceof PointRoi && !OUTPUT_POINT_ROI.equals(outputChoice))
-                    error(outputChoice + " could not be created. A point ROI was created instead.");
+                if (roi == null) {
+                    error("Could not create ROI. Soma detection failed.");
+                } else {
+                    if (imp != null) {
+                        imp.setRoi(roi);
+                    } else {
+                        RoiManager rm = RoiManager.getInstance2();
+                        if (rm == null) rm = new RoiManager();
+                        rm.addRoi(roi);
+                    }
+                    status("Soma ROI created", true);
+                    if (roi instanceof PointRoi && !OUTPUT_POINT_ROI.equals(outputChoice))
+                        error(outputChoice + " could not be created. A point ROI was created instead.");
+                }
             }
         }
         SNTUtils.log(result.toString());

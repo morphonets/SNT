@@ -84,7 +84,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	@Override
 	public String getReconstructionURL(final String cellId) {
 		final StringBuilder sb = new StringBuilder();
-		sb.append(BASE_URL).append(cellId).append("/").append(cellId.replaceAll(" ", "%20"));
+		sb.append(BASE_URL).append(cellId).append("/").append(cellId.replace(" ", "%20"));
 		sb.append(SWC_PREFIX);
 		return sb.toString();
 	}

@@ -82,7 +82,6 @@ import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedOverlayCanvasHandler;
@@ -4600,8 +4599,7 @@ public class SNT extends MultiDThreePanes implements
 	public boolean seedStatsFromSubVolume(final ImagePlus imp) {
 		if (stats.max > 0) return true;
 		if (!isStreamMode() || imp == null) return false;
-		computeImgStats(Views.iterable((RandomAccessibleInterval) ImageJFunctions.wrapReal(imp)), stats,
-				CostType.RECIPROCAL);
+		computeImgStats((RandomAccessibleInterval) ImageJFunctions.wrapReal(imp), stats, CostType.RECIPROCAL);
 		return stats.max > 0;
 	}
 

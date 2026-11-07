@@ -121,8 +121,8 @@ final class ViewerSettingsUtils {
     }
 
     /**
-     * Dispatches {@link AbstractBigViewer#applyAutoBrightness(AbstractBigViewer.BrightnessScope)} for a given scope: the single {@link
-     * #getCurrentSource() current source}, every currently active source ({@link
+     * Dispatches {@link AbstractBigViewer#applyAutoBrightness(AbstractBigViewer.BrightnessScope)} for a given scope:
+     * the single current source, every currently active source ({@link
      * bdv.viewer.ViewerState#isSourceActive}), or (for {@link AbstractBigViewer.BrightnessScope#ALL}) the whole scene via the
      * aggregate {@link #initBrightnessSafely(ViewerState, ConverterSetups, String)}.
      * Shared by {@link Bdv} and {@link Bvv}
