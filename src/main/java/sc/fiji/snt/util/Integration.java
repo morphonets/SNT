@@ -45,7 +45,8 @@ public enum Integration {
 			"https://github.com/UU-cellbiology/bigvolumebrowser/wiki", "bvb.core.BigVolumeBrowser"),
 
 	/** TrakEM2 (interaction through {@link sc.fiji.snt.event.SNTEvent}s) */
-	TRAKEM2("TrakEM2", "TrakEM2", "https://imagej.net/plugins/trakem2/", "ini.trakem2.Project"),
+	TRAKEM2("TrakEM2", null, // currently core Fiji
+			"https://imagej.net/plugins/trakem2/", "ini.trakem2.Project"),
 
 	/** Tubular Geodesics (fast marching search) */
 	TUBULAR_GEODESICS("TubularGeodesics", null,

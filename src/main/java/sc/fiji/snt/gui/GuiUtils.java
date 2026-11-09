@@ -58,6 +58,7 @@ import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.Integration;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.SNTDoctor;
 
 import javax.swing.*;
 import javax.swing.Timer;
@@ -178,10 +179,8 @@ public class GuiUtils {
 				? throwable.getCause()
 				: throwable;
 		if (cause instanceof OutOfMemoryError) {
-			SNTUtils.error("Out of memory", cause, false);
-			error("Out of Memory: There is not enough RAM to complete the operation. Please allocate more "
-					+ "memory to Fiji (<i>Edit>Options>Memory & Threads...</i>) or try a smaller input. "
-					+ consoleHint() + ".");
+			error(SNTUtils.reportOutOfMemory("completing the operation",
+					"Try a smaller input or allocate more memory to Java", cause, false));
 			return;
 		}
 		String msg = describeFailure(cause);
@@ -2341,6 +2340,17 @@ public class GuiUtils {
 		logoGbc.insets = new Insets(0, 0, 0, 10);
 		main.add(SplashScreen.getIconAsAnimatedLabel(), logoGbc);
 
+		// Regular (bordered) button under the logo, to make it stand out from the info rows
+		final JButton checkButton = new JButton("Run SNT Doctor...",
+				IconFactory.buttonIcon(GLYPH.STETHOSCOPE, IconFactory.secondaryColor(), 1f));
+		checkButton.setToolTipText("Checks memory, compute, graphics, disk, network and the SNT installation");
+		final GridBagConstraints checkGbc = new GridBagConstraints();
+		checkGbc.gridx = 0;
+		checkGbc.gridy = 1;
+		checkGbc.anchor = GridBagConstraints.SOUTH; // aligns with last info row
+		checkGbc.insets = new Insets(8, 0, 0, 10);
+		main.add(checkButton, checkGbc);
+
 		final JPanel side = new JPanel(new GridBagLayout());
 		final GridBagConstraints gbc = defaultGbc();
 		final JLabel title = new JLabel(SNTUtils.getReadableVersion());
@@ -2408,9 +2418,10 @@ public class GuiUtils {
 		sideGbc.gridy = 0;
 		sideGbc.fill = GridBagConstraints.BOTH;
 		sideGbc.weightx = 1.0;
+		sideGbc.gridheight = 2; // spans logo and button rows
 		main.add(side, sideGbc);
 
-		final JPanel urls = new JPanel();
+		final JPanel urls = new JPanel(new FlowLayout(FlowLayout.CENTER,0,0));
 		urls.add(urlButton("Release Notes", MenuItems.releaseNotesURL(), GLYPH.NEWSPAPER));
 		urls.add(urlButton("Documentation", "https://imagej.net/plugins/snt/", GLYPH.BOOK_READER));
 		urls.add(urlButton("Forum", "https://forum.image.sc/tag/snt", GLYPH.COMMENTS));
@@ -2418,7 +2429,7 @@ public class GuiUtils {
 		urls.add(urlButton("Manuscripts", "https://imagej.net/plugins/snt/faq#how-do-i-cite-snt", GLYPH.FILE));
 		final GridBagConstraints urlsGbc = new GridBagConstraints();
 		urlsGbc.gridx = 0;
-		urlsGbc.gridy = 1;
+		urlsGbc.gridy = 2;
 		urlsGbc.gridwidth = 2;
 		urlsGbc.insets = new Insets(5, 0, 0, 0);
 		main.add(urls, urlsGbc);
@@ -2426,6 +2437,20 @@ public class GuiUtils {
 		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION,
 				null, new Object[0]); // empty options: no OK button
 		final JDialog d = optionPane.createDialog("About SNT");
+		checkButton.addActionListener(e -> {
+			final JDialog sysDialog = doctorDialog(d);
+			checkButton.setEnabled(false);
+			sysDialog.addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosed(final WindowEvent we) {
+					checkButton.setEnabled(true);
+				}
+			});
+			sysDialog.setLocationRelativeTo(d);
+			sysDialog.setVisible(true);
+			sysDialog.toFront();
+		});
+
 		new Thread(() -> {
 			final String cacheSize = SNTUtils.formatBytes(SNTUtils.getCacheDirSize());
 			final GLUtils.Info gpu = GLUtils.getInfo();
@@ -2488,6 +2513,98 @@ public class GuiUtils {
 		d.setVisible(true);
 		d.toFront();
 		d.setAlwaysOnTop(!d.hasFocus()); // see makeVisible()
+		return d;
+	}
+
+	/**
+	 * Starts {@link SNTDoctor} in a background thread, listing results in a dialog as they become available. The
+	 * dialog is returned unshown
+	 *
+	 * @param owner the dialog's owner (null allowed). If it is a modal dialog, the returned dialog remains interactive
+	 *              while it is showing
+	 * @return the (non-modal) results dialog
+	 */
+	public static JDialog doctorDialog(final Window owner) {
+		final JTextArea area = new JTextArea(20, SNTDoctor.WRAP_WIDTH + 4);
+		final Color backgroundColor = area.getBackground();
+		area.setEditable(false);
+		area.setBackground(backgroundColor); // keep same background as if area is editable
+		area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, area.getFont().getSize()));
+		area.setLineWrap(true);
+		area.setWrapStyleWord(true);
+		area.setText(SNTDoctor.header() + "Checking, please wait...\n\n");
+		final JDialog d = new JDialog(owner, "SNT Doctor", Dialog.ModalityType.MODELESS);
+		d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE); // so that windowClosed is fired
+		final JButton copy = new JButton("Copy to Clipboard", IconFactory.buttonIcon(GLYPH.CLIPBOARD, 1f));
+		copy.setEnabled(false);
+		final JButton prefs = new JButton("SNT Settings...", IconFactory.buttonIcon(GLYPH.OPTIONS, 1f));
+		prefs.setToolTipText("Allows for clearing SNT's cache and resetting its preferences to defaults.");
+		prefs.addActionListener(e -> {
+			try {
+				SNTUtils.getContext().getService(org.scijava.command.CommandService.class).run(PrefsCmd.class, true);
+			} catch (final Throwable ex) {
+				SNTUtils.log("Could not open SNT Preferences: " + ex.getMessage());
+			}
+		});
+
+		final JToolBar toolbar = new JToolBar();
+		toolbar.add(prefs);
+		toolbar.addSeparator();
+		toolbar.add(copy);
+		final JPanel main = new JPanel(new BorderLayout(0, 0));
+		main.add(new JScrollPane(area), BorderLayout.CENTER);
+		main.add(toolbar, BorderLayout.SOUTH);
+		d.setContentPane(main);
+		d.getRootPane().putClientProperty("Window.style", "small");
+		d.pack();
+		new Thread(() -> {
+			String text;
+			try {
+				text = SNTDoctor.run(r -> SwingUtilities.invokeLater(() -> area.append(r + "\n\n"))).toString();
+			} catch (final Throwable t) {
+				text = SNTDoctor.header() + "SNT Doctor could not be completed: " + t + "\n";
+			}
+			final String reportText = text;
+			SwingUtilities.invokeLater(() -> {
+				area.setText(reportText);
+				area.setCaretPosition(0);
+				copy.addActionListener(e -> {
+					Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(reportText), null);
+					reportTempMsgOnButtonLabel(copy, "Copied!", false);
+				});
+				copy.setEnabled(true);
+			});
+		}, "SNT-Doctor").start();
+		return d;
+	}
+
+	private static JDialog doctorInstance;
+
+	/**
+	 * Shows the SNT Doctor, reusing the window if it is already open. Unlike {@link #doctorDialog(Window)}, at most
+	 * one instance is open at a time
+	 *
+	 * @param owner the dialog's owner (null allowed)
+	 * @return the (non-modal) results dialog
+	 */
+	public static synchronized JDialog showDoctorDialog(final Window owner) {
+		if (doctorInstance != null && doctorInstance.isDisplayable()) {
+			doctorInstance.toFront();
+			return doctorInstance;
+		}
+		final JDialog d = doctorDialog(owner);
+		doctorInstance = d;
+		d.addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosed(final WindowEvent we) {
+				synchronized (GuiUtils.class) {
+					if (doctorInstance == d) doctorInstance = null;
+				}
+			}
+		});
+		d.setLocationRelativeTo(owner);
+		d.setVisible(true);
+		d.toFront();
 		return d;
 	}
 
@@ -3029,8 +3146,8 @@ public class GuiUtils {
 			if (cause instanceof java.net.ConnectException || cause instanceof java.net.SocketTimeoutException)
 				return "Could not connect to the remote server - check your internet connection";
 			if (cause instanceof OutOfMemoryError)
-				return "Not enough memory. Please increase the memory available to Fiji (Edit > Options > "
-						+ "Memory & Threads...), restart, and try again. Closing other images may also help";
+				return "Not enough memory. Closing other images or increasing the memory available to Java may help. "
+						+ SNTUtils.doctorHint();
 		}
         assert t != null;
         return (t.getMessage() == null) ? t.getClass().getSimpleName() : t.getMessage();
@@ -4492,6 +4609,14 @@ public class GuiUtils {
 			mi.setIcon(IconFactory.menuIcon(GLYPH.FILE));
 			helpMenu.add(mi);
 			helpMenu.addSeparator();
+
+			final JMenuItem doctor = new JMenuItem("Run SNT Doctor...");
+			doctor.setIcon(IconFactory.menuIcon(GLYPH.STETHOSCOPE));
+			doctor.setToolTipText("Checks memory, compute, graphics, disk, network and the SNT installation");
+			doctor.putClientProperty("cmdFinder-keywords",
+					"problem,diagnostics,crash,system check,capabilities,GPU,OpenGL,slow,repair,reset,cache,RAM");
+			doctor.addActionListener(e -> showDoctorDialog(null));
+			helpMenu.add(doctor);
 
 			final JMenuItem about = new JMenuItem("About SNT...");
 			about.setIcon(IconFactory.menuIcon(GLYPH.INFO));

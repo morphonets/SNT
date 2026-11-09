@@ -238,8 +238,7 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
             SNTUtils.error(e);
 
         } catch (OutOfMemoryError e) {
-            System.err.println("Out of memory computing Frangi. Try Lazy processing instead.");
-            SNTUtils.error(e);
+            SNTUtils.reportOutOfMemory("computing Frangi", "Try Lazy processing instead", e);
         }
 
     }

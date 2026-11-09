@@ -353,18 +353,11 @@ public class SNTLoaderCmd extends DynamicCommand {
 			}
 		}
 		catch (final OutOfMemoryError error) {
-			final StringBuilder sb = new StringBuilder(
-					"Out of Memory: There is not enough RAM to load SNT under current options.\n");
-			sb.append("Please allocate more memory to IJ or ");
-			if (uiChoice.equals(UI_SIMPLE)) {
-				sb.append("choose a smaller ").append((sourceImp == null) ? "file."
-						: "image.");
-			}
-			else {
-				sb.append("select the \"").append(UI_SIMPLE).append("\" interface.");
-			}
-			sb.append("\n \nAlternatively, consider using one of the Big Data... options.");
-			exit(sb.toString());
+			final String advice = "Allocate more memory to ImageJ or " + (uiChoice.equals(UI_SIMPLE)
+					? "choose a smaller " + ((sourceImp == null) ? "file" : "image")
+					: "select the \"" + UI_SIMPLE + "\" interface");
+			exit(SNTUtils.reportOutOfMemory("loading SNT under the current options", advice, error, false)
+					+ "\n \nAlternatively, consider using one of the Big Data... options.");
 			GuiUtils.LAF.restoreLookAndFeel();
 		} finally {
 			exit("");

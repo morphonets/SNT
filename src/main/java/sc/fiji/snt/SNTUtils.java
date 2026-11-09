@@ -254,6 +254,58 @@ public class SNTUtils {
 		if (queueNotice) queueUINotice(string, GuiUtils.Notices.PendingNotice.ERROR);
 	}
 
+	/**
+	 * Hint pointing at the SNT Doctor, adapted to how SNT is running
+	 *
+	 * @return the hint, without trailing period
+	 */
+	public static String doctorHint() {
+		if (System.getProperty("pysnt.version") != null)
+			return "Run pysnt.doctor() to check your system";
+		final boolean hasUI = getInstance() != null && getInstance().getUI() != null;
+		if (hasUI || !java.awt.GraphicsEnvironment.isHeadless())
+			return "Run Help>Run SNT Doctor to check your memory and system settings";
+		return "Run SNTDoctor.run() to check your memory and system settings";
+	}
+
+	/**
+	 * As {@link #reportOutOfMemory(String, String, Throwable, boolean)}, mirroring the failure into the
+	 * notification center
+	 */
+	public static String reportOutOfMemory(final String task, final String advice, final Throwable t) {
+		return reportOutOfMemory(task, advice, t, true);
+	}
+
+	/**
+	 * Logs an out-of-memory failure (including the heap state) and builds the message to be displayed to the user.
+	 * Meant to be called from {@code catch (OutOfMemoryError)} blocks: it never throws, so that the caller's own
+	 * clean up is not skipped. It does not display dialogs
+	 *
+	 * @param task        what was being done when memory ran out, e.g., "searching for a path"
+	 * @param advice      optional, task-specific advice (without trailing period), or null
+	 * @param t           the error, or null
+	 * @param queueNotice whether to also mirror the failure into the notification center (with a "Run SNT Doctor"
+	 *                    action), e.g., false if the caller already shows the returned message in a dialog
+	 * @return the message for the user
+	 */
+	public static String reportOutOfMemory(final String task, final String advice, final Throwable t,
+										   final boolean queueNotice) {
+		String msg = "Out of memory";
+		try {
+			msg = "Out of memory while " + task
+					+ ((advice == null || advice.isBlank()) ? "" : ". " + advice) + ". " + doctorHint();
+			final HeapInfo heap = getHeapInfo();
+			error(msg + " [heap: " + heap.usedMB() + "/" + heap.maxMB() + " MB]", t, false);
+			if (queueNotice && getInstance() != null && getInstance().getUI() != null) {
+				GuiUtils.Notices.queueNotice(msg, null, () -> GuiUtils.showDoctorDialog(null),
+						GuiUtils.Notices.PendingNotice.ERROR);
+			}
+		} catch (final Throwable ignored) {
+			// never mask the caller's own handling
+		}
+		return msg;
+	}
+
 	public static synchronized void log(final String string) {
 		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();

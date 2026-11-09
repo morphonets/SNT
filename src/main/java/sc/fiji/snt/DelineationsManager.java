@@ -798,9 +798,8 @@ public class DelineationsManager {
                     final Throwable cause = (ex instanceof java.util.concurrent.ExecutionException
                             && ex.getCause() != null) ? ex.getCause() : ex;
                     if (cause instanceof OutOfMemoryError) {
-                        sntui.guiUtils.error(hadRef ? "The program ran out of memory."
-                                : "SNT ran out of memory. Increase voxel size and retry.");
-                        SNTUtils.error("SNT ran out of memory", cause);
+                        sntui.guiUtils.error(SNTUtils.reportOutOfMemory("rasterizing delineation labels",
+                                hadRef ? null : "Increase voxel size and retry", cause, false));
                     } else {
                         sntui.guiUtils.error("An error occurred. " + GuiUtils.consoleHint());
                         SNTUtils.error("Rasterization of delineation labels failed", cause);

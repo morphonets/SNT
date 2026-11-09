@@ -1131,9 +1131,10 @@ public class BigDataLoaderCmd extends ContextCommand {
             return new BigDataUtils.N5Sources(rewrapped, n5Sources.numTimepoints(), n5Sources.name(), null,
                     n5Sources.remote());
         } catch (final OutOfMemoryError oom) {
-            throw new IllegalStateException("Not enough memory to build a pyramid for '" + n5Sources.name()
-                    + "'. Increase the amount of memory available to Fiji/SNT, or convert the image to a multi-resolution "
-                    + "N5.", oom);
+            throw new IllegalStateException(SNTUtils.reportOutOfMemory(
+                    "building a pyramid for '" + n5Sources.name() + "'",
+                    "Convert the image to a multi-resolution N5, or increase the memory available to SNT", oom, false),
+                    oom);
         }
     }
 
@@ -1322,9 +1323,9 @@ public class BigDataLoaderCmd extends ContextCommand {
             try {
                 return BvvUtils.buildTiledPyramid((ImgPlus) img, 3);
             } catch (final OutOfMemoryError oom) {
-                SNTUtils.log("BVV: out of memory building tiled pyramid; falling back to downsampling");
-                new GuiUtils(null).error("Not enough memory to load '" + img.getName() + "' at full resolution. "
-                        + "Downsampling instead. Increase the amount of memory available to Fiji/SNT to avoid this.");
+                new GuiUtils(null).error(SNTUtils.reportOutOfMemory(
+                        "loading '" + img.getName() + "' at full resolution",
+                        "Downsampling instead. Increase the memory available to SNT to avoid this", oom, false));
             }
         }
         return ImgUtils.downsampleToFit((ImgPlus) img, maxTexSize, BvvUtils.MAX_SINGLE_TEXTURE_VOXELS);

@@ -396,7 +396,7 @@ public class FillerThread extends SearchThread {
             reportFinished(true);
 
         } catch (final OutOfMemoryError e) {
-            SNTUtils.error("Out of memory, try splitting the work across multiple FillerThread instances.", e);
+            SNTUtils.reportOutOfMemory("filling", "Try splitting the work across multiple FillerThread instances", e);
         }
     }
 

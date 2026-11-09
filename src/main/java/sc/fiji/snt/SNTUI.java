@@ -2160,8 +2160,9 @@ public class SNTUI extends JDialog {
                 showStatus("ZY/XZ views reloaded...", true);
                 refreshPanesButton.setText("Rebuild ZY/XZ views");
             } catch (final Throwable t) {
-                if (t instanceof OutOfMemoryError) {
-                    guiError("Out of Memory: There is not enough RAM to load side views!");
+                final boolean oom = t instanceof OutOfMemoryError;
+                if (oom) {
+                    guiError(SNTUtils.reportOutOfMemory("loading side views", null, t, false));
                 } else {
                     guiUtils.error(t);
                 }
@@ -2170,7 +2171,7 @@ public class SNTUI extends JDialog {
                     plugin.rebuildDisplayCanvases();
                     arrangeCanvases(false);
                 }
-                showStatus("Out of memory error...", true);
+                showStatus(oom ? "Out of memory error..." : "Side views could not be loaded...", true);
             } finally {
                 resetState();
             }
@@ -2211,12 +2212,13 @@ public class SNTUI extends JDialog {
                 arrangeCanvases(false);
                 showStatus("Canvas rebuilt...", true);
             } catch (final Throwable t) {
-                if (t instanceof OutOfMemoryError) {
-                    guiError("Out of Memory: There is not enough RAM to create a canvas this large.");
+                final boolean oom = t instanceof OutOfMemoryError;
+                if (oom) {
+                    guiError(SNTUtils.reportOutOfMemory("creating a canvas this large", null, t, false));
                 } else {
                     guiUtils.error(t);
                 }
-                showStatus("Out of memory error...", true);
+                showStatus(oom ? "Out of memory error..." : "Canvas could not be rebuilt...", true);
             } finally {
                 resetState();
             }
@@ -3695,8 +3697,7 @@ public class SNTUI extends JDialog {
                     SNTUtils.error(e2);
                     return ("Loading of image failed. " + GuiUtils.consoleHint() + ".");
                 } catch (final OutOfMemoryError e3) {
-                    SNTUtils.error(e3);
-                    return ("It seems there is not enough memory to proceed. " + GuiUtils.consoleHint() + ".");
+                    return SNTUtils.reportOutOfMemory("loading the image", null, e3, false) + ".";
                 } catch (final Exception e4) {
                     SNTUtils.error(e4);
                     return ("An unknown error occurred. " + GuiUtils.consoleHint() + ".");
@@ -6881,8 +6882,7 @@ public class SNTUI extends JDialog {
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(cmd, true, inputs);
             } catch (final OutOfMemoryError e) {
-                SNTUtils.error(e);
-                guiError("There is not enough memory to complete command. " + GuiUtils.consoleHint() + ".");
+                guiError(SNTUtils.reportOutOfMemory("running " + cmd.getSimpleName(), null, e, false));
             } finally {
                 if (preRunState != getState())
                     changeState(preRunState);

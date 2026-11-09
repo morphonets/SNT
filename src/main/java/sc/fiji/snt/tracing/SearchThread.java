@@ -502,7 +502,7 @@ public abstract class SearchThread extends AbstractSearch {
 
         }
         catch (final OutOfMemoryError oome) {
-            SNTUtils.error("Out Of Memory Error", oome);
+            SNTUtils.reportOutOfMemory("searching for a path", null, oome);
             setExitReason(OUT_OF_MEMORY);
             reportFinished(false);
         }
