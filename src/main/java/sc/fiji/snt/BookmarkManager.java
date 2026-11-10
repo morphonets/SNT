@@ -574,6 +574,17 @@ public class BookmarkManager {
             pMenu.add(mi);
         }
 
+        GuiUtils.MenuItems.addSeparator(pMenu, "Combine:");
+        mi = new JMenuItem("Merge by Distance...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
+        mi.addActionListener(e -> mergeBookmarks());
+        pMenu.add(mi);
+
+        mi = new JMenuItem("Merge Selection into One", IconFactory.menuIcon('\uf78c', true));
+        mi.setToolTipText("Replaces the selected entries (same channel and frame) with their centroid");
+        mi.addActionListener(e -> mergeSelectedBookmarks());
+        pMenu.add(mi);
+
         GuiUtils.MenuItems.addSeparator(pMenu, "Utilities:");
         if (sntui != null) {
             mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
@@ -832,42 +843,56 @@ public class BookmarkManager {
                 "<HTML>Max. distance between "+ obj + " to be merged (physical units):",
                 "Merge Locations", 5.0);
         if (threshold == null || threshold <= 0) return;
-        final double thresholdSq = threshold * threshold;
         final Map<Integer, List<Bookmark>> byChannel = new LinkedHashMap<>();
         for (final Bookmark b : candidates)
             byChannel.computeIfAbsent(b.c, k -> new ArrayList<>()).add(b);
         final Set<Bookmark> allConsumed = new HashSet<>();
         final List<Bookmark> allMerged = new ArrayList<>();
         for (final Map.Entry<Integer, List<Bookmark>> entry : byChannel.entrySet()) {
-            final List<Bookmark> chBookmarks = entry.getValue();
-            if (chBookmarks.size() < 2) continue;
-            final Set<Bookmark> consumed = new HashSet<>();
             final String chPrefix = (sntui != null) ? "Merged Ch" + entry.getKey() + " " : "Merged ";
-            for (final Bookmark seed : chBookmarks) {
-                if (consumed.contains(seed)) continue;
-                final List<Bookmark> group = new ArrayList<>();
-                group.add(seed);
-                for (final Bookmark other : chBookmarks) {
-                    if (other == seed || consumed.contains(other) || other.t != seed.t) continue;
-                    if (seed.distanceSquaredTo(other) <= thresholdSq)
-                        group.add(other);
-                }
-                if (group.size() >= 2) {
-                    consumed.addAll(group);
-                    final double cx = group.stream().mapToDouble(b -> b.x).average().orElse(seed.x);
-                    final double cy = group.stream().mapToDouble(b -> b.y).average().orElse(seed.y);
-                    final double cz = group.stream().mapToDouble(b -> b.z).average().orElse(seed.z);
-                    final String label = model.getUniqueLabel(chPrefix);
-                    final Bookmark merged = new Bookmark(label, cx, cy, cz, seed.c, seed.t, seed.getColor());
-                    if (viewer != null)
-                        merged.size = (float) group.stream().mapToDouble(b -> b.size).average().orElse(seed.size);
-                    allMerged.add(merged);
-                    allConsumed.addAll(consumed);
-                }
+            // Closest pair first (centroid linkage): a single pass yields a stable result
+            for (final List<Bookmark> group : NodeStatistics.clusterByProximity(entry.getValue(), threshold, b -> b.t)) {
+                allMerged.add(centroidOf(group, chPrefix));
+                allConsumed.addAll(group);
             }
         }
         applyMergeResult(new MergeResult(allConsumed, allMerged),
                 "Merge Bookmarks", "merged", "merge(" + threshold + ")");
+    }
+
+    /** Merges the explicitly selected rows (no distance criterion) */
+    private void mergeSelectedBookmarks() {
+        if (noBookmarksError()) return;
+        final int[] viewRows = table.getSelectedRows();
+        final String obj = (viewer == null) ? "bookmarks" : "markers";
+        if (viewRows.length < 2) {
+            getGuiUtils().error("Select at least 2 " + obj + " to be merged.");
+            return;
+        }
+        final List<Bookmark> group = new ArrayList<>(viewRows.length);
+        for (final int viewRow : viewRows)
+            group.add(model.getDataList().get(table.convertRowIndexToModel(viewRow)));
+        final Bookmark first = group.getFirst();
+        if (group.stream().anyMatch(b -> b.c != first.c || b.t != first.t)) {
+            getGuiUtils().error("Selected " + obj + " must share the same channel and frame.");
+            return;
+        }
+        final String prefix = (sntui != null) ? "Merged Ch" + first.c + " " : "Merged ";
+        applyMergeResult(new MergeResult(new HashSet<>(group), List.of(centroidOf(group, prefix))),
+                "Merge Bookmarks", "merged", "mergeSelection()");
+    }
+
+    /** Centroid of a group, inheriting channel, frame and color from its first member */
+    private Bookmark centroidOf(final List<Bookmark> group, final String labelPrefix) {
+        final Bookmark seed = group.getFirst();
+        final double cx = group.stream().mapToDouble(b -> b.x).average().orElse(seed.x);
+        final double cy = group.stream().mapToDouble(b -> b.y).average().orElse(seed.y);
+        final double cz = group.stream().mapToDouble(b -> b.z).average().orElse(seed.z);
+        final Bookmark merged = new Bookmark(model.getUniqueLabel(labelPrefix), cx, cy, cz, seed.c, seed.t,
+                seed.getColor());
+        if (viewer != null)
+            merged.size = (float) group.stream().mapToDouble(b -> b.size).average().orElse(seed.size);
+        return merged;
     }
 
     private List<Bookmark> getSelectedBookmarks() {

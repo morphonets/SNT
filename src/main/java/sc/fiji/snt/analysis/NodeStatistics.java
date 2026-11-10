@@ -28,9 +28,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -46,6 +49,7 @@ import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTPoint;
 import smile.neighbor.Neighbor;
 
 /**
@@ -654,6 +658,191 @@ public class NodeStatistics <T extends PointInImage> {
             pointInImage.v = neighbors[0].distance();
         }
 
+    }
+
+    /**
+     * Groups points that lie within {@code threshold} of each other using
+     * agglomerative clustering with centroid linkage: the globally closest pair
+     * of clusters is merged first, and the process is repeated (with distances
+     * measured between cluster centroids) until no pair is closer than
+     * {@code threshold}. Unlike a seed-based greedy approach, the outcome does
+     * not depend on the order of the input, and a single call suffices:
+     * clustering the centroids of the returned groups, together with the
+     * ungrouped points, is a no-op.
+     *
+     * @param points       the points to be clustered
+     * @param threshold    the maximum distance between cluster centroids for
+     *                     them to be merged (same units as the points)
+     * @param partitionKey optional function (may be null) assigning each point
+     *                     to a partition (e.g., channel and frame). Only points
+     *                     in the same partition are grouped
+     * @param <T>          the type of point
+     * @return the groups, each with at least two members, in a deterministic
+     *         order. Points that were not grouped are not returned
+     */
+    public static <T extends SNTPoint> List<List<T>> clusterByProximity(
+            final Collection<T> points, final double threshold,
+            final Function<? super T, ?> partitionKey) {
+        final Map<Object, List<T>> partitions = new LinkedHashMap<>();
+        for (final T p : points) {
+            final Object key = (partitionKey == null) ? Boolean.TRUE : partitionKey.apply(p);
+            partitions.computeIfAbsent(key, k -> new ArrayList<>()).add(p);
+        }
+        final List<List<T>> result = new ArrayList<>();
+        if (!(threshold > 0)) return result;
+        for (final List<T> partition : partitions.values()) {
+            if (partition.size() < 2) continue;
+            final double[][] xyz = new double[partition.size()][];
+            for (int i = 0; i < xyz.length; i++) {
+                final T p = partition.get(i);
+                xyz[i] = new double[] { p.getX(), p.getY(), p.getZ() };
+            }
+            for (final int[] group : new CentroidClusterer(xyz, threshold).run()) {
+                final List<T> members = new ArrayList<>(group.length);
+                for (final int idx : group) members.add(partition.get(idx));
+                result.add(members);
+            }
+        }
+        return result;
+    }
+
+    /** Agglomerative centroid-linkage clustering, see clusterByProximity() */
+    private static final class CentroidClusterer {
+
+        private record CellKey(long x, long y, long z) {}
+
+        private record Candidate(double dSq, int a, int b) implements Comparable<Candidate> {
+            @Override
+            public int compareTo(final Candidate o) {
+                int c = Double.compare(dSq, o.dSq);
+                if (c == 0) c = Integer.compare(a, o.a);
+                return (c == 0) ? Integer.compare(b, o.b) : c;
+            }
+        }
+
+        private final double thr;
+        private final double thrSq;
+        private final int n;
+        // Cluster ids [0, n) are the input points, higher ids are merged clusters
+        private final double[] sx, sy, sz;
+        private final int[] count, left, right;
+        private final boolean[] alive;
+        // Uniform grid (cell size == threshold) holding the alive clusters
+        private final Map<CellKey, List<Integer>> grid = new HashMap<>();
+        private final PriorityQueue<Candidate> queue = new PriorityQueue<>();
+        private int next;
+
+        CentroidClusterer(final double[][] xyz, final double threshold) {
+            thr = threshold;
+            thrSq = threshold * threshold;
+            n = xyz.length;
+            sx = new double[2 * n];
+            sy = new double[2 * n];
+            sz = new double[2 * n];
+            count = new int[2 * n];
+            left = new int[2 * n];
+            right = new int[2 * n];
+            alive = new boolean[2 * n];
+            for (int i = 0; i < n; i++) {
+                sx[i] = xyz[i][0];
+                sy[i] = xyz[i][1];
+                sz[i] = xyz[i][2];
+                count[i] = 1;
+                alive[i] = Double.isFinite(sx[i]) && Double.isFinite(sy[i]) && Double.isFinite(sz[i]);
+            }
+            next = n;
+        }
+
+        List<int[]> run() {
+            for (int i = 0; i < n; i++) {
+                if (!alive[i]) continue;
+                pairUp(i);
+                insert(i);
+            }
+            Candidate c;
+            while ((c = queue.poll()) != null) {
+                // Stale entries refer to clusters that were already merged
+                if (!alive[c.a] || !alive[c.b]) continue;
+                final int id = next++;
+                sx[id] = sx[c.a] + sx[c.b];
+                sy[id] = sy[c.a] + sy[c.b];
+                sz[id] = sz[c.a] + sz[c.b];
+                count[id] = count[c.a] + count[c.b];
+                left[id] = c.a;
+                right[id] = c.b;
+                remove(c.a);
+                remove(c.b);
+                alive[id] = true;
+                pairUp(id);
+                insert(id);
+            }
+            final List<int[]> groups = new ArrayList<>();
+            for (int id = 0; id < next; id++) {
+                if (alive[id] && count[id] > 1) groups.add(leaves(id));
+            }
+            return groups;
+        }
+
+        private CellKey cell(final int id) {
+            return new CellKey((long) Math.floor(sx[id] / count[id] / thr),
+                    (long) Math.floor(sy[id] / count[id] / thr),
+                    (long) Math.floor(sz[id] / count[id] / thr));
+        }
+
+        private void insert(final int id) {
+            grid.computeIfAbsent(cell(id), k -> new ArrayList<>()).add(id);
+        }
+
+        private void remove(final int id) {
+            alive[id] = false;
+            final CellKey key = cell(id);
+            final List<Integer> ids = grid.get(key);
+            ids.remove(Integer.valueOf(id));
+            if (ids.isEmpty()) grid.remove(key);
+        }
+
+        /** Queues all alive clusters within threshold of the specified one */
+        private void pairUp(final int id) {
+            final double cx = sx[id] / count[id];
+            final double cy = sy[id] / count[id];
+            final double cz = sz[id] / count[id];
+            final CellKey k = cell(id);
+            for (long dx = -1; dx <= 1; dx++) {
+                for (long dy = -1; dy <= 1; dy++) {
+                    for (long dz = -1; dz <= 1; dz++) {
+                        final List<Integer> ids = grid.get(new CellKey(k.x + dx, k.y + dy, k.z + dz));
+                        if (ids == null) continue;
+                        for (final int j : ids) {
+                            final double ex = cx - sx[j] / count[j];
+                            final double ey = cy - sy[j] / count[j];
+                            final double ez = cz - sz[j] / count[j];
+                            final double dSq = ex * ex + ey * ey + ez * ez;
+                            if (dSq <= thrSq) queue.add(new Candidate(dSq, Math.min(id, j), Math.max(id, j)));
+                        }
+                    }
+                }
+            }
+        }
+
+        /** Input indices (ascending) of all points under the specified cluster */
+        private int[] leaves(final int root) {
+            final int[] out = new int[count[root]];
+            final int[] stack = new int[count[root]];
+            int sp = 0;
+            int m = 0;
+            stack[sp++] = root;
+            while (sp > 0) {
+                final int id = stack[--sp];
+                if (id < n) {
+                    out[m++] = id;
+                } else {
+                    stack[sp++] = left[id];
+                    stack[sp++] = right[id];
+                }
+            }
+            Arrays.sort(out);
+            return out;
+        }
     }
 
 	/* IDE debug method */

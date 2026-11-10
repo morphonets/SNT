@@ -29,6 +29,7 @@ import ij.plugin.frame.RoiManager;
 import net.imglib2.display.ColorTable;
 import net.imglib2.realtransform.AffineTransform3D;
 import org.scijava.command.CommandService;
+import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
@@ -487,9 +488,13 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Edit selected seed(s)");
         jmi.addActionListener(e -> editSelected());
         menu.add(jmi);
-        jmi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        jmi = new JMenuItem("Merge by Distance...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
         jmi.setToolTipText("Merges nearby seeds, replacing them with centroids");
         jmi.addActionListener(e -> mergeSeeds());
+        menu.add(jmi);
+        jmi = new JMenuItem("Merge Selection into One", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        jmi.setToolTipText("Replaces the selected seeds (same channel and frame) with their centroid");
+        jmi.addActionListener(e -> mergeSelectedSeeds());
         menu.add(jmi);
         menu.add(getScaleConfidenceMenu());
         menu.add(getScaleRadiusMenu());
@@ -1464,42 +1469,50 @@ public class SeedManager extends JPanel {
                 "<HTML>Max. distance between seeds to be merged (physical units):",
                 "Merge Locations", 5.0);
         if (threshold == null || threshold <= 0) return;
-        final double thresholdSq = threshold * threshold;
-        final Map<Integer, List<SeedPoint>> byChannel = new LinkedHashMap<>();
-        for (final SeedPoint s : candidates)
-            byChannel.computeIfAbsent(s.channel, k -> new ArrayList<>()).add(s);
         final Set<SeedPoint> allConsumed = new HashSet<>();
         final List<SeedPoint> allMerged = new ArrayList<>();
-        for (final List<SeedPoint> chSeeds : byChannel.values()) {
-            if (chSeeds.size() < 2) continue;
-            final Set<SeedPoint> consumed = new HashSet<>();
-            for (final SeedPoint seed : chSeeds) {
-                if (consumed.contains(seed)) continue;
-                final List<SeedPoint> group = new ArrayList<>();
-                group.add(seed);
-                for (final SeedPoint other : chSeeds) {
-                    if (other == seed || consumed.contains(other) || other.frame != seed.frame) continue;
-                    if (seed.distanceSquaredTo(other) <= thresholdSq)
-                        group.add(other);
-                }
-                if (group.size() >= 2) {
-                    consumed.addAll(group);
-                    final double cx = group.stream().mapToDouble(s2 -> s2.x).average().orElse(seed.x);
-                    final double cy = group.stream().mapToDouble(s2 -> s2.y).average().orElse(seed.y);
-                    final double cz = group.stream().mapToDouble(s2 -> s2.z).average().orElse(seed.z);
-                    final double cc = group.stream().mapToDouble(s2 -> s2.confidence).average().orElse(seed.confidence);
-                    final double cr = group.stream().mapToDouble(s2 -> s2.radius).average().orElse(seed.radius);
-                    final SeedPoint merged = new SeedPoint(cx, cy, cz, cc, cr,
-                            seed.channel, seed.frame, seed.type, "merged");
-                    allMerged.add(merged);
-                    allConsumed.addAll(consumed);
-                }
-            }
+        // Closest pair first (centroid linkage): a single pass yields a stable result
+        for (final List<SeedPoint> group : NodeStatistics.clusterByProximity(candidates, threshold,
+                s -> List.of(s.channel, s.frame))) {
+            allMerged.add(centroidOf(group));
+            allConsumed.addAll(group);
         }
         if (allMerged.isEmpty()) {
             sntui.error("No seeds could be merged within the specified distance.");
             return;
         }
+        applyMerge(allConsumed, allMerged, "merge(" + threshold + ")");
+    }
+
+    /** Merges the explicitly selected seeds (no distance criterion) */
+    private void mergeSelectedSeeds() {
+        if (noSeedsError()) return;
+        final List<SeedPoint> group = new ArrayList<>(overlay.getSelectedSeeds());
+        if (group.size() < 2) {
+            sntui.error("Select at least 2 seeds to be merged.");
+            return;
+        }
+        final SeedPoint first = group.getFirst();
+        if (group.stream().anyMatch(s -> s.channel != first.channel || s.frame != first.frame)) {
+            sntui.error("Selected seeds must share the same channel and frame.");
+            return;
+        }
+        applyMerge(new HashSet<>(group), List.of(centroidOf(group)), "mergeSelection()");
+    }
+
+    /** Centroid of a group, inheriting channel, frame and type from its first member */
+    private SeedPoint centroidOf(final List<SeedPoint> group) {
+        final SeedPoint seed = group.getFirst();
+        final double cx = group.stream().mapToDouble(s -> s.x).average().orElse(seed.x);
+        final double cy = group.stream().mapToDouble(s -> s.y).average().orElse(seed.y);
+        final double cz = group.stream().mapToDouble(s -> s.z).average().orElse(seed.z);
+        final double cc = group.stream().mapToDouble(s -> s.confidence).average().orElse(seed.confidence);
+        final double cr = group.stream().mapToDouble(s -> s.radius).average().orElse(seed.radius);
+        return new SeedPoint(cx, cy, cz, cc, cr, seed.channel, seed.frame, seed.type, "merged");
+    }
+
+    private void applyMerge(final Set<SeedPoint> allConsumed, final List<SeedPoint> allMerged,
+                            final String recordSuffix) {
         final String suffix = (allMerged.size() == 1) ? " entry" : " entries";
         if (!sntui.guiUtils.getConfirmation(
                 allConsumed.size() + " seeds will be replaced by " + allMerged.size()
@@ -1509,7 +1522,7 @@ public class SeedManager extends JPanel {
         overlay.removeAll(allConsumed);
         overlay.addAll(allMerged);
         sntui.showStatus(allMerged.size() + " merged seed(s) created", true);
-        recordComment("Seed Manager: merge(" + threshold + ")");
+        recordComment("Seed Manager: " + recordSuffix);
     }
 
     private void detectTufts() {
