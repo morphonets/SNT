@@ -144,16 +144,7 @@ public class SNTTable extends DefaultGenericTable {
 		final TableIOOptions options = new TableIOOptions();
 		options.columnDelimiter(colDelimiter);
 		try {
-			Table<?, ?> table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
-			if (table.isEmpty())
-				table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(true));
-			if (table.isEmpty())
-				table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(false));
-			if (table.isEmpty())
-				table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(true));
-			if (table.isEmpty())
-				throw new IllegalArgumentException(fileLocation.getName() + " does not seem to contain valid data!?");
-			return table;
+			return openTable(fileLocation, tableIO, options);
 		} catch (final NumberFormatException exception) {
 			// Common gotcha: CSVs round-tripped through other software often have ASCII characters
 			// silently replaced with "smart" Unicode counterparts (curly quotes, en/em dashes, math
@@ -166,7 +157,38 @@ public class SNTTable extends DefaultGenericTable {
 								+ "Re-save the file using plain ASCII characters.",
 						msg, describeProblematicChar((char) bad), bad), exception);
 			}
-			throw new IOException(exception);
+			// Otherwise, most likely an empty cell in a column that was inferred as numeric from its first
+			// row. Retry leniently: numbers where parseable, text (possibly empty) elsewhere. Consumers
+			// are expected to coerce cells, see asDouble(), asInt() and asString()
+			try {
+				options.guessParser(false).parser(SNTTable::lenientParse);
+				return openTable(fileLocation, tableIO, options);
+			} catch (final RuntimeException ignored) {
+				throw new IOException(exception);
+			}
+		}
+	}
+
+	private static Table<?, ?> openTable(final FileLocation fileLocation, final DefaultTableIOPlugin tableIO,
+			final TableIOOptions options) throws IOException {
+		Table<?, ?> table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(true));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(false));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(true));
+		if (table.isEmpty())
+			throw new IllegalArgumentException(fileLocation.getName() + " does not seem to contain valid data!?");
+		return table;
+	}
+
+	private static Object lenientParse(final String cell) {
+		if (cell == null || cell.isBlank()) return "";
+		try {
+			return Double.valueOf(cell.trim());
+		} catch (final NumberFormatException ex) {
+			return cell;
 		}
 	}
 
