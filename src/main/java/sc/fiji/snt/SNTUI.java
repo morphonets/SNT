@@ -604,6 +604,7 @@ public class SNTUI extends JDialog {
         add(statusBar(), dialogGbc);
         addFileDrop(this, guiUtils);
         curationManager.registerCommands(commandFinder);
+        bookmarkManager.registerCommands(commandFinder);
         pack();
         setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
         pack();

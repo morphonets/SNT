@@ -23,6 +23,7 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
+import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTEditorPane;
@@ -35,6 +36,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.stream.Collectors;
 
 /**
  * Implements the <i>Notepad</i> pane.
@@ -87,7 +89,37 @@ public class NotesUI {
         gbc.gridy++;
         gbc.weighty = 0.95;
         container.add(editor.getScrollPane(), gbc);
+        // Drag-and-drop. SNTUI's dialog-wide FileDrop recursively overrides the drop
+        // targets of all its children, so install ours last
+        SwingUtilities.invokeLater(() -> new FileDrop(editor.getScrollPane(),
+                files -> SwingUtilities.invokeLater(() -> handleDroppedFiles(files))));
         return container;
+    }
+
+    /**
+     * A single Markdown file replaces the notes (after confirmation if there is
+     * existing text). Anything else is inserted, as path(s), at the caret location
+     */
+    private void handleDroppedFiles(final File[] files) {
+        if (files == null || files.length == 0) return;
+        if (files.length == 1 && files[0].isFile() && isMarkdown(files[0])) {
+            if (!editor.getText().isBlank() && !sntui.guiUtils.getConfirmation(
+                    "Importing " + files[0].getName() + " will clear existing notes. Proceed?",
+                    "Replace Notepad Contents?"))
+                return;
+            loadNotesFromFile(files[0]);
+            noRecordComment();
+            return;
+        }
+        final String paths = java.util.Arrays.stream(files).map(File::getAbsolutePath)
+                .collect(Collectors.joining(System.lineSeparator()));
+        editor.replaceSelection(paths);
+        editor.requestFocusInWindow();
+    }
+
+    private static boolean isMarkdown(final File file) {
+        final String name = file.getName().toLowerCase();
+        return name.endsWith(".md") || name.endsWith(".markdown");
     }
 
     private JComponent getToolBar() {

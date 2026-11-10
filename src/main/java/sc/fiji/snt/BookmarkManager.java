@@ -32,8 +32,10 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.cmds.SNTLink;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
@@ -82,6 +84,8 @@ public class BookmarkManager {
     private JDialog viewerFrame; // floating dialog for viewer mode (non-modal, owned by viewer frame)
     // Detachable table state, owned by the helper.
     private JPanel panel; // cached panel built by getPanel()
+    private JPopupMenu tablePopup; // table's contextual menu (see registerCommands())
+    private JToolBar mainToolbar; // bottom toolbar (see registerCommands())
     private JScrollPane tableScroll; // single scroll pane wrapping `table` (created in assembleTable)
     private GridBagConstraints tableScrollGbc; // captured constraints for re-docking
     private GuiUtils.Tables.DetachableTable tableDetacher;
@@ -312,10 +316,37 @@ public class BookmarkManager {
         panel.add(tableScroll, tableScrollGbc);
         gbc.gridy++;
         gbc.weighty = 0.0;
-        panel.add(assembleToolbar(), gbc);
+        mainToolbar = assembleToolbar();
+        panel.add(mainToolbar, gbc);
         // Initialize column widths after layout is complete
         SwingUtilities.invokeLater(() -> resetOrResizeColumns(false, true));
         return panel;
+    }
+
+    /**
+     * Registers the table's contextual menu and toolbar commands in the SNT Command Finder. Only
+     * meaningful for the SNTUI-hosted instance (viewer markers register via the viewer itself)
+     *
+     * @param cmdFinder the command finder instance
+     */
+    protected void registerCommands(final SNTCommandFinder cmdFinder) {
+        if (cmdFinder == null) return;
+        final String tab = "Bookmarks tab";
+        if (tablePopup != null)
+            cmdFinder.register(tablePopup, List.of(tab, "Table Menu"));
+        if (mainToolbar != null) {
+            for (final Component c : mainToolbar.getComponents()) {
+                if (c instanceof GuiUtils.Buttons.OptionsButton ob) {
+                    final String sub = (String) ob.getClientProperty("cmdFinder");
+                    cmdFinder.register(ob.popupMenu, (sub == null) ? List.of(tab) : List.of(tab, sub));
+                } else if (c instanceof JButton b && b.getActionCommand() != null
+                        && "Go To Location...".equals(b.getActionCommand())) {
+                    cmdFinder.register(b, tab);
+                }
+            }
+        }
+        if (highlightToggle != null)
+            cmdFinder.register(highlightToggle, tab);
     }
 
     private String introText(final boolean insideSNTUI) {
@@ -364,6 +395,7 @@ public class BookmarkManager {
     private BookmarkTable assembleTable(final BookmarkModel model) {
         final BookmarkTable table = new BookmarkTable(model);
         final JPopupMenu pMenu = assembleTablePopupMenu(table);
+        tablePopup = pMenu;
         table.setComponentPopupMenu(pMenu);
         // Live-sync the overlay highlights with the table selection when the
         // toggle is on. valueIsAdjusting is filtered so click-and-drag selections
@@ -388,6 +420,10 @@ public class BookmarkManager {
         // floating dialog. BookmarkTable.getContainer() copies the table's
         // popup onto the scroll pane, so we must set the popup BEFORE this.
         tableScroll = table.getContainer();
+        // CSV drag-and-drop onto the table. SNTUI's dialog-wide FileDrop recursively
+        // overrides drop targets of all its children, so install ours last
+        SwingUtilities.invokeLater(() -> new FileDrop(tableScroll,
+                files -> SwingUtilities.invokeLater(() -> handleDroppedFiles(files))));
         // Detach/Dock toggle, placed right after Resize/Reset Columns so the
         // table-management actions stay grouped. The Searchable items are
         // appended last so they remain at the bottom of the popup.
@@ -495,12 +531,7 @@ public class BookmarkManager {
                 () -> recordCmd("clearSelection()"))); // recordCmd only records clear, not select all
         pMenu.addSeparator();
 
-        JMenuItem mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
-        mi.addActionListener(e -> mergeBookmarks());
-        pMenu.add(mi);
-
-        mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
+        JMenuItem mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final int[] rows = table.getSelectedRows();
@@ -1277,6 +1308,7 @@ public class BookmarkManager {
             highlightToggle.setToolTipText("<html>Highlight bookmark locations on the image. With nothing selected,<br>"
                     + "all bookmarks are highlighted; otherwise only the selected ones.<br>"
                     + "Click again to toggle.");
+            highlightToggle.setActionCommand("Toggle Bookmark Highlights"); // see registerCommands()
             highlightToggle.addActionListener(e -> {
                 if (highlightToggle.isSelected()) showHighlights();
                 else hideHighlights();
@@ -1289,14 +1321,18 @@ public class BookmarkManager {
     private JToolBar assembleToolbar() {
         final JButton impButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.IMPORT, 1f, importMenu());
         impButton.setToolTipText("Import bookmarks");
+        impButton.putClientProperty("cmdFinder", "Import"); // see registerCommands()
         final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export bookmarks");
+        expButton.putClientProperty("cmdFinder", "Export"); // see registerCommands()
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.add(impButton);
         tb.add(expButton);
         tb.addSeparator();
-        tb.add(GuiUtils.Buttons.toolbarButton(goToAction(), "Zoom into a specific coordinate"));
+        final JButton goToButton = GuiUtils.Buttons.toolbarButton(goToAction(), "Zoom into a specific coordinate");
+        goToButton.setActionCommand("Go To Location..."); // label displayed in SNTCommandFinder
+        tb.add(goToButton);
         if (viewer != null) {
             tb.add(Box.createHorizontalGlue());
             // Navigation: Prev / Next / Reset
@@ -1536,6 +1572,23 @@ public class BookmarkManager {
         if (viewer == null) return;
         viewer.flyTo(b.getX(), b.getY(), b.getZ(), b.t, b.label);
         goToMaterializedCrop(b); // Stream mode only
+    }
+
+    private void handleDroppedFiles(final File[] files) {
+        if (files == null || files.length != 1 || !files[0].isFile()
+                || !files[0].getName().toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            getGuiUtils().error("Only a single CSV file can be dropped onto this table.");
+            return;
+        }
+        // Loading replaces table contents
+        if (!model.getDataList().isEmpty() && !getGuiUtils().getConfirmation(
+                "Importing " + files[0].getName() + " will replace the current entries. Proceed?",
+                "Replace Entries?")) {
+            return;
+        }
+        recordCmd("load(\"" + files[0].getAbsolutePath() + "\")");
+        loadBookmarksFromFile(files[0]);
+        if (sntui != null) sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
     }
 
     private void loadBookmarksFromFile(final File file) {
@@ -2162,6 +2215,7 @@ class CellEditor extends DefaultCellEditor {
 class BookmarkTable extends JTable {
 
     String placeholderMsg =   "Bookmark image locations using Shift+B";
+    final String placeholderHint = "Or drop a CSV file here";
 
     BookmarkTable(final BookmarkModel model) {
         super(model);
@@ -2198,8 +2252,11 @@ class BookmarkTable extends JTable {
             g2.setColor(GuiUtils.Colors.disabledComponentColor());
             final java.awt.FontMetrics fm = g2.getFontMetrics();
             final java.awt.Rectangle visible = getVisibleRect();
-            g2.drawString(placeholderMsg, visible.x + (visible.width - fm.stringWidth(placeholderMsg)) / 2,
-                    visible.y + (visible.height - fm.getHeight()) / 2 + fm.getAscent());
+            // Two centered lines: main message and hint
+            final int top = visible.y + (visible.height - 2 * fm.getHeight()) / 2 + fm.getAscent();
+            g2.drawString(placeholderMsg, visible.x + (visible.width - fm.stringWidth(placeholderMsg)) / 2, top);
+            g2.drawString(placeholderHint, visible.x + (visible.width - fm.stringWidth(placeholderHint)) / 2,
+                    top + fm.getHeight());
         }
     }
 
