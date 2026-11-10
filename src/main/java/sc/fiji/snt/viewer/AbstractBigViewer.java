@@ -29,6 +29,7 @@ import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.ColorChooserButton;
+import sc.fiji.snt.gui.FileInspector;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.ContextMenuCommand;
 import sc.fiji.snt.gui.GuiUtils;
@@ -58,6 +59,7 @@ import java.io.File;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 /**
  * Abstract base for SNT's BigDataViewer-family viewers ({@link Bvv}, {@link Bdv}, etc.).
@@ -754,7 +756,7 @@ public abstract class AbstractBigViewer {
         final int maxChars = 60;
         final String text = (msg.length() <= maxChars) ? msg
                 : "<html><div width=" + com.formdev.flatlaf.util.UIScale.scale(380) + ">"
-                + msg.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+                + GuiUtils.Text.escapeHtml(msg);
         final int timeoutMs = Math.clamp(2500L + 50L * msg.length(), 4000, 12000);
         GuiUtils.displayBanner(text, java.awt.Color.BLACK, canvas, SwingConstants.SOUTH, true, timeoutMs);
     }
@@ -1586,35 +1588,178 @@ public abstract class AbstractBigViewer {
     /**
      * Allows files to be imported by dropping them onto a component (e.g., the viewer's card panel):
      * reconstructions (SWC, TRACES, etc.) as in {@link #add(File[])}, display settings files as in
-     * {@link #loadViewerSettings(String)}, and CSV files into the {@link #getMarkerManager() marker
-     * manager}. Children added to the component later are covered as they do not define drop targets
+     * {@link #loadViewerSettings(String)}, CSV files into the {@link #getMarkerManager() marker
+     * manager}, and datasets (IMS, BDV XML, N5 and OME-Zarr) as additional sources, after confirmation. Children added to the component later are covered as they do not define drop targets
      */
     protected void installFileDrop(final bdv.ui.CardPanel c) {
         if (c == null || c.getComponent() == null) return;
-        new FileDrop(c.getComponent(), files -> {
-            final List<File> recs = new ArrayList<>();
-            final List<File> csvs = new ArrayList<>();
-            File settings = null;
-            for (final File f : files) {
-                if (ViewerSettingsUtils.isDisplaySettingsFile(f)) {
-                    if (settings == null) settings = f;
-                } else if (f.isFile() && f.getName().toLowerCase().endsWith(".csv")) {
-                    csvs.add(f);
-                } else {
-                    recs.addAll(IOUtils.listReconstructionFiles(f));
+        // Dropped items are classified in the background, within a fixed time budget (see FileInspector), so
+        // that folders may be huge, or on slow or stalled drives
+        new FileDrop(c.getComponent(), files -> FileInspector.shared().inspect(files, this::routeDrop));
+    }
+
+    // Runs on the EDT. Classification is by name (and sentinel files), so only what is left (XML files, folder
+    // contents, Imaris sidecars) needs to be read, and that is done in the background
+    private void routeDrop(final FileInspector.Result result) {
+        final List<File> csvs = new ArrayList<>();
+        final List<File> datasets = new ArrayList<>();
+        final List<File> toScan = new ArrayList<>(); // reconstruction files, archives, and folders
+        final List<File> xmls = new ArrayList<>(); // display settings or Neurolucida
+        final List<String> unreachable = new ArrayList<>();
+        for (final FileInspector.Item item : result.items()) {
+            final File f = item.file();
+            switch (item.kind()) {
+                case CSV -> csvs.add(f);
+                case IMS, BDV_XML, ZARR_DIR, N5_DIR -> datasets.add(f);
+                case XML -> xmls.add(f);
+                case TRACES, SWC, JSON, NDF, RECONSTRUCTION_ZIP, DIRECTORY -> toScan.add(f);
+                case UNREACHABLE, MISSING -> unreachable.add(f.getName());
+                default -> { /* not supported by viewers */ }
+            }
+        }
+        if (!unreachable.isEmpty()) {
+            getGuiUtils().error(GuiUtils.Text.htmlLines(GuiUtils.Text.summarize(unreachable)
+                    + " could not be accessed in time. Is the drive or network share available?"));
+        }
+        final List<File> recs = new ArrayList<>();
+        final File[] settings = { null };
+        final boolean[] needsSidecar = { false }; // an .ims file without a BDV XML next to it
+        new SwingWorker<Void, Void>() {
+
+            @Override
+            protected Void doInBackground() {
+                try {
+                    for (final File f : xmls) {
+                        if (!ViewerSettingsUtils.isDisplaySettingsFile(f)) toScan.add(f);
+                        else if (settings[0] == null) settings[0] = f;
+                    }
+                    for (final File f : datasets) {
+                        if (IOUtils.getType(f) == IOUtils.FileType.IMS) {
+                            final String p = f.getAbsolutePath();
+                            needsSidecar[0] |= !new File(p.substring(0, p.length() - 4) + ".xml").exists();
+                        }
+                    }
+                    if (!toScan.isEmpty()) recs.addAll(IOUtils.listReconstructionSources(toScan.toArray(File[]::new)));
+                } catch (final RuntimeException ex) {
+                    SNTUtils.error("Could not process dropped item(s)", ex);
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                final File sf = settings[0];
+                if (sf != null) loadSettingsFile(sf);
+                // marker manager is built lazily: EDT only
+                csvs.forEach(f -> getMarkerManager().load(f));
+                // Display settings and markers are harmless mid-path. Paths and sources are not
+                if ((!recs.isEmpty() || !datasets.isEmpty()) && snt != null && snt.getUI() != null
+                        && snt.getUI().isBusy()) {
+                    getGuiUtils().error("Please finish the current operation (e.g., complete or cancel the current path, "
+                            + "or pause tracing) before importing data.", "Import Not Possible");
+                    return;
+                }
+                if (!recs.isEmpty()) {
+                    add(recs.toArray(new File[0]));
+                } else if (sf == null && csvs.isEmpty() && datasets.isEmpty() && unreachable.isEmpty()) {
+                    getGuiUtils().error("None of the dropped item(s) could be imported.");
+                }
+                if (!datasets.isEmpty()) addDatasets(datasets, needsSidecar[0]);
+            }
+        }.execute();
+    }
+
+    /**
+     * Hook for subclasses: displays a dataset resolved by {@link BigDataUtils#resolvePathToSource(String)}, in
+     * addition to the ones already displayed. Called on the EDT
+     *
+     * @param source an {@link AbstractSpimData} or a {@link BigDataUtils.N5Sources} instance
+     * @param path   the file path
+     */
+    protected void showDataset(final Object source, final String path) {
+        throw new UnsupportedOperationException("Adding datasets is not supported by this viewer");
+    }
+
+    // Dropped datasets (IMS, BDV XML, N5 and OME-Zarr) are added to the viewer, after confirmation. Resolving
+    // a dataset may be slow (or may write an XML sidecar file for IMS files): it is done in the background
+    private void addDatasets(final List<File> files, final boolean needsSidecar) {
+        final boolean linked = snt != null && snt.isStreamMode();
+        if (linked && !getGuiUtils().showWarningOnce(snt.getPrefs(), "stream-add-sources-skipnag",
+                GuiUtils.Text.htmlLines("Adding extra sources to an SNT Stream session is supported "
+                        + "on a best-effort basis. The recommended strategy is to specify all paths at once, "
+                        + "using the \"Big Data\" prompt."), "Stream Session")) {
+            return;
+        }
+        final String names = GuiUtils.Text.summarize(files.stream().map(File::getName).toList());
+        final List<String> lines = new ArrayList<>();
+        lines.add("Add " + names + " to this viewer?");
+        if (needsSidecar) lines.add("A BDV XML file will be created next to the Imaris file(s).");
+        if (linked) lines.add("Its dimensions and voxel size must match those of the current dataset.");
+        final String msg = GuiUtils.Text.htmlLines(lines.toArray(String[]::new));
+        if (!getGuiUtils().getConfirmation(msg, "Add Dataset?", "Yes. Continue", "Cancel")) return;
+        new SwingWorker<Map<File, Object>, Void>() {
+
+            final Map<File, String> failures = new LinkedHashMap<>();
+
+            @Override
+            protected Map<File, Object> doInBackground() {
+                final Map<File, Object> resolved = new LinkedHashMap<>();
+                for (final File f : files) {
+                    try {
+                        final Object source = BigDataUtils.resolvePathToSource(f.getAbsolutePath());
+                        if (source instanceof AbstractSpimData<?> || source instanceof BigDataUtils.N5Sources)
+                            resolved.put(f, source);
+                        else failures.put(f, "not a streamable dataset");
+                    } catch (final RuntimeException ex) {
+                        SNTUtils.error("Could not open " + f, ex);
+                        failures.put(f, String.valueOf(ex.getMessage()));
+                    }
+                }
+                return resolved;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get().forEach((f, source) -> {
+                        try {
+                            if (linked) {
+                                final String mismatch = mismatchWithSession(source);
+                                if (mismatch != null) {
+                                    failures.put(f, mismatch);
+                                    return;
+                                }
+                            }
+                            showDataset(source, f.getAbsolutePath());
+                        } catch (final RuntimeException ex) {
+                            SNTUtils.error("Could not display " + f, ex);
+                            failures.put(f, String.valueOf(ex.getMessage()));
+                        }
+                    });
+                } catch (final InterruptedException | java.util.concurrent.ExecutionException ex) {
+                    SNTUtils.error("Opening of dropped dataset(s) failed", ex);
+                    failures.put(files.getFirst(), "unexpected error");
+                }
+                if (!failures.isEmpty()) {
+                    final List<String> lines = new ArrayList<>();
+                    lines.add("These dataset(s) could not be opened:");
+                    failures.forEach((f, reason) -> lines.add("&bull; " + GuiUtils.Text.escapeHtml(f.getName()) + ": "
+                            + GuiUtils.Text.escapeHtml(reason)));
+                    getGuiUtils().error(GuiUtils.Text.htmlLines(lines.toArray(String[]::new)));
                 }
             }
-            final File sf = settings;
-            if (sf != null) SwingUtilities.invokeLater(() -> loadSettingsFile(sf));
-            if (!csvs.isEmpty()) // marker manager is built lazily: EDT only
-                SwingUtilities.invokeLater(() -> csvs.forEach(f -> getMarkerManager().load(f)));
-            if (!recs.isEmpty()) {
-                add(recs.toArray(new File[0]));
-            } else if (sf == null && csvs.isEmpty()) {
-                SwingUtilities.invokeLater(() -> getGuiUtils()
-                        .error("None of the dropped item(s) could be imported."));
-            }
-        });
+        }.execute();
+    }
+
+    // A SNT Stream session traces on whichever source is active (see syncChannelFromActiveSource()), but paths, calibration
+    // and world origin offset were set from the initial dataset. Another dataset can only be added if it shares that
+    // geometry (e.g., a companion channel). Returns null if it does, or a description of the first mismatch
+    private String mismatchWithSession(final Object source) {
+        final BigDataUtils.Geometry g = BigDataUtils.geometryOf(source);
+        if (g == null) return "its geometry could not be determined";
+        final ij.measure.Calibration cal = snt.getCalibration();
+        return g.mismatch(snt.getFullImageDimensions(), new double[] { cal.pixelWidth, cal.pixelHeight, cal.pixelDepth },
+                snt.getWorldOriginOffset());
     }
 
     /**

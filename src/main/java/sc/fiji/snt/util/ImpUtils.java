@@ -1172,6 +1172,60 @@ public class ImpUtils {
     public static boolean isMaterializedCrop(final ImagePlus imp) {
         return imp != null && MATERIALIZED_CROP_TAGS.contains(imp);
     }
+    private static final String CROP_VERSION_KEY = "snt.crop.version";
+    private static final String CROP_VOXEL_MIN_KEY = "snt.crop.voxelMin";
+    private static final String CROP_CHANNEL_KEY = "snt.crop.channel";
+    private static final String CROP_FRAME_KEY = "snt.crop.frame";
+    private static final String CROP_VERSION = "1";
+
+    /**
+     * The position of a materialized crop in the streamed source it was read from.
+     *
+     * @param voxelMin the minimum voxel index of the crop in the source's own grid (x, y, z)
+     * @param channel  the (1-based) source channel
+     * @param frame    the (1-based) source frame
+     */
+    public record CropMetadata(long[] voxelMin, int channel, int frame) {}
+
+    /**
+     * Stores where a materialized crop comes from as image properties (see
+     * {@link ImagePlus#setProp(String, String)}), so that the information is saved with the image (e.g., in TIFF
+     * files) and can be recovered by {@link #getCropMetadata(ImagePlus)}.
+     *
+     * @param imp      the crop
+     * @param voxelMin the minimum voxel index of the crop in the source's own grid (x, y, z)
+     * @param channel  the (1-based) source channel
+     * @param frame    the (1-based) source frame
+     */
+    public static void setCropMetadata(final ImagePlus imp, final long[] voxelMin, final int channel,
+            final int frame) {
+        if (imp == null || voxelMin == null || voxelMin.length != 3) return;
+        imp.setProp(CROP_VERSION_KEY, CROP_VERSION);
+        imp.setProp(CROP_VOXEL_MIN_KEY, voxelMin[0] + "," + voxelMin[1] + "," + voxelMin[2]);
+        imp.setProp(CROP_CHANNEL_KEY, String.valueOf(channel));
+        imp.setProp(CROP_FRAME_KEY, String.valueOf(frame));
+    }
+
+    /**
+     * Retrieves the metadata stored by {@link #setCropMetadata(ImagePlus, long[], int, int)}.
+     *
+     * @param imp the image
+     * @return the metadata, or null if the image has none (or it could not be parsed)
+     */
+    public static CropMetadata getCropMetadata(final ImagePlus imp) {
+        if (imp == null || !CROP_VERSION.equals(imp.getProp(CROP_VERSION_KEY))) return null;
+        try {
+            final String[] xyz = imp.getProp(CROP_VOXEL_MIN_KEY).split(",");
+            if (xyz.length != 3) return null;
+            final long[] min = { Long.parseLong(xyz[0].trim()), Long.parseLong(xyz[1].trim()),
+                    Long.parseLong(xyz[2].trim()) };
+            return new CropMetadata(min, Integer.parseInt(imp.getProp(CROP_CHANNEL_KEY).trim()),
+                    Integer.parseInt(imp.getProp(CROP_FRAME_KEY).trim()));
+        } catch (final NullPointerException | NumberFormatException ex) {
+            return null;
+        }
+    }
+
     /**
      * Used by SNT to tag an image as a Display Canvas (typically a blank placeholder image).
      * @param imp the image to be tagged

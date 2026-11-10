@@ -31,6 +31,7 @@ import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.IOUtils;
 
 import java.io.File;
 import java.util.*;
@@ -171,8 +172,7 @@ public class BackupManagerCmd extends CommonDynamicCmd {
         }
     }
     private List<File> getBackupsInDir(File dir) {
-        final File[] files = dir.listFiles((d, name) ->
-                name.endsWith(".traces") || name.endsWith(".traces.gz"));
+        final File[] files = dir.listFiles((d, name) -> IOUtils.getType(name) == IOUtils.FileType.TRACES);
         if (files == null) return new ArrayList<>();
         return new ArrayList<>(Arrays.asList(files));
     }

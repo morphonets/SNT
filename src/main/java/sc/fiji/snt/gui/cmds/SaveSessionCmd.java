@@ -36,6 +36,7 @@ import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.util.ImpUtils;
 
 import java.io.*;
@@ -102,7 +103,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         }
         sessionDir = snt.getPrefs().getSessionsDir();
         final String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
-        sessionDir = new File(sessionDir, "SNT_Session_" + timestamp);
+        sessionDir = new File(sessionDir, IOUtils.SESSION_PREFIX + timestamp);
         sessionDir.mkdirs();
     }
 
@@ -143,7 +144,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
     }
 
     private void saveManifest(final ImagePlus imp, final File tracingsFile) {
-        final File manifest = new File(sessionDir, "session.properties");
+        final File manifest = new File(sessionDir, IOUtils.SESSION_MANIFEST);
         try (final PrintWriter pw = new PrintWriter(manifest)) {
             pw.println("current_image=" + ((imp == null) ? "N/A" : imp.getTitle()));
             pw.println("image_path=" + ((imp == null) ? "N/A" : ImpUtils.getFilePath(imp)));

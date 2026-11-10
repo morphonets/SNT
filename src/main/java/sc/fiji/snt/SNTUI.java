@@ -719,9 +719,24 @@ public class SNTUI extends JDialog {
      *         tracing/editing/analysis *
      */
     public boolean isReady() {
-        final int state = getState();
-        return isVisible() && (state == SNTUI.READY || state == SNTUI.TRACING_PAUSED || state == SNTUI.SNT_PAUSED
-                || state == SNTUI.STREAMING);
+        return isVisible() && isIdleState(getState());
+    }
+
+    /**
+     * Assesses whether SNT is in the middle of an operation that importing data (e.g., through drag-and-drop) could
+     * corrupt: an unfinished path, a search, editing, a running command, etc. Unlike {@link #isReady()}, an unfinished
+     * path counts as busy even in states that mask it (e.g., Stream mode reports idle while a path is in progress),
+     * and the visibility of the dialog is not considered.
+     *
+     * @return true if SNT is busy, i.e., imports should be deferred
+     */
+    public boolean isBusy() {
+        return !isIdleState(getState()) || (plugin != null && plugin.isPathInProgress());
+    }
+
+    // Idle states: SNT is not waiting on, or running, anything
+    private static boolean isIdleState(final int state) {
+        return state == READY || state == TRACING_PAUSED || state == SNT_PAUSED || state == STREAMING;
     }
 
     /**
@@ -3959,6 +3974,7 @@ public class SNTUI extends JDialog {
         importSubmenu.add(getImportActionMenuItem(ImportAction.SWC));
         importSubmenu.add(getImportActionMenuItem(ImportAction.TRACES));
         final JMenuItem importDirectory = getImportActionMenuItem(ImportAction.SWC_DIR);
+        importDirectory.setToolTipText("Imports all the SWC files of a folder or of a zip archive");
         importDirectory.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FOLDER));
         importSubmenu.add(importDirectory);
         importSubmenu.addSeparator();
@@ -6851,6 +6867,27 @@ public class SNTUI extends JDialog {
         private final int preRunState;
         private final boolean run;
         private final HashMap<String, Object> inputs;
+        private java.util.concurrent.Future<?> future;
+
+        // Runs r on the EDT once the command (started by run()) has finished. Not run if the command
+        // did not start, was canceled, or failed with an exception. Never blocks the caller
+        void whenDone(final Runnable r) {
+            final java.util.concurrent.Future<?> f = future;
+            if (f == null) return;
+            final Thread t = new Thread(() -> {
+                try {
+                    final Object module = f.get();
+                    // A command canceled by the user (e.g., by dismissing its prompt) also completes normally
+                    if (module == null || (module instanceof org.scijava.Cancelable c && c.isCanceled())) return;
+                } catch (final InterruptedException | java.util.concurrent.ExecutionException
+                         | java.util.concurrent.CancellationException ex) {
+                    return;
+                }
+                SwingUtilities.invokeLater(r);
+            }, "SNT-after-command");
+            t.setDaemon(true);
+            t.start();
+        }
 
         public DynamicCmdRunner(final Class<? extends Command> cmd, final HashMap<String, Object> inputs) {
             this(cmd, inputs, getState());
@@ -6881,7 +6918,7 @@ public class SNTUI extends JDialog {
             try {
                 SNTUtils.log("Running "+ cmd.getName());
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-                cmdService.run(cmd, true, inputs);
+                future = cmdService.run(cmd, true, inputs);
             } catch (final OutOfMemoryError e) {
                 guiError(SNTUtils.reportOutOfMemory("running " + cmd.getSimpleName(), null, e, false));
             } finally {
@@ -6994,7 +7031,7 @@ public class SNTUI extends JDialog {
                 case ImportAction.AUTO_TRACE_BINARY_IMAGE -> "Segmented Image File(s)...";
                 case ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE -> "Grayscale Image File(s)...";
                 case ImportAction.AUTO_TRACE_GRAYSCALE_MULTI -> "Grayscale Image File(s) (Multiple Cells)...";
-                case ImportAction.SWC_DIR -> "Directory of SWCs...";
+                case ImportAction.SWC_DIR -> "Directory or Zip of SWCs...";
                 case ImportAction.SWC -> "SWC...";
                 case ImportAction.IMAGE -> "From File...";
                 case ImportAction.ANY_RECONSTRUCTION -> "Guess File Type...";
@@ -7014,7 +7051,7 @@ public class SNTUI extends JDialog {
                 case "Grayscale Image File(s)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE;
                 case "Grayscale Image File(s) (Multiple Cells)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_MULTI;
                 case "Segmented Image File(s)..." -> ImportAction.AUTO_TRACE_BINARY_IMAGE;
-                case "Directory of SWCs..." -> ImportAction.SWC_DIR; // backwards compatibility
+                case "Directory or Zip of SWCs...", "Directory of SWCs..." -> ImportAction.SWC_DIR; // 2nd form: backwards compatibility
                 case "e(SWC)...", "SWC..." -> ImportAction.SWC;
                 case "From File..." -> ImportAction.IMAGE;
                 case "Guess File Type..." -> ImportAction.ANY_RECONSTRUCTION;
@@ -7026,27 +7063,6 @@ public class SNTUI extends JDialog {
                 case "URL..." -> ImportAction.URL;
                 default -> -1;
             };
-        }
-
-        static int getImportActionType(final File file) {
-            if (file.isDirectory())
-                return ImportAction.SWC_DIR;
-            final String filename = file.getName().toLowerCase();
-            if (filename.endsWith(".traces"))
-                return ImportAction.TRACES;
-            if (IOUtils.isSWCFile(file))
-                return ImportAction.SWC;
-            if (filename.endsWith(".json"))
-                return ImportAction.JSON;
-            if (filename.endsWith(".ndf"))
-                return ImportAction.NDF;
-            if (filename.endsWith(".xml"))
-                return ImportAction.NEUROLUCIDA;
-            if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
-                return ImportAction.IMAGE;
-            if (BigDataUtils.isRemoteUrl(filename))
-                return ImportAction.URL;
-            return -1;
         }
 
         static void applyStreamModeCompositeIcon(final boolean streamMode, final JMenuItem item, final GLYPH glyph) {
@@ -7307,23 +7323,469 @@ public class SNTUI extends JDialog {
         }
     }
 
+    // Tells the user why an import was refused because SNT isBusy()
+    private void reportBusy() {
+        final int s = getState();
+        UIManager.getLookAndFeel().provideErrorFeedback(this);
+        guiError((isIdleState(s) || s == PARTIAL_PATH || s == SEARCHING || s == QUERY_KEEP || s == EDITING)
+                ? "Please finish (or cancel) the current path, or pause tracing, before importing data."
+                : "SNT is busy. Please wait for the current operation to finish before importing data.",
+                "Import Not Possible");
+    }
+
     private void addFileDrop(final Component component, final GuiUtils guiUtils) {
-        new FileDrop(component, files -> {
-            if (files.length == 0) { // Is this even possible?
-                guiUtils.error("Dropped file(s) not recognized.");
+        new FileDrop(component, files -> dropHandler.inspectDrop(files, guiUtils));
+    }
+
+    // Imports require an idle SNT. Stream sessions idle in the STREAMING state (see changeState())
+    private boolean importBlockedError() {
+        if (getState() != -1 && isBusy()) {
+            guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isTabSelected(final String title) {
+        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+        return tp != null && tp.getSelectedIndex() >= 0 && title.equals(tp.getTitleAt(tp.getSelectedIndex()).trim());
+    }
+
+    private final DropHandler dropHandler = new DropHandler();
+
+    // Handles items dropped onto SNT's dialog and Path Manager (see addFileDrop())
+    private class DropHandler {
+
+        private static final String IMPORT_ACTIONS_HINT =
+                "You may still be able to load these file(s) using their dedicated import actions.";
+
+        // True while a drop is being inspected or routed. Only accessed on the EDT
+        private boolean dropBusy;
+
+        // Dropped items are inspected in the background (bounded in time and in size, see
+        // FileInspector) so that the GUI can never freeze, e.g., by dropping a huge folder
+        // or a stalled network share. The result is then routed on the EDT
+        private void inspectDrop(final File[] files, final GuiUtils gUtils) {
+            if (isBusy()) {
+                reportBusy();
                 return;
             }
-            if (files.length > 1) {
-                guiUtils.error("Ony a single file (or directory) can be imported using drag-and-drop.");
+            if (dropBusy) {
+                UIManager.getLookAndFeel().provideErrorFeedback(SNTUI.this);
+                showStatus("Still processing previously dropped item(s)...", true);
                 return;
             }
-            final int type = InternalUtils.getImportActionType(files[0]);
-            if (type == -1) {
-                guiUtils.error(files[0].getName() + " cannot be imported using drag-and-drop.");
+            dropBusy = true;
+            showStatus("Inspecting dropped item(s)...", true);
+            // The callback is always called once, on the EDT
+            FileInspector.shared().inspect(files, result -> {
+                try {
+                    routeDrop(result, gUtils);
+                } finally {
+                    dropBusy = false;
+                }
+            });
+        }
+
+        private void routeDrop(final FileInspector.Result result, final GuiUtils gUtils) {
+            if (result.skipped() > 0) {
+                gUtils.error(GuiUtils.Text.htmlLines("Too many items dropped at once.", "Detected: " + GuiUtils.Text.escapeHtml(result.describe()) + "."));
                 return;
             }
-            new ImportAction(type, files[0]).run();
-        });
+            if (result.items().isEmpty()) {
+                gUtils.error("Dropped file(s) not recognized.");
+                return;
+            }
+            if (result.items().size() > 1) {
+                routeMultiple(result, gUtils);
+                return;
+            }
+            final FileInspector.Item item = result.items().getFirst();
+            final File f = item.file();
+            final String name = f.getName().isEmpty() ? f.getPath() : f.getName(); // volume roots have no name
+            // In Stream mode, image data comes from the streamed dataset: a session must never be restored from a drop
+            if (plugin.isStreamMode() && item.kind().isSession()) {
+                gUtils.error(GuiUtils.Text.htmlLines(GuiUtils.Text.escapeHtml(name) + " (" + item.kind().label() + ") cannot be imported in Stream mode.",
+                        "Image data is provided by the streamed dataset."));
+                return;
+            }
+            switch (item.kind()) {
+                case UNREACHABLE -> gUtils.error(name + " could not be accessed in time. "
+                        + "Is the drive or network share available?");
+                case MISSING -> gUtils.error(name + " does not exist anymore.");
+                case SESSION_DIR, SESSIONS_DIR -> {
+                    // The Restore Session dialog lets users review what is restored
+                    final HashMap<String, Object> inputs = new HashMap<>();
+                    inputs.put("sessionDir", f);
+                    new DynamicCmdRunner(RestoreSessionCmd.class, inputs).run();
+                }
+                case DIRECTORY -> {
+                    // Counts are based on file names only: XML files are sniffed later, on import
+                    final Map<FileInspector.Kind, Integer> found = item.contents();
+                    final int swcs = found.getOrDefault(FileInspector.Kind.SWC, 0);
+                    final int others = Stream.of(FileInspector.Kind.TRACES, FileInspector.Kind.JSON,
+                            FileInspector.Kind.NDF, FileInspector.Kind.XML)
+                            .mapToInt(k -> found.getOrDefault(k, 0)).sum();
+                    if (swcs + others == 0) {
+                        final String where = GuiUtils.Text.escapeHtml(name);
+                        gUtils.error(item.entries() == 0 && !item.truncated()
+                                ? GuiUtils.Text.htmlLines(where + " is empty.")
+                                : item.hasDetails()
+                                ? GuiUtils.Text.htmlLines("No reconstruction files found at the top level of " + where
+                                        + ".", "Detected: " + GuiUtils.Text.escapeHtml(item.describe()) + ".")
+                                : GuiUtils.Text.htmlLines("No reconstruction files found at the top level of " + where
+                                        + "."));
+                    } else if (gUtils.getConfirmation(GuiUtils.Text.htmlLines("Import reconstructions from '" + GuiUtils.Text.escapeHtml(name) + "' folder?",
+                            "Detected: " + GuiUtils.Text.escapeHtml(item.describe()) + "."), "Import Folder?", "Yes. Continue", "Cancel")) {
+                        // SWC-only folders use the multi-SWC importer, which offers extra options
+                        new ImportAction((others == 0) ? ImportAction.SWC_DIR : ImportAction.RECONSTRUCTION_DIR, f).run();
+                    }
+                }
+                case ROI_ZIP, ROI -> importDroppedRois(f, gUtils);
+                case CSV -> importDroppedCsv(f, gUtils);
+                case RECONSTRUCTION_ZIP -> {
+                    // Contents are not listed (they are extracted on import): only reconstruction files are read
+                    if (gUtils.getConfirmation(GuiUtils.Text.htmlLines("Import reconstructions from '"
+                            + GuiUtils.Text.escapeHtml(name) + "' archive?", "Only reconstruction files (SWC, TRACES, etc.) "
+                            + "in the archive are read."), "Import Archive?", "Yes. Continue", "Cancel")
+                            && proceedWithImport()) {
+                        importReconstructions(List.of(f), List.of(), "'" + name + "'", null);
+                    }
+                }
+                case TRACES -> new ImportAction(ImportAction.TRACES, f).run();
+                case SWC -> new ImportAction(ImportAction.SWC, f).run();
+                case JSON -> new ImportAction(ImportAction.JSON, f).run();
+                case NDF -> new ImportAction(ImportAction.NDF, f).run();
+                case XML -> new ImportAction(ImportAction.NEUROLUCIDA, f).run();
+                case IMAGE -> importDroppedImage(f, gUtils);
+                default -> {
+                    final String msg = GuiUtils.Text.escapeHtml(name) + " (" + item.kind().label()
+                            + ") cannot be imported using drag-and-drop.";
+                    gUtils.error(item.kind().isDataset() ? GuiUtils.Text.htmlLines(msg,
+                            "Datasets (Imaris, BDV, N5, Zarr) can be dropped onto a BDV/BVV viewer window.")
+                            : GuiUtils.Text.htmlLines(msg, IMPORT_ACTIONS_HINT));
+                }
+            }
+        }
+
+        // Max. number of files read by a single folder import
+        private static final int MAX_FOLDER_IMPORT_FILES = 500;
+        // Only accessed on the EDT
+        private SwingWorker<List<Tree>, String> folderImport;
+
+        // Imports the top-level reconstruction files of a folder (any format). The folder is listed and
+        // the files are read in the background, so that the GUI is never blocked. Trees are then added
+        // in a single step on the EDT
+        private void importReconstructionFolder(final File dir) {
+            importReconstructions(List.of(), List.of(dir), "the top level of '" + dir.getName() + "'", null);
+        }
+
+        // Imports reconstruction files and the top-level reconstruction files of folders. Everything is
+        // read in the background. If something was imported, andThen (nullable) runs on the EDT
+        private void importReconstructions(final List<File> inputFiles, final List<File> dirs, final String label,
+                                           final Runnable andThen) {
+            if (folderImport != null && !folderImport.isDone()) {
+                guiError("A previous folder import is still running.");
+                return;
+            }
+            if (importBlockedError()) return;
+            showStatus("Reading " + label + "...", true);
+            final int[] counts = new int[3]; // files read, files that failed, 1 if the file limit was exceeded
+            folderImport = new SwingWorker<>() {
+
+                @Override
+                protected List<Tree> doInBackground() {
+                    final List<File> files = new ArrayList<>(inputFiles);
+                    for (final File dir : dirs) {
+                        if (files.size() > MAX_FOLDER_IMPORT_FILES) break;
+                        files.addAll(IOUtils.listTopLevelReconstructionFiles(dir, MAX_FOLDER_IMPORT_FILES + 1));
+                    }
+                    counts[2] = (files.size() > MAX_FOLDER_IMPORT_FILES) ? 1 : 0;
+                    final int n = Math.min(files.size(), MAX_FOLDER_IMPORT_FILES);
+                    final List<Tree> trees = new ArrayList<>();
+                    for (int i = 0; i < n; i++) {
+                        publish("Importing " + (i + 1) + "/" + n + ": " + files.get(i).getName());
+                        try (sc.fiji.snt.util.CloseableIterator<Tree> inFile = Tree.streamFromFile(
+                                files.get(i).getAbsolutePath())) {
+                            // Archives are read entry by entry, so that progress is reported (and can be canceled)
+                            final int before = trees.size();
+                            while (!isCancelled() && inFile.hasNext()) {
+                                trees.add(inFile.next());
+                                if ((trees.size() - before) % 25 == 0) publish("Importing " + (i + 1) + "/" + n + ": "
+                                        + files.get(i).getName() + " (" + (trees.size() - before) + " reconstructions)");
+                            }
+                            if (trees.size() == before) counts[1]++;
+                        } catch (final RuntimeException ex) {
+                            counts[1]++;
+                            SNTUtils.log("Could not import " + files.get(i).getName() + ": " + ex.getMessage());
+                        }
+                        counts[0]++;
+                    }
+                    return trees;
+                }
+
+                @Override
+                protected void process(final List<String> messages) {
+                    showStatus(messages.getLast(), true);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        final List<Tree> trees = get();
+                        trees.removeIf(tree -> tree == null || tree.isEmpty());
+                        if (trees.isEmpty()) {
+                            guiError("No valid reconstructions found in " + label + ".");
+                            return;
+                        }
+                        // The user may have started a path while the files were being read
+                        if (isBusy()) {
+                            reportBusy();
+                            return;
+                        }
+                        pathAndFillManager.addTreesTaggedByLabel(trees);
+                        validateImgDimensions();
+                        if (andThen != null) andThen.run();
+                        final String msg = trees.size() + " reconstruction(s) imported from " + (counts[0] - counts[1])
+                                + " file(s).";
+                        if (counts[1] > 0 || counts[2] > 0) {
+                            final List<String> lines = new ArrayList<>();
+                            lines.add(msg);
+                            if (counts[1] > 0) lines.add(counts[1] + " file(s) could not be read.");
+                            if (counts[2] > 0) lines.add("More than " + MAX_FOLDER_IMPORT_FILES
+                                    + " files were found: only the first " + MAX_FOLDER_IMPORT_FILES
+                                    + " were imported.");
+                            guiUtils.centeredMsg(GuiUtils.Text.htmlLines(lines.toArray(String[]::new)), "Folder Import");
+                        } else {
+                            showStatus(msg, true);
+                        }
+                    } catch (final InterruptedException | ExecutionException | CancellationException ex) {
+                        SNTUtils.error("Folder import failed", ex);
+                        guiError("Folder import failed. " + GuiUtils.consoleHint() + ".");
+                    }
+                }
+            };
+            folderImport.execute();
+        }
+
+        // Assigns ROIs to delineations, which are overwritten (after confirmation)
+        private void importDroppedRois(final File file, final GuiUtils gUtils) {
+            if (noPathsError()) return;
+            if (!gUtils.getConfirmation("Import ROIs from " + file.getName() + " as delineations? "
+                    + "Existing delineations will be overwritten.", "Import Delineations?", "Yes. Continue", "Cancel")) {
+                return;
+            }
+            loadDroppedRois(List.of(file), file.getName(), gUtils);
+        }
+
+        // Reads ROIs in the background and assigns them to delineations. Confirmation is up to the caller
+        private void loadDroppedRois(final List<File> files, final String label, final GuiUtils gUtils) {
+            showStatus("Reading ROIs...", true);
+            new SwingWorker<List<ij.gui.Roi>, Void>() {
+
+                @Override
+                protected List<ij.gui.Roi> doInBackground() {
+                    final List<ij.gui.Roi> rois = new ArrayList<>();
+                    for (final File file : files)
+                        rois.addAll(sc.fiji.snt.analysis.RoiConverter.loadRois(file));
+                    return rois;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        final List<ij.gui.Roi> rois = get();
+                        if (rois == null || rois.isEmpty()) {
+                            gUtils.error("No valid ROIs found in " + label + ".");
+                            return;
+                        }
+                        final int assigned = delineationsManager.load(rois);
+                        if (assigned < 1) {
+                            gUtils.error("None of the " + rois.size() + " ROI(s) in " + label + " contain paths.");
+                        } else {
+                            showStatus(assigned + " of " + rois.size() + " ROI(s) assigned to existing paths", true);
+                        }
+                    } catch (final InterruptedException | ExecutionException | RuntimeException ex) {
+                        SNTUtils.error("Import of ROIs failed", ex);
+                        gUtils.error("Could not import ROIs from " + label + ". " + GuiUtils.consoleHint() + ".");
+                    }
+                }
+            }.execute();
+        }
+
+        // Stream mode: installs a materialized region that was saved to a file. The file is read in the background
+        private void importDroppedCrop(final File file, final GuiUtils gUtils) {
+            if (importBlockedError()) return;
+            showStatus("Reading " + file.getName() + "...", true);
+            new SwingWorker<ImagePlus, Void>() {
+
+                @Override
+                protected ImagePlus doInBackground() {
+                    return ImpUtils.open(file);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        final ImagePlus imp = get();
+                        if (imp == null) {
+                            gUtils.error("Could not open " + file.getName() + " as an image.");
+                            return;
+                        }
+                        final SNT.MaterializedCrop crop;
+                        try {
+                            crop = plugin.cropFromImage(imp);
+                        } catch (final IllegalArgumentException | IllegalStateException ex) {
+                            gUtils.error(GuiUtils.Text.htmlLines(GuiUtils.Text.escapeHtml(file.getName()) + " cannot be used as a materialized region:",
+                                    GuiUtils.Text.escapeHtml(String.valueOf(ex.getMessage())) + "."));
+                            return;
+                        }
+                        if (gUtils.getConfirmation(GuiUtils.Text.htmlLines("Use " + GuiUtils.Text.escapeHtml(file.getName()) + " ("
+                                + imp.getWidth() + "x" + imp.getHeight() + "x" + imp.getNSlices()
+                                + ") as the materialized region?", "The current region (if any) will be replaced."),
+                                "Import Region?", "Yes. Continue", "Cancel")) {
+                            plugin.installMaterializedCrop(crop);
+                            showStatus("Materialized region imported", true);
+                        }
+                    } catch (final InterruptedException | ExecutionException | RuntimeException ex) {
+                        SNTUtils.error("Import of materialized region failed", ex);
+                        gUtils.error("Could not import " + file.getName() + ". " + GuiUtils.consoleHint() + ".");
+                    }
+                }
+            }.execute();
+        }
+
+        // On the Delineations tab a dropped image may be a labels image: ask. Elsewhere it is the main image
+        private void importDroppedImage(final File file, final GuiUtils gUtils) {
+            final boolean onDelineations = isTabSelected("Delineations");
+            if (plugin.isStreamMode()) {
+                // Image data comes from the streamed dataset: the only image that can be imported as such is a
+                // materialized region saved by SNT. On the Delineations tab it may also be a labels image (which
+                // must match the full volume, or the active region: see DelineationsManager)
+                if (!onDelineations) {
+                    importDroppedCrop(file, gUtils);
+                    return;
+                }
+                final String labels = "Labels image (delineations)";
+                final String crop = "Materialized region" + (plugin.isMaterializedCrop() ? " (replaces current)" : "");
+                final String choice = gUtils.getChoice("Open " + file.getName() + " as:", "Open Image",
+                        new String[] { labels, crop }, labels);
+                if (choice == null) return;
+                if (labels.equals(choice)) delineationsManager.importLabelImageFile(file);
+                else importDroppedCrop(file, gUtils);
+                return;
+            }
+            if (!onDelineations) {
+                new ImportAction(ImportAction.IMAGE, file).run();
+                return;
+            }
+            final String labels = "Labels image (delineations)";
+            final String main = "Main image (tracing)";
+            final String choice = gUtils.getChoice("Open " + file.getName() + " as:", "Open Image",
+                    new String[] { labels, main }, labels);
+            if (choice == null) return;
+            if (labels.equals(choice)) delineationsManager.importLabelImageFile(file);
+            else new ImportAction(ImportAction.IMAGE, file).run();
+        }
+
+        // CSV files may hold seed points or bookmarks: ask. The active tab is the default choice
+        private void importDroppedCsv(final File file, final GuiUtils gUtils) {
+            final String seeds = "Seed points";
+            final String bookmarks = "Bookmarks";
+            final boolean onBookmarks = isTabSelected("Bookmarks");
+            final String choice = gUtils.getChoice("Import " + file.getName() + " as:", "Import CSV",
+                    new String[] { seeds, bookmarks }, onBookmarks ? bookmarks : seeds);
+            if (choice == null) return;
+            final boolean asSeeds = seeds.equals(choice);
+            final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+            if (tp != null) {
+                final int idx = tp.indexOfTab(asSeeds ? "Seeds" : "Bookmarks");
+                if (idx >= 0) tp.setSelectedIndex(idx);
+            }
+            if (asSeeds) seedManager.importDroppedCsv(file);
+            else resolveActiveBookmarkManager().importDroppedCsv(file);
+        }
+
+        // Several items: reconstructions (files and folders), at most one image, and ROIs are combined.
+        // Anything else (sessions, CSVs, datasets, unknown items) must be dropped on its own. Confirmed once.
+        // Order: image, reconstructions, ROIs (delineations need the paths to exist)
+        private void routeMultiple(final FileInspector.Result result, final GuiUtils gUtils) {
+            final List<File> recFiles = new ArrayList<>();
+            final List<File> dirs = new ArrayList<>();
+            final List<File> rois = new ArrayList<>();
+            // Two kinds of problems: items that SNT's window cannot import at all (e.g., datasets), and
+            // items that can only be imported on their own (e.g., sessions, or CSV files, which need a prompt)
+            final List<String> unsupported = new ArrayList<>();
+            final List<String> aloneOnly = new ArrayList<>();
+            boolean datasets = false;
+            final List<File> images = new ArrayList<>();
+            for (final FileInspector.Item item : result.items()) {
+                final File f = item.file();
+                final FileInspector.Kind kind = item.kind();
+                if (plugin.isStreamMode() && (kind.isSession() || kind == FileInspector.Kind.IMAGE)) {
+                    aloneOnly.add(f.getName());
+                    continue;
+                }
+                switch (kind) {
+                    case TRACES, SWC, JSON, NDF, XML, RECONSTRUCTION_ZIP -> recFiles.add(f);
+                    case DIRECTORY -> {
+                        if (item.hasReconstructions()) dirs.add(f);
+                        else unsupported.add(f.getName());
+                    }
+                    case ROI_ZIP, ROI -> rois.add(f);
+                    case IMAGE -> images.add(f);
+                    case SESSION_DIR, SESSIONS_DIR, CSV -> aloneOnly.add(f.getName());
+                    default -> {
+                        unsupported.add(f.getName());
+                        datasets |= kind.isDataset();
+                    }
+                }
+            }
+            final boolean tooManyImages = images.size() > 1;
+            if (!unsupported.isEmpty() || !aloneOnly.isEmpty() || tooManyImages) {
+                final boolean nothingLeft = recFiles.isEmpty() && dirs.isEmpty() && rois.isEmpty() && images.isEmpty();
+                final List<String> lines = new ArrayList<>();
+                lines.add(nothingLeft ? "None of the dropped items can be imported:"
+                        : "Some of the dropped items cannot be imported:");
+                if (!unsupported.isEmpty())
+                    lines.add("&bull; " + GuiUtils.Text.summarize(unsupported) + ": not supported here.");
+                if (!aloneOnly.isEmpty())
+                    lines.add("&bull; " + GuiUtils.Text.summarize(aloneOnly) + ": must be dropped on their own.");
+                if (tooManyImages)
+                    lines.add("&bull; " + images.size() + " images: only one image can be opened at a time.");
+                if (datasets) lines.add("Datasets (Imaris, BDV, N5, Zarr) can be dropped onto a BDV/BVV viewer window.");
+                if (!unsupported.isEmpty() && !datasets) {
+                    lines.add("");
+                    lines.add(IMPORT_ACTIONS_HINT);
+                }
+                gUtils.error(GuiUtils.Text.htmlLines(lines.toArray(String[]::new)));
+                return;
+            }
+            // ROIs are assigned to existing paths: without imported reconstructions, paths must already exist
+            if (!rois.isEmpty() && recFiles.isEmpty() && dirs.isEmpty() && images.isEmpty() && noPathsError()) return;
+            final File image = images.isEmpty() ? null : images.getFirst();
+            final List<String> prompt = new ArrayList<>(List.of("Import all dropped items?",
+                    "Detected: " + GuiUtils.Text.escapeHtml(result.describe()) + "."));
+            if (!rois.isEmpty()) prompt.add("Existing delineations will be overwritten.");
+            if (!gUtils.getConfirmation(GuiUtils.Text.htmlLines(prompt.toArray(String[]::new)), "Import Items?", "Yes. Continue",
+                    "Cancel")) {
+                return;
+            }
+            // The image import asks for permission on its own
+            if (image == null && (!recFiles.isEmpty() || !dirs.isEmpty()) && !proceedWithImport()) return;
+            final File img = image;
+            final Runnable roiStep = rois.isEmpty() ? null : () -> loadDroppedRois(rois, "the dropped ROI file(s)", gUtils);
+            final Runnable rest = () -> {
+                if (!recFiles.isEmpty() || !dirs.isEmpty()) {
+                    importReconstructions(recFiles, dirs, "dropped items", roiStep);
+                } else if (roiStep != null) {
+                    roiStep.run();
+                }
+            };
+            // The image is loaded asynchronously, and (re)initializes SNT: wait for it
+            if (img != null) new ImportAction(ImportAction.IMAGE, img).then(rest).run();
+            else rest.run();
+        }
     }
 
     private void revertFromBackup() {
@@ -7591,20 +8053,24 @@ public class SNTUI extends JDialog {
         private static final int IMAGE_CLIPBOARD = 10;
         private static final int NEUROLUCIDA = 11;
         private static final int URL = 13;
+        private static final int RECONSTRUCTION_DIR = 14;
 
         private final int type;
         private File file;
+        private Runnable afterImage; // optional. Run on the EDT once an IMAGE import has finished
 
         private ImportAction(final int type, final File file) {
             this.type = type;
             this.file = file;
         }
 
+        private ImportAction then(final Runnable r) {
+            this.afterImage = r;
+            return this;
+        }
+
         private void run() {
-            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && !plugin.isStreamMode()) {
-                guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
-                return;
-            }
+            if (importBlockedError()) return;
             final HashMap<String, Object> inputs = new HashMap<>();
             final int priorState = currentState;
             switch (type) {
@@ -7656,7 +8122,9 @@ public class SNTUI extends JDialog {
                     }
                     inputs.put("file", (IMAGE == type) ? file : null);
                     inputs.put("clipboard", IMAGE_CLIPBOARD == type);
-                    (new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
+                    final DynamicCmdRunner imgRunner = new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING);
+                    imgRunner.run();
+                    if (afterImage != null) imgRunner.whenDone(afterImage);
                 }
                 case JSON -> {
                     if (!proceed()) return;
@@ -7716,6 +8184,10 @@ public class SNTUI extends JDialog {
                     if (file != null) inputs.put("dir", file);
                     (new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
                 }
+                case RECONSTRUCTION_DIR -> {
+                    if (!proceed()) return;
+                    if (file != null) dropHandler.importReconstructionFolder(file);
+                }
                 case URL -> {
                     if (!proceed()) return;
                     final String url = guiUtils.getString(
@@ -7772,9 +8244,14 @@ public class SNTUI extends JDialog {
         }
 
         private boolean proceed() {
-            return !plugin.isUnsavedChanges() || (plugin.isUnsavedChanges() && guiUtils.getConfirmation(
-                    "There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
+            return proceedWithImport();
         }
+    }
+
+    // Asks for permission to proceed if there are unsaved paths. Shared by all imports, including drag-and-drop
+    private boolean proceedWithImport() {
+        return !plugin.isUnsavedChanges() || guiUtils.getConfirmation(
+                "There are unsaved paths. Do you really want to load new data?", "Proceed with Import?");
     }
 
     private boolean loadSWCFile(final File file) {

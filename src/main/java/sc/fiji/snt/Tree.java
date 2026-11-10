@@ -1380,22 +1380,23 @@ public class Tree implements TreeProperties, Cloneable {
 
 	/**
 	 * Retrieves a list of {@link Tree}s from a single file.
-	 * 
 	 *
-	 * @param tracesOrJsonFile the file containing the reconstructions (typically a
-	 *                         .traces or .json extension). A directory is also
-	 *                         supported, as is a remote URL: a single reconstruction file
-	 *                         (SWC/.traces/.json/.ndf/Neurolucida) is streamed directly, while a
-	 *                         {@code .zip} URL is downloaded, extracted, and treated as a directory.
+	 * @param tracesOrJsonOrZipFile the file containing the reconstructions (typically a
+	 *                              .traces or .json extension). A directory is also
+	 *                              supported, as is a local {@code .zip} archive (its reconstruction files are
+	 *                              read, including those in subfolders), as is a remote URL: a single reconstruction
+	 *                              file (SWC/.traces/.json/.ndf/Neurolucida) is streamed directly, while a
+	 *                              {@code .zip} URL is downloaded and read as a local archive.
 	 * @return the collection of imported {@link Tree}s. An empty list is retrieved
-	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
+	 * if {@code tracesOrJsonOrZipFile} is not a valid, readable file.
+	 * @see #streamFromFile(String)
 	 */
-	public static Collection<Tree> listFromFile(final String tracesOrJsonFile) throws IllegalArgumentException {
-		final Collection<Tree> trees = listFromFileInternal(tracesOrJsonFile);
+	public static Collection<Tree> listFromFile(final String tracesOrJsonOrZipFile) throws IllegalArgumentException {
+		final Collection<Tree> trees = listFromFileInternal(tracesOrJsonOrZipFile);
 		if (trees != null && !trees.isEmpty()) {
 			// Absolute path or URL. Not overridden if already set (e.g., files in a directory)
-			final String source = (BigDataUtils.isRemoteUrl(tracesOrJsonFile)) ? tracesOrJsonFile
-					: getFile(tracesOrJsonFile, true).getAbsolutePath();
+			final String source = (BigDataUtils.isRemoteUrl(tracesOrJsonOrZipFile)) ? tracesOrJsonOrZipFile
+					: getFile(tracesOrJsonOrZipFile, true).getAbsolutePath();
 			trees.forEach(t -> t.getProperties().putIfAbsent(KEY_FILE, source));
 		}
 		return trees;
@@ -1409,41 +1410,167 @@ public class Tree implements TreeProperties, Cloneable {
 		if (f.isDirectory()) {
 			return listFromDir(tracesOrJsonFile);
 		}
-		Collection<Tree> trees;
-		final String baseName;
+		if (IOUtils.getType(f) == IOUtils.FileType.ZIP) {
+			return listFromZip(f);
+		}
 		try {
-			if (f.getName().toLowerCase().endsWith(".json")) {
+			if (IOUtils.getType(f) == IOUtils.FileType.JSON) {
 				return MouseLightLoader.extractTrees(f, "all").values();
-			} else {
-				final PathAndFillManager pafm = new PathAndFillManager();
-				pafm.setHeadless(true);
-				baseName = SNTUtils.stripExtension(f.getName());
-				pafm.loadGuessingType(baseName, Files.newInputStream(f.toPath()));
-				trees = pafm.getTrees();
+			}
+			try (java.io.InputStream is = Files.newInputStream(f.toPath())) {
+				return parse(f.getName(), is);
 			}
 		} catch (final IOException e) {
 			SNTUtils.error("File not parsed", e);
 			return new ArrayList<>();
 		}
-        if (trees.size() == 1)
-            trees.iterator().next().setLabel(baseName);
-        else
-            trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
-        return trees;
 	}
 
 	/**
-	 * Remote-URL branch of {@link #listFromFile(String)}. A {@code .zip} URL is downloaded and extracted
-	 * (see {@link SNTUtils#downloadAndExtractZip(String)}), then treated as a local directory via
-	 * {@link #listFromDir(String)}. Any other URL is assumed to be a single reconstruction file and streamed directly
+	 * Parses the reconstruction(s) of a single file, from any source (e.g., a zip entry). The format is detected from
+	 * the contents. Trees are labeled after the file name.
+	 *
+	 * @param name the name (or path) of the file
+	 * @param is   the contents. Closed by the caller
+	 */
+	private static Collection<Tree> parse(final String name, final java.io.InputStream is) throws IOException {
+		if (IOUtils.getType(name) == IOUtils.FileType.JSON) {
+			return new ArrayList<>(MouseLightLoader.extractTrees(is, "all").values());
+		}
+		final String leaf = name.replace('\\', '/');
+		final String baseName = SNTUtils.stripExtension(leaf.substring(leaf.lastIndexOf('/') + 1));
+		final PathAndFillManager pafm = new PathAndFillManager();
+		pafm.setHeadless(true);
+		pafm.loadGuessingType(baseName, is);
+		final Collection<Tree> trees = pafm.getTrees();
+		if (trees.size() == 1)
+			trees.iterator().next().setLabel(baseName);
+		else
+			trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
+		return trees;
+	}
+
+	/**
+	 * Lazily reads the reconstructions of a file, a folder, a zip archive (local or remote) or a remote file, one
+	 * file at a time: each file is parsed only when the iteration reaches it, so that a pipeline that processes a
+	 * tree and discards it uses a constant amount of memory, whatever the size of the archive or folder. Zip
+	 * archives are read in place, i.e., nothing is extracted to disk (remote archives are downloaded to a temporary
+	 * file, which is deleted once the iteration ends). Files that cannot be read are skipped (see the Console).
+	 * Folders are read as in {@link #streamFromDir(String, String, String...)}. {@link #listFromFile(String)} returns
+	 * the same trees, as a collection.
+	 * <p>
+	 * The iterator releases its resources when its last tree has been retrieved. If the iteration may be left early,
+	 * close it, e.g., using try-with-resources.
+	 * </p>
+	 *
+	 * @param path the path or URL of a reconstruction file, of a folder of reconstruction files, or of a zip archive
+	 *             of reconstruction files
+	 * @return the trees, in file order. Folders are sorted by file name. Zip archives are read in archive order.
+	 * @throws IllegalArgumentException if {@code path} is not a remote URL and does not exist (as in
+	 *                                  {@link #listFromFile(String)})
+	 */
+	public static CloseableIterator<Tree> streamFromFile(final String path) throws IllegalArgumentException {
+		if (path == null) return CloseableIterator.empty();
+		if (BigDataUtils.isRemoteUrl(path)) {
+			if (IOUtils.getType(path) != IOUtils.FileType.ZIP) return once(() -> listFromFile(path));
+			final File zip;
+			try {
+				zip = SNTUtils.downloadToTempFile(path);
+			} catch (final IOException | URISyntaxException e) {
+				SNTUtils.error("Could not load '" + path + "'", e);
+				return CloseableIterator.empty();
+			}
+			return streamFromZip(zip, path, zip::delete);
+		}
+		final File f = getFile(path, true);
+		if (f.isDirectory()) return streamFromDir(path, "", (String[]) null);
+		if (IOUtils.getType(f) == IOUtils.FileType.ZIP) return streamFromZip(f, f.getAbsolutePath(), null);
+		return once(() -> listFromFile(path));
+	}
+
+	// A single batch, retrieved on demand
+	private static CloseableIterator<Tree> once(final java.util.function.Supplier<Collection<Tree>> batch) {
+		final boolean[] done = { false };
+		return new CloseableIterator<>(() -> {
+			if (done[0]) return null;
+			done[0] = true;
+			return batch.get();
+		}, null);
+	}
+
+	/**
+	 * Zip branch of {@link #streamFromFile(String)}: reconstruction entries (searched recursively) are parsed one at
+	 * a time, straight from the archive.
+	 *
+	 * @param source  the file path or URL stored as the source of the trees
+	 * @param onClose run once the iteration ends. Null allowed
+	 */
+	private static CloseableIterator<Tree> streamFromZip(final File zip, final String source, final Runnable onClose) {
+		final Runnable cleanup = (onClose == null) ? () -> {
+		} : onClose;
+		final java.util.zip.ZipFile zf;
+		try {
+			zf = new java.util.zip.ZipFile(zip);
+		} catch (final IOException | RuntimeException e) {
+			SNTUtils.error("Could not read '" + zip.getName() + "'", e);
+			cleanup.run();
+			return CloseableIterator.empty();
+		}
+		final Iterator<? extends java.util.zip.ZipEntry> entries = zf.stream()
+				.filter(e -> !e.isDirectory() && IOUtils.isReconstructionEntry(e.getName())).toList().iterator();
+		return new CloseableIterator<>(() -> {
+			while (entries.hasNext()) {
+				final java.util.zip.ZipEntry entry = entries.next();
+				try (java.io.InputStream is = zf.getInputStream(entry)) {
+					final Collection<Tree> trees = parse(entry.getName(), is);
+					if (trees != null && !trees.isEmpty()) {
+						// The archive is the source (entries do not exist on disk)
+						trees.forEach(t -> t.getProperties().putIfAbsent(KEY_FILE, source));
+						return trees;
+					}
+				} catch (final IOException | RuntimeException e) {
+					SNTUtils.log("Skipping '" + entry.getName() + "': " + e.getMessage());
+				}
+			}
+			return null;
+		}, () -> {
+			try {
+				zf.close();
+			} catch (final IOException ignored) {
+				// best effort
+			}
+			cleanup.run();
+		});
+	}
+
+	/**
+	 * Zip branch of {@link #listFromFile(String)}: the reconstruction entries of the archive (searched recursively)
+	 * are read in place, see {@link #streamFromFile(String)}.
+	 */
+	private static Collection<Tree> listFromZip(final File zip) {
+		final List<Tree> trees = new ArrayList<>();
+		try (CloseableIterator<Tree> it = streamFromZip(zip, zip.getAbsolutePath(), null)) {
+			it.forEachRemaining(trees::add);
+		}
+		return trees;
+	}
+
+	/**
+	 * Remote-URL branch of {@link #listFromFile(String)}. A {@code .zip} URL is downloaded and read as a local
+	 * archive (see {@link #listFromZip(File)}). Any other URL is assumed to be a single reconstruction file and streamed directly
 	 * via {@link PathAndFillManager#loadGuessingType(String)}, which auto-detects the format (SWC, (gzipped) .traces,
 	 * .ndf, Neurolucida, MouseLight JSON) from content.
 	 */
 	private static Collection<Tree> listFromRemoteFile(final String url) {
 		try {
-			if (url.toLowerCase().endsWith(".zip")) {
-				final File dir = SNTUtils.downloadAndExtractZip(url);
-				return listFromDir(dir.getAbsolutePath());
+			if (IOUtils.getType(url) == IOUtils.FileType.ZIP) {
+				final File zip = SNTUtils.downloadToTempFile(url);
+				try {
+					return listFromZip(zip);
+				} finally {
+					//noinspection ResultOfMethodCallIgnored
+					zip.delete();
+				}
 			}
 			final PathAndFillManager pafm = new PathAndFillManager();
 			pafm.setHeadless(true);
@@ -1507,23 +1634,44 @@ public class Tree implements TreeProperties, Cloneable {
 	 */
 	public static List<Tree> listFromDir(final String dir, final String pattern, final String... swcTypes) {
 		final List<Tree> trees = new ArrayList<>();
-		if (dir == null) return trees;
-		final File dirFile = getFile(dir, true);
-		final File[] treeFiles = SNTUtils.getReconstructionFiles(dirFile, pattern);
-		if (treeFiles == null) {
-			return trees;
-		}
-		for (final File treeFile : treeFiles) {
-			final Collection<Tree> treesInFile = Tree.listFromFile(treeFile.getAbsolutePath());
-			if (treesInFile != null) {
-				if (swcTypes == null || (swcTypes.length == 1 && "all".equalsIgnoreCase(swcTypes[0]))) {
-					trees.addAll(treesInFile);
-				} else {
-					treesInFile.forEach(t -> trees.add(t.subTree(swcTypes)));
-				}
-			}
+		try (CloseableIterator<Tree> it = streamFromDir(dir, pattern, swcTypes)) {
+			it.forEachRemaining(trees::add);
 		}
 		return trees;
+	}
+
+	/**
+	 * Lazily reads the reconstruction files of a folder, one file at a time, see {@link #streamFromFile(String)}.
+	 * {@link #listFromDir(String, String, String...)} returns the same trees, as a list. Files that cannot be read
+	 * are skipped (see the Console).
+	 *
+	 * @param dir      the directory containing the reconstruction files (.(e)swc, .traces, .json extension)
+	 * @param pattern  only files whose name contains this string are read. Null or empty to read all
+	 * @param swcTypes the SWC type(s) to be retrieved (e.g., "axon", "dendrite", etc.). Null or "all" retrieves
+	 *                 everything
+	 * @return the trees, sorted by file name. Empty if {@code dir} is not a valid, readable directory
+	 */
+	public static CloseableIterator<Tree> streamFromDir(final String dir, final String pattern,
+			final String... swcTypes) {
+		if (dir == null) return CloseableIterator.empty();
+		final File[] treeFiles = SNTUtils.getReconstructionFiles(getFile(dir, true), pattern);
+		if (treeFiles == null) return CloseableIterator.empty();
+		Arrays.sort(treeFiles, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+		final boolean all = swcTypes == null || (swcTypes.length == 1 && "all".equalsIgnoreCase(swcTypes[0]));
+		final int[] idx = { 0 };
+		return new CloseableIterator<>(() -> {
+			while (idx[0] < treeFiles.length) {
+				final File treeFile = treeFiles[idx[0]++];
+				try {
+					final Collection<Tree> treesInFile = Tree.listFromFile(treeFile.getAbsolutePath());
+					if (treesInFile == null || treesInFile.isEmpty()) continue;
+					return all ? treesInFile : treesInFile.stream().map(t -> t.subTree(swcTypes)).toList();
+				} catch (final RuntimeException e) {
+					SNTUtils.log("Skipping '" + treeFile.getName() + "': " + e.getMessage());
+				}
+			}
+			return null;
+		}, null);
 	}
 
 	/**

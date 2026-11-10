@@ -33,6 +33,8 @@ import sc.fiji.snt.SNTUtils;
 public class GLUtils {
 
     private static final int GL_MAX_3D_TEXTURE_SIZE = 0x8073; // OpenGL constant
+    private static final int GL_MAX_TEXTURE_IMAGE_UNITS = 0x8872; // fragment shader samplers
+    private static final int FALLBACK_MAX_TEXTURE_IMAGE_UNITS = 16; // minimum guaranteed by OpenGL 3.x/4.x
     private static final int FALLBACK_MAX_TEXTURE_3D_SIZE = 2048; // conservative default (used on macOS!?)
     private static volatile Info cachedInfo;
 
@@ -44,13 +46,17 @@ public class GLUtils {
      * @param renderer         {@code GL_RENDERER}, e.g., "NVIDIA GeForce RTX 3080/PCIe/SSE2"
      * @param version          {@code GL_VERSION}, e.g., "4.6.0 NVIDIA 551.23"
      * @param maxTexture3DSize {@code GL_MAX_3D_TEXTURE_SIZE}, or a conservative default if unknown
+     * @param maxTextureImageUnits {@code GL_MAX_TEXTURE_IMAGE_UNITS}, i.e., the number of samplers a fragment shader
+     *                         can use (a conservative default if unknown). Limits the number of sources BVV can render
+     *                         at once
      * @param available        false if no GL context could be created (headless, no/broken drivers, etc)
      */
-    public record Info(String vendor, String renderer, String version, int maxTexture3DSize, boolean available) {
+    public record Info(String vendor, String renderer, String version, int maxTexture3DSize,
+                       int maxTextureImageUnits, boolean available) {
     }
 
     private static final Info UNAVAILABLE = new Info("Unknown", "OpenGL unavailable", "N/A",
-            FALLBACK_MAX_TEXTURE_3D_SIZE, false);
+            FALLBACK_MAX_TEXTURE_3D_SIZE, FALLBACK_MAX_TEXTURE_IMAGE_UNITS, false);
 
     /**
      * Queries GPU/OpenGL info via a 1x1 offscreen drawable. The result is cached after the first call, since neither
@@ -97,8 +103,12 @@ public class GLUtils {
                 final GL gl = drawable.getContext().getGL();
                 final int[] val = new int[1];
                 gl.glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, val, 0);
+                final int maxTex3D = val[0] > 0 ? val[0] : FALLBACK_MAX_TEXTURE_3D_SIZE;
+                val[0] = 0; // a failed query leaves the array untouched
+                gl.glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, val, 0);
+                final int units = val[0] > 0 ? val[0] : FALLBACK_MAX_TEXTURE_IMAGE_UNITS;
                 return new Info(gl.glGetString(GL.GL_VENDOR), gl.glGetString(GL.GL_RENDERER),
-                        gl.glGetString(GL.GL_VERSION), val[0] > 0 ? val[0] : FALLBACK_MAX_TEXTURE_3D_SIZE, true);
+                        gl.glGetString(GL.GL_VERSION), maxTex3D, units, true);
             } finally {
                 drawable.getContext().release();
                 drawable.destroy();

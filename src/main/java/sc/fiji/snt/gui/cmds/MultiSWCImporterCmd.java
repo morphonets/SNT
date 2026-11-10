@@ -30,15 +30,19 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.IOUtils;
 
 import java.io.File;
-import java.util.HashMap;
+import java.io.IOException;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 /**
- * Command for importing a folder of SWC files.
+ * Command for importing a folder (or a zip archive) of SWC files.
  *
  * @author Tiago Ferreira
  */
@@ -49,7 +53,9 @@ public class MultiSWCImporterCmd extends ContextCommand {
 	@Parameter
 	private SNTService sntService;
 
-	@Parameter(style = "directory", label = "Directory")
+	// NB: the parameter name is kept for backwards compatibility (e.g., recorded commands)
+	@Parameter(style = "both", label = "Directory or zip", //
+		description = "<html>A folder of SWC files, or a zip archive of SWC files (subfolders are searched).")
 	private File dir;
 
 	@Parameter(label = "Filenames containing", required = false, //
@@ -75,13 +81,20 @@ public class MultiSWCImporterCmd extends ContextCommand {
 	 */
 	@Override
 	public void run() {
+		try {
+			importFiles();
+		} finally {
+			IOUtils.deleteRecursively(extracted); // no-op if dir was not an archive
+		}
+	}
 
+	private void importFiles() {
 		final SNTUI ui = sntService.getUI();
 		final PathAndFillManager pafm = sntService.getPathAndFillManager();
 
 		final Map<String, String> importMap = getImportMap();
 		if (importMap == null || importMap.isEmpty()) {
-			cancel("No matching files found in directory.");
+			cancel("No matching files found in " + ((dir != null && dir.isFile()) ? "archive." : "directory."));
 			return;
 		}
 
@@ -129,19 +142,45 @@ public class MultiSWCImporterCmd extends ContextCommand {
 		return (colorChoice.contains("unique")) ? null : color;
 	}
 
+	// Temporary folder holding the extracted contents of dir, if dir is a zip archive
+	private File extracted;
+
 	private Map<String, String> getImportMap() {
-		if (dir == null || !dir.isDirectory() || !dir.exists()) return null;
-		final File[] files = dir.listFiles(file -> {
-			if (file.isHidden()) return false;
-			if (!sc.fiji.snt.util.IOUtils.isSWCFile(file)) return false;
-			return pattern == null || pattern.isEmpty() || file.getName().toLowerCase().contains(pattern);
-		});
-		if (files == null || files.length == 0) return null;
-		final Map<String, String> map = new HashMap<>();
-		for (final File file : files) {
-			map.put(SNTUtils.stripExtension(file.getName()), file.getAbsolutePath());
+		if (dir == null || !dir.exists()) return null;
+		final File root;
+		if (dir.isDirectory()) {
+			root = dir;
+		} else if (IOUtils.getType(dir) == IOUtils.FileType.ZIP) {
+			try {
+				extracted = IOUtils.extractZip(dir, IOUtils::isSWCEntry);
+			} catch (final IOException ex) {
+				SNTUtils.error("Could not read " + dir.getName(), ex);
+				return null;
+			}
+			root = extracted;
+		} else {
+			return null;
 		}
-		return map;
+		final String substring = (pattern == null) ? "" : pattern.toLowerCase(Locale.ROOT);
+		// Folders: top level only. Archives: subfolders are also searched
+		final File[] top = (root == extracted) ? null : root.listFiles(File::isFile);
+		final List<File> files = (root == extracted) ? IOUtils.listFiles(Integer.MAX_VALUE, IOUtils::isSWCFile, root)
+			: (top == null) ? List.of() : List.of(top);
+		final Map<String, String> map = new LinkedHashMap<>();
+		files.stream().filter(f -> !f.isHidden() && IOUtils.isSWCFile(f) && f.getName().toLowerCase(Locale.ROOT)
+			.contains(substring)).sorted(Comparator.comparing(File::getPath)).forEach(f -> {
+				String label = SNTUtils.stripExtension(f.getName());
+				// Files in different subfolders of an archive may share a name, and a.swc and a.eswc a label
+				if (map.containsKey(label)) {
+					final String rel = root.toPath().relativize(f.toPath()).toString().replace('\\', '/');
+					final String base = (rel.contains("/") ? SNTUtils.stripExtension(rel) : f.getName());
+					label = base;
+					for (int n = 2; map.containsKey(label); n++)
+						label = base + " (" + n + ")";
+				}
+				map.put(label, f.getAbsolutePath());
+			});
+		return map.isEmpty() ? null : map;
 	}
 
 	/* IDE debug method **/

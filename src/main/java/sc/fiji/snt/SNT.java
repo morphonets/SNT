@@ -1355,7 +1355,47 @@ public class SNT extends MultiDThreePanes implements
 			// downstream (e.g. getMaterializedCropChannel()/getMaterializedCropFrame(), setFieldsFromImage()
 			// skipping assignSpatialSettings()), so this should never depend on caller discipline. Null-safe/idempotent
 			ImpUtils.setIsMaterializedCrop(imp);
+			// Same for the metadata that allows a saved crop to be recognized (and positioned) again
+			ImpUtils.setCropMetadata(imp, voxelMin, channel, frame);
 		}
+	}
+
+	/**
+	 * Recognizes an image saved from a materialized crop (see {@link ImpUtils#getCropMetadata(ImagePlus)}) as a crop of
+	 * this Stream-mode session's source. Nothing is installed: see
+	 * {@link #installMaterializedCrop(MaterializedCrop)}.
+	 *
+	 * @param imp the image (e.g., opened from a TIFF file)
+	 * @return the crop, ready to be installed
+	 * @throws IllegalStateException    if this session is not in Stream mode, or has no loaded pixel data
+	 * @throws IllegalArgumentException if the image does not hold crop metadata, or does not match this session's
+	 *                                  source (calibration, dimensions, or location)
+	 */
+	public MaterializedCrop cropFromImage(final ImagePlus imp) {
+		if (!isStreamMode()) throw new IllegalStateException("Not in Stream mode");
+		final ImpUtils.CropMetadata meta = ImpUtils.getCropMetadata(imp);
+		if (meta == null)
+			throw new IllegalArgumentException("The image was not saved from a materialized region (no origin metadata)");
+		if (imp.getNFrames() > 1)
+			throw new IllegalArgumentException("Materialized regions are single-timepoint images");
+		final Calibration cal = getCalibration();
+		final Calibration cropCal = imp.getCalibration();
+		if (!BigDataUtils.similar(cal.pixelWidth, cropCal.pixelWidth)
+				|| !BigDataUtils.similar(cal.pixelHeight, cropCal.pixelHeight)
+				|| !BigDataUtils.similar(cal.pixelDepth, cropCal.pixelDepth)) {
+			throw new IllegalArgumentException(String.format(
+					"Voxel size (%.4f, %.4f, %.4f) differs from the streamed dataset (%.4f, %.4f, %.4f)",
+					cropCal.pixelWidth, cropCal.pixelHeight, cropCal.pixelDepth, cal.pixelWidth, cal.pixelHeight,
+					cal.pixelDepth));
+		}
+		final RandomAccessibleInterval<?> source = resolveMainStreamedSource();
+		final long[] size = { imp.getWidth(), imp.getHeight(), imp.getNSlices() };
+		for (int d = 0; d < 3; d++) {
+			if (meta.voxelMin()[d] < source.min(d) || meta.voxelMin()[d] + size[d] - 1 > source.max(d))
+				throw new IllegalArgumentException("The region lies outside the streamed dataset. "
+						+ "Was it saved from a different dataset?");
+		}
+		return new MaterializedCrop(imp, meta.voxelMin(), meta.channel(), meta.frame());
 	}
 
 	/**
@@ -2750,6 +2790,11 @@ public class SNT extends MultiDThreePanes implements
 	public Path getLastTracedPath() {
 		final Path p = lastTracedPath;
 		return (p != null && pathAndFillManager.getPathFromID(p.getID()) != null) ? p : null;
+	}
+
+	/** @return whether a path is currently being created (started but not yet finished) */
+	public boolean isPathInProgress() {
+		return pathUnfinished;
 	}
 
 	protected void setPathUnfinished(final boolean unfinished) {

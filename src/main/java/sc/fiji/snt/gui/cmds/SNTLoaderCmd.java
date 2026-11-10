@@ -37,6 +37,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.util.ImpUtils;
 
 import java.io.File;
@@ -218,7 +219,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			}
 		}
 		if (imageFile != null) {
-			final File candidate = SNTUtils.findClosestPair(imageFile, new String[] { "traces", "swc" , "json", "ndf"});
+			final File candidate = SNTUtils.findClosestPair(imageFile, IOUtils.getReconstructionExtensions());
 			if (candidate != null && candidate.exists()) {
 				tracesFile = candidate;
 			}
@@ -230,7 +231,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private void tracesFileChanged() {
 		if (IMAGE_FILE.equals(imageChoice) || tracesFile == null || !tracesFile
 			.exists()) return;
-		final File candidate = SNTUtils.findClosestPair(tracesFile, "tif");
+		final File candidate = SNTUtils.findClosestPair(tracesFile, IOUtils.getImageExtensions());
 		if (candidate != null && candidate.exists()) {
 			imageFile = candidate;
 			adjustChannelInput();

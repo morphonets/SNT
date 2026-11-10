@@ -1574,9 +1574,14 @@ public class BookmarkManager {
         goToMaterializedCrop(b); // Stream mode only
     }
 
+    /** Imports bookmarks from a CSV file (used by SNTUI's drag-and-drop) */
+    void importDroppedCsv(final File file) {
+        handleDroppedFiles(new File[] { file });
+    }
+
     private void handleDroppedFiles(final File[] files) {
         if (files == null || files.length != 1 || !files[0].isFile()
-                || !files[0].getName().toLowerCase(Locale.ROOT).endsWith(".csv")) {
+                || sc.fiji.snt.util.IOUtils.getType(files[0]) != sc.fiji.snt.util.IOUtils.FileType.CSV) {
             getGuiUtils().error("Only a single CSV file can be dropped onto this table.");
             return;
         }

@@ -1060,6 +1060,24 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     /**
+     * Adds a collection of {@link Tree}s, tagging the paths of each tree with its label. Equivalent to calling
+     * {@link #addTree(Tree, String)} for every tree, but the listeners (e.g., Path Manager) are notified only once
+     *
+     * @param trees the collection of trees to be added. Null and empty trees are skipped
+     */
+    public void addTreesTaggedByLabel(final Collection<Tree> trees) {
+        final Tree firstTree = trees.stream().filter(t -> t != null && !t.isEmpty()).findFirst().orElse(null);
+        if (firstTree == null) return;
+        synchronized (this) {
+            setSpacingIfNoneExists(firstTree);
+            trees.forEach(tree -> addTreeInternal(tree, (tree == null) ? null : tree.getLabel()));
+            updateBoundingBox();
+        }
+        // Notify listeners AFTER releasing lock to avoid deadlock with EDT
+        resetListenersAfterDataChangingOperation(firstTree.list().getFirst());
+    }
+
+    /**
      * Adds a collection of {@link Tree}s.
      *
      * @param trees             the collection of trees to be added
@@ -2479,13 +2497,13 @@ public class PathAndFillManager extends DefaultHandler implements
      * @see #importSWC(String, boolean)
      */
     public boolean importSWC(final String descriptor, final String urlOrFilePath) {
-        if (SNTUtils.isValidURL(urlOrFilePath)) {
+        if (BigDataUtils.isRemoteUrl(urlOrFilePath)) {
             try {
                 final URL url = new URI(urlOrFilePath).toURL(); //new URL(urlOrFilePath);
                 final InputStream is = url.openStream();
                 return importSWC(descriptor, new BufferedReader(new InputStreamReader(is)));
             }
-            catch (final IOException | URISyntaxException e) {
+            catch (final IOException | URISyntaxException | IllegalArgumentException e) {
                 return false;
             }
         }

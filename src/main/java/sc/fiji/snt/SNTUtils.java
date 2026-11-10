@@ -53,6 +53,7 @@ import org.scijava.util.VersionUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.BigDataLoaderCmd;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import java.io.*;
@@ -553,16 +554,6 @@ public class SNTUtils {
 		}
 	}
 
-	protected static boolean isValidURL(final String url) {
-		try {
-			new URI(url);
-			return true;
-		}
-		catch (final Exception e) {
-			return false;
-		}
-	}
-
 	/**
 	 * Checks for whether {@code url}'s host can be reached, meant to be called before a real download/stream attempt
 	 * (e.g., {@link #downloadToTempFile}) so that a missing network connection surfaces as one clear message.
@@ -649,7 +640,8 @@ public class SNTUtils {
 	private static File findClosestPairInternal(final File file, final String pairExt) {
 		try {
 			final File dir = file.getParentFile();
-			final String[] list = dir.list((f, s) -> s.endsWith(pairExt));
+			final String suffix = "." + (pairExt.startsWith(".") ? pairExt.substring(1) : pairExt).toLowerCase(Locale.ROOT);
+			final String[] list = dir.list((f, s) -> s.toLowerCase(Locale.ROOT).endsWith(suffix));
 			SNTUtils.log("Found " + list.length + " " + pairExt + " files");
 			if (list.length == 0) return null;
 			Arrays.sort(list);
@@ -725,7 +717,7 @@ public class SNTUtils {
 	 *         valid, readable directory.
 	 */
 	public static File[] getReconstructionFiles(final File dir, final String pattern) {
-		if (dir != null && dir.isFile() && dir.canRead() && isReconstructionFile(dir, true))
+		if (dir != null && dir.isFile() && dir.canRead() && IOUtils.isReconstructionFile(dir, true))
 			return new File[]{dir};
 		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
 			return null;
@@ -735,7 +727,7 @@ public class SNTUtils {
 			final String name = file.getName();
 			if (!name.contains(validatedPattern))
 				return false;
-			return file.canRead() && isReconstructionFile(file, true);
+			return file.canRead() && IOUtils.isReconstructionFile(file, true);
 		};
 		return dir.listFiles(filter);
 	}
@@ -745,10 +737,11 @@ public class SNTUtils {
 	 *
 	 * @param file the file to be tested
 	 * @return true if the extension is that of a supported reconstruction format
-	 * @see sc.fiji.snt.util.IOUtils#isReconstructionFile(File)
+	 * @deprecated Use {@link IOUtils#isReconstructionFile(File)} instead
 	 */
+	@Deprecated
 	public static boolean isReconstructionFile(final File file) {
-		return sc.fiji.snt.util.IOUtils.isReconstructionFile(file);
+		return IOUtils.isReconstructionFile(file);
 	}
 
 	/**
@@ -758,10 +751,11 @@ public class SNTUtils {
 	 * @param file     the file to be tested
 	 * @param sniffXml whether .xml files should be inspected
 	 * @return true if the file is a supported reconstruction file
-	 * @see sc.fiji.snt.util.IOUtils#isReconstructionFile(File, boolean)
+	 * @deprecated Use {@link IOUtils#isReconstructionFile(File, boolean)} instead
 	 */
+	@Deprecated
 	public static boolean isReconstructionFile(final File file, final boolean sniffXml) {
-		return sc.fiji.snt.util.IOUtils.isReconstructionFile(file, sniffXml);
+		return IOUtils.isReconstructionFile(file, sniffXml);
 	}
 	/**
 	 * Returns timestamped backup copies of traces files in the specified location.
@@ -813,8 +807,7 @@ public class SNTUtils {
 			candidates = getReconstructionFiles(dir, baseName);
 		} else {
 			// Match all .traces files
-			candidates = dir.listFiles((d, name) ->
-					name.endsWith(".traces") || name.endsWith(".traces.gz"));
+			candidates = dir.listFiles((d, name) -> IOUtils.getType(name) == IOUtils.FileType.TRACES);
 		}
 		if (candidates == null) return;
 
@@ -1007,33 +1000,13 @@ public class SNTUtils {
 	 */
 	public static File downloadAndExtractZip(final String zipUrl) throws IOException, URISyntaxException {
 		final File zipFile = downloadToTempFile(zipUrl);
-		final java.nio.file.Path targetDir = Files.createTempDirectory(null).normalize();
-		targetDir.toFile().deleteOnExit();
-		try (final java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(
-				new BufferedInputStream(Files.newInputStream(zipFile.toPath())))) {
-			java.util.zip.ZipEntry entry;
-			while ((entry = zis.getNextEntry()) != null) {
-				final java.nio.file.Path entryPath = targetDir.resolve(entry.getName()).normalize();
-				if (!entryPath.startsWith(targetDir)) {
-					throw new IOException("Zip entry '" + entry.getName()
-							+ "' would extract outside the target directory (zip-slip)");
-				}
-				if (entry.isDirectory()) {
-					Files.createDirectories(entryPath);
-				} else {
-					if (entryPath.getParent() != null) Files.createDirectories(entryPath.getParent());
-					Files.copy(zis, entryPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-					entryPath.toFile().deleteOnExit();
-				}
-				zis.closeEntry();
-			}
+		try {
+			return IOUtils.extractZip(zipFile, false);
 		} finally {
 			//noinspection ResultOfMethodCallIgnored
 			zipFile.delete(); // extracted already; no longer needed
 		}
-		return targetDir.toFile();
 	}
-
 
 	/**
 	 * Convenience method to access the context of the running Fiji instance

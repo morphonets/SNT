@@ -880,6 +880,16 @@ public class Bvv extends AbstractBigViewer {
         return show(n5Sources);
     }
 
+    @Override
+    protected void showDataset(final Object source, final String path) {
+        final int visible = (bvvHandle == null) ? 0 : bvvHandle.getViewerPanel().state().getVisibleSources().size();
+        final String problem = BvvUtils.samplerLimitProblem(visible, BigDataUtils.countSources(source));
+        if (problem != null) throw new IllegalArgumentException(problem);
+        if (source instanceof AbstractSpimData<?> sd) show(sd, path);
+        else if (source instanceof BigDataUtils.N5Sources n5) show(n5, path);
+        else throw new IllegalArgumentException("Not a streamable dataset: " + path);
+    }
+
     /**
      * Displays a {@link AbstractSpimData} dataset using BVV's pyramid-aware GPU
      * cache manager. Each setup (channel/angle) is added as a source and wrapped

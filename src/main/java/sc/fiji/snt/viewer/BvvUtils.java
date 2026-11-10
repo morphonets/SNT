@@ -50,6 +50,7 @@ import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BigDataUtils;
+import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.awt.Point;
@@ -1809,5 +1810,20 @@ public final class BvvUtils {
                     + (e.getCause() != null ? " caused by " + e.getCause() : ""));
         }
         return sc.fiji.snt.util.ImpUtils.fromBufferedImage("BVV Snapshot", bi);
+    }
+
+    /**
+     * BVV's shader uses one texture sampler per visible source, plus one, and fails to link if the GPU's fragment
+     * shader limit is exceeded (usually 16): the viewer then renders nothing.
+     *
+     * @param visibleSources the number of sources currently visible
+     * @param newSources     the number of sources about to be added
+     * @return a description of the problem, or null if the sources can be added
+     */
+    static String samplerLimitProblem(final int visibleSources, final int newSources) {
+        final int maxSources = GLUtils.getInfo().maxTextureImageUnits() - 1;
+        if (visibleSources + newSources <= maxSources) return null;
+        return "this GPU can render at most " + maxSources + " sources at once, and " + visibleSources
+                + " are visible (adding " + newSources + "). Hide or remove some sources first";
     }
 }

@@ -362,7 +362,7 @@ final class ViewerSettingsUtils {
         if (nodes == null) return f;
         if (nodes.size() != idToName.size()) {
             throw new IllegalArgumentException(String.format(
-                    "Settings file has %d channels/sources but viewer has %d", nodes.size(), idToName.size()));
+                    "Settings file has %d channels/sources but viewer has %d.", nodes.size(), idToName.size()));
         }
         Boolean changed = remapByName(nodes, idToName);
         if (changed == null) {

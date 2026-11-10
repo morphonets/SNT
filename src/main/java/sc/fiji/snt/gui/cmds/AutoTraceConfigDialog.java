@@ -26,6 +26,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
+import sc.fiji.snt.util.IOUtils;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -184,16 +185,35 @@ public class AutoTraceConfigDialog extends JDialog {
 
     private void learnFromFiles(final List<File> files) {
         if (learner == null || learning) return;
-        final List<File> valid = new ArrayList<>();
-        for (final File f : files) {
-            if (f != null && f.canRead() && (f.isDirectory() || SNTUtils.isReconstructionFile(f, true))) valid.add(f);
-        }
-        if (valid.isEmpty()) {
-            showMessage("None of the items are reconstruction files (SWC, TRACES, JSON).");
-            return;
-        }
-        setLearning(true);
-        learner.learnFromFiles(valid, this::learned, this::learnFailed);
+        setLearning(true); // also blocks re-entry while the items are being checked
+        new SwingWorker<List<File>, Object>() {
+
+            @Override
+            protected List<File> doInBackground() {
+                final List<File> valid = new ArrayList<>();
+                for (final File f : files) {
+                    if (f != null && f.canRead() && (f.isDirectory() || IOUtils.isReconstructionFile(f, true) || IOUtils.isReconstructionZip(f)))
+                        valid.add(f);
+                }
+                return valid;
+            }
+
+            @Override
+            protected void done() {
+                List<File> valid;
+                try {
+                    valid = get();
+                } catch (final Exception ex) {
+                    valid = List.of();
+                }
+                if (valid.isEmpty()) {
+                    setLearning(false);
+                    showMessage("None of the items are supported reconstruction files.");
+                    return;
+                }
+                learner.learnFromFiles(valid, AutoTraceConfigDialog.this::learned, AutoTraceConfigDialog.this::learnFailed);
+            }
+        }.execute();
     }
 
     private void learned(final AutoTraceConfig newConfig) {
@@ -446,11 +466,11 @@ public class AutoTraceConfigDialog extends JDialog {
 
     private AbstractButton loadOptionsButton() {
         final JMenuItem load = new JMenuItem("Learn From File...");
-        load.setToolTipText("<html>Learn from a reconstruction file (SWC, TRACES, JSON).<br>"
+        load.setToolTipText("<html>Learn from a reconstruction file (SWC, TRACES, JSON, etc.).<br>"
                 + "Files can also be dropped onto this window. Replaces the current examples");
         load.addActionListener(e -> {
             final File f = new GuiUtils(this).getOpenFile("Choose Reconstruction File", lastDir,
-                    "swc", "eswc", "traces", "json");
+                    IOUtils.getReconstructionExtensions(true));
             if (f != null) {
                 lastDir = f.getParentFile();
                 learnFromFiles(List.of(f));

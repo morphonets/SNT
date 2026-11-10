@@ -51,6 +51,7 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A command that displays a shortcut window of most popular commands, inspired
@@ -461,28 +462,50 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 					guiUtils.error("Dropped file(s) not recognized.");
 					return;
 				}
-				if (files.length > 1) {
-					guiUtils.error("Ony a single file can be imported using drag-and-drop.");
-					return;
-				}
-				if (!supported(files[0])) {
-					guiUtils.error(files[0].getName() + " does not seem to be a reconstruction file.");
-					return;
-				}
-				importFile(files[0]);
-
+				importFiles(files);
 			}
 
-			private boolean supported(final File file) {
-				return sc.fiji.snt.util.IOUtils.isReconstructionFile(file, true);
+			// Files, folders and zip archives. Validation and parsing may touch slow storage: keep them off the EDT
+			void importFiles(final File[] items) {
+				final String label = (items.length == 1) ? items[0].getName() : items.length + " items";
+				new SwingWorker<Collection<Tree>, Object>() {
+
+					@Override
+					protected Collection<Tree> doInBackground() {
+						final List<File> sources = sc.fiji.snt.util.IOUtils.listReconstructionSources(items);
+						if (sources.isEmpty()) return null;
+						final List<Tree> all = new ArrayList<>();
+						for (final File f : sources) {
+							try {
+								final Collection<Tree> inFile = Tree.listFromFile(f.getAbsolutePath());
+								if (inFile != null) all.addAll(inFile);
+							} catch (final RuntimeException ex) {
+								SNTUtils.log("Could not load " + f.getName() + ": " + ex.getMessage());
+							}
+						}
+						return all;
+					}
+
+					@Override
+					protected void done() {
+						try {
+							final Collection<Tree> trees = get();
+							if (trees == null) {
+								guiUtils.error(label + " does not seem to hold reconstruction files.");
+							} else if (trees.isEmpty()) {
+								guiUtils.error(label + " does not seem to contain valid reconstruction(s).");
+							} else {
+								open(trees);
+							}
+						} catch (final Exception e) {
+							SNTUtils.error(e);
+							guiUtils.error(label + " could not be read.");
+						}
+					}
+				}.execute();
 			}
 
-			void importFile(final File file) {
-				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
-				if (trees == null || trees.isEmpty()) {
-					guiUtils.error(file.getName() + " does not seem to contain valid reconstruction(s).");
-					return;
-				}
+			void open(final Collection<Tree> trees) {
 				class Opener extends SwingWorker<Object, Object> {
 
 					@Override

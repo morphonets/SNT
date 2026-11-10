@@ -92,6 +92,8 @@ public class MeasureUI extends JFrame {
 	private SNT plugin;
 	private JProgressBar bar;
 	private GenerateTableAction.BackgroundTask backgroundTask;
+	// Only accessed on the EDT
+	private SwingWorker<List<Tree>, Void> dropImport;
 
 
 	/**
@@ -158,19 +160,19 @@ public class MeasureUI extends JFrame {
 	// are managed by the parent, and adding trees here could put the two out of sync
 	private void installFileDrop() {
 		new FileDrop(panel, files -> {
-			if (backgroundTask != null && !backgroundTask.isDone()) {
+			if ((backgroundTask != null && !backgroundTask.isDone()) || (dropImport != null && !dropImport.isDone())) {
 				UIManager.getLookAndFeel().provideErrorFeedback(this);
 				return;
 			}
-			final List<File> recs = IOUtils.listReconstructionFiles(files);
-			if (recs.isEmpty()) {
-				guiUtils.error("None of the dropped item(s) are reconstruction files.");
-				return;
-			}
-			new SwingWorker<List<Tree>, Void>() {
+			dropImport = new SwingWorker<List<Tree>, Void>() {
+
+				private boolean noFiles;
 
 				@Override
 				protected List<Tree> doInBackground() {
+					// Folders are searched here: they may be huge, or on slow drives
+					final List<File> recs = IOUtils.listReconstructionSources(files);
+					noFiles = recs.isEmpty();
 					final List<Tree> loaded = new ArrayList<>();
 					for (final File f : recs) {
 						try {
@@ -187,6 +189,10 @@ public class MeasureUI extends JFrame {
 				protected void done() {
 					try {
 						final List<Tree> loaded = get();
+						if (noFiles) {
+							guiUtils.error("None of the dropped item(s) are reconstruction files.");
+							return;
+						}
 						if (loaded.isEmpty()) {
 							guiUtils.error("Dropped file(s) do not contain valid data.");
 							return;
@@ -196,7 +202,8 @@ public class MeasureUI extends JFrame {
 						SNTUtils.error("Import failed", ex);
 					}
 				}
-			}.execute();
+			};
+			dropImport.execute();
 		});
 	}
 

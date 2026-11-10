@@ -730,13 +730,19 @@ public class SeedManager extends JPanel {
         }
     }
 
+    /** Imports seed points from a CSV file (used by SNTUI's drag-and-drop) */
+    void importDroppedCsv(final File file) {
+        dispatchCsvDrop(new File[] { file });
+    }
+
     private void handleDroppedFiles(final File[] files) {
         if (files == null || files.length == 0) return;
         String kind = null;
         for (final File f : files) {
             final String k = classifyFile(f);
             if (k == null) {
-                sntui.error("Unsupported file type: " + f.getName() + ".\nSupported: .csv, .roi/.zip, .tif/.tiff.");
+                sntui.error(GuiUtils.Text.htmlLines("Unsupported file type: " + GuiUtils.Text.escapeHtml(f.getName()) + ".",
+                        "Supported: .csv, .roi/.zip, .tif/.tiff."));
                 return;
             }
             if (kind == null) kind = k;
@@ -754,11 +760,12 @@ public class SeedManager extends JPanel {
     }
 
     private static String classifyFile(final File f) {
-        final String n = f.getName().toLowerCase(Locale.ROOT);
-        if (n.endsWith(".csv") || n.endsWith(".tsv")) return "csv";
-        if (n.endsWith(".roi") || n.endsWith(".zip")) return "roi";
-        if (n.endsWith(".tif") || n.endsWith(".tiff")) return "labels";
-        return null;
+        return switch (sc.fiji.snt.util.IOUtils.getType(f)) {
+            case CSV -> "csv";
+            case ROI, ZIP -> "roi";
+            case IMAGE -> "labels";
+            default -> null;
+        };
     }
 
     private void dispatchCsvDrop(final File[] files) {
@@ -1605,9 +1612,8 @@ public class SeedManager extends JPanel {
             return null;
         if (snt.getPrefs().workspaceIsValid()) {
             final File sessionsDir = snt.getPrefs().getSessionsDir();
-            return Arrays.stream(Objects.requireNonNull(sessionsDir.listFiles()))
-                    .filter(f -> f.isDirectory() && f.getName().startsWith("SNT_Session_"))
-                    .max(Comparator.comparing(File::getName)).orElse(sessionsDir);
+            final File latest = sc.fiji.snt.util.IOUtils.latestSession(sessionsDir);
+            return (latest == null) ? sessionsDir : latest;
         }
         return null;
     }

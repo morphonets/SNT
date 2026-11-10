@@ -476,6 +476,13 @@ public class Bdv extends AbstractBigViewer {
         return show(spimData);
     }
 
+    @Override
+    protected void showDataset(final Object source, final String path) {
+        if (source instanceof AbstractSpimData<?> sd) show(sd, path);
+        else if (source instanceof BigDataUtils.N5Sources n5) show(n5, path);
+        else throw new IllegalArgumentException("Not a streamable dataset: " + path);
+    }
+
     /**
      * Opens sources loaded from an N5 or OME-Zarr container and records the container path (see
      * {@link #show(AbstractSpimData, String)}).

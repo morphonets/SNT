@@ -54,6 +54,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.util.PointInImage;
 
 /**
@@ -831,6 +832,27 @@ public class RoiConverter {
 			SNTUtils.error("Failed to save ROIs", e);
 			return false;
 		}
+	}
+
+	/**
+	 * Loads the ROIs stored in a file: either a single ImageJ ROI file ({@code .roi}) or a zip archive of them
+	 * (e.g., a ROI set saved by the ROI Manager or by {@link #saveRoisToZip(List, File)}). Reading errors are
+	 * logged, not thrown.
+	 *
+	 * @param file the {@code .roi} or {@code .zip} file
+	 * @return the ROIs read (empty if none could be read)
+	 */
+	public static List<Roi> loadRois(final File file) {
+		if (file == null || !file.isFile()) return new ArrayList<>();
+		if (IOUtils.getType(file) == IOUtils.FileType.ZIP) return loadRoisFromZip(file);
+		final List<Roi> rois = new ArrayList<>();
+		try {
+			final Roi roi = new RoiDecoder(file.getAbsolutePath()).getRoi();
+			if (roi != null) rois.add(roi);
+		} catch (final IOException | RuntimeException ex) {
+			SNTUtils.error("Failed to load ROI from " + file.getName(), ex);
+		}
+		return rois;
 	}
 
 	public static List<Roi> loadRoisFromZip(final File zipFile) {

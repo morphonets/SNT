@@ -666,7 +666,7 @@ public class Viewer3D {
         currentView = ViewMode.DEFAULT;
         if (!(chart.getCanvas() instanceof OffscreenCanvas)) {
             gUtils = new GuiUtils((Component) chart.getCanvas());
-            fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
+            fileDropWorker = new FileDropWorker(gUtils);
         }
         return true;
     }
@@ -1145,23 +1145,39 @@ public class Viewer3D {
         plottedTrees.values().forEach(shapeTree -> chart.add(shapeTree.get(), false));
     }
 
+    // The maps are not thread-safe, and may be modified by a background import (e.g., drag-and-drop) while
+    // this runs on the EDT. Every added item triggers a new pass after the maps were updated, so a pass
+    // that fails is simply retried later: the last pass always sees a complete state
+    private void applyManagerVisibility(final int attempt) {
+        if (plottedTrees == null) return; // disposed
+        try {
+            final Set<String> selectedKeys = getLabelsCheckedInManager();
+            plottedTrees.forEach((k, shapeTree) -> {
+                final boolean show = selectedKeys.contains(k);
+                if (shapeTree.isDisplayed() != show) shapeTree.setDisplayed(show);
+            });
+            plottedObjs.forEach((k, drawableVBO) -> {
+                final boolean show = selectedKeys.contains(k);
+                if (drawableVBO.isDisplayed() != show) drawableVBO.setDisplayed(show);
+            });
+            plottedAnnotations.forEach((k, annot) -> {
+                final boolean show = selectedKeys.contains(k);
+                if (annot.getDrawable().isDisplayed() != show) annot.getDrawable().setDisplayed(show);
+            });
+        } catch (final java.util.ConcurrentModificationException ex) {
+            if (attempt >= 5) {
+                SNTUtils.log("Visibility sync skipped: " + ex);
+                return;
+            }
+            SwingUtilities.invokeLater(() -> applyManagerVisibility(attempt + 1));
+        }
+    }
+
     private void initManagerList() {
         managerList = new CheckboxListEditable(new UpdatableListModel<>());
         managerList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && getManagerPanel() != null) {
-                final Set<String> selectedKeys = getLabelsCheckedInManager();
-                plottedTrees.forEach((k, shapeTree) -> {
-                    final boolean show = selectedKeys.contains(k);
-                    if (shapeTree.isDisplayed() != show) shapeTree.setDisplayed(show);
-                });
-                plottedObjs.forEach((k, drawableVBO) -> {
-                    final boolean show = selectedKeys.contains(k);
-                    if (drawableVBO.isDisplayed() != show) drawableVBO.setDisplayed(show);
-                });
-                plottedAnnotations.forEach((k, annot) -> {
-                    final boolean show = selectedKeys.contains(k);
-                    if (annot.getDrawable().isDisplayed() != show) annot.getDrawable().setDisplayed(show);
-                });
+                applyManagerVisibility(0);
                 if (getRecorder(false) != null) {
                     // Record toggling of last checkbox interaction
                     final java.awt.Point mPos = managerList.getMousePosition();
@@ -4140,16 +4156,18 @@ public class Viewer3D {
                 leftPanel.add(canvas, BorderLayout.CENTER);
                 leftPanel.add(status, BorderLayout.SOUTH);
                 splitPane.setLeftComponent(leftPanel);
+                add(splitPane, BorderLayout.CENTER);
                 // Create and attach manager panel before pack() so the frame
                 // is sized correctly on first display, avoiding flicker
                 initManager();
-                add(splitPane, BorderLayout.CENTER);
             } else {
                 // Kiosk/non-interactive mode: canvas and status bar directly in frame
                 add(canvas, BorderLayout.CENTER);
                 getContentPane().setBackground(status.getBackground());
                 add(status, BorderLayout.SOUTH);
             }
+            // A single drop target for the whole frame (canvas, status bar and manager), once complete
+            if (this.chart.viewer.fileDropWorker != null) this.chart.viewer.fileDropWorker.installOn(getContentPane());
             setBackground(status.getBackground());
             final int panelWidth = (managerPanel != null)
                     ? managerPanel.getMinimumSize().width + splitPane.getDividerSize() : 0;
@@ -4806,7 +4824,6 @@ public class Viewer3D {
             add(buttons);
             tourList = scrollPane;
             tourButtons = buttons;
-            fileDropWorker = new FileDropWorker(managerList, mgrGuiUtils);
         }
 
         /* Starts the tour, or moves to its next callout if it is already running */
@@ -7287,12 +7304,19 @@ public class Viewer3D {
 
     private class FileDropWorker {
 
-        FileDropWorker(final Component component, final GuiUtils guiUtils) {
+        private final GuiUtils dropGuiUtils;
+
+        FileDropWorker(final GuiUtils guiUtils) {
+            dropGuiUtils = guiUtils;
+        }
+
+        // Drops are accepted anywhere in the component, which is framed while dragging
+        void installOn(final Component component) {
             new FileDrop(component, files -> {
                 if (frame.managerPanel != null) {
                     SwingUtilities.invokeLater(() ->  addProgressLoad(-1));
                 }
-                processFiles(files, true, null, guiUtils);
+                processFiles(files, true, null, dropGuiUtils);
             });
         }
 
@@ -7375,18 +7399,39 @@ public class Viewer3D {
             worker.execute();
         }
 
+        private static final int MAX_DROPPED_FILES = 10000;
+
+        // Bounded: guards against huge folders and symlink cycles (see IOUtils#listFiles)
         private Collection<File> assembleFlatFileCollection(final Collection<File> collection, final File[] files) {
             if (files == null) return collection; // can happen while pressing 'Esc'!?
-            for (final File file : files) {
-                if (abortCurrentOperation) break;
-                if (file == null) // can happen with large collections!?
-                    continue;
-                else if (file.isDirectory())
-                    assembleFlatFileCollection(collection, file.listFiles());
-                else //if (!file.isHidden())
-                    collection.add(file);
-            }
+            collection.addAll(IOUtils.listFiles(MAX_DROPPED_FILES, f -> true, files));
+            if (collection.size() >= MAX_DROPPED_FILES)
+                SNTUtils.log("Limit of " + MAX_DROPPED_FILES + " files reached. Remaining files ignored");
             return (abortCurrentOperation) ? null : collection;
+        }
+
+        // Archives are read entry by entry: trees are shown (and progress is reported) as they are parsed,
+        // and 'Esc' interrupts the import. Returns false if no tree could be read
+        private boolean loadReconstructionZip(final File zip) {
+            final int entries = Math.max(1, IOUtils.countReconstructionEntries(zip));
+            final ColorRGB[] colors = SNTColor.getDistinctColors(entries);
+            addProgressLoad(entries);
+            int loaded = 0;
+            try (CloseableIterator<Tree> trees = Tree.streamFromFile(zip.getAbsolutePath())) {
+                while (!abortCurrentOperation && trees.hasNext()) {
+                    final Tree tree = trees.next();
+                    if (tree.list().stream().noneMatch(p -> p.hasCustomColor() || p.hasNodeColors()))
+                        tree.setColor(colors[loaded % colors.length]);
+                    addTree(tree);
+                    // Entries may hold several trees
+                    if (loaded >= entries) addProgressLoad(1);
+                    incrementProgress();
+                    loaded++;
+                }
+            } catch (final RuntimeException ex) {
+                SNTUtils.log("... failed " + ex.getMessage());
+            }
+            return loaded > 0;
         }
 
         /**
@@ -7420,7 +7465,9 @@ public class Viewer3D {
                 try {
                     incrementProgress();
                     final ColorRGB color = colors[idx];
-                    if(SNTUtils.isReconstructionFile(file, true)) {
+                    if (IOUtils.isReconstructionZip(file)) {
+                        if (!loadReconstructionZip(file)) failures++;
+                    } else if (IOUtils.isReconstructionFile(file, true)) {
                         try {
                             final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
                             if (treesInFile.isEmpty()) {

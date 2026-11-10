@@ -348,6 +348,104 @@ public class BigDataUtils {
     }
 
     /**
+     * Compares two calibration values.
+     *
+     * @return true if the values differ by no more than 0.1% of the largest one
+     */
+    public static boolean similar(final double a, final double b) {
+        return Math.abs(a - b) <= 1e-3 * Math.max(Math.abs(a), Math.abs(b));
+    }
+
+    /**
+     * @param source an {@link AbstractSpimData} or {@link N5Sources} instance (see {@link #resolvePathToSource(String)})
+     * @return the number of sources (channels/setups) that displaying it would add, or 0 if unsupported
+     */
+    public static int countSources(final Object source) {
+        if (source instanceof N5Sources n5) return n5.sources().size();
+        if (source instanceof AbstractSpimData<?> sd) return sd.getSequenceDescription().getViewSetupsOrdered().size();
+        return 0;
+    }
+
+    /**
+     * The geometry of a dataset's first source, at full resolution.
+     *
+     * @param dims   size in voxels (x, y, z)
+     * @param voxel  voxel size (x, y, z), or null if unknown
+     * @param origin translation of the source transform (x, y, z), or null if unknown/not applicable. Only read from
+     *               {@link N5Sources}, as {@code BigDataLoaderCmd} does
+     */
+    public record Geometry(long[] dims, double[] voxel, double[] origin) {
+
+        /**
+         * Compares this geometry with a reference (e.g., that of an SNT session).
+         *
+         * @return a description of the first difference, or null if the geometries are compatible
+         */
+        public String mismatch(final int[] refDims, final double[] refVoxel, final double[] refOrigin) {
+            for (int d = 0; d < 3; d++) {
+                if (dims[d] != refDims[d]) return "dimensions (" + dims[0] + "x" + dims[1] + "x" + dims[2]
+                        + ") differ from the current dataset (" + refDims[0] + "x" + refDims[1] + "x" + refDims[2] + ")";
+            }
+            if (voxel == null) return "its voxel size is unknown";
+            for (int d = 0; d < 3; d++) {
+                if (!similar(voxel[d], refVoxel[d]))
+                    return String.format("voxel size (%.4f, %.4f, %.4f) differs from the current dataset "
+                            + "(%.4f, %.4f, %.4f)", voxel[0], voxel[1], voxel[2], refVoxel[0], refVoxel[1], refVoxel[2]);
+            }
+            if (origin != null) {
+                final double tol = 1e-3 * Math.max(refVoxel[0], Math.max(refVoxel[1], refVoxel[2]));
+                for (int d = 0; d < 3; d++) {
+                    if (Math.abs(origin[d] - refOrigin[d]) > tol) return "its origin differs from the current dataset";
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * @param source an {@link AbstractSpimData} or {@link N5Sources} instance (see {@link #resolvePathToSource(String)})
+     * @return the geometry of its first source, or null if it could not be determined
+     */
+    public static Geometry geometryOf(final Object source) {
+        if (source instanceof N5Sources n5 && !n5.sources().isEmpty()) {
+            final var src = n5.sources().getFirst().getSpimSource();
+            final var itvl = src.getSource(0, 0);
+            final var vd = src.getVoxelDimensions();
+            final AffineTransform3D t = new AffineTransform3D();
+            src.getSourceTransform(0, 0, t);
+            return new Geometry(new long[] { itvl.dimension(0), itvl.dimension(1), itvl.dimension(2) },
+                    (vd == null) ? null : new double[] { vd.dimension(0), vd.dimension(1), vd.dimension(2) },
+                    new double[] { t.get(0, 3), t.get(1, 3), t.get(2, 3) });
+        }
+        if (source instanceof AbstractSpimData<?> sd && !sd.getSequenceDescription().getViewSetupsOrdered().isEmpty()) {
+            final var setup = sd.getSequenceDescription().getViewSetupsOrdered().getFirst();
+            if (!setup.hasSize()) return null;
+            return new Geometry(new long[] { setup.getSize().dimension(0), setup.getSize().dimension(1),
+                    setup.getSize().dimension(2) }, !setup.hasVoxelSize() ? null
+                    : new double[] { setup.getVoxelSize().dimension(0), setup.getVoxelSize().dimension(1),
+                    setup.getVoxelSize().dimension(2) }, null);
+        }
+        return null;
+    }
+
+    /**
+     * Checks whether a file is a BigDataViewer dataset descriptor (i.e., its root element is {@code SpimData}). Only
+     * the first few KB of the file are read, so this is safe to call on large files. Does not validate the dataset
+     *
+     * @param file the file to be checked
+     * @return true if the file looks like a BDV XML dataset
+     */
+    public static boolean isSpimDataXml(final File file) {
+        if (file == null || IOUtils.getType(file) != IOUtils.FileType.XML) return false;
+        try (java.io.InputStream in = java.nio.file.Files.newInputStream(file.toPath())) {
+            final String head = new String(in.readNBytes(4096), java.nio.charset.StandardCharsets.ISO_8859_1);
+            return head.contains("<SpimData");
+        } catch (final java.io.IOException | RuntimeException ex) {
+            return false;
+        }
+    }
+
+    /**
      * Resolves a file path to an {@link AbstractSpimData} (for {@code .ims} and
      * {@code .xml} files), an {@link N5Sources} (for {@code .n5}/{@code .zarr}
      * containers), or an {@link ImgPlus} (fallback).
@@ -509,7 +607,7 @@ public class BigDataUtils {
      */
     public static boolean isRemoteUrl(final String path) {
         if (path == null) return false;
-        if (path.matches("^[a-zA-Z][a-zA-Z0-9+.-]*:/{1,2}.*")) return true; // intact, or Unix-mangled
+        if (path.matches("^[a-zA-Z][a-zA-Z0-9+.-]+:/{1,2}.*")) return true; // intact, or Unix-mangled. NB: 2+ chars: C:/ is a drive
         return path.matches("^[a-zA-Z][a-zA-Z0-9+.-]+:\\\\.*"); // Windows-mangled (backslash throughout)
     }
 

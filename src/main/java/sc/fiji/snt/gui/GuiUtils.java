@@ -955,6 +955,24 @@ public class GuiUtils {
 	}
 
 	/**
+	 * Displays a warning that users can opt out of (for the session) and must acknowledge to proceed.
+	 *
+	 * @param prefs the preferences holding the opt-out flag
+	 * @param key   the preference key identifying the warning
+	 * @param msg   the warning (can be HTML)
+	 * @param title the dialog title
+	 * @return false if the dialog was dismissed (the operation should be aborted), true otherwise (including when
+	 *         the user opted out of the warning earlier)
+	 */
+	public boolean showWarningOnce(final SNTPrefs prefs, final String key, final String msg, final String title) {
+		if (prefs.getTemp(key, false)) return true;
+		final Boolean skipNag = getPersistentWarning(msg, title);
+		if (skipNag == null) return false;
+		prefs.setTemp(key, skipNag);
+		return true;
+	}
+
+	/**
 	 * Displays a dialog with radio button choices, optional info text, and an optional checkbox.
 	 * Useful for operations that require a selection with additional context and options.
 	 *
@@ -1589,17 +1607,17 @@ public class GuiUtils {
 	}
 
 	public File[] getReconstructionFiles(final File selectedFile) {
-		// NB: xml (Neurolucida) cannot be told apart by name alone. It is listed here, and validated
-		// by the importers once selected
-		final String[] extensions = java.util.stream.Stream.concat(
-				java.util.Arrays.stream(sc.fiji.snt.util.IOUtils.getReconstructionExtensions()),
-				java.util.stream.Stream.of("xml")).toArray(String[]::new);
+		return (File[]) showOpenDialog("Choose Reconstruction File(s)", JFileChooser.FILES_ONLY, true,
+				selectedFile, false, reconstructionFilter());
+	}
+
+	// NB: xml (Neurolucida) cannot be told apart by name alone. It is listed here, and validated
+	// by the importers once selected
+	private static FileNameExtensionFilter reconstructionFilter() {
+		final String[] extensions = sc.fiji.snt.util.IOUtils.getReconstructionExtensions(true);
 		final String label = java.util.Arrays.stream(extensions).map(e -> "." + e)
 				.collect(java.util.stream.Collectors.joining(", "));
-		final FileNameExtensionFilter filter = new FileNameExtensionFilter(
-				"Reconstruction files (" + label + ")", extensions);
-		return (File[]) showOpenDialog("Choose Reconstruction File(s)", JFileChooser.FILES_ONLY, true,
-				selectedFile, false, filter);
+		return new FileNameExtensionFilter("Reconstruction files (" + label + ")", extensions);
 	}
 
 	public File getFile(final File file, final String extensionWithoutPeriod) {
@@ -1628,8 +1646,7 @@ public class GuiUtils {
 			case "ndf" -> new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
 			case "xml" -> new FileNameExtensionFilter("Neurolucida XML files (.xml)", "xml");
 			case "labels" -> new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
-			case null, default -> new FileNameExtensionFilter(
-					"Reconstruction files (.traces, .swc, .json, .ndf, .xml)", "traces", "swc", "json", "ndf", "xml");
+			case null, default -> reconstructionFilter();
 		};
 		final String title;
 		if (extension == null) title = "Choose Reconstruction File";
@@ -2157,7 +2174,13 @@ public class GuiUtils {
 		}
 	}
 
+	/** Prefix of text built by {@link Text#htmlLines(String...)}: its fixed width is replaced by a parent-based one */
+	private static final String HTML_LINES_PREFIX = "<html><body><div style='width:";
+
 	private JLabel getLabel(final String text) {
+		if (text != null && text.startsWith(HTML_LINES_PREFIX)) {
+			return new JLabel(getWrappedText(null, text));
+		}
 		if (text == null || text.startsWith("<")) {
 			return new JLabel(text);
 		}
@@ -2177,6 +2200,23 @@ public class GuiUtils {
 			// wide when the parent is already quite wide
 			final int screenW = parent.getGraphicsConfiguration().getBounds().width;
 			max = Math.min(parent.getWidth(), screenW / 3);
+		}
+		if (text.startsWith(HTML_LINES_PREFIX)) {
+			// htmlLines(): replace its default width with one that follows the parent (never narrower than the default)
+			final int end = text.indexOf("px;'>", HTML_LINES_PREFIX.length());
+			if (end < 0) return text;
+			// fit the box to the longest line: short messages stay compact, long ones wrap at the cap
+			final JLabel ref = new JLabel();
+			final java.awt.FontMetrics fm = ref.getFontMetrics(ref.getFont());
+			int widest = 0;
+			for (final String line : text.substring(end + "px;'>".length()).split("<br>")) {
+				final String plain = line.replaceAll("<[^>]*>", "").replace("&lt;", "<").replace("&gt;", ">")
+						.replace("&quot;", "\"").replace("&amp;", "&");
+				widest = Math.max(widest, fm.stringWidth(plain));
+			}
+			final int cap = Math.max(400, max);
+			final int width = Math.min(cap, Math.max(200, widest + 10));
+			return HTML_LINES_PREFIX + width + text.substring(end);
 		}
 		return getWrappedText(c, text, max);
 	}
@@ -6901,6 +6941,27 @@ public class GuiUtils {
 		 */
 		public static String escapeHtml(final String text) {
 			return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+		}
+
+		/**
+		 * Lists up to three names, e.g., "a.swc, b.swc, c.swc and 2 more".
+		 *
+		 * @param names the names. They are HTML-escaped
+		 */
+		public static String summarize(final java.util.List<String> names) {
+			return names.stream().limit(3).map(Text::escapeHtml).collect(java.util.stream.Collectors.joining(", "))
+					+ ((names.size() > 3) ? " and " + (names.size() - 3) + " more" : "");
+		}
+
+		/**
+		 * Joins lines in a fixed-width HTML block suitable for dialogs. Dialogs treat text starting with
+		 * {@code <html>} as markup, so plain line breaks would otherwise be lost.
+		 *
+		 * @param lines the lines. Any user-provided text in them must be escaped by the caller, see
+		 *              {@link #escapeHtml(String)}
+		 */
+		public static String htmlLines(final String... lines) {
+			return "<html><body><div style='width:400px;'>" + String.join("<br>", lines);
 		}
 
 		/**

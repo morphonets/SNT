@@ -36,12 +36,10 @@ import org.scijava.widget.FileWidget;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.IOUtils;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Restores a tracing session including traces, bookmarks, and notes.
@@ -94,15 +92,25 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
     private void init() {
         super.init(true);
         if (snt == null) return;
+        if (sessionDir != null) {
+            // A session (or a folder of sessions) was specified, e.g., by drag-and-drop: respect it,
+            // and do not require a workspace
+            sessionDir = resolveSession(sessionDir);
+            return;
+        }
         final File workspaceDir = ui.getOrPromptForWorkspace();
         if (snt.getPrefs().workspaceIsValid()) {
             final File sessionsDir = snt.getPrefs().getSessionsDir();
-            final File latestSession = Arrays.stream(Objects.requireNonNull(sessionsDir.listFiles()))
-                    .filter(f -> f.isDirectory() && f.getName().startsWith("SNT_Session_"))
-                    .max(Comparator.comparing(File::getName))
-                    .orElse(null);
+            final File latestSession = IOUtils.latestSession(sessionsDir);
             sessionDir = (latestSession == null) ? sessionsDir : latestSession;
         }
+    }
+
+    // Returns the folder itself if it is a session, or its latest session if it holds several
+    private static File resolveSession(final File dir) {
+        if (new File(dir, IOUtils.SESSION_MANIFEST).exists()) return dir;
+        final File latest = IOUtils.latestSession(dir);
+        return (latest == null) ? dir : latest;
     }
 
     @Override
@@ -116,7 +124,7 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
         }
 
         // Fallback: check properties file (future-proofing)
-        final File manifest = new File(sessionDir, "session.properties");
+        final File manifest = new File(sessionDir, IOUtils.SESSION_MANIFEST);
         if (!manifest.exists()) {
             error("Directory does not contain a properties file. Session was not restored.");
             return;

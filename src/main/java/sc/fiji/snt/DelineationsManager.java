@@ -47,7 +47,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
 import java.util.function.Consumer;
@@ -642,6 +644,115 @@ public class DelineationsManager {
         return null;
     }
 
+    /**
+     * Imports delineations from a labels image, after checking dimensions and asking permission to
+     * clear existing assignments. Errors are reported to the user. Must be called on the EDT.
+     *
+     * @param labelImp the labels image
+     */
+    void importLabelImagePrompted(final ImagePlus labelImp) {
+        if (labelImp == null) return;
+        // NB: not plugin.getImagePlus() != null -- that is null in Stream mode!
+        if (sntui.plugin.isStreamMode()) {
+            if (!labelsMatchStreamFrame(labelImp)) return;
+        } else if (sntui.plugin.accessToValidImageData()) {
+            final int[] fullDims = sntui.plugin.getFullImageDimensions();
+            final boolean dimMatch = labelImp.getWidth() == fullDims[0]
+                    && labelImp.getHeight() == fullDims[1]
+                    && labelImp.getNSlices() == fullDims[2];
+            if (!dimMatch && !sntui.guiUtils.getConfirmation(
+                    "The label image dimensions (" + labelImp.getWidth() + "×"
+                            + labelImp.getHeight() + "×" + labelImp.getNSlices()
+                            + ") do not match the tracing image ("
+                            + fullDims[0] + "×" + fullDims[1] + "×" + fullDims[2]
+                            + "). Assignments may be incorrect. Proceed anyway?",
+                    "Dimension Mismatch")) {
+                return;
+            }
+        }
+        if (!resetAuthorizedByUser()) return;
+        final int n = importFromLabelImage(labelImp);
+        if (n < 0)
+            sntui.guiUtils.error("The selected image does not appear to be a valid "
+                    + "labels/masks image. Expected: integer values with 0 as "
+                    + "background. " + GuiUtils.consoleHint() + ".");
+        else if (n == 0)
+            sntui.guiUtils.error("No non-zero labels found in the image.");
+        else
+            sntui.guiUtils.centeredMsg(n + " label(s) imported as delineations. "
+                            + "Distance-to-boundary metrics will be included in Measure output.",
+                    "Labels Image Imported");
+    }
+
+    /**
+     * In Stream mode, nodes are looked up in the pixel grid of the active canvas (see
+     * {@link Path#getXUnscaledDouble(int)}): the full volume, or the materialized region once one is installed.
+     * A labels image is thus only meaningful if it matches that grid. Unlike in classic mode, a mismatch is not
+     * overridable, since nodes would be silently assigned to the wrong labels. Errors are reported to the user.
+     *
+     * @return true if the labels image matches the active canvas
+     */
+    private boolean labelsMatchStreamFrame(final ImagePlus labelImp) {
+        final SNT snt = sntui.plugin;
+        if (!snt.accessToValidImageData()) {
+            sntui.guiUtils.error("No image data is available.");
+            return false;
+        }
+        final int[] labels = { labelImp.getWidth(), labelImp.getHeight(), labelImp.getNSlices() };
+        final ImagePlus region = snt.isMaterializedCrop() ? snt.getImagePlus() : null;
+        if (region != null) {
+            if (Arrays.equals(labels, new int[] { region.getWidth(), region.getHeight(), region.getNSlices() }))
+                return true;
+            final int[] full = snt.getFullImageDimensions();
+            sntui.guiUtils.error("The labels image (" + dimsToString(labels) + ") does not match the materialized "
+                    + "region (" + dimsToString(new int[] { region.getWidth(), region.getHeight(), region.getNSlices() })
+                    + ")." + (Arrays.equals(labels, full) ? " It matches the full volume, but nodes are currently "
+                    + "referenced to the region: use a labels image of the region, or restore the full volume first."
+                    : ""));
+            return false;
+        }
+        final int[] full = snt.getFullImageDimensions();
+        if (Arrays.equals(labels, full)) return true;
+        sntui.guiUtils.error("The labels image (" + dimsToString(labels) + ") does not match the streamed volume ("
+                + dimsToString(full) + "). Materialize a region and use a labels image of that region, "
+                + "or use a labels image of the full volume.");
+        return false;
+    }
+
+    private static String dimsToString(final int[] dims) {
+        return dims[0] + "x" + dims[1] + "x" + dims[2];
+    }
+
+    /**
+     * Imports delineations from a labels image file (e.g., dropped on the GUI). The file is read in
+     * the background and errors are reported to the user.
+     *
+     * @param file the labels image file
+     */
+    void importLabelImageFile(final File file) {
+        if (sntui.noPathsError()) return;
+        sntui.showStatus("Reading " + file.getName() + "...", true);
+        new SwingWorker<ImagePlus, Void>() {
+
+            @Override
+            protected ImagePlus doInBackground() {
+                return ImpUtils.open(file);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    final ImagePlus imp = get();
+                    if (imp == null) sntui.guiUtils.error("Could not open " + file.getName() + " as an image.");
+                    else importLabelImagePrompted(imp);
+                } catch (final InterruptedException | ExecutionException | RuntimeException ex) {
+                    SNTUtils.error("Labels image import failed", ex);
+                    sntui.guiUtils.error("Could not read " + file.getName() + ". " + GuiUtils.consoleHint() + ".");
+                }
+            }
+        }.execute();
+    }
+
     JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
         GuiUtils.MenuItems.addSeparator(menu, "Import Delineations:");
@@ -658,34 +769,7 @@ public class DelineationsManager {
             if (sntui.noPathsError()) return;
             final ImagePlus labelImp = getLabelImage();
             if (labelImp == null) return;
-            // NB: not plugin.getImagePlus() != null -- that is null in Stream mode!
-            if (sntui.plugin.accessToValidImageData()) {
-                final int[] fullDims = sntui.plugin.getFullImageDimensions();
-                final boolean dimMatch = labelImp.getWidth() == fullDims[0]
-                        && labelImp.getHeight() == fullDims[1]
-                        && labelImp.getNSlices() == fullDims[2];
-                if (!dimMatch && !sntui.guiUtils.getConfirmation(
-                        "The label image dimensions (" + labelImp.getWidth() + "×"
-                                + labelImp.getHeight() + "×" + labelImp.getNSlices()
-                                + ") do not match the tracing image ("
-                                + fullDims[0] + "×" + fullDims[1] + "×" + fullDims[2]
-                                + "). Assignments may be incorrect. Proceed anyway?",
-                        "Dimension Mismatch")) {
-                    return;
-                }
-            }
-            if (!resetAuthorizedByUser()) return;
-            final int n = importFromLabelImage(labelImp);
-            if (n < 0)
-                sntui.guiUtils.error("The selected image does not appear to be a valid "
-                        + "labels/masks image. Expected: integer values with 0 as "
-                        + "background. " + GuiUtils.consoleHint() + ".");
-            else if (n == 0)
-                sntui.guiUtils.error("No non-zero labels found in the image.");
-            else
-                sntui.guiUtils.centeredMsg(n + " label(s) imported as delineations. "
-                                + "Distance-to-boundary metrics will be included in Measure output.",
-                        "Labels Image Imported");
+            importLabelImagePrompted(labelImp);
         });
 
         jmi = new JMenuItem("From ROI Manager's ROIs...", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
