@@ -773,8 +773,7 @@ public class DemoRunner {
 		final String defChoice = (prefs == null) ? choices[0] : prefs.getTemp("demo", choices[0]);
 		final GuiUtils.ChoiceAction copyLink = new GuiUtils.ChoiceAction("Copy snt:// Link",
 				IconFactory.menuIcon(IconFactory.GLYPH.LINK), "Copies a link that loads the selected demo to the clipboard",
-				"Link Copied", index -> true, index -> java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
-						.setContents(new java.awt.datatransfer.StringSelection(entries.get(index).link()), null));
+				"Link Copied", index -> true, index -> GuiUtils.Text.copyToClipboard(entries.get(index).link()));
 		final String choice = new GuiUtils(ui).getChoice(
 				"Which dataset/tutorial?<br>NB: Remote data may take a while to download", "Load Demo Dataset/Tutorial", choices,
 				descriptions, defChoice, (list, index) -> entries.get(index).icon(list),

@@ -141,6 +141,17 @@ public class SNTUtils {
 		}
 	}
 
+	/**
+	 * @return the version of the running ImageJ, e.g., "ImageJ 2.17.0/1.54p"
+	 */
+	public static String getImageJVersion() {
+		try {
+			return "ImageJ " + getContext().getService(org.scijava.app.AppService.class).getApp().getVersion();
+		} catch (final Throwable ignored) {
+			return "ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD;
+		}
+	}
+
 	public static String getReadableVersion() {
 		if (VERSION.length() < 21) return "SNT " + VERSION;
 		return "SNT " + VERSION.substring(0, 21) + "...";

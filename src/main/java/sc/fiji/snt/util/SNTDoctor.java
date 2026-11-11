@@ -118,6 +118,7 @@ public final class SNTDoctor {
      */
     public static String header() {
         return "SNT Doctor report\n" + SNTUtils.getReadableVersion() + "\n"
+                + SNTUtils.getImageJVersion() + "\n"
                 + "Java " + System.getProperty("java.version") + " / " + System.getProperty("os.name") + " "
                 + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")\n\n";
     }
@@ -191,6 +192,7 @@ public final class SNTDoctor {
                 new NamedCheck("Graphics", SNTDoctor::checkGraphics),
                 new NamedCheck("Disk", SNTDoctor::checkDisk),
                 new NamedCheck("Network", SNTDoctor::checkNetwork),
+                new NamedCheck("Updates", () -> checkUpdates(networkOk(results))),
                 new NamedCheck("Integrations", SNTDoctor::checkIntegrations),
                 new NamedCheck("Sanity test", SNTDoctor::checkSanityTest));
         for (final NamedCheck check : checks) {
@@ -450,6 +452,70 @@ public final class SNTDoctor {
 
     private static void addIfSet(final List<String> list, final String prefix, final String value, final String suffix) {
         if (value != null && !value.isBlank()) list.add(prefix + value + suffix);
+    }
+
+    private static boolean networkOk(final List<Result> results) {
+        for (final Result r : results)
+            if ("Network".equals(r.name())) return r.status() == Status.OK;
+        return false;
+    }
+
+    private record UpdateProbe(boolean updateable, Boolean sntNewer, String note) {
+    }
+
+    private static UpdateProbe probeUpdates(final File root) throws Exception {
+        final String state = UpdateChecker.upToDateState();
+        final boolean skipSite = state.equals("DEVELOPER") || state.equals("UPDATES_MANAGED_DIFFERENTLY");
+        final String note = switch (state) {
+            case "UP_TO_DATE" -> "Fiji updater reports no pending updates";
+            case "UPDATEABLE" -> "Fiji updates are available";
+            default -> "Fiji update check not applicable (" + state.toLowerCase(Locale.ROOT).replace('_', ' ') + ")";
+        };
+        return new UpdateProbe(state.equals("UPDATEABLE"), skipSite ? null : UpdateChecker.isSNTSiteNewer(root), note);
+    }
+
+    /**
+     * Reports how current the Fiji installation is. Offline, only the age of the updater database is reported. The
+     * online comparison is only attempted if the network check succeeded. Never fails the report: anything
+     * unexpected is described as unknown
+     */
+    static Result checkUpdates(final boolean online) {
+        try {
+            final File root = UpdateChecker.baseDirectory();
+            final File db = (root == null) ? null : new File(root, "db.xml.gz");
+            if (db == null || !db.isFile()) return new Result("Updates", Status.OK,
+                    "Not managed by the Fiji updater (no updater database found)", "");
+            final long days = TimeUnit.MILLISECONDS.toDays(Math.max(0, System.currentTimeMillis() - db.lastModified()));
+            final List<String> info = new ArrayList<>();
+            info.add("Updater database last written " + (days == 0 ? "today" : days == 1 ? "1 day ago" : days + " days ago"));
+            boolean limited = false;
+            if (online) {
+                try {
+                    final UpdateProbe probe = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                        try {
+                            return probeUpdates(root);
+                        } catch (final Throwable t) {
+                            throw new IllegalStateException(t);
+                        }
+                    }).get(10, TimeUnit.SECONDS);
+                    info.add(probe.note());
+                    if (probe.sntNewer() != null)
+                        info.add(probe.sntNewer() ? "a newer SNT is available on the Neuroanatomy update site"
+                                : "SNT matches the Neuroanatomy update site");
+                    limited = probe.updateable() || Boolean.TRUE.equals(probe.sntNewer());
+                } catch (final java.util.concurrent.TimeoutException e) {
+                    info.add("online check timed out");
+                } catch (final Throwable t) {
+                    info.add("online check could not be completed");
+                }
+            } else {
+                info.add("online check skipped (network unavailable)");
+            }
+            return new Result("Updates", limited ? Status.LIMITED : Status.OK, String.join("; ", info),
+                    limited ? "Run Help > Update... in Fiji, then restart" : "");
+        } catch (final Throwable t) {
+            return new Result("Updates", Status.UNKNOWN, "Could not be determined", "");
+        }
     }
 
     static Result checkIntegrations() {

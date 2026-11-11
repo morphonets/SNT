@@ -669,7 +669,7 @@ public class BookmarkManager {
         final AbstractBigViewer v = (viewer != null) ? viewer
                 : SNTLink.activeViewer((sntui == null) ? null : sntui.plugin);
         final String link = SNTLink.locationLink(source, v, sntui != null, b.getX(), b.getY(), b.getZ(), b.t);
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(link), null);
+        GuiUtils.Text.copyToClipboard(link);
         getGuiUtils().tempMsg("Link copied to clipboard");
     }
 

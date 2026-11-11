@@ -301,8 +301,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 }
                 sb.append('\n');
             }
-            final java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(sb.toString().strip());
-            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, null);
+            GuiUtils.Text.copyToClipboard(sb.toString().strip());
         });
         popup.add(copyItem);
 

@@ -1408,8 +1408,7 @@ public abstract class AbstractBigViewer {
                         showViewerMessage("Keyframe #" + capturedKeyframes.size() + " captured (copied)");
                     }
                     System.out.println(block);
-                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
-                            .setContents(new java.awt.datatransfer.StringSelection(block), null);
+                    GuiUtils.Text.copyToClipboard(block);
                 } catch (final Exception ex) {
                     SNTUtils.log("Keyframe capture failed: " + ex.getMessage());
                 }

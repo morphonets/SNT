@@ -53,6 +53,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.PrefsCmd;
+import sc.fiji.snt.util.UpdateChecker;
 import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.Integration;
@@ -248,23 +249,6 @@ public class GuiUtils {
 		centeredDialog(msg, "SNT v" + SNTUtils.VERSION, JOptionPane.WARNING_MESSAGE);
 	}
 
-	/**
-	 * Returns the Last-Modified timestamp from a HEAD request, or -1 on failure.
-	 */
-	private static long getLastModified(final String url) {
-		java.net.HttpURLConnection conn = null;
-		try {
-			conn = (java.net.HttpURLConnection) new URI(url).toURL().openConnection();
-			conn.setRequestMethod("HEAD");
-			conn.setUseCaches(false);
-			return conn.getLastModified();
-		} catch (final Exception ignored) {
-			return -1;
-		} finally {
-			if (conn != null) conn.disconnect();
-		}
-	}
-
 	public static void notifyIfNewVersion(final int msDelayBeforeShow) {
 		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
@@ -305,18 +289,8 @@ public class GuiUtils {
 						} // UP_TO_DATE, UPDATEABLE, etc.: proceed with targeted check
 					}
 					// Now check the Neuroanatomy update site specifically
-					final java.io.File ijRoot = SNTUtils.getContext()
-							.getService(org.scijava.app.AppService.class).getApp().getBaseDirectory();
-					final net.imagej.updater.FilesCollection files =
-							new net.imagej.updater.FilesCollection(ijRoot);
-					files.read();
-					final net.imagej.updater.UpdateSite site = files.getUpdateSite("Neuroanatomy", false);
-					if (site == null || !site.isActive()) return;
-					final String siteURL = site.getURL();
-					if (siteURL == null || siteURL.isEmpty()) return;
-					final String dbURL = siteURL + (siteURL.endsWith("/") ? "" : "/") + "db.xml.gz";
-					final long remoteTimestamp = getLastModified(dbURL);
-					if (remoteTimestamp > 0 && !site.isLastModified(remoteTimestamp)) {
+					final java.io.File ijRoot = UpdateChecker.baseDirectory();
+					if (ijRoot != null && Boolean.TRUE.equals(UpdateChecker.isSNTSiteNewer(ijRoot))) {
 						SwingUtilities.invokeLater(() -> {
 							final String s = """
 									<HTML>
@@ -326,7 +300,7 @@ public class GuiUtils {
 							Notices.queueNotice(s, MenuItems.releaseNotesURL(), null);
 						});
 					}
-				} catch (final Exception ignored) {
+				} catch (final Throwable ignored) {
 					// Network errors, missing updater, etc.: fail silently
 				}
 			}, "SNT-Update-Check").start();
@@ -2363,13 +2337,10 @@ public class GuiUtils {
 		}
 	}
 
-	private static String getImageJVersion() {
-		try {
-			return "ImageJ " + SNTUtils.getContext().getService(org.scijava.app.AppService.class).getApp().getVersion();
-		} catch (final Throwable ignored) {
-			return "ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD;
-		}
-	}
+	private static final String DOC_URL = "https://imagej.net/plugins/snt/";
+	private static final String FORUM_URL = "https://forum.image.sc/tag/snt";
+	private static final String CITE_URL = DOC_URL + "faq#how-do-i-cite-snt";
+	private static final String DOCTOR_TOOLTIP = "Checks memory, compute, graphics, disk, network and the SNT installation";
 
 	public static JDialog showAboutDialog() {
 		final JPanel main = new JPanel(new GridBagLayout());
@@ -2383,7 +2354,7 @@ public class GuiUtils {
 		// Regular (bordered) button under the logo, to make it stand out from the info rows
 		final JButton checkButton = new JButton("Run SNT Doctor...",
 				IconFactory.buttonIcon(GLYPH.STETHOSCOPE, IconFactory.secondaryColor(), 1f));
-		checkButton.setToolTipText("Checks memory, compute, graphics, disk, network and the SNT installation");
+		checkButton.setToolTipText(DOCTOR_TOOLTIP);
 		final GridBagConstraints checkGbc = new GridBagConstraints();
 		checkGbc.gridx = 0;
 		checkGbc.gridy = 1;
@@ -2406,7 +2377,7 @@ public class GuiUtils {
 
 		// All info rows below are borderless JButtons (not JLabels styled to look
 		// clickable) so they share the same margin/insets and stay left-aligned
-		final String details = getImageJVersion() + " · Java " + System.getProperty("java.version");
+		final String details = SNTUtils.getImageJVersion() + " · Java " + System.getProperty("java.version");
 		final Icon refIcon = IconFactory.buttonIcon('\ue4e5', true, IconFactory.secondaryColor());
 		final JButton ijDetails = infoButton(details, refIcon, refIcon);
 		ijDetails.setToolTipText("Click to display detailed system information");
@@ -2463,10 +2434,10 @@ public class GuiUtils {
 
 		final JPanel urls = new JPanel(new FlowLayout(FlowLayout.CENTER,0,0));
 		urls.add(urlButton("Release Notes", MenuItems.releaseNotesURL(), GLYPH.NEWSPAPER));
-		urls.add(urlButton("Documentation", "https://imagej.net/plugins/snt/", GLYPH.BOOK_READER));
-		urls.add(urlButton("Forum", "https://forum.image.sc/tag/snt", GLYPH.COMMENTS));
+		urls.add(urlButton("Documentation", DOC_URL, GLYPH.BOOK_READER));
+		urls.add(urlButton("Forum", FORUM_URL, GLYPH.COMMENTS));
 		urls.add(urlButton("Source", "https://github.com/morphonets/SNT/", GLYPH.CODE2));
-		urls.add(urlButton("Manuscripts", "https://imagej.net/plugins/snt/faq#how-do-i-cite-snt", GLYPH.FILE));
+		urls.add(urlButton("Manuscripts", CITE_URL, GLYPH.SCROLL));
 		final GridBagConstraints urlsGbc = new GridBagConstraints();
 		urlsGbc.gridx = 0;
 		urlsGbc.gridy = 2;
@@ -2478,7 +2449,7 @@ public class GuiUtils {
 				null, new Object[0]); // empty options: no OK button
 		final JDialog d = optionPane.createDialog("About SNT");
 		checkButton.addActionListener(e -> {
-			final JDialog sysDialog = doctorDialog(d);
+			final JDialog sysDialog = showDoctorDialog(d);
 			checkButton.setEnabled(false);
 			sysDialog.addWindowListener(new WindowAdapter() {
 				@Override
@@ -2486,9 +2457,6 @@ public class GuiUtils {
 					checkButton.setEnabled(true);
 				}
 			});
-			sysDialog.setLocationRelativeTo(d);
-			sysDialog.setVisible(true);
-			sysDialog.toFront();
 		});
 
 		new Thread(() -> {
@@ -2511,8 +2479,7 @@ public class GuiUtils {
 								.replace("\n", "<br>")
 						+ "<br><br>Click to copy to clipboard");
 				integrationDetails.addActionListener(e -> {
-					Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
-							new StringSelection(integrationList.toString()), null);
+					GuiUtils.Text.copyToClipboard(integrationList.toString());
 					reportTempMsgOnButtonLabel(integrationDetails, "Copied to clipboard!", false);
 				});
 				if (gpu.available()) {
@@ -2524,8 +2491,7 @@ public class GuiUtils {
 							"Reconstruction Viewer and BigVolumeViewer negotiate their own context<br>" +
 							"and may use a different (often lower) version. Click to copy to clipboard");
 					gpuDetails.addActionListener(e -> {
-						final StringSelection info = new StringSelection(gpu.vendor() + " / " + gpuText);
-						Toolkit.getDefaultToolkit().getSystemClipboard().setContents(info, null);
+						GuiUtils.Text.copyToClipboard(gpu.vendor() + " / " + gpuText);
 						reportTempMsgOnButtonLabel(gpuDetails, "Copied to clipboard!", false);
 					});
 				} else {
@@ -2575,7 +2541,8 @@ public class GuiUtils {
 		area.setText(SNTDoctor.header() + "Checking, please wait...\n\n");
 		final JDialog d = new JDialog(owner, "SNT Doctor", Dialog.ModalityType.MODELESS);
 		d.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE); // so that windowClosed is fired
-		final JButton copy = new JButton("Copy to Clipboard", IconFactory.buttonIcon(GLYPH.CLIPBOARD, 1f));
+		final JButton copy = new JButton(IconFactory.buttonIcon(GLYPH.CLIPBOARD, 1f));
+		Buttons.setLeadingText(copy, "Copy to Clipboard ");
 		copy.setEnabled(false);
 		final JButton prefs = new JButton("SNT Settings...", IconFactory.buttonIcon(GLYPH.OPTIONS, 1f));
 		prefs.setToolTipText("Allows for clearing SNT's cache and resetting its preferences to defaults.");
@@ -2590,7 +2557,23 @@ public class GuiUtils {
 		final JToolBar toolbar = new JToolBar();
 		toolbar.add(prefs);
 		toolbar.addSeparator();
+		toolbar.add(Box.createHorizontalGlue());
 		toolbar.add(copy);
+		toolbar.addSeparator();
+		final JPopupMenu reportMenu = new JPopupMenu();
+		final JButton report = Buttons.OptionsButton(GLYPH.BUG, 1f, reportMenu);
+		Buttons.setLeadingText(report, "Report Issue ");
+		report.setToolTipText("<HTML>Copies the report to the clipboard and opens a public page to post it.<br>"
+				+ "Requires a free account. Review the report for private information (e.g., file paths) first");
+		report.setEnabled(false);
+		final String[] reportText = new String[1];
+		reportMenu.add(doctorReportItem(report, "On the Image.sc Forum", GLYPH.COMMENTS,
+				"https://forum.image.sc/new-topic?tags=snt&body="
+						+ URLEncoder.encode("Paste SNT Doctor report here:\n\n", StandardCharsets.UTF_8).replace("+", "%20"),
+				reportText));
+		reportMenu.add(doctorReportItem(report, "On GitHub", GLYPH.CODE2,
+				"https://github.com/morphonets/SNT/issues/new?template=bug_report.md", reportText));
+		toolbar.add(report);
 		final JPanel main = new JPanel(new BorderLayout(0, 0));
 		main.add(new JScrollPane(area), BorderLayout.CENTER);
 		main.add(toolbar, BorderLayout.SOUTH);
@@ -2604,18 +2587,39 @@ public class GuiUtils {
 			} catch (final Throwable t) {
 				text = SNTDoctor.header() + "SNT Doctor could not be completed: " + t + "\n";
 			}
-			final String reportText = text;
+			final String finalText = text;
 			SwingUtilities.invokeLater(() -> {
-				area.setText(reportText);
+				area.setText(finalText);
 				area.setCaretPosition(0);
+				reportText[0] = finalText;
 				copy.addActionListener(e -> {
-					Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(reportText), null);
+					GuiUtils.Text.copyToClipboard(doctorReportMarkdown(finalText));
 					reportTempMsgOnButtonLabel(copy, "Copied!", false);
 				});
 				copy.setEnabled(true);
+				report.setEnabled(true);
 			});
 		}, "SNT-Doctor").start();
 		return d;
+	}
+
+	/** Report as a collapsed block for GitHub/forum posts (blank line after summary is needed by markdown) */
+	private static String doctorReportMarkdown(final String report) {
+		return "<details>\n<summary>SNT Doctor report</summary>\n\n```\n" + report.stripTrailing()
+				+ "\n```\n\n</details>\n";
+	}
+
+	private static JMenuItem doctorReportItem(final AbstractButton anchor, final String label, final GLYPH glyph,
+			final String url, final String[] reportText) {
+		final JMenuItem mi = new JMenuItem(label, IconFactory.menuIcon(glyph));
+		mi.addActionListener(e -> {
+			if (reportText[0] != null) {
+				GuiUtils.Text.copyToClipboard(doctorReportMarkdown(reportText[0]));
+				reportTempMsgOnButtonLabel(anchor, "Report copied. Paste it in the form", false);
+			}
+			openURL(url);
+		});
+		return mi;
 	}
 
 	private static JDialog doctorInstance;
@@ -4165,7 +4169,8 @@ public class GuiUtils {
 
 		public static void addSeparator(final JMenu menu, final String header) {
 			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
-			if (menu.getMenuComponents().length > 1) menu.addSeparator();
+			final int nItems = menu.getMenuComponents().length;
+			if (nItems > 1 && !(menu.getMenuComponent(nItems-1) instanceof JPopupMenu.Separator)) menu.addSeparator();
 			menu.add(label);
 		}
 
@@ -4586,84 +4591,54 @@ public class GuiUtils {
 				helpMenu.add(mi);
 				helpMenu.addSeparator();
 			}
-			final String URL = "https://imagej.net/plugins/snt/";
-			JMenuItem mi = openURL("Main Documentation Page", URL);
-			mi.setIcon(IconFactory.menuIcon(GLYPH.HOME));
-			helpMenu.add(mi);
-			mi = openURL("User Manual", URL + "manual");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.BOOK_READER));
-			helpMenu.add(mi);
-			mi = openURL("Screencasts", URL + "screencasts");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.VIDEO));
-			helpMenu.add(mi);
-			mi = openURL("Walkthroughs", URL + "walkthroughs");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.FOOTPRINTS));
-			helpMenu.add(mi);
-
-			helpMenu.addSeparator();
-			mi = openURL("Analysis", URL + "analysis");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.CHART));
-			helpMenu.add(mi);
-			mi = openURL("Auto-tracing", URL + "auto-tracing");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.ROBOT));
-			helpMenu.add(mi);
-			mi = openURL("Big Data", URL + "big-data");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.DATABASE));
-			helpMenu.add(mi);
-			mi = openURL("Reconstruction Viewer", URL + "reconstruction-viewer");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
-			helpMenu.add(mi);
-
-			helpMenu.addSeparator();
-			mi = openURL("List of Shortcuts", URL + "key-shortcuts");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.KEYBOARD));
-			helpMenu.add(mi);
-			helpMenu.addSeparator();
-
-			mi = openURL("Ask a Question", "https://forum.image.sc/tag/snt");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.COMMENTS));
-			helpMenu.add(mi);
-			mi = openURL("FAQs", URL + "faq");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE));
-			helpMenu.add(mi);
-			mi = openURL("Known Issues", "https://github.com/morphonets/SNT/issues");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.BUG));
-			helpMenu.add(mi);
-			mi = openURL("Release Notes", releaseNotesURL());
-			mi.setIcon(IconFactory.menuIcon(GLYPH.NEWSPAPER));
-			helpMenu.add(mi);
-
-			helpMenu.addSeparator();
-			helpMenu.add(devResourceJavaAPI());
-			helpMenu.add(devResourcePythonAPI());
-			helpMenu.add(devResourceMain());
-			helpMenu.addSeparator();
-
-			mi = openURL("Complementary Tools",  URL + "comp-tools");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.COGS));
-			helpMenu.add(mi);
-			mi = openURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.MATH));
-			helpMenu.add(mi);
-			mi = openURL("SNT Manuscript", "https://dx.doi.org/10.1038/s41592-021-01105-7");
-			mi.setIcon(IconFactory.menuIcon(GLYPH.FILE));
-			helpMenu.add(mi);
-			helpMenu.addSeparator();
-
+			addSeparator(helpMenu, "Troubleshoot:");
 			final JMenuItem doctor = new JMenuItem("Run SNT Doctor...");
 			doctor.setIcon(IconFactory.menuIcon(GLYPH.STETHOSCOPE));
-			doctor.setToolTipText("Checks memory, compute, graphics, disk, network and the SNT installation");
+			doctor.setToolTipText(DOCTOR_TOOLTIP);
 			doctor.putClientProperty("cmdFinder-keywords",
 					"problem,diagnostics,crash,system check,capabilities,GPU,OpenGL,slow,repair,reset,cache,RAM");
 			doctor.addActionListener(e -> showDoctorDialog(null));
 			helpMenu.add(doctor);
+			helpMenu.add(openURL("FAQs", DOC_URL + "faq", GLYPH.QUESTION_CIRCLE));
+			helpMenu.add(openURL("Known Issues", "https://github.com/morphonets/SNT/issues", GLYPH.BUG));
+			helpMenu.add(openURL("Ask a Question", FORUM_URL, GLYPH.COMMENTS));
 
+			addSeparator(helpMenu, "Learn:");
+			helpMenu.add(openURL("Main Documentation Page", DOC_URL, GLYPH.HOME));
+			helpMenu.add(openURL("User Manual", DOC_URL + "manual", GLYPH.BOOK_READER));
+			helpMenu.add(openURL("Analysis", DOC_URL + "analysis", GLYPH.CHART));
+			helpMenu.add(openURL("Auto-tracing", DOC_URL + "auto-tracing", GLYPH.ROBOT));
+			helpMenu.add(openURL("Big Data", DOC_URL + "big-data", GLYPH.DATABASE));
+			helpMenu.add(openURL("Reconstruction Viewer", DOC_URL + "reconstruction-viewer", GLYPH.CUBE));
+			helpMenu.add(openURL("Complementary Tools", DOC_URL + "comp-tools", GLYPH.COGS));
+			helpMenu.add(openURL("List of Shortcuts", DOC_URL + "key-shortcuts", GLYPH.KEYBOARD));
+			helpMenu.add(openURL("Screencasts", DOC_URL + "screencasts", GLYPH.VIDEO));
+			helpMenu.add(openURL("Walkthroughs", DOC_URL + "walkthroughs", GLYPH.FOOTPRINTS));
+
+			addSeparator(helpMenu, "Develop:");
+			helpMenu.add(devResourceJavaAPI());
+			helpMenu.add(devResourcePythonAPI());
+			helpMenu.add(devResourceMain());
+
+			addSeparator(helpMenu, "Explore:");
+			helpMenu.add(openURL("Computational Neuroanatomy", "https://morphonets.org/computational-neuroanatomy/", GLYPH.GRADUATION_CAP));
+			helpMenu.add(openURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms", GLYPH.MATH));
+			helpMenu.add(openURL("Release Notes", releaseNotesURL(), GLYPH.NEWSPAPER));
+			helpMenu.add(openURL("SNT Manuscripts", CITE_URL, GLYPH.SCROLL));
+
+			helpMenu.addSeparator();
 			final JMenuItem about = new JMenuItem("About SNT...");
 			about.setIcon(IconFactory.menuIcon(GLYPH.INFO));
 			about.addActionListener(e -> showAboutDialog());
 			helpMenu.add(about);
 
 			return helpMenu;
+		}
+
+		public static JMenuItem openURL(final String label, final String URL, final GLYPH glyph) {
+			final JMenuItem mi = openURL(label, URL);
+			mi.setIcon(IconFactory.menuIcon(glyph));
+			return mi;
 		}
 
 		public static JMenuItem openURL(final String label, final String URL) {
@@ -5143,8 +5118,7 @@ public class GuiUtils {
 				sb.append('\n');
 			}
 			// Copy to clipboard
-			final StringSelection selection = new StringSelection(sb.toString().stripTrailing());
-			Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+			GuiUtils.Text.copyToClipboard(sb.toString().stripTrailing());
 		}
 
 		public static void assignSearchable(final JTable table,
@@ -5833,6 +5807,11 @@ public class GuiUtils {
 		public static void addToGroup(final List<AbstractButton> buttons) {
 			final ButtonGroup buttonGroup = new ButtonGroup();
 			for (final AbstractButton button : buttons) buttonGroup.add(button);
+		}
+
+		public static void setLeadingText(final AbstractButton button, final String text) {
+			button.setText(text);
+			button.setHorizontalTextPosition(SwingConstants.LEFT);
 		}
 
 		public static ButtonGroup noneSelectedButtonGroup() {
@@ -7013,6 +6992,11 @@ public class GuiUtils {
 			if (text == null) return false;
 			return text.contains(",") || text.contains(" ") || text.contains("\t") || text.contains(";")
 					|| text.contains("|") || text.contains("\n");
+		}
+
+		/** Copies text to the system clipboard */
+		public static void copyToClipboard(final String text) {
+			Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
 		}
 
 		public static String getClipboard() {

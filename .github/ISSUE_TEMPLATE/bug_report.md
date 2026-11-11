@@ -27,4 +27,4 @@ Steps to reproduce the behavior:
 **Additional context**
 <!-- Add any other context about the problem here. -->
 
-**Fiji details (If possible, please paste here the contents of _Plugins>Debug>System Information_):**
+**SNT Doctor report (If possible, run _Help>Run SNT Doctor..._ and paste here the output of its _Copy to Clipboard_ or _Report Issue_ buttons):**

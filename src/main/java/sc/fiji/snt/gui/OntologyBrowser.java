@@ -33,7 +33,6 @@ import javax.swing.*;
 import javax.swing.text.Position;
 import javax.swing.tree.*;
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
 import java.io.Serial;
 import java.util.ArrayList;
@@ -556,7 +555,7 @@ public class OntologyBrowser extends JPanel {
             final List<String> leaves = getSelectedLeaves();
             if (leaves.isEmpty()) return;
             final String text = String.join("\n", leaves);
-            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+            GuiUtils.Text.copyToClipboard(text);
             return;
         }
         final StringBuilder sb = new StringBuilder();
@@ -568,8 +567,7 @@ public class OntologyBrowser extends JPanel {
             }
             sb.append(a.name());
         }
-        Toolkit.getDefaultToolkit().getSystemClipboard()
-                .setContents(new StringSelection(sb.toString()), null);
+        GuiUtils.Text.copyToClipboard(sb.toString());
     }
 
     /**
