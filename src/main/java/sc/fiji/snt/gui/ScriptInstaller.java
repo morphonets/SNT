@@ -185,8 +185,28 @@ public class ScriptInstaller {
 	}
 
 	private TextEditor getTextEditor() {
-		if (editor == null)
-			editor = new TextEditor((context == null) ? SNTUtils.getContext() : context);
+		return getSharedEditor((context == null) ? SNTUtils.getContext() : context);
+	}
+
+	/**
+	 * The Script Editor shared by all scripts opened from SNT. A closed editor is disposed of
+	 * and cannot be shown again (and must not be kept in memory): a new one is created then
+	 */
+	private static synchronized TextEditor getSharedEditor(final Context ctx) {
+		if (editor == null || !editor.isDisplayable()) {
+			final TextEditor ed = new TextEditor(ctx);
+			// do not keep a closed editor in memory
+			ed.addWindowListener(new java.awt.event.WindowAdapter() {
+
+				@Override
+				public void windowClosed(final java.awt.event.WindowEvent e) {
+					synchronized (ScriptInstaller.class) {
+						if (editor == ed) editor = null;
+					}
+				}
+			});
+			editor = ed;
+		}
 		return editor;
 	}
 
@@ -582,10 +602,9 @@ public class ScriptInstaller {
 	}
 
 	public static void newScript(final String contents, final String scriptNameWithExtension) {
-		if (editor == null)
-			editor = new TextEditor(SNTUtils.getContext());
-		editor.createNewDocument(scriptNameWithExtension, contents);
-		SwingUtilities.invokeLater(() -> editor.setVisible(true));
+		final TextEditor ed = getSharedEditor(SNTUtils.getContext());
+		ed.createNewDocument(scriptNameWithExtension, contents);
+		SwingUtilities.invokeLater(() -> ed.setVisible(true));
 	}
 
 	private static final String RECIPES_DIR = "script_templates/Neuroanatomy/Recipes/";
