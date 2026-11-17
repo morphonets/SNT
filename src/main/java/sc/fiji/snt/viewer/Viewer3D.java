@@ -8294,6 +8294,7 @@ public class Viewer3D {
         gUtils = null;
         currentView = null;
         fileDropWorker = null;
+        IOUtils.disposeHttpClient(); // idle connections of the remote loaders and their threads
         SNTUtils.removeViewer(this);
     }
 

@@ -30,6 +30,7 @@ import okhttp3.Response;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.*;
 import sc.fiji.snt.annotation.InsectBrainCompartment;
 import sc.fiji.snt.annotation.InsectBrainUtils;
@@ -80,7 +81,7 @@ public class InsectBrainLoader {
         boolean success;
         Response response = null;
         try {
-            final OkHttpClient client = new OkHttpClient();
+            final OkHttpClient client = IOUtils.httpClient();
             final Request request = new Request.Builder().url(BASE_URL).build();
             response = client.newCall(request).execute();
             success = response.isSuccessful();
@@ -248,7 +249,7 @@ public class InsectBrainLoader {
     }
 
     private Response getResponse(final String url) throws IOException {
-        final OkHttpClient client = new OkHttpClient();
+        final OkHttpClient client = IOUtils.httpClient();
         final Request request = new Request.Builder() //
                 .url(url)
                 .build();

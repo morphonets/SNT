@@ -26,6 +26,7 @@ import okhttp3.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.io.InsectBrainLoader;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -249,7 +250,7 @@ public final class InsectBrainUtils {
     }
 
     private static Response getResponse(final String url) throws IOException {
-        final OkHttpClient client = new OkHttpClient();
+        final OkHttpClient client = IOUtils.httpClient();
         final Request request = new Request.Builder() //
                 .url(url)
                 .build();

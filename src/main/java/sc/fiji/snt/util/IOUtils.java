@@ -35,9 +35,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import okhttp3.ConnectionPool;
+import okhttp3.OkHttpClient;
 
 /**
  * Static utilities for file I/O, namely the detection of reconstruction file formats.
@@ -64,6 +68,10 @@ public final class IOUtils {
 				EXTENSION_TO_TYPE.put(ext, type);
 		}
 	}
+
+	/** Seconds that idle connections of the shared HTTP client are kept alive */
+	private static final int HTTP_KEEP_ALIVE_SECONDS = 30;
+	private static OkHttpClient httpClient;
 
 	private IOUtils() {
 		// static methods only
@@ -639,5 +647,33 @@ public final class IOUtils {
 				result.add(f);
 			}
 		}
+	}
+
+	/**
+	 * Gets the HTTP client shared by SNT's remote loaders (NeuroMorpho, MouseLight, etc.), creating it if needed.
+	 * Sharing a single client reuses connections and avoids leaving a connection pool, with its background daemon
+	 * threads for every request. Release it with {@link #disposeHttpClient()}
+	 *
+	 * @return the shared client
+	 */
+	public static synchronized OkHttpClient httpClient() {
+		if (httpClient == null) {
+			httpClient = new OkHttpClient.Builder()
+					.connectionPool(new ConnectionPool(4, HTTP_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS))
+					.build();
+		}
+		return httpClient;
+	}
+
+	/**
+	 * Releases the resources (idle connections and their threads) of the client
+	 * returned by {@link #httpClient()}. It is safe to call at any time: requests in
+	 * progress are not interrupted and a new client is created on the next request
+	 */
+	public static synchronized void disposeHttpClient() {
+		if (httpClient == null) return;
+		httpClient.connectionPool().evictAll();
+		httpClient.dispatcher().executorService().shutdown();
+		httpClient = null;
 	}
 }

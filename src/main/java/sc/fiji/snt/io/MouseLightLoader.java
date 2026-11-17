@@ -28,6 +28,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.scijava.util.ColorRGB;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.*;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -92,7 +93,7 @@ public class MouseLightLoader {
 	}
 
 	private Response getResponse(final String url, final int format) throws IOException {
-		final OkHttpClient client = new OkHttpClient();
+		final OkHttpClient client = IOUtils.httpClient();
 		//see https://github.com/morphonets/SNT/issues/26
 		final RequestBody body = RequestBody.create("{\"ids\": [\"" + id + "\"]," +
 				" \"ccfVersion\": " + CCF_VERSION + ", \"format\": " + format + "}", MEDIA_TYPE);
@@ -573,7 +574,7 @@ public class MouseLightLoader {
 	 */
 	public static int getNeuronCount() {
 		int count = -1;
-		final OkHttpClient client = new OkHttpClient();
+		final OkHttpClient client = IOUtils.httpClient();
 		//see https://github.com/morphonets/SNT/issues/26
 		final RequestBody body = RequestBody.create("{\"query\":\"{systemSettings{neuronCount}}\"}", MEDIA_TYPE);
 		final Request request = new Request.Builder() //

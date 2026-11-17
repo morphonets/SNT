@@ -37,6 +37,7 @@ import org.scijava.util.Colors;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -348,7 +349,7 @@ public class AllenCompartment implements BrainAnnotation {
 		if (file == null || !file.endsWith(".obj")) return null;
 		try {
 			final String urlPath = AllenUtils.hostedMeshesLocation() + id() + ".obj";
-			final OkHttpClient client = new OkHttpClient();
+			final OkHttpClient client = IOUtils.httpClient();
 			final Request request = new Request.Builder().url(urlPath).build();
 			final Response response = client.newCall(request).execute();
 			final boolean success = response.isSuccessful();

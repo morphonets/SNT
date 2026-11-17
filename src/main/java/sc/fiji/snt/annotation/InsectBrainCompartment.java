@@ -26,6 +26,7 @@ import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -101,7 +102,7 @@ public class InsectBrainCompartment implements BrainAnnotation {
             urlBuilder.addQueryParameter("uuid", fileUUID.toString());
             final String apiUrl = urlBuilder.build().toString();
             try {
-                final OkHttpClient client = new OkHttpClient();
+                final OkHttpClient client = IOUtils.httpClient();
                 final Request request = new Request.Builder().url(apiUrl).build();
                 try (final Response response = client.newCall(request).execute()) {
                     if (response.isSuccessful() && response.body() != null) {

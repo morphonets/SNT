@@ -26,6 +26,7 @@ import okhttp3.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -67,7 +68,7 @@ public class MouseLightQuerier {
 		boolean success;
 		Response response = null;
 		try {
-			final OkHttpClient client = new OkHttpClient();
+			final OkHttpClient client = IOUtils.httpClient();
 			final Request request = new Request.Builder().url(TRACINGS_URL).build();
 			response = client.newCall(request).execute();
 			success = response.isSuccessful();
@@ -155,7 +156,7 @@ public class MouseLightQuerier {
 
 	private static JSONObject getJSON(final RequestBody body) {
 		try {
-			final OkHttpClient client = new OkHttpClient();
+			final OkHttpClient client = IOUtils.httpClient();
 			final Request request = new Request.Builder().url(GRAPHQL_URL).post(body)
 					.addHeader("Content-Type", "application/json").addHeader("Cache-Control", "no-cache").build();
 			final Response response = client.newCall(request).execute();

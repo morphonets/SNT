@@ -1975,6 +1975,7 @@ public class SNT extends MultiDThreePanes implements
 		// Safety net: individual images already forget their own tags as they close (see SNTUI.GuiListener#imageClosed)
 		// but clear both registries outright on teardown too, in case any tagged ImagePlus outlives this session
 		ImpUtils.clearAllTags();
+		IOUtils.disposeHttpClient(); // idle connections of the remote loaders and their threads
 	}
 
 	public void cancelSearch(final boolean cancelFillToo) {

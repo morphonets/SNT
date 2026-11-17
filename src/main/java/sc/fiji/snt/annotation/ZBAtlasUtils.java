@@ -29,6 +29,7 @@ import org.scijava.util.Colors;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -58,7 +59,7 @@ public class ZBAtlasUtils {
 		boolean success;
 		Response response = null;
 		try {
-			final OkHttpClient client = new OkHttpClient();
+			final OkHttpClient client = IOUtils.httpClient();
 			final Request request = new Request.Builder().url(HOME_DIR).build();
 			response = client.newCall(request).execute();
 			success = response.isSuccessful();

@@ -27,6 +27,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.json.JSONObject;
+import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
@@ -53,7 +54,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 
 	private JSONObject getJSon(final String url, final String anchor) {
 		Response response = null;
-		final OkHttpClient client = new OkHttpClient();
+		final OkHttpClient client = IOUtils.httpClient();
 		final Request request = new Request.Builder().url(url + anchor).build();
 		String resStr = null;
 		try {
