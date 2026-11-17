@@ -53,6 +53,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.PrefsCmd;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.UpdateChecker;
 import sc.fiji.snt.util.GLUtils;
 import sc.fiji.snt.util.ImpUtils;
@@ -3172,6 +3173,19 @@ public class GuiUtils {
 	public static void errorPrompt(final String msg, final boolean centeredOnScreen) {
 		final GuiUtils guiUtils = (centeredOnScreen) ? new GuiUtils(null) : new GuiUtils();
 		guiUtils.error(msg, "SNT v" + SNTUtils.VERSION);
+	}
+
+	/**
+	 * Explains that HDF5 file locking is unsupported by the file system of the file being opened, and offers a
+	 * button that copies the (single-line) command that disables it to the clipboard
+	 */
+	public static void hdf5LockingPrompt() {
+		final String cmd = BigDataUtils.hdf5LockingCommand();
+		final boolean copy = new GuiUtils(null).getConfirmation("The file could not be opened because its file "
+				+ "system (typically a network share) does not support the file locking requested by HDF5. "
+				+ BigDataUtils.hdf5LockingInstructions() + ": " + cmd, "SNT v" + SNTUtils.VERSION,
+				"Copy Command", "Close");
+		if (copy) Text.copyToClipboard(cmd);
 	}
 
 	/**

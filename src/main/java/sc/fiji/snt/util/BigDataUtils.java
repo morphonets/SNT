@@ -32,11 +32,14 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import bdv.cache.SharedQueue;
 import bdv.img.imaris.IHDF5Access;
@@ -65,6 +68,7 @@ import org.janelia.saalfeldlab.n5.universe.N5DatasetDiscoverer;
 import org.janelia.saalfeldlab.n5.universe.N5Factory;
 import org.janelia.saalfeldlab.n5.universe.N5TreeNode;
 import org.janelia.saalfeldlab.n5.universe.metadata.N5Metadata;
+import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUtils;
 import software.amazon.awssdk.regions.Region;
 
@@ -208,8 +212,8 @@ public class BigDataUtils {
         final String lower = path.toLowerCase(Locale.ROOT);
         try {
             if (lower.endsWith(".xml") || lower.endsWith(".ims")) {
-                final AbstractSpimData<?> sd = lockImarisReads(lower.endsWith(".ims") ? Imaris.openIms(path)
-                        : new XmlIoSpimDataMinimal().load(path));
+                    final AbstractSpimData<?> sd = lockImarisReads(lower.endsWith(".ims") ? Imaris.openIms(path)
+                        : loadXml(path));
                 final var seq = sd.getSequenceDescription();
                 final var setups = seq.getViewSetupsOrdered();
                 if (channelIdx < 0 || channelIdx >= setups.size())
@@ -499,35 +503,40 @@ public class BigDataUtils {
             final String xmlPath = basePath.substring(0, basePath.length() - 4) + ".xml";
             try {
                 if (new File(xmlPath).exists()) {
-                    SNTUtils.log("BVV: reusing existing XML sidecar: " + xmlPath);
-                    return lockImarisReads(new XmlIoSpimDataMinimal().load(xmlPath));
+                    try {
+                        SNTUtils.log("BVV: reusing existing XML sidecar: " + xmlPath);
+                        return lockImarisReads(loadXml(xmlPath));
+                    } catch (final RuntimeException | SpimDataException e) {
+                        // The Imaris file itself is the problem: regenerating the sidecar cannot help
+                        if (e instanceof Hdf5LockingException hle) throw hle;
+                        SNTUtils.log("BVV: XML sidecar is unusable (" + rootMessage(e) + "), regenerating it");
+                    }
                 }
-                final File dir = file.getParentFile();
-                if (dir != null && !dir.canWrite()) {
-                    final String msg = (dir.exists()) ?
-                            "Create the BDV XML file manually via Plugins > BigDataViewer > Create XML for Imaris file," +
-                            " then use Bvv.open(\"/path/to/dataset.xml\")"
-                            : "The path does not seem to exist.";
-                    throw new IllegalArgumentException("Cannot write to directory: " + dir.getAbsolutePath() + ". " + msg);
-                }
-                final SpimDataMinimal spimData = Imaris.openIms(file.getAbsolutePath());
-                new XmlIoSpimDataMinimal().save(spimData, xmlPath);
-                final String base = file.getName().endsWith(".ims")
-                        ? file.getName().substring(0, file.getName().length() - 4)
-                        : file.getName();
-                patchImsXml(xmlPath, base);
-                SNTUtils.log("BVV: created XML sidecar: " + xmlPath);
-                return lockImarisReads(new XmlIoSpimDataMinimal().load(xmlPath));
+                return regenerateImsSidecar(file, xmlPath);
             } catch (final IOException | SpimDataException e) {
-                throw new IllegalArgumentException("Could not open IMS file: " + e.getMessage(), e);
+                throw new IllegalArgumentException("Could not open IMS file: " + rootMessage(e), e);
             }
         }
 
         if (lower.endsWith(".xml")) {
             try {
-                return lockImarisReads(new XmlIoSpimDataMinimal().load(filePathOrUrl));
-            } catch (final SpimDataException e) {
-                throw new IllegalArgumentException("Could not open XML file: " + e.getMessage(), e);
+                return lockImarisReads(loadXml(filePathOrUrl));
+            } catch (final RuntimeException | SpimDataException e) {
+                // A stale or broken sidecar next to its Imaris file can be rebuilt from that file
+                final File ims = new File(file.getAbsolutePath().replaceFirst("(?i)\\.xml$", ".ims"));
+                if (e instanceof Hdf5LockingException hle) throw hle;
+                if (ims.isFile() && isImsSidecar(file)) {
+                    SNTUtils.log("BVV: could not use '" + file + "' (" + rootMessage(e) + "), regenerating it from "
+                            + ims.getName());
+                    try {
+                        return regenerateImsSidecar(ims, file.getAbsolutePath());
+                    } catch (final IOException | SpimDataException | RuntimeException e2) {
+                        if (e2 instanceof IllegalArgumentException iae) throw iae;
+                        throw new IllegalArgumentException("Could not open IMS file: " + rootMessage(e2), e2);
+                    }
+                }
+                if (e instanceof IllegalArgumentException iae) throw iae;
+                throw new IllegalArgumentException("Could not open XML file: " + rootMessage(e), e);
             }
         }
 
@@ -1215,6 +1224,204 @@ public class BigDataUtils {
     }
 
     /**
+     * Thrown when an HDF5 (e.g., Imaris) file cannot be opened because its file system does not support the file
+     * locking requested by HDF5, as is common on network shares. See {@link #hdf5LockingCommand()}
+     */
+    public static class Hdf5LockingException extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
+        Hdf5LockingException(final String message, final Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * Checks if {@code t}, or any of its causes, is a {@link Hdf5LockingException}
+     *
+     * @param t the exception to inspect
+     * @return true if file locking is the reason for the failure
+     */
+    public static boolean isHdf5LockingFailure(final Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause())
+            if (c instanceof Hdf5LockingException) return true;
+        return false;
+    }
+
+    /**
+     * Returns the single-line command that disables HDF5 file locking on the current platform (to be run in a
+     * terminal, before restarting Fiji). Plain ASCII and without quotes, so that it can be pasted in any shell
+     * (zsh, bash, Command Prompt) as is
+     *
+     * @return the command
+     */
+    public static String hdf5LockingCommand() {
+        if (PlatformUtils.isWindows()) return "setx HDF5_USE_FILE_LOCKING FALSE";
+        if (PlatformUtils.isMac()) return "launchctl setenv HDF5_USE_FILE_LOCKING FALSE";
+        return "export HDF5_USE_FILE_LOCKING=FALSE";
+    }
+
+    /**
+     * Describes where {@link #hdf5LockingCommand()} should be run
+     *
+     * @return a short, platform-specific instruction
+     */
+    public static String hdf5LockingInstructions() {
+        if (PlatformUtils.isWindows()) return "Run this in a Command Prompt, then restart Fiji";
+        if (PlatformUtils.isMac()) return "Run this in Terminal, then restart Fiji (it applies until the next reboot)";
+        return "Run this in the terminal used to start Fiji, then start Fiji from that same terminal";
+    }
+
+    /** Matches path elements of a BDV XML file stored relative to the XML location */
+    private static final Pattern XML_RELATIVE_PATH = Pattern.compile("type=\"relative\">([^<]*)<");
+
+    private static boolean isUncPath(final String path) {
+        return File.separatorChar == '\\' && (path.startsWith("\\\\") || path.startsWith("//"));
+    }
+
+    private static String rootMessage(final Throwable t) {
+        Throwable root = t;
+        while (root.getCause() != null && root.getCause() != root)
+            root = root.getCause();
+        final String msg = root.getMessage();
+        return (msg == null || msg.isBlank()) ? root.getClass().getSimpleName() : msg;
+    }
+
+    private static boolean hasAuthorityCause(final Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause())
+            if (c.getMessage() != null && c.getMessage().contains("authority component")) return true;
+        return false;
+    }
+
+    /**
+     * Loads a BDV XML file. Unlike {@code new XmlIoSpimDataMinimal().load(xmlPath)}, this also works for XML files
+     * on Windows network shares (UNC paths)
+     */
+    private static SpimDataMinimal loadXml(final String xmlPath) throws SpimDataException {
+        if (!isUncPath(xmlPath)) {
+            try {
+                return new XmlIoSpimDataMinimal().load(xmlPath);
+            } catch (final RuntimeException e) {
+                if (!hasAuthorityCause(e)) throw e;
+            }
+        }
+        return loadXmlViaLocalCopy(xmlPath);
+    }
+
+    // spim_data converts the XML location into a file URI. For UNC locations that URI has an authority
+    // component (file://server/share/...), which java.io.File rejects. Loading a local copy of the XML,
+    // in which relative paths were made absolute, avoids that conversion altogether
+    // (package-private for testing)
+    static SpimDataMinimal loadXmlViaLocalCopy(final String xmlPath) throws SpimDataException {
+        Path tmp = null;
+        try {
+            final Path xml = Paths.get(xmlPath).toAbsolutePath();
+            final Path dir = xml.getParent();
+            final String content = Files.readString(xml);
+            final String patched = XML_RELATIVE_PATH.matcher(content).replaceAll(m -> {
+                final String abs = dir.resolve(m.group(1)).normalize().toString()
+                        .replace("&", "&amp;").replace("<", "&lt;");
+                return Matcher.quoteReplacement("type=\"absolute\">" + abs + "<");
+            });
+            tmp = Files.createTempFile("snt-bdv-", ".xml");
+            Files.writeString(tmp, patched);
+            return new XmlIoSpimDataMinimal().load(tmp.toString());
+        } catch (final IOException e) {
+            throw new IllegalArgumentException("Could not read '" + xmlPath + "': " + e.getMessage(), e);
+        } finally {
+            if (tmp != null) {
+                try {
+                    Files.deleteIfExists(tmp);
+                } catch (final IOException ignored) {
+                    // temp file, nothing else to do
+                }
+            }
+        }
+    }
+
+    /**
+     * Forces the (lazy) opening of the image loader of {@code spimData} and reports why it failed, if it did. This
+     * must be the first access to the loader: bdv's {@code ImarisImageLoader} flags itself as open before reading
+     * the file, so after a failed attempt it returns {@code null} setup loaders and caches, which only surface later
+     * as an opaque NullPointerException in BDV/BVV
+     */
+    private static void validateLoader(final AbstractSpimData<?> spimData) {
+        final var seq = spimData.getSequenceDescription();
+        if (!(seq.getImgLoader() instanceof bdv.ViewerImgLoader loader)) return;
+        try {
+            if (loader.getCacheControl() == null)
+                throw new IllegalStateException("image loader did not initialize");
+            final var setups = seq.getViewSetupsOrdered();
+            if (!setups.isEmpty() && loader.getSetupImgLoader(setups.get(0).getId()) == null)
+                throw new IllegalStateException("image loader has no data for channel 1");
+        } catch (final RuntimeException e) {
+            throw openFailure(e);
+        }
+    }
+
+    /** "lock", "locking" or "locked" as whole words, so that e.g. "superblock" is not a match */
+    private static final Pattern LOCK_FAILURE = Pattern.compile("\\block(ing|ed)?\\b|unable to lock",
+            Pattern.CASE_INSENSITIVE);
+
+    /** Translates a failure to open an HDF5/Imaris file into an exception with an actionable message */
+    private static IllegalArgumentException openFailure(final RuntimeException e) {
+        if (e instanceof Hdf5LockingException hle) return hle;
+        final String reason = rootMessage(e);
+        if (LOCK_FAILURE.matcher(reason).find())
+            return new Hdf5LockingException("The file system does not support the file locking requested by HDF5 ("
+                    + reason + "). " + hdf5LockingInstructions() + ": " + hdf5LockingCommand(), e);
+        return new IllegalArgumentException("The image file could not be opened (" + reason + "). Check that "
+                + "the file is readable and not in use by another application", e);
+    }
+
+    /** Checks if {@code xml} is a BDV XML file that reads an Imaris file, i.e., a sidecar that SNT can rebuild */
+    private static boolean isImsSidecar(final File xml) {
+        try (java.io.InputStream in = Files.newInputStream(xml.toPath())) {
+            final String head = new String(in.readNBytes(8192), java.nio.charset.StandardCharsets.ISO_8859_1);
+            return Pattern.compile("format\\s*=\\s*\"ims\"").matcher(head).find();
+        } catch (final IOException | RuntimeException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Builds a BDV XML sidecar for an Imaris file. The new sidecar is validated before it replaces
+     * {@code xmlPath}, whose previous content (if any) is kept as {@code xmlPath + ".bak"}
+     */
+    private static SpimDataMinimal regenerateImsSidecar(final File ims, final String xmlPath)
+            throws IOException, SpimDataException {
+        final SpimDataMinimal spimData;
+        try {
+            spimData = Imaris.openIms(ims.getAbsolutePath());
+        } catch (final RuntimeException e) {
+            throw openFailure(e);
+        }
+        final File dir = ims.getAbsoluteFile().getParentFile();
+        if (dir != null && !dir.canWrite()) {
+            final String msg = (dir.exists()) ?
+                    "Create the BDV XML file manually via Plugins > BigDataViewer > Create XML for Imaris file," +
+                    " then use Bvv.open(\"/path/to/dataset.xml\")"
+                    : "The path does not seem to exist.";
+            throw new IllegalArgumentException("Cannot write to directory: " + dir.getAbsolutePath() + ". " + msg);
+        }
+        final Path target = Paths.get(xmlPath);
+        final Path tmp = target.resolveSibling(target.getFileName() + ".new");
+        try {
+            new XmlIoSpimDataMinimal().save(spimData, tmp.toString());
+            final String name = ims.getName();
+            patchImsXml(tmp.toString(), name.substring(0, name.length() - 4));
+            final SpimDataMinimal validated = lockImarisReads(loadXml(tmp.toString()));
+            if (Files.exists(target))
+                Files.move(target, target.resolveSibling(target.getFileName() + ".bak"),
+                        StandardCopyOption.REPLACE_EXISTING);
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            SNTUtils.log("BVV: created XML sidecar: " + xmlPath);
+            return validated;
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    /**
      * Serializes all HDF5 reads of an Imaris-backed {@code spimData}. BDV's {@code HDF5AccessHack} only
      * synchronizes its byte reads: the short and float reads share a mutable hyperslab selection, so
      * concurrent cell loads (e.g., a parallel crop copy plus viewer fetcher threads) can return cells
@@ -1225,8 +1432,10 @@ public class BigDataUtils {
      * @param spimData the dataset (typically freshly opened)
      * @param <T>      the dataset type
      * @return {@code spimData}, for chaining
+     * @throws IllegalArgumentException if the image loader of {@code spimData} cannot open its data
      */
     public static <T extends AbstractSpimData<?>> T lockImarisReads(final T spimData) {
+        validateLoader(spimData);
         try {
             if (!(spimData.getSequenceDescription().getImgLoader() instanceof ImarisImageLoader<?, ?, ?> ims))
                 return spimData;

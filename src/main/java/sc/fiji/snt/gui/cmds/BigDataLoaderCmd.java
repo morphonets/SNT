@@ -294,7 +294,12 @@ public class BigDataLoaderCmd extends ContextCommand {
             SNTUtils.setIsLoading(false, false); // hide splashscreen behind error dialog
             // Full exception (stack trace incl.) goes to the log; the dialog below only gets a friendly summary
             SNTUtils.error("BVV: could not open " + String.join(", ", filePaths), e, false);
-            error("An error occurred: " + GuiUtils.friendlyErrorMessage(e));
+            if (BigDataUtils.isHdf5LockingFailure(e)) {
+                GuiUtils.hdf5LockingPrompt();
+                cancel("");
+            } else {
+                error("An error occurred: " + GuiUtils.friendlyErrorMessage(e));
+            }
         } finally {
             if (!splashClosed) SNTUtils.setIsLoading(false, false);
             if (viewer != null && viewer.getViewerFrame() != null && BoundingBox.UNSET_SPACING_UNIT.equals(viewer.getPhysicalUnit())) {
