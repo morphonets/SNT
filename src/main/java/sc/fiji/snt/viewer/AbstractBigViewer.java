@@ -886,6 +886,31 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * @return the number of sources (channels) currently in the viewer
+     */
+    public int getSourceCount() {
+        final var state = getViewerState();
+        return (state == null) ? 0 : state.getSources().size();
+    }
+
+    /**
+     * Gets the (full resolution) data of a source at the current timepoint
+     *
+     * @param index the 0-based index of the source
+     * @return the zero-min 3D data, or null if unavailable
+     */
+    @SuppressWarnings("rawtypes")
+    public net.imglib2.RandomAccessibleInterval<?> getSourceData(final int index) {
+        final var state = getViewerState();
+        if (state == null || index < 0 || index >= state.getSources().size()) return null;
+        final var src = state.getSources().get(index).getSpimSource();
+        final int tp = getCurrentTimepoint() - 1; // SNT is 1-based, BDV sources 0-based
+        if (!src.isPresent(tp) || !(src.getType() instanceof net.imglib2.type.numeric.RealType)) return null;
+        final net.imglib2.RandomAccessibleInterval rai = src.getSource(tp, 0);
+        return (rai == null || rai.numDimensions() != 3) ? null : net.imglib2.view.Views.zeroMin(rai);
+    }
+
+    /**
      * Like {@link #resyncCalibrationFromActiveSource()} but a no-op if nothing changed since the last sync. For
      * commands that read {@code snt}'s pixel data or channel/frame (e.g., GWDT tracing) and may run before any click
      */

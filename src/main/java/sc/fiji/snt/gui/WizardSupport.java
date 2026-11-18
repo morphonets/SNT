@@ -25,6 +25,13 @@ package sc.fiji.snt.gui;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.converter.Converter;
+import net.imglib2.converter.Converters;
+import net.imglib2.loops.LoopBuilder;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
@@ -312,5 +319,81 @@ final class WizardSupport {
             // use default
         }
         return Math.max(3, (int) Math.round(maxRadius / 2d));
+    }
+
+    /**
+     * A region of an image read into memory
+     *
+     * @param data the pixel values (zero-min, float)
+     * @param min  the position {x, y, z} of the first voxel of the region in the grid of the image it was read from
+     */
+    record Region(RandomAccessibleInterval<FloatType> data, long[] min) {
+    }
+
+    /**
+     * Pads a box and clamps it to the bounds of an image
+     *
+     * @param bounds     {min, max} of the box (voxels, inclusive)
+     * @param padVoxels  the padding {x, y, z} in voxels
+     * @param image      the image the box refers to
+     * @return {min, max} of the padded box
+     */
+    static long[][] padAndClamp(final long[][] bounds, final long[] padVoxels,
+                                final RandomAccessibleInterval<?> image) {
+        final long[] min = new long[3];
+        final long[] max = new long[3];
+        for (int d = 0; d < 3; d++) {
+            min[d] = Math.max(image.min(d), bounds[0][d] - padVoxels[d]);
+            max[d] = Math.min(image.max(d), bounds[1][d] + padVoxels[d]);
+        }
+        return new long[][]{min, max};
+    }
+
+    /**
+     * Checks that a box is small enough to be read into memory
+     *
+     * @param bounds          {min, max} of the box (voxels, inclusive)
+     * @param spacing         voxel size {x, y, z}, to report distances in calibrated units
+     * @param unit            the spatial unit
+     * @param maxVoxelsPerAxis the maximum extent along any axis
+     * @param maxVoxels       the maximum number of voxels
+     * @return a message describing the problem, or null if the box is acceptable
+     */
+    static String checkRegionSize(final long[][] bounds, final double[] spacing, final String unit,
+                                  final long maxVoxelsPerAxis, final long maxVoxels) {
+        long total = 1;
+        for (int d = 0; d < 3; d++) {
+            final long n = bounds[1][d] - bounds[0][d] + 1;
+            total *= n;
+            if (n > maxVoxelsPerAxis) {
+                return String.format("The region is too large to be previewed (%s: %s %s, but the limit is %s %s). "
+                                + "Select representative paths that span a smaller region.", "XYZ".charAt(d),
+                        SNTUtils.formatDouble(n * spacing[d], 1), unit,
+                        SNTUtils.formatDouble(maxVoxelsPerAxis * spacing[d], 1), unit);
+            }
+        }
+        if (total > maxVoxels)
+            return String.format("The region is too large to be previewed (%,d voxels, but the limit is %,d). "
+                    + "Select representative paths that span a smaller region.", total, maxVoxels);
+        return null;
+    }
+
+    /**
+     * Copies a box of an image into memory as float. Reading is done by all threads, but may still take a while if
+     * the image is lazy or remote: do not call this on the EDT
+     *
+     * @param image  the image (2D data is treated as a single plane)
+     * @param bounds {min, max} of the box (voxels, inclusive) in the grid of the image. Must be within its bounds
+     * @return the region
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static Region readRegion(final RandomAccessibleInterval<?> image, final long[][] bounds) {
+        final RandomAccessibleInterval view = Views.zeroMin(Views.interval((RandomAccessibleInterval) as3D(image),
+                bounds[0], bounds[1]));
+        final Converter<RealType, FloatType> toFloat = (in, out) -> out.setReal(in.getRealDouble());
+        final RandomAccessibleInterval<FloatType> converted = Converters.convert(view, toFloat, new FloatType());
+        final Img<FloatType> copy = new ArrayImgFactory<>(new FloatType()).create(converted);
+        LoopBuilder.setImages(converted, copy).multiThreaded().forEachPixel((in, out) -> out.set(in));
+        return new Region(copy, bounds[0].clone());
     }
 }

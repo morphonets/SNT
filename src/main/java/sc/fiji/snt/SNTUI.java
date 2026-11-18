@@ -4061,6 +4061,15 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
         menu.add(jmiSoma);
+        final JMenuItem jmiSeeded = new JMenuItem("Probabilistic Detections...", IconFactory.menuIcon(GLYPH.MAGNIFIED_LOCATION));
+        jmiSeeded.setToolTipText("Probabilistic (seeded) detections of tips, tufts, swellings, etc. are available "
+                + "from the Seeds tab");
+        jmiSeeded.putClientProperty("cmdFinder-keywords", "counts,markers,bookmarks,big data");
+        jmiSeeded.addActionListener(e -> {
+            tabbedPane.setSelectedComponent(seedManager);
+            seedManager.showDiscoveryHint();
+        });
+        menu.add(jmiSeeded);
 
         // From File(s): file-based / batch processing
         GuiUtils.MenuItems.addSeparator(menu, "Batch Processing:");

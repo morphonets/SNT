@@ -4771,6 +4771,40 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * @return the number of channels of the image data (Stream mode: number of sources of the active viewer)
+	 */
+	public int getChannelCount() {
+		if (isStreamMode()) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = (ui == null) ? null : ui.getActiveBigViewer();
+			if (viewer != null) return Math.max(1, viewer.getSourceCount());
+		}
+		return (xy == null) ? 1 : Math.max(1, xy.getNChannels());
+	}
+
+	/**
+	 * Crop-independent data of any channel, in the same grid as {@link #getFullSourceData()}, at the current frame
+	 *
+	 * @param channel the channel (1-based)
+	 * @return the data, or null if unavailable (or if its dimensions differ from the ones of the active channel)
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public RandomAccessibleInterval<?> getFullSourceData(final int channel) {
+		final RandomAccessibleInterval<?> active = getFullSourceData();
+		if (active == null || channel == getChannel()) return active;
+		RandomAccessibleInterval<?> data = null;
+		if (isStreamMode()) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = (ui == null) ? null : ui.getActiveBigViewer();
+			if (viewer != null) data = viewer.getSourceData(channel - 1);
+		} else if (xy != null && channel >= 1 && channel <= xy.getNChannels()) {
+			data = ImgUtils.getCtSlice3d(xy, channel, getFrame());
+		}
+		if (data == null) return null;
+		final RandomAccessibleInterval<?> flat = (RandomAccessibleInterval<?>) Views.dropSingletonDimensions((RandomAccessibleInterval) data);
+		final RandomAccessibleInterval<?> ref = (RandomAccessibleInterval<?>) Views.dropSingletonDimensions((RandomAccessibleInterval) active);
+		return java.util.Arrays.equals(flat.dimensionsAsLongArray(), ref.dimensionsAsLongArray()) ? data : null;
+	}
+
+	/**
 	 * The global image statistics a crop-independent (BDV/BVV) search should normalize its cost
 	 * function against, paired with {@link #getStreamedOrLoadedData()}. {@link #stats} itself gets
 	 * overwritten with a materialized crop's own (smaller) statistics every time {@code

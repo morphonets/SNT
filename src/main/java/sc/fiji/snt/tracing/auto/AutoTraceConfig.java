@@ -382,7 +382,7 @@ public class AutoTraceConfig {
      * non-destructive fit. Returns a list of paths that have radii (fitted
      * versions where applicable, originals otherwise).
      */
-    private static List<Path> ensureRadii(
+    static List<Path> ensureRadii(
             final List<Path> paths,
             final RandomAccessibleInterval<? extends RealType<?>> source,
             final double[] spacing, final double[] offset) {
@@ -418,7 +418,7 @@ public class AutoTraceConfig {
         return result;
     }
 
-    private static List<Double> collectRadii(final List<Path> paths) {
+    static List<Double> collectRadii(final List<Path> paths) {
         final List<Double> radii = new ArrayList<>();
         for (final Path p : paths) {
             if (!p.hasRadii()) continue;
@@ -440,7 +440,7 @@ public class AutoTraceConfig {
      * Derives filter scales from sorted radii using percentiles, with
      * deduplication (values within 10% are merged).
      */
-    private static double[] deriveScales(final List<Double> sortedRadii) {
+    static double[] deriveScales(final List<Double> sortedRadii) {
         if (sortedRadii.size() < 4) {
             // Too few: use mean as single scale
             final double mean = sortedRadii.stream().mapToDouble(Double::doubleValue).average().orElse(1.0);
@@ -611,13 +611,13 @@ public class AutoTraceConfig {
     }
 
     // [x, y, z] offset, in voxels: zeros if none was specified
-    private static double[] normalizedOffset(final double[] voxelOffset) {
+    static double[] normalizedOffset(final double[] voxelOffset) {
         final double[] off = new double[3];
         if (voxelOffset != null) System.arraycopy(voxelOffset, 0, off, 0, Math.min(3, voxelOffset.length));
         return off;
     }
 
-    private static double avgSpacing(final double[] spacing) {
+    static double avgSpacing(final double[] spacing) {
         double sum = 0;
         for (final double s : spacing) sum += s;
         return sum / spacing.length;

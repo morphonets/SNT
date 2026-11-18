@@ -1,0 +1,412 @@
+/*-
+ * #%L
+ * Fiji distribution of ImageJ for the life sciences.
+ * %%
+ * Copyright (C) 2010 - 2026 Fiji developers.
+ * %%
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this program.  If not, see
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
+ * #L%
+ */
+
+
+package sc.fiji.snt.tracing.auto;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Collections;
+import java.util.List;
+
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+
+/**
+ * Parameters of {@link TipFinder} learned from example paths: the radii of the examples give the scales of the
+ * score map and the analysis radius, and the scores (and, optionally, the veto image) sampled along them give the
+ * thresholds. The path ends of the examples are taken as known tips, which allows the learned parameters to be
+ * checked (see {@link #evaluate}).
+ * <p>
+ * This class has no dependency on SNT paths: examples are described by a {@link Example}.
+ * </p>
+ *
+ * @author Tiago Ferreira
+ */
+public class TipDetectionConfig {
+
+    /**
+     * Example structures, in the voxel grid of the image that is analyzed
+     *
+     * @param radii the radii (calibrated units) sampled along the example paths
+     * @param nodes the voxel position {x, y, z} of every node of the example paths
+     * @param tips  the voxel position {x, y, z} of the tips (the path ends) of the examples
+     */
+    public record Example(double[] radii, long[][] nodes, long[][] tips) {
+    }
+
+    /** Computes the score map of the analyzed region for a set of scales (calibrated units) */
+    @FunctionalInterface
+    public interface ScoreMapFactory {
+        RandomAccessibleInterval<? extends RealType<?>> create(double[] scales);
+    }
+
+    /**
+     * Response of a single scale: how the score map separates the examples from their surroundings
+     *
+     * @param scale          the scale (calibrated units)
+     * @param nodeMedian     median score at the nodes
+     * @param nodeP10        10th percentile of the scores at the nodes
+     * @param backgroundP50  median score away from the examples
+     * @param backgroundP99  99th percentile of the scores away from the examples
+     */
+    public record ScaleResponse(double scale, double nodeMedian, double nodeP10, double backgroundP50,
+                                double backgroundP99) {
+        /** Median score at the nodes relative to the 99th percentile of the background */
+        public double contrast() {
+            return (backgroundP99 > 0) ? nodeMedian / backgroundP99 : Double.NaN;
+        }
+    }
+
+    /**
+     * Outcome of running the learned parameters on the analyzed region
+     *
+     * @param tips      the detected tips
+     * @param pathEnds  number of example tips that could be evaluated (those at least one radius away from the
+     *                  border of the region)
+     * @param matched   number of those that have a detected tip nearby
+     * @param skipped   number of example tips that are too close to the border of the region
+     * @param tolerance the distance (calibrated units) within which a detection matches an example tip
+     * @param status    the outcome for each example tip (same order as {@link Example#tips()})
+     */
+    public record Evaluation(List<TipFinder.Tip> tips, int pathEnds, int matched, int skipped, double tolerance,
+                             TipStatus[] status) {
+        /** Detections that are not close to an example tip (not necessarily false: the examples are partial) */
+        public int extra() {
+            return tips.size() - matched;
+        }
+    }
+
+    /** Outcome of an example tip: found, missed, or not evaluated (too close to the border of the region) */
+    public enum TipStatus {
+        MATCHED, MISSED, SKIPPED
+    }
+
+    private double[] scales = {};
+    private double tipRadius = Double.NaN;
+    private double threshold = Double.NaN;
+    private double vetoThreshold = Double.NaN;
+    private double vetoRadius = Double.NaN;
+    private double minExtent = 0.6;
+    private double minPurity = 0.3;
+    private double minRadius = Double.NaN;
+    private double medianRadius = Double.NaN;
+    private double maxRadius = Double.NaN;
+    private double nodeScoreP10 = Double.NaN;
+    private double nodeScoreMedian = Double.NaN;
+    private double backgroundP50 = Double.NaN;
+    private double backgroundP99 = Double.NaN;
+    private double[] spacing;
+    private final List<ScaleResponse> responses = new ArrayList<>();
+    private final List<String> warnings = new ArrayList<>();
+
+    private TipDetectionConfig() {
+    }
+
+    /**
+     * Learns parameters from examples
+     *
+     * @param example      the examples
+     * @param spacing      voxel size (x, y, z) in calibrated units
+     * @param scales       the scales to use (e.g., see {@code AutoTraceConfig#deriveScales}). If null or empty,
+     *                     the median radius is used
+     * @param scoreMaps    computes the score map of the region for a set of scales
+     * @param veto         the veto image (e.g., a background channel), on the same grid as the score maps. May be null
+     * @return the learned configuration. Values that could not be derived are NaN
+     */
+    public static TipDetectionConfig learn(final Example example, final double[] spacing, final double[] scales,
+                                           final ScoreMapFactory scoreMaps,
+                                           final RandomAccessibleInterval<? extends RealType<?>> veto) {
+        if (example == null || example.nodes() == null || example.nodes().length == 0)
+            throw new IllegalArgumentException("At least one example node is required");
+        final TipDetectionConfig c = new TipDetectionConfig();
+        c.spacing = spacing.clone();
+        final double minSpacing = Math.min(spacing[0], Math.min(spacing[1], spacing[2]));
+
+        // Radii: scales and analysis radius
+        final double[] radii = (example.radii() == null) ? new double[0] : example.radii().clone();
+        Arrays.sort(radii);
+        if (radii.length > 0) {
+            c.minRadius = radii[0];
+            c.maxRadius = radii[radii.length - 1];
+            c.medianRadius = radii[radii.length / 2];
+        } else {
+            c.warnings.add("The examples have no radii: the scales and the analysis radius are guesses");
+        }
+        final double robustRadius = (radii.length > 0) ? percentile(radii, 95) : 2 * minSpacing;
+        c.scales = (scales != null && scales.length > 0) ? scales.clone()
+                : new double[]{(radii.length > 0) ? c.medianRadius : minSpacing};
+        // About 3x the diameter of the thickest structures, and enough voxels to have a meaningful neighborhood
+        c.tipRadius = Math.max(6 * robustRadius, 5 * minSpacing);
+        c.vetoRadius = Math.max(2 * robustRadius, minSpacing);
+        for (final double s : c.scales) {
+            if (s < 0.7 * minSpacing)
+                c.warnings.add(String.format("Scale %.3g is smaller than the voxel size (%.3g): the score map "
+                        + "will be unreliable. Consider a coarser resolution level", s, minSpacing));
+        }
+        if (example.nodes().length < 30)
+            c.warnings.add("Few example nodes (" + example.nodes().length + "): learned values may be poorly "
+                    + "supported");
+
+        // Scores along the examples versus the rest of the region
+        final BitSet nearExamples = markNeighborhood(example.nodes(), dims(scoreMaps.create(c.scales)), spacing,
+                Math.max(2 * robustRadius, 2 * minSpacing));
+        for (final double s : c.scales) {
+            c.responses.add(response(s, scoreMaps.create(new double[]{s}), example.nodes(), nearExamples));
+        }
+        final RandomAccessibleInterval<? extends RealType<?>> ridge = scoreMaps.create(c.scales);
+        final double[] nodeScores = sample(ridge, example.nodes());
+        final double[] background = backgroundSample(ridge, nearExamples);
+        if (nodeScores.length > 0) {
+            c.nodeScoreP10 = percentile(nodeScores, 10);
+            c.nodeScoreMedian = percentile(nodeScores, 50);
+            // Below the score of the thinnest structures, so that they stay continuous
+            c.threshold = c.nodeScoreP10;
+        }
+        if (background.length > 0) {
+            c.backgroundP50 = percentile(background, 50);
+            c.backgroundP99 = percentile(background, 99);
+        }
+        if (!Double.isNaN(c.threshold) && !Double.isNaN(c.backgroundP99) && c.threshold <= c.backgroundP99)
+            c.warnings.add("The scores along the examples are not clearly above the background (10th percentile "
+                    + "of the examples <= 99th percentile of the background): expect false detections. A veto "
+                    + "image (e.g., a background channel) may help");
+        if (!(c.threshold > 0)) {
+            c.warnings.add("The scores along the examples are not positive: the threshold could not be derived");
+            c.threshold = Double.NaN;
+        }
+
+        // Veto: above what is seen along the examples
+        if (veto != null) {
+            final double[] vetoValues = sample(veto, example.nodes());
+            if (vetoValues.length > 0) c.vetoThreshold = percentile(vetoValues, 99);
+        }
+        return c;
+    }
+
+    /**
+     * Runs {@link TipFinder} with the learned parameters on the region, and compares its detections to the example
+     * tips
+     *
+     * @param ridge     the score map (as computed for {@link #getScales()})
+     * @param examples  the examples this configuration was learned from
+     * @param veto      the veto image, or null
+     * @return the evaluation, or null if the parameters are incomplete
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public Evaluation evaluate(final RandomAccessibleInterval<? extends RealType<?>> ridge, final Example examples,
+                               final RandomAccessibleInterval<? extends RealType<?>> veto) {
+        if (Double.isNaN(threshold) || Double.isNaN(tipRadius)) return null;
+        final TipFinder finder = configure(new TipFinder(ridge, spacing), veto);
+        final List<TipFinder.Tip> tips = finder.find();
+        final double tolerance = tipRadius;
+        int pathEnds = 0, matched = 0, skipped = 0;
+        final long[] margin = new long[3];
+        for (int d = 0; d < 3; d++) margin[d] = (ridge.dimension(d) == 1) ? 0 : (long) Math.ceil(tipRadius / spacing[d]) + 1;
+        final TipStatus[] status = new TipStatus[(examples.tips() == null) ? 0 : examples.tips().length];
+        if (examples.tips() != null) {
+            for (int i = 0; i < status.length; i++) {
+                final long[] t = examples.tips()[i];
+                boolean interior = true;
+                for (int d = 0; d < 3; d++) {
+                    if (t[d] < ridge.min(d) + margin[d] || t[d] > ridge.max(d) - margin[d]) interior = false;
+                }
+                if (!interior) {
+                    skipped++;
+                    status[i] = TipStatus.SKIPPED;
+                    continue;
+                }
+                pathEnds++;
+                status[i] = TipStatus.MISSED;
+                for (final TipFinder.Tip tip : tips) {
+                    double d2 = 0;
+                    for (int d = 0; d < 3; d++) {
+                        final double dd = tip.position()[d] - t[d] * spacing[d];
+                        d2 += dd * dd;
+                    }
+                    if (d2 <= tolerance * tolerance) {
+                        matched++;
+                        status[i] = TipStatus.MATCHED;
+                        break;
+                    }
+                }
+            }
+        }
+        return new Evaluation(tips, pathEnds, matched, skipped, tolerance, status);
+    }
+
+    /**
+     * Applies the learned parameters to a finder. Values that could not be derived are not changed
+     *
+     * @param finder the finder to configure
+     * @param veto   the veto image, or null
+     * @param <T>    the score map type
+     * @return the finder
+     */
+    public <T extends RealType<T>> TipFinder<T> configure(final TipFinder<T> finder,
+                                                          final RandomAccessibleInterval<? extends RealType<?>> veto) {
+        if (!Double.isNaN(tipRadius)) finder.setRadius(tipRadius);
+        if (!Double.isNaN(threshold)) finder.setThreshold(threshold);
+        finder.setMinExtent(minExtent).setMinPurity(minPurity);
+        if (veto != null && !Double.isNaN(vetoThreshold)) setVeto(finder, veto);
+        return finder;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void setVeto(final TipFinder finder, final RandomAccessibleInterval veto) {
+        finder.setVeto(veto, vetoRadius).setVetoThreshold(vetoThreshold);
+    }
+
+    // -- Getters and setters --
+
+    private int backgroundChannel = 0;
+    private double backgroundWeight = 1;
+
+    /** @return the (1-based) channel subtracted from the signal before detection, or 0 for none */
+    public int getBackgroundChannel() { return backgroundChannel; }
+    public double getBackgroundWeight() { return backgroundWeight; }
+
+    /**
+     * Sets the background that is subtracted (weighted, clamped to zero) from the signal before detection
+     *
+     * @param channel the channel (1-based), or 0 for none
+     * @param weight  the weight
+     */
+    public void setBackground(final int channel, final double weight) {
+        this.backgroundChannel = Math.max(0, channel);
+        this.backgroundWeight = weight;
+    }
+
+    public double[] getScales() { return scales.clone(); }
+    public double getTipRadius() { return tipRadius; }
+    public double getThreshold() { return threshold; }
+    public double getVetoThreshold() { return vetoThreshold; }
+    public double getVetoRadius() { return vetoRadius; }
+    public double getMinExtent() { return minExtent; }
+    public double getMinPurity() { return minPurity; }
+    public double getMinRadius() { return minRadius; }
+    public double getMedianRadius() { return medianRadius; }
+    public double getMaxRadius() { return maxRadius; }
+    public double getNodeScoreP10() { return nodeScoreP10; }
+    public double getNodeScoreMedian() { return nodeScoreMedian; }
+    public double getBackgroundP50() { return backgroundP50; }
+    public double getBackgroundP99() { return backgroundP99; }
+    public List<ScaleResponse> getScaleResponses() { return Collections.unmodifiableList(responses); }
+    public List<String> getWarnings() { return Collections.unmodifiableList(warnings); }
+
+    public void setTipRadius(final double tipRadius) { this.tipRadius = tipRadius; }
+    public void setThreshold(final double threshold) { this.threshold = threshold; }
+    public void setVetoThreshold(final double vetoThreshold) { this.vetoThreshold = vetoThreshold; }
+    public void setMinExtent(final double minExtent) { this.minExtent = minExtent; }
+    public void setMinPurity(final double minPurity) { this.minPurity = minPurity; }
+
+    // -- Sampling helpers --
+
+    private static long[] dims(final RandomAccessibleInterval<?> rai) {
+        return rai.dimensionsAsLongArray();
+    }
+
+    private static ScaleResponse response(final double scale, final RandomAccessibleInterval<? extends RealType<?>> map,
+                                          final long[][] nodes, final BitSet nearExamples) {
+        final double[] atNodes = sample(map, nodes);
+        final double[] background = backgroundSample(map, nearExamples);
+        return new ScaleResponse(scale, (atNodes.length > 0) ? percentile(atNodes, 50) : Double.NaN,
+                (atNodes.length > 0) ? percentile(atNodes, 10) : Double.NaN,
+                (background.length > 0) ? percentile(background, 50) : Double.NaN,
+                (background.length > 0) ? percentile(background, 99) : Double.NaN);
+    }
+
+    // Values at the positions that are inside the image, sorted
+    private static double[] sample(final RandomAccessibleInterval<? extends RealType<?>> rai, final long[][] positions) {
+        final RandomAccess<? extends RealType<?>> ra = rai.randomAccess();
+        final double[] values = new double[positions.length];
+        int n = 0;
+        for (final long[] p : positions) {
+            boolean inside = true;
+            for (int d = 0; d < 3; d++) inside &= p[d] >= rai.min(d) && p[d] <= rai.max(d);
+            if (!inside) continue;
+            ra.setPosition(p);
+            values[n++] = ra.get().getRealDouble();
+        }
+        final double[] result = Arrays.copyOf(values, n);
+        Arrays.sort(result);
+        return result;
+    }
+
+    // Marks the voxels (by their linear index in a zero-min grid of the given dimensions) that are within
+    // distance (calibrated units) of any node. Null if the grid is too large to be indexed
+    private static BitSet markNeighborhood(final long[][] nodes, final long[] dims, final double[] spacing,
+                                           final double distance) {
+        final long total = dims[0] * dims[1] * dims[2];
+        if (total > Integer.MAX_VALUE) return null;
+        final BitSet marked = new BitSet((int) total);
+        final int[] r = new int[3];
+        for (int d = 0; d < 3; d++) r[d] = (int) Math.ceil(distance / spacing[d]);
+        for (final long[] n : nodes) {
+            for (int dz = -r[2]; dz <= r[2]; dz++) {
+                final long z = n[2] + dz;
+                if (z < 0 || z >= dims[2]) continue;
+                for (int dy = -r[1]; dy <= r[1]; dy++) {
+                    final long y = n[1] + dy;
+                    if (y < 0 || y >= dims[1]) continue;
+                    for (int dx = -r[0]; dx <= r[0]; dx++) {
+                        final long x = n[0] + dx;
+                        if (x < 0 || x >= dims[0]) continue;
+                        final double px = dx * spacing[0], py = dy * spacing[1], pz = dz * spacing[2];
+                        if (px * px + py * py + pz * pz <= distance * distance)
+                            marked.set((int) (x + dims[0] * (y + dims[1] * z)));
+                    }
+                }
+            }
+        }
+        return marked;
+    }
+
+    // Strided sample of the voxels that are not marked, sorted
+    private static double[] backgroundSample(final RandomAccessibleInterval<? extends RealType<?>> rai,
+                                             final BitSet exclude) {
+        final long[] dims = dims(rai);
+        final long total = dims[0] * dims[1] * dims[2];
+        final int stride = (int) Math.max(1, Math.round(Math.cbrt(total / 200_000d)));
+        final RandomAccess<? extends RealType<?>> ra = rai.randomAccess();
+        final List<Double> values = new ArrayList<>();
+        for (long z = 0; z < dims[2]; z += stride) {
+            for (long y = 0; y < dims[1]; y += stride) {
+                for (long x = 0; x < dims[0]; x += stride) {
+                    if (exclude != null && exclude.get((int) (x + dims[0] * (y + dims[1] * z)))) continue;
+                    ra.setPosition(new long[]{rai.min(0) + x, rai.min(1) + y, rai.min(2) + z});
+                    values.add(ra.get().getRealDouble());
+                }
+            }
+        }
+        final double[] result = values.stream().mapToDouble(Double::doubleValue).toArray();
+        Arrays.sort(result);
+        return result;
+    }
+
+    // Percentile of sorted values
+    static double percentile(final double[] sorted, final double p) {
+        return sorted[(int) Math.round(p / 100d * (sorted.length - 1))];
+    }
+}

@@ -31,6 +31,7 @@ import net.imglib2.realtransform.AffineTransform3D;
 import org.scijava.command.CommandService;
 import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
+import sc.fiji.snt.gui.CalloutManager;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconActionableMenuItem;
@@ -1077,7 +1078,7 @@ public class SeedManager extends JPanel {
         impButton.setToolTipText("Import seeds");
         final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export seeds");
-        final JButton createButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.PLUS, 1f, createMenu());
+        createButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.PLUS, 1f, createMenu());
         createButton.setToolTipText("Compute seeds from tracings or image features");
         final JButton traceButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ROBOT, 1f, seedTracingMenu());
         traceButton.setToolTipText("Run auto-tracers from listed seeds.");
@@ -1236,6 +1237,18 @@ public class SeedManager extends JPanel {
         return menu;
     }
 
+    private JButton createButton;
+
+    /**
+     * Shows a tip anchored to the "+" button, which lists the (probabilistic) seed detectors
+     */
+    public void showDiscoveryHint() {
+        if (createButton == null) return;
+        CalloutManager.showTip(createButton, "Probabilistic (seeded) detections of tips, tufts, swellings, maxima, "
+                + "roots and somas are available from the + button. Detected seeds are listed here and can be "
+                + "filtered by confidence.", CalloutManager.AUTO, 15000);
+    }
+
     private JPopupMenu createMenu() {
         final JPopupMenu menu = new JPopupMenu();
 
@@ -1266,6 +1279,11 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Detects cell bodies in the current image, adding one seed per detected soma");
         menu.add(jmi);
         jmi.addActionListener(e -> detectSomas());
+        jmi = new JMenuItem("Detect Tips...");
+        jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
+                + "parameters from example paths");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectTips());
 
         return menu;
     }
@@ -1593,6 +1611,15 @@ public class SeedManager extends JPanel {
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(PeripathDetectorCmd.class, true,
                 "paths", paths, "outputChoice", PeripathDetectorCmd.OUTPUT_SEEDS);
+    }
+
+    private void detectTips() {
+        if (!snt.accessToValidImageData()) {
+            sntui.error("No valid image data available.");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(TipDetectionWizardCmd.class, true);
     }
 
     private void detectSomas() {
