@@ -1893,9 +1893,10 @@ public class SNT extends MultiDThreePanes implements
 	 * disk/network, backed only by {@link #ctSlice3d}), a Dataset is instead built directly from {@link
 	 * #getLoadedDataAsImg(boolean)}, so Dataset-only commands. Null is returned if no image data exists at all.
 	 * <p>
-	 * NB: in the streamed-data fallback, the returned Dataset only ever contains a single channel/
-	 * frame (whichever is currently active): {@link #ctSlice3d} is a single C/T slice by construction. Commands that
-	 * need every channel or frame simultaneously will still require a resident {@link ImagePlus}.
+	 * NB: in Stream mode, the returned Dataset stacks every source of the active Bdv/Bvv as a (lazy) channel axis,
+	 * and, only if paths exist on other frames than the current one, a time axis. If the sources cannot be stacked
+	 * (e.g., mixed pixel types), it falls back to a single channel/frame (whichever is currently active):
+	 * {@link #ctSlice3d} is a single C/T slice by construction.
 	 * <p>
 	 * NB2: a materialized crop (see {@link #isMaterializedCrop()}) always has a resident {@link ImagePlus}
 	 * (the crop itself), so it never takes the streamed-data fallback above, returning the crop's own Dataset as-is,
@@ -1907,6 +1908,8 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = getImagePlus();
 		if (imp != null) return convertService.convert(imp, Dataset.class);
 		if (datasetService == null) return null;
+		final ImgPlus<?> allSources = getStreamedSourcesAsImg();
+		if (allSources != null) return datasetService.create((ImgPlus) allSources);
 		final ImgPlus<?> imgPlus = getLoadedDataAsImg(false);
 		return (imgPlus == null) ? null : datasetService.create((ImgPlus) imgPlus);
 	}
@@ -4796,6 +4799,26 @@ public class SNT extends MultiDThreePanes implements
 	@SuppressWarnings("rawtypes")
 	public <T> IterableInterval getLoadedIterable() {
 		return ctSlice3d;
+	}
+
+	/*
+	 * Stream mode: all the sources of the active Bdv/Bvv as one lazy C(T) image, so that path channel/frame can be
+	 * resolved against it (e.g., by PathProfiler). The T axis is only included if a path exists on a frame other than
+	 * the viewer's current one. Null if unavailable (see AbstractBigViewer#getSourcesAsImg)
+	 */
+	private ImgPlus<?> getStreamedSourcesAsImg() {
+		if (!isStreamMode() || ui == null) return null;
+		final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
+		if (viewer == null) return null;
+		try {
+			syncWithActiveSource();
+			final int current = viewer.getCurrentTimepoint();
+			final boolean includeTime = pathAndFillManager.getPaths().stream().anyMatch(p -> p.getFrame() != current);
+			return viewer.getSourcesAsImg(includeTime, new double[]{x_spacing, y_spacing, z_spacing}, spacing_units);
+		} catch (final Exception ex) {
+			SNTUtils.log("Could not stack viewer sources (" + ex.getMessage() + "). Using active source only");
+			return null;
+		}
 	}
 
 	/**

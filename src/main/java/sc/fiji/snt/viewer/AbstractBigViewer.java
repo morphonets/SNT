@@ -59,7 +59,6 @@ import java.io.File;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
 
 /**
  * Abstract base for SNT's BigDataViewer-family viewers ({@link Bvv}, {@link Bdv}, etc.).
@@ -839,6 +838,51 @@ public abstract class AbstractBigViewer {
                 if (menuTracer != null) menuTracer.onActiveSourceChanged();
             }
         });
+    }
+
+    /**
+     * Stacks all the sources of the viewer (full resolution) into a single lazy image with axes X,Y,Z,C and, if
+     * requested, T. Channel order matches the source order in the viewer, i.e., the channel assigned to paths traced
+     * in it. Only voxels that are actually sampled are read
+     *
+     * @param includeTime if true, all timepoints are stacked along a T axis. If false, only the current timepoint is used
+     * @param spacing     the voxel spacing of the spatial axes (calibrated units)
+     * @param unit        the spatial unit
+     * @return the stacked image, or null if it cannot be built: no sources, a single source without time axis (nothing
+     * to stack), non-3D or non-RealType sources, or sources with mismatching pixel type or dimensions
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public net.imagej.ImgPlus<?> getSourcesAsImg(final boolean includeTime, final double[] spacing, final String unit) {
+        final var state = getViewerState();
+        if (state == null) return null;
+        final List<SourceAndConverter<?>> sacs = state.getSources();
+        final int nT = includeTime ? Math.max(1, state.getNumTimepoints()) : 1;
+        if (sacs.isEmpty() || (sacs.size() == 1 && nT == 1)) return null;
+        Class<?> refType = null;
+        long[] refDims = null;
+        final List<net.imglib2.RandomAccessibleInterval> perT = new ArrayList<>(nT);
+        for (int t = 0; t < nT; t++) {
+            final int tp = includeTime ? t : getCurrentTimepoint() - 1; // SNT is 1-based, BDV sources 0-based
+            final List<net.imglib2.RandomAccessibleInterval> perC = new ArrayList<>(sacs.size());
+            for (final SourceAndConverter<?> sac : sacs) {
+                final var src = sac.getSpimSource();
+                if (!src.isPresent(tp)) return null;
+                final net.imglib2.RandomAccessibleInterval rai = src.getSource(tp, 0);
+                if (rai == null || rai.numDimensions() != 3 || !(src.getType() instanceof net.imglib2.type.numeric.RealType))
+                    return null;
+                final long[] dims = rai.dimensionsAsLongArray();
+                if (refType == null) {
+                    refType = src.getType().getClass();
+                    refDims = dims;
+                } else if (refType != src.getType().getClass() || !java.util.Arrays.equals(refDims, dims)) {
+                    return null;
+                }
+                perC.add(net.imglib2.view.Views.zeroMin(rai));
+            }
+            perT.add(net.imglib2.view.Views.stack((List) perC));
+        }
+        final net.imglib2.RandomAccessibleInterval stacked = (nT > 1) ? net.imglib2.view.Views.stack((List) perT) : perT.getFirst();
+        return ImgUtils.wrapWithSpacing(stacked, spacing, unit);
     }
 
     /**

@@ -2761,8 +2761,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         return;
                     }
                     // See PlotProfileCommand
+                    final net.imagej.Dataset dataset = plugin.getDataset();
                     final int[] activeCT = activeCTForPixelSampling();
-                    if (activeCT != null && (p.getChannel() != activeCT[0] || p.getFrame() != activeCT[1])) {
+                    if (activeCT != null && isSingleSlice(dataset)
+                            && (p.getChannel() != activeCT[0] || p.getFrame() != activeCT[1])) {
                         guiUtils.error("This path is not associated with the active channel ("
                                 + activeCT[0] + ")/frame (" + activeCT[1] + "), which is all "
                                 + "that streamed data can currently profile against.");
@@ -2770,7 +2772,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     }
                     final HashMap<String, Object> input = new HashMap<>();
                     input.put("path", p);
-                    input.put("dataset", plugin.getDataset());
+                    input.put("dataset", dataset);
                     (plugin.getUI().new DynamicCmdRunner(NodeProfiler.class, input)).run();
                 }
                 default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
@@ -3335,10 +3337,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("No valid image data is accessible for profiling.");
                     return;
                 }
-                if (activeCTForPixelSampling() != null) {
-                    // Streamed data with no crop, or a crop that is itself still single-channel
-                    // (see SNT#getMaterializedCropChannel()): getDataset() then falls back to wrapping
-                    // just that one active CT slice, unlike a resident ImagePlus's (or a genuinely
+                final net.imagej.Dataset dataset = plugin.getDataset();
+                if (activeCTForPixelSampling() != null && isSingleSlice(dataset)) {
+                    // Streamed data whose sources could not be stacked (see SNT#getDataset()), or a crop that is
+                    // itself still single-channel (see SNT#getMaterializedCropChannel()): getDataset() then falls
+                    // back to wrapping just that one active CT slice, unlike a resident ImagePlus's (or a genuinely
                     // multichannel crop's) full multichannel/multi-frame Dataset. Paths off that channel/frame
                     // can't be profiled from it. NB: intentionally NOT gated on plugin.isMaterializedCrop()
                     // alone - a multichannel crop (see Materialize_Multichannel_Region.groovy) makes
@@ -3350,7 +3353,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 warnOnTimeLapse(selectedPaths);
                 final HashMap<String, Object> input = new HashMap<>();
                 input.put("tree", new Tree(selectedPaths));
-                input.put("dataset", plugin.getDataset());
+                input.put("dataset", dataset);
                 (plugin.getUI().new DynamicCmdRunner(PathProfiler.class, input)).run();
             }
 
@@ -5779,6 +5782,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return false;
     }
 
+    /** Whether a dataset holds a single C/T slice, e.g., Stream mode data that could not be stacked per source */
+    private static boolean isSingleSlice(final net.imagej.Dataset dataset) {
+        return dataset == null || (dataset.getChannels() <= 1 && dataset.getFrames() <= 1);
+    }
+
     /**
      * @return the {@code {channel, frame}} pair pixel-sampling commands (profilers, fitting, A* re-tracing) must
      *         validate a Path's own channel/frame against, or {@code null} if no such restriction applies - i.e., a
@@ -6204,10 +6212,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 guiUtils.error("No valid image data is accessible for this operation.");
                 return false;
             }
+            // Resolve once: in Stream mode getDataset() stacks the viewer sources, which is wasteful to repeat per path
+            final net.imagej.Dataset dataset = plugin.getDataset();
             for (final Path p : paths) {
                 // Always (re)assign with point sampling so the values array is densely populated
                 try {
-                    final PathProfiler profiler = new PathProfiler(p, plugin.getDataset());
+                    final PathProfiler profiler = new PathProfiler(p, dataset);
                     profiler.setShape(ProfileProcessor.Shape.NONE);
                     profiler.assignValues(p);
                 } catch (final Exception ex) {

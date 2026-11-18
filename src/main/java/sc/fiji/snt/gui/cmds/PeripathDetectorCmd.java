@@ -240,9 +240,11 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             detectionImg = snt.getLoadedData();
         } else if (snt.getImagePlus() != null) {
             detectionImg = ImgUtils.getCtSlice3d(snt.getImagePlus(), channel, snt.getFrame());
+        } else if (snt.getDataset() != null && snt.getDataset().getChannels() >= channel) {
+            // Stream mode: SNT#getDataset() stacks all the sources of the viewer
+            detectionImg = ImgUtils.getCtSlice(snt.getDataset(), channel - 1, snt.getFrame() - 1);
         } else {
-            // Stream mode without a materialized crop: only the active channel's data is resident
-            // (see SNT#getDataset() javadoc), so a different channel genuinely cannot be sampled here
+            // Stream mode, sources could not be stacked: only the active channel's data is available
             error("Detection on a channel other than the active one (" + snt.getChannel() + ")"
                     + " requires either a materialized crop or Classic mode. Set 'Detection channel' to "
                     + snt.getChannel() + ".");
