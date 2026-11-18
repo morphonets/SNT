@@ -343,6 +343,12 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	private final ImageStatistics streamedStats = new ImageStatistics();
 	private boolean streamedStatsComputed;
+	/*
+	 * Copy of stats taken right before a crop is installed (null if no crop was ever installed): stats are overwritten
+	 * by, or computed from, the crop's own data while it is open, so they are restored when it is closed.
+	 * See installMaterializedCropOnEDT()/dematerializeDisplayCanvas()
+	 */
+	private ImageStatistics preCropStats;
 
 	/* filter type */
 	protected FilterType filterType = FilterType.TUBENESS;
@@ -1014,6 +1020,8 @@ public class SNT extends MultiDThreePanes implements
 			height = (int) ctSlice3d.dimension(1);
 			depth = (int) ctSlice3d.dimension(2);
 		}
+		// Stats may now describe the crop only. Not nulled: a nested call (see above) must not consume the snapshot
+		if (preCropStats != null) copyStatsInto(preCropStats, stats);
 		syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
 		nullifyCanvases(false);
 	}
@@ -1559,6 +1567,8 @@ public class SNT extends MultiDThreePanes implements
 		// channel/frame mismatch validation for Path Profiler/Node Profiler/Fit/detection commands
 		materializedCropChannel = crop.channel();
 		materializedCropFrame = crop.frame();
+		// Re-materializing while a crop is open keeps the snapshot taken before the first one
+		if (!isMaterializedCrop()) preCropStats = copyStats(stats);
 		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip
 		// pathAndFillManager.assignSpatialSettings(...), which would otherwise reset every Path's canvasOffset to zero
 		// and overwrite their spacing. No new world origin offset is needed either
@@ -3255,9 +3265,12 @@ public class SNT extends MultiDThreePanes implements
 		// getStreamedOrLoadedStats(): stats gets overwritten with a materialized crop's own (smaller) statistics,
 		// which would miscalibrate a search over the full streamed source. Only matters when isUseSubVolumeStats is off
 		// below computes fresh sub-volume-local statistics from img itself either way, already correctly source-aware
+		// NB: getStreamedOrLoadedStats() may trigger a full pass over the source, so it is only evaluated if its result
+		// is actually used, i.e., not when local statistics replace it just below
+		final boolean subVolumeStats = isUseSubVolumeStats;
 		ImageStatistics imgStats = useSecondary ? statsSecondary
-				: (useStreamedSource ? getStreamedOrLoadedStats() : stats);
-		if (isUseSubVolumeStats)
+				: (useStreamedSource ? (subVolumeStats ? stats : getStreamedOrLoadedStats()) : stats);
+		if (subVolumeStats)
 		{
 			SNTUtils.log("Computing local statistics...");
 			// NB: compute into a fresh, local instance rather than mutating the shared stats/ statsSecondary fields
@@ -6500,8 +6513,36 @@ public class SNT extends MultiDThreePanes implements
 	 * @param frame   the frame/timepoint (1-based index; coerced to 1 if &le;0)
 	 */
 	public void setChannelAndFrame(final int channel, final int frame) {
-		this.channel = Math.max(1, channel);
-		this.frame = Math.max(1, frame);
+		final int c = Math.max(1, channel);
+		final int f = Math.max(1, frame);
+		final boolean changed = c != this.channel || f != this.frame;
+		this.channel = c;
+		this.frame = f;
+		// While a crop is open, stats belong to the crop, not to the source being switched
+		if (changed && isStreamMode() && !isMaterializedCrop()) {
+			if (isUseSubVolumeStats) {
+				// Back to "unknown": searches compute local stats, and other consumers handle unknown stats
+				stats.min = 0;
+				stats.max = 0;
+				stats.mean = 0;
+				stats.stdDev = 0;
+			} else {
+				SNTUtils.log("Image statistics (computed once or set manually) were not updated for C" + c + "T" + f);
+			}
+		}
+	}
+
+	private static ImageStatistics copyStats(final ImageStatistics src) {
+		final ImageStatistics copy = new ImageStatistics();
+		copyStatsInto(src, copy);
+		return copy;
+	}
+
+	private static void copyStatsInto(final ImageStatistics src, final ImageStatistics dst) {
+		dst.min = src.min;
+		dst.max = src.max;
+		dst.mean = src.mean;
+		dst.stdDev = src.stdDev;
 	}
 
 	public double getPixelWidth() {
