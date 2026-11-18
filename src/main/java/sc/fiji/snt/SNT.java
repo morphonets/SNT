@@ -283,8 +283,8 @@ public class SNT extends MultiDThreePanes implements
 	protected double y_spacing = 1;
 	protected double z_spacing = 1;
 	protected String spacing_units = SNTUtils.getSanitizedUnit(null);
-	protected int channel;
-	protected int frame;
+	protected volatile int channel;
+	protected volatile int frame;
 	/*
 	 * True once x_spacing/y_spacing/z_spacing have been set from a source that actually reported real voxel dimensions
 	 * (setImageMetadata(...) called with all three spacing args > 0), as opposed to staying at their hardwired default
@@ -4679,6 +4679,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
 	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
+		syncWithActiveSource();
 		if (ctSlice3d == null)
 			return null;
 		final RandomAccessibleInterval<T> data = getLoadedData();
@@ -4785,6 +4786,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public ImgPlus<?> getLoadedDataAsImg(final boolean secondaryLayer) {
+		syncWithActiveSource();
 		final RandomAccessibleInterval<?> loadedData = (secondaryLayer) ? getSecondaryData() : getLoadedData();
 		return (loadedData == null) ? null :
 				ImgUtils.wrapWithSpacing(loadedData,
@@ -6493,6 +6495,17 @@ public class SNT extends MultiDThreePanes implements
 
 	public String getSpacingUnits() {
 		return spacing_units;
+	}
+
+	/**
+	 * In Stream mode, makes sure the channel/frame and pixel data held by this instance reflect the source currently
+	 * active in the Bdv/Bvv viewer. Cheap if nothing changed since the last sync. No-op in other modes or if no viewer
+	 * is active
+	 */
+	public void syncWithActiveSource() {
+		if (!isStreamMode() || ui == null) return;
+		final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
+		if (viewer != null) viewer.ensureActiveSourceSynced();
 	}
 
 	public int getChannel() {

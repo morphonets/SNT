@@ -784,7 +784,7 @@ public class Bdv extends AbstractBigViewer {
      */
     @Override
     public void resyncCalibrationFromActiveSource() {
-        if (tracer != null) tracer.syncChannelFromActiveSource();
+        if (tracer != null) tracer.forceSyncFromActiveSource();
     }
 
     /**
@@ -964,6 +964,7 @@ public class Bdv extends AbstractBigViewer {
         // so this can't leave a stale Tracer's mouse listener attached alongside a new one
         if (snt != null && tracer == null) {
             tracer = new Tracer(snt);
+            registerActiveSourceListener(viewerPanel.state());
             installContextMenu();
             if (snt.getUI() != null) snt.getUI().setBdv(this); // setBdv again, now that its window is available
         }

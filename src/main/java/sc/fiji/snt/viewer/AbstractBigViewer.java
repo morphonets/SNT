@@ -830,6 +830,25 @@ public abstract class AbstractBigViewer {
      */
     public abstract void resyncCalibrationFromActiveSource();
 
+    /** Keeps SNT's channel/frame current as the active source/timepoint changes, see AbstractTracer#onActiveSourceChanged() */
+    protected void registerActiveSourceListener(final bdv.viewer.ViewerState state) {
+        state.changeListeners().add(change -> {
+            if (change == bdv.viewer.ViewerStateChange.CURRENT_SOURCE_CHANGED
+                    || change == bdv.viewer.ViewerStateChange.CURRENT_TIMEPOINT_CHANGED
+                    || change == bdv.viewer.ViewerStateChange.NUM_SOURCES_CHANGED) {
+                if (menuTracer != null) menuTracer.onActiveSourceChanged();
+            }
+        });
+    }
+
+    /**
+     * Like {@link #resyncCalibrationFromActiveSource()} but a no-op if nothing changed since the last sync. For
+     * commands that read {@code snt}'s pixel data or channel/frame (e.g., GWDT tracing) and may run before any click
+     */
+    public void ensureActiveSourceSynced() {
+        if (menuTracer != null) menuTracer.ensureActiveSourceSynced();
+    }
+
     /** Scope for {@link #applyAutoBrightness(BrightnessScope)}: which source(s) to recompute. */
     protected enum BrightnessScope { CURRENT, ACTIVE, ALL }
 
@@ -3713,7 +3732,7 @@ public abstract class AbstractBigViewer {
                 // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
                 // the pixel data) for the whole path now, rather than re-checking on every segment, so a single
                 // path can't silently span two channels if the user switches the active source mid-trace
-                syncChannelFromActiveSource();
+                ensureActiveSourceSynced();
                 final double[] cc1 = resolveClickWorldPosition(e);
                 if (cc1 == null) return; // msg already displayed
 
@@ -3805,6 +3824,55 @@ public abstract class AbstractBigViewer {
          * had.
          */
         protected abstract void syncChannelFromActiveSource();
+
+        // Identity of what the last full sync was done against. Skips re-reading pixel data when nothing changed
+        private SourceAndConverter<?> syncedSource;
+        private int syncedFrame = -1;
+        private Object syncedData;
+        private boolean syncedCrop;
+
+        /** Full sync (pixel data, calibration, channel/frame) that also records what was synced against */
+        protected final void forceSyncFromActiveSource() {
+            syncChannelFromActiveSource();
+            syncedSource = getCurrentSource();
+            final int[] cf = peekActiveChannelFrame();
+            syncedFrame = (cf == null) ? -1 : cf[1];
+            syncedData = snt.getLoadedIterable();
+            syncedCrop = snt.isMaterializedCrop();
+        }
+
+        /**
+         * Runs the full sync only if the active source/timepoint, or the data held by SNT (e.g., a crop being
+         * materialized or closed), changed since the last one. Cheap otherwise
+         */
+        protected final void ensureActiveSourceSynced() {
+            if (snt == null) return;
+            // Never swap data under a path being traced, or under a batch re-trace running on another channel/frame
+            if (previousNode != null || computing) return;
+            final SourceAndConverter<?> current = getCurrentSource();
+            final int[] cf = peekActiveChannelFrame();
+            if (current == null || cf == null) return;
+            final int[] batchLock = snt.getBatchRetraceChannelFrame();
+            if (batchLock != null && (batchLock[0] != cf[0] || batchLock[1] != cf[1])) return;
+            if (current == syncedSource && cf[1] == syncedFrame && snt.getLoadedIterable() == syncedData
+                    && snt.isMaterializedCrop() == syncedCrop) return;
+            forceSyncFromActiveSource();
+        }
+
+        /**
+         * Called when the active source or timepoint of the viewer changes. Only updates channel/frame (no pixel
+         * access), so labels and path metadata are current. Pixel data is synced on demand, see
+         * {@link #ensureActiveSourceSynced()}. Ignored while a path is being traced, while a batch re-trace is
+         * locked to another channel/frame, or while a crop is materialized (its canvas owns channel/frame then)
+         */
+        protected final void onActiveSourceChanged() {
+            if (snt == null || previousNode != null || computing || snt.isMaterializedCrop()) return;
+            final int[] cf = peekActiveChannelFrame();
+            if (cf == null) return;
+            final int[] batchLock = snt.getBatchRetraceChannelFrame();
+            if (batchLock != null && (batchLock[0] != cf[0] || batchLock[1] != cf[1])) return;
+            snt.setChannelAndFrame(cf[0], cf[1]);
+        }
 
         /**
          * Resolves what {@link #syncChannelFromActiveSource()} would set channel/frame to, without
@@ -4552,7 +4620,7 @@ public abstract class AbstractBigViewer {
                     if (startNewPathBlocked()) return;
                     confirmedSegmentSizes.clear();
                     updateUndoButtonState();
-                    syncChannelFromActiveSource();
+                    ensureActiveSourceSynced();
                     beginFork(worldPos);
                 }
             };

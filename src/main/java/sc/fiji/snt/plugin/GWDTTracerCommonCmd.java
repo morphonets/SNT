@@ -952,6 +952,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     protected ImgPlus<?> getImgFromImgChoice() {
         if (isCanceled() || abortRun) return null; // honor init()'s cancel
+        if (!isFileMode()) snt.syncWithActiveSource(); // source may have changed since the dialog opened
         ImgPlus<?> chosenImp;
         if (isFileMode()) {
             if (!SNTUtils.fileAvailable(imgFileChoice)) {

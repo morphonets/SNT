@@ -312,6 +312,9 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
         ImagePlus chosenOrigImp = null;
         boolean isValidOrigImg = true;
 
+        // Stream mode: ensure channel/frame and pixel data reflect the active Bdv/Bvv source
+        if (!isFileMode()) snt.syncWithActiveSource();
+
         try {
 
             if (isFileMode()) {
