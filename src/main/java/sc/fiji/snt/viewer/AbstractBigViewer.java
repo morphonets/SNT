@@ -85,8 +85,17 @@ public abstract class AbstractBigViewer {
     /** The SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     protected final SNT snt;
     /** Seeds deleted with D/Backspace (most recent first), for undo */
-    private final java.util.Deque<List<sc.fiji.snt.seed.SeedPoint>> deletedSeeds = new java.util.ArrayDeque<>();
+    private final java.util.Deque<SeedUndo> deletedSeeds = new java.util.ArrayDeque<>();
     private static final int MAX_UNDO_DELETIONS = 100;
+
+    /** Seed edits that can be undone: seeds that were deleted (restored on undo) or added (removed on undo) */
+    private record SeedUndo(List<sc.fiji.snt.seed.SeedPoint> seeds, boolean deleted) {}
+
+    /** Temporary preference: what M adds in the viewer when seeds are listed (see {@link #MARK_ASK}) */
+    public static final String MARK_MODE_KEY = "viewer-m-mode";
+    public static final String MARK_ASK = "ask";
+    public static final String MARK_MARKERS = "markers";
+    public static final String MARK_SEEDS = "seeds"; 
     /** Whether the last item picked in the viewer by clicking was a bookmark marker (otherwise, a seed) */
     private volatile boolean lastPickedBookmark;
 
@@ -914,15 +923,37 @@ public abstract class AbstractBigViewer {
      * @param index the 0-based index of the source
      * @return the zero-min 3D data, or null if unavailable
      */
-    @SuppressWarnings("rawtypes")
     public net.imglib2.RandomAccessibleInterval<?> getSourceData(final int index) {
+        try {
+            final var rai = getSourceData(index, 0);
+            return (rai == null || rai.numDimensions() != 3) ? null : net.imglib2.view.Views.zeroMin(rai);
+        } catch (final IllegalStateException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Describes the resolution levels of a source at the current timepoint
+     *
+     * @param index the 0-based index of the source
+     * @return the levels (dimensions, voxel size and position of the first voxel, in world units), finest first.
+     * Empty if unavailable
+     */
+    public java.util.List<sc.fiji.snt.util.BigDataUtils.LevelInfo> getSourceLevels(final int index) {
         final var state = getViewerState();
-        if (state == null || index < 0 || index >= state.getSources().size()) return null;
+        if (state == null || index < 0 || index >= state.getSources().size()) return java.util.List.of();
         final var src = state.getSources().get(index).getSpimSource();
-        final int tp = getCurrentTimepoint() - 1; // SNT is 1-based, BDV sources 0-based
-        if (!src.isPresent(tp) || !(src.getType() instanceof net.imglib2.type.numeric.RealType)) return null;
-        final net.imglib2.RandomAccessibleInterval rai = src.getSource(tp, 0);
-        return (rai == null || rai.numDimensions() != 3) ? null : net.imglib2.view.Views.zeroMin(rai);
+        final int tp = getCurrentTimepoint() - 1;
+        if (!src.isPresent(tp)) return java.util.List.of();
+        final java.util.List<sc.fiji.snt.util.BigDataUtils.LevelInfo> levels = new ArrayList<>();
+        for (int l = 0; l < src.getNumMipmapLevels(); l++) {
+            final var rai = src.getSource(tp, l);
+            if (rai == null || rai.numDimensions() != 3) break;
+            levels.add(new sc.fiji.snt.util.BigDataUtils.LevelInfo(l, rai.dimensionsAsLongArray(),
+                    sc.fiji.snt.util.BigDataUtils.transformScale(src, tp, l),
+                    sc.fiji.snt.util.BigDataUtils.levelOrigin(src, tp, l)));
+        }
+        return levels;
     }
 
     /**
@@ -1409,6 +1440,54 @@ public abstract class AbstractBigViewer {
     /** Script-ready lines of the keyframes captured with the K hotkey since the last reset */
     private final List<String> capturedKeyframes = new ArrayList<>();
 
+    // Whether M should add a seed instead of a marker. Only relevant if seeds are listed. Asks once (the choice
+    // can be changed in the Seeds tab). Canceling the prompt adds a marker this time
+    private boolean shouldAddSeed() {
+        if (snt == null || snt.getSeedOverlay() == null || snt.getSeedOverlay().isEmpty()) return false;
+        String mode = snt.getPrefs().getTemp(MARK_MODE_KEY, MARK_ASK);
+        if (MARK_ASK.equals(mode)) {
+            final Boolean seeds = getGuiUtils().getConfirmation2(
+                    "<HTML>Seeds are listed. What should the <b>M</b> key add?<br>"
+                            + "(This can be changed later from the <b>+</b> menu of the Seeds tab.)",
+                    "Add Seeds or Markers?", "Seeds", "Bookmark Markers");
+            if (seeds == null) return false;
+            mode = seeds ? MARK_SEEDS : MARK_MARKERS;
+            snt.getPrefs().setTemp(MARK_MODE_KEY, mode);
+        }
+        return MARK_SEEDS.equals(mode);
+    }
+
+    // Adds a seed at the cursor. Type and radius are those of the last seed listed (the radius of the most recent
+    // seed of that type, if the last has none). Confidence is 1 (user-placed), and the source is "manual"
+    private void addSeedAtCursor() {
+        final double[] p = resolveCursorWorldPosition();
+        if (p == null) {
+            showViewerMessage("Could not resolve cursor position");
+            return;
+        }
+        final sc.fiji.snt.seed.SeedOverlay overlay = snt.getSeedOverlay();
+        final int last = overlay.size() - 1;
+        if (last < 0) return;
+        final String lastType = overlay.get(last).type;
+        final String type = (lastType == null || lastType.isEmpty()) ? "tip" : lastType;
+        double radius = 0;
+        for (int i = last; i >= 0; i--) { // Usually stops at once
+            final sc.fiji.snt.seed.SeedPoint sp = overlay.get(i);
+            if (type.equals(sp.type) && sp.radius > 0) {
+                radius = sp.radius;
+                break;
+            }
+        }
+        final sc.fiji.snt.seed.SeedPoint seed = new sc.fiji.snt.seed.SeedPoint(p[0], p[1], p[2], 1d, radius,
+                snt.getChannel(), snt.getFrame(), type, "manual");
+        overlay.add(seed);
+        synchronized (deletedSeeds) {
+            deletedSeeds.push(new SeedUndo(List.of(seed), false));
+            while (deletedSeeds.size() > MAX_UNDO_DELETIONS) deletedSeeds.removeLast();
+        }
+        showViewerMessage("Seed added (" + type + "). Undo: " + GuiUtils.ctrlKey() + "+Z");
+    }
+
     /**
      * Registers SNT's viewer keybindings shared by Bvv and Bdv: {@code M} (marker), {@code H}
      * (hold to hide annotations), {@code L} (secondary layer), {@code P} (pick sigma point) and,
@@ -1425,8 +1504,15 @@ public abstract class AbstractBigViewer {
      */
     protected void registerSntKeybindings(final InputMap sntIMap, final ActionMap sntAMap,
             final Actions actions, final Action addMarker, final AbstractTracer tracer) {
+        // M adds a bookmark marker or, if seeds are listed and the user chose so (asked once), a seed
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), "snt-add-marker");
-        sntAMap.put("snt-add-marker", addMarker);
+        sntAMap.put("snt-add-marker", new AbstractAction("Add Marker/Seed") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (shouldAddSeed()) addSeedAtCursor();
+                else addMarker.actionPerformed(e);
+            }
+        });
         // Same shortcut as in the classic canvas
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK),
                 "snt-sholl-nearest-node");
@@ -1470,7 +1556,7 @@ public abstract class AbstractBigViewer {
                 final int n = snt.getSeedOverlay().removeSelected();
                 if (n <= 0) return;
                 synchronized (deletedSeeds) {
-                    deletedSeeds.push(selected);
+                    deletedSeeds.push(new SeedUndo(selected, true));
                     while (deletedSeeds.size() > MAX_UNDO_DELETIONS) deletedSeeds.removeLast();
                 }
                 showViewerMessage(n + ((n == 1) ? " seed deleted" : " seeds deleted") + " (undo: "
@@ -1482,22 +1568,27 @@ public abstract class AbstractBigViewer {
         sntAMap.put("snt-delete-selected-seeds", deleteSeeds);
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
                 "snt-undo-seed-deletion");
-        sntAMap.put("snt-undo-seed-deletion", new AbstractAction("Undo Seed Deletion") {
+        sntAMap.put("snt-undo-seed-deletion", new AbstractAction("Undo Seed Edit") {
             @Override
             public void actionPerformed(final ActionEvent e) {
                 if (snt == null || snt.getSeedOverlay() == null) return;
-                final List<sc.fiji.snt.seed.SeedPoint> restored;
+                final SeedUndo last;
                 synchronized (deletedSeeds) {
-                    restored = deletedSeeds.isEmpty() ? null : deletedSeeds.pop();
+                    last = deletedSeeds.isEmpty() ? null : deletedSeeds.pop();
                 }
-                if (restored == null) {
+                if (last == null) {
                     showViewerMessage("Nothing to undo");
                     return;
                 }
-                snt.getSeedOverlay().addAll(restored);
-                snt.getSeedOverlay().setSelectedSeeds(restored);
-                final int n = restored.size();
-                showViewerMessage(n + ((n == 1) ? " seed restored" : " seeds restored"));
+                final int n = last.seeds().size();
+                if (last.deleted()) {
+                    snt.getSeedOverlay().addAll(last.seeds());
+                    snt.getSeedOverlay().setSelectedSeeds(last.seeds());
+                    showViewerMessage(n + ((n == 1) ? " seed restored" : " seeds restored"));
+                } else {
+                    snt.getSeedOverlay().removeAll(last.seeds());
+                    showViewerMessage(n + ((n == 1) ? " added seed removed" : " added seeds removed"));
+                }
             }
         });
         if (tracer == null) return;

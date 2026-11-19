@@ -87,6 +87,26 @@ public final class PaletteOptions {
      * @return the AWT {@link Button} that pops the menu on click
      */
     public Button buildMoreButton(final Component parent, final String helpHtml, final Consumer<PopupMenu> extras) {
+        final PopupMenu pm = buildMoreMenu(parent, helpHtml, extras);
+        final Button btn = new Button("More »"); // matches IJ1 convention
+        btn.addActionListener(e -> pm.show(btn, btn.getWidth() / 2, btn.getHeight() / 2));
+        return btn;
+    }
+
+    /**
+     * Same as {@link #buildMoreButton(Component, String, Consumer)} but for Swing containers
+     *
+     * @return the Swing button that pops the menu on click
+     */
+    public javax.swing.JButton buildMoreSwingButton(final Component parent, final String helpHtml,
+                                                    final Consumer<PopupMenu> extras) {
+        final PopupMenu pm = buildMoreMenu(parent, helpHtml, extras);
+        final javax.swing.JButton btn = new javax.swing.JButton("More »");
+        btn.addActionListener(e -> pm.show(btn, btn.getWidth() / 2, btn.getHeight() / 2));
+        return btn;
+    }
+
+    private PopupMenu buildMoreMenu(final Component parent, final String helpHtml, final Consumer<PopupMenu> extras) {
         final PopupMenu pm = new PopupMenu();
         GUI.scalePopupMenu(pm);
         parent.add(pm);
@@ -106,9 +126,7 @@ public final class PaletteOptions {
         pm.addSeparator();
         addDismissEntry(pm);
 
-        final Button btn = new Button("More »"); // matches IJ1 convention
-        btn.addActionListener(e -> pm.show(btn, btn.getWidth() / 2, btn.getHeight() / 2));
-        return btn;
+        return pm;
     }
 
     public void addHelpEntry(final PopupMenu pm, final String htmlMessage, final Component dialogParent) {

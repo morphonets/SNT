@@ -499,6 +499,11 @@ public class SeedManager extends JPanel {
         menu.add(jmi);
         menu.add(getScaleConfidenceMenu());
         menu.add(getScaleRadiusMenu());
+        jmi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
+        jmi.setToolTipText("Histogram of nearest-neighbor distances of the selected seeds (all listed seeds if "
+                + "none is selected). Helps spot multiple hits on the same spot");
+        jmi.addActionListener(e -> showNNDistribution());
+        menu.add(jmi);
         menu.addSeparator();
         jmi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
@@ -689,6 +694,8 @@ public class SeedManager extends JPanel {
             label.setIcon(swatchIconFor(row));
             label.setHorizontalTextPosition(SwingConstants.RIGHT);
             label.setIconTextGap(6);
+            // Assigned directly to a column: bypasses installAlternatingRows(), so stripe here (if the table is)
+            GuiUtils.Tables.applyAlternatingRowColor(label, table, isSelected, row);
             return c;
         }
 
@@ -961,6 +968,19 @@ public class SeedManager extends JPanel {
         overlay.setSelectedSeeds(selected);
     }
 
+    private void showNNDistribution() {
+        final List<SeedPoint> pool = overlay.getSelectedSeeds().isEmpty() ? overlay.filtered()
+                : new ArrayList<>(overlay.getSelectedSeeds());
+        if (pool.size() < 2) {
+            sntui.error("At least two seeds are required.");
+            return;
+        }
+        final List<PointInImage> points = new ArrayList<>(pool.size());
+        for (final SeedPoint sp : pool) points.add(sp.toPointInImage());
+        new NodeStatistics<>(points).getHistogram(NodeStatistics.NEAREST_NEIGHBOR_DISTANCE)
+                .show("Seeds NN Distances (N=" + pool.size() + ")");
+    }
+
     private void pullOverlaySelectionToTable() {
         if (seedTable == null) return;
         final Set<SeedPoint> selected = overlay.getSelectedSeeds();
@@ -1018,17 +1038,19 @@ public class SeedManager extends JPanel {
     private void updateCountLabel() {
         final int total = overlay.size();
         final int shown = overlay.visibleSize();
-        final String baseText;
+        final String shownText;
         if (total == 0) {
-            baseText = "No seeds loaded";
+            shownText = "No seeds loaded";
             countLabel.setIcon(null);
         } else if (shown == total) {
-            baseText = String.format("All %,d seeds shown", total);
+            shownText = String.format("All %,d seeds shown", total);
             countLabel.setIcon(null);
         } else {
-            baseText = String.format("%,d of %,d shown", shown, total);
+            shownText = String.format("%,d of %,d shown", shown, total);
             countLabel.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
         }
+        final int selected = overlay.getSelectedSeeds().size();
+        final String baseText = (selected > 0) ? shownText + String.format(" | %,d selected", selected) : shownText;
         // Append a passive out-of-bounds indicator when applicable
         final int oob = countSeedsOutOfBounds();
         if (oob > 0) {
@@ -1284,6 +1306,39 @@ public class SeedManager extends JPanel {
                 + "parameters from example paths");
         menu.add(jmi);
         jmi.addActionListener(e -> detectTips());
+
+        GuiUtils.MenuItems.addSeparator(menu, "Pressing M in Bvv/Bdv adds:");
+        final javax.swing.ButtonGroup group = new javax.swing.ButtonGroup();
+        final String current = snt.getPrefs().getTemp(sc.fiji.snt.viewer.AbstractBigViewer.MARK_MODE_KEY,
+                sc.fiji.snt.viewer.AbstractBigViewer.MARK_ASK);
+        final String[][] options = {{"Ask when seeds are listed", sc.fiji.snt.viewer.AbstractBigViewer.MARK_ASK},
+                {"Bookmark markers", sc.fiji.snt.viewer.AbstractBigViewer.MARK_MARKERS},
+                {"Seeds (when seeds are listed)", sc.fiji.snt.viewer.AbstractBigViewer.MARK_SEEDS}};
+        final java.util.List<javax.swing.JRadioButtonMenuItem> radios = new java.util.ArrayList<>();
+        for (final String[] option : options) {
+            final javax.swing.JRadioButtonMenuItem rb = new javax.swing.JRadioButtonMenuItem(option[0],
+                    option[1].equals(current));
+            rb.addActionListener(e -> snt.getPrefs().setTemp(
+                    sc.fiji.snt.viewer.AbstractBigViewer.MARK_MODE_KEY, option[1]));
+            group.add(rb);
+            radios.add(rb);
+            menu.add(rb);
+        }
+        // The choice may have been made from the viewer's prompt since the menu was built
+        menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(final javax.swing.event.PopupMenuEvent e) {
+                final String mode = snt.getPrefs().getTemp(sc.fiji.snt.viewer.AbstractBigViewer.MARK_MODE_KEY,
+                        sc.fiji.snt.viewer.AbstractBigViewer.MARK_ASK);
+                for (int i = 0; i < radios.size(); i++) radios.get(i).setSelected(options[i][1].equals(mode));
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(final javax.swing.event.PopupMenuEvent e) {}
+
+            @Override
+            public void popupMenuCanceled(final javax.swing.event.PopupMenuEvent e) {}
+        });
 
         return menu;
     }

@@ -42,9 +42,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
 import sc.fiji.snt.tracing.auto.TipDetectionConfig;
-import sc.fiji.snt.tracing.auto.TipDetectionConfig.TipStatus;
 import sc.fiji.snt.tracing.auto.TipExamples;
 import sc.fiji.snt.tracing.auto.TipFinder;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
 
@@ -53,7 +53,13 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSlider;
+import javax.swing.JCheckBox;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.text.DefaultFormatterFactory;
+import javax.swing.text.NumberFormatter;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.Scrollable;
@@ -85,26 +91,61 @@ public class TipPalette extends Thread {
          * @param config      the (possibly adjusted) parameters
          * @param wholeVolume true to detect in the whole volume, false to detect in the region currently
          *                    loaded (a dry run)
+         * @param options     resolution level and empty block settings of whole volume runs. Null if not
+         *                    applicable (e.g., no image pyramid)
          */
-        void tipConfigPicked(TipDetectionConfig config, boolean wholeVolume);
+        void tipConfigPicked(TipDetectionConfig config, boolean wholeVolume, ParseOptions options);
 
         /** Called when the wizard is closed */
         default void dismissed() {
         }
     }
 
+    /**
+     * Settings of whole volume runs
+     *
+     * @param level     the resolution level (0: full resolution)
+     * @param skipEmpty whether blocks without signal (assessed at a coarser level) are skipped
+     * @param madFactor the number of median absolute deviations above the median defining signal
+     */
+    public record ParseOptions(int level, boolean skipEmpty, double madFactor) {
+    }
+
+    private static final double MIN_SCALE_VOXELS = 0.7;
+
+    /** Description of a level of the image pyramid */
+    public static String describeLevel(final BigDataUtils.LevelInfo l) {
+        return String.format("Level %d: %d x %d x %d voxels (%s x %s x %s)", l.level(), l.dims()[0], l.dims()[1],
+                l.dims()[2], SNTUtils.formatDouble(l.spacing()[0], 3), SNTUtils.formatDouble(l.spacing()[1], 3),
+                SNTUtils.formatDouble(l.spacing()[2], 3));
+    }
+
+    // Coarsest level at which the smallest learned scale still spans a few voxels
+    private static int recommendedLevel(final TipDetectionConfig config, final List<BigDataUtils.LevelInfo> levels) {
+        double minScale = Double.MAX_VALUE;
+        for (final double sc : config.getScales()) minScale = Math.min(minScale, sc);
+        int best = 0;
+        for (final var l : levels) {
+            if (minScale / Math.max(l.spacing()[0], l.spacing()[1]) >= MIN_SCALE_VOXELS) best = l.level();
+        }
+        return best;
+    }
+
+    // Levels of the active channel in the viewer (Stream mode), or an empty list
+    private List<BigDataUtils.LevelInfo> streamLevels() {
+        if (!snt.isStreamMode() || snt.getUI() == null || snt.getUI().getActiveBigViewer() == null)
+            return List.of();
+        return snt.getUI().getActiveBigViewer().getSourceLevels(snt.getChannel() - 1);
+    }
+
     // Limits of the region that is read into memory
     private static final long MAX_VOXELS_PER_AXIS = 700;
     private static final long MAX_VOXELS = 80_000_000L;
     private static final int MIN_PAD_VOXELS = 8;
-    private static final int SLIDER_STEPS = 1000;
     private static final double WEIGHT_MAX = 2;
     // Slices (either side of the displayed one) in which overlays are drawn
     private static final int OVERLAY_BAND = 2;
     private static final Color NODE_COLOR = new Color(0, 200, 255, 160);
-    private static final Color MATCHED_COLOR = new Color(0, 220, 0);
-    private static final Color MISSED_COLOR = new Color(255, 60, 60);
-    private static final Color SKIPPED_COLOR = Color.GRAY;
     private static final Color DETECTION_COLOR = new Color(250, 215, 100);
     private static final Color SELECTED_COLOR = Color.ORANGE;
 
@@ -395,10 +436,11 @@ public class TipPalette extends Thread {
 
     private void commit(final boolean wholeVolume) {
         final List<Listener> copy = new ArrayList<>(listeners);
+        final ParseOptions options = (wholeVolume && window != null) ? window.parseOptions() : null;
         if (wholeVolume) {
             dismiss(); // Clears the listeners, so use a copy
         }
-        copy.forEach(l -> l.tipConfigPicked(config, wholeVolume));
+        copy.forEach(l -> l.tipConfigPicked(config, wholeVolume, options));
     }
 
     public void dismiss() {
@@ -415,6 +457,13 @@ public class TipPalette extends Thread {
 
     private static String fmt(final double v) {
         return Double.isNaN(v) ? "n/a" : String.format("%.3g", v);
+    }
+
+    // Value in calibrated units (unit shown in the label of the row), with its size in voxels
+    private String voxelsOnly(final double calibrated) {
+        if (Double.isNaN(calibrated)) return "n/a";
+        final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
+        return String.format("%.3g (%.1f vox)", calibrated, calibrated / avgSpacing);
     }
 
     // Value in calibrated units, with its size in voxels
@@ -446,15 +495,6 @@ public class TipPalette extends Thread {
             g2.setColor(NODE_COLOR);
             for (final long[] n : example.nodes()) {
                 if (Math.abs(n[2] - z) <= 1) fillDot(g2, n[0], n[1], 2);
-            }
-            final long[][] tips = example.tips();
-            for (int i = 0; i < tips.length; i++) {
-                if (Math.abs(tips[i][2] - z) > OVERLAY_BAND) continue;
-                final TipStatus status = ev.status()[i];
-                g2.setColor((status == TipStatus.MATCHED) ? MATCHED_COLOR
-                        : (status == TipStatus.MISSED) ? MISSED_COLOR : SKIPPED_COLOR);
-                g2.setStroke(new BasicStroke(2f));
-                ringAt(g2, tips[i][0], tips[i][1], 9);
             }
             final List<TipFinder.Tip> found = ev.tips();
             final int sel = selected;
@@ -489,12 +529,6 @@ public class TipPalette extends Thread {
             final double sx = screenXD(x + 0.5);
             final double sy = screenYD(y + 0.5);
             g2.fill(new java.awt.geom.Ellipse2D.Double(sx - radius, sy - radius, 2 * radius, 2 * radius));
-        }
-
-        private void ringAt(final Graphics2D g2, final double x, final double y, final int radius) {
-            final double sx = screenXD(x + 0.5);
-            final double sy = screenYD(y + 0.5);
-            g2.draw(new java.awt.geom.Ellipse2D.Double(sx - radius, sy - radius, 2 * radius, 2 * radius));
         }
 
         // Selects the detection closest to the click (within the slices in which detections are drawn)
@@ -571,29 +605,21 @@ public class TipPalette extends Thread {
         }
     }
 
-    // Window: image (StackWindow, AWT) + one Swing panel with the parameters (in a scroll pane) + AWT buttons. Mixing
-    // AWT and Swing controls inside the same container is avoided: heavyweight components do not paint correctly there
+    // Window: image (StackWindow, AWT) + one Swing panel with the parameters (in a scroll pane) + Swing buttons.
+    // Mixing AWT and Swing controls inside the same container is avoided: heavyweight components do not paint
+    // correctly there
     private class TipWindow extends StackWindow {
         private static final long serialVersionUID = 1L;
-        private final JSlider thresholdBar;
-        private final JSlider radiusBar;
-        private final JSlider extentBar;
-        private final JSlider purityBar;
-        private final JLabel thresholdLabel = new JLabel();
+        private final JSpinner thresholdSpin = GuiUtils.Fields.doubleSpinner(1, 0, 1e12, 1, 3, true);
+        private final JSpinner radiusSpin = GuiUtils.Fields.doubleSpinner(1, 0, 1e9, 1, 1, true);
+        private final JSpinner extentSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
+        private final JSpinner puritySpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
+        private final JSpinner vetoSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1e12, 1, 3, true);
+        private final JSpinner bgWeightSpin = GuiUtils.Fields.doubleSpinner(1, 0, WEIGHT_MAX, 0.05, 2);
         private final JLabel radiusLabel = new JLabel();
-        private final JLabel extentLabel = new JLabel();
-        private final JLabel purityLabel = new JLabel();
-        private final JLabel vetoLabel = new JLabel();
-        private JSlider vetoBar;
-        private double vetoLo;
-        private double vetoHi;
         private final JLabel statusLabel = new JLabel(" ");
         private final DefaultTableModel learnedModel;
-        private double thresholdLo;
-        private double thresholdHi;
-        private double radiusLo;
-        private double radiusHi;
-        private final DefaultTableModel scalesModel = new DefaultTableModel(new String[]{"Scale", "Nodes (median)",
+        private final DefaultTableModel scalesModel = new DefaultTableModel(new String[]{"Scale [" + unit + "]", "Nodes (median)",
                 "Nodes (p10)", "Background (p50)", "Background (p99)", "Contrast"}, 0) {
             private static final long serialVersionUID = 1L;
 
@@ -604,47 +630,50 @@ public class TipPalette extends Thread {
         };
         private final JTextArea warnings = new JTextArea("", 3, 60);
         private final JComboBox<String> bgChoice = new JComboBox<>();
-        private boolean loading; // True while sliders are set by code
+        private boolean loading; // True while spinners are set by code
         private JButton updateButton;
         private final java.util.List<Integer> bgChannels = new ArrayList<>();
-        private JSlider bgWeightBar;
-        private JLabel bgWeightLabel;
+        // Values displayed when the controls were (re)loaded: reset buttons restore them
+        private double initThreshold;
+        private double initRadius;
+        private double initExtent;
+        private double initPurity;
+        private final double initBgWeight = bgWeight;
+        // Whole volume settings (Stream mode)
+        private final List<BigDataUtils.LevelInfo> levels = streamLevels();
+        private JComboBox<String> levelChoice;
+        private JCheckBox skipEmpty;
+        private JSpinner madSpin;
 
         TipWindow(final ImagePlus imp, final ImageCanvas ic) {
             super(imp, ic);
             GuiUtils.zoomToScreenFraction(getCanvas(), 0.55, 8);
-            configureRanges();
-            final double thr = config.getThreshold();
-            thresholdBar = bar(positionOf(thr, thresholdLo, thresholdHi, true));
-            radiusBar = bar(positionOf(config.getTipRadius(), radiusLo, radiusHi, false));
-            extentBar = bar((int) Math.round(config.getMinExtent() * SLIDER_STEPS));
-            purityBar = bar((int) Math.round(config.getMinPurity() * SLIDER_STEPS));
-            vetoBar = bar(SLIDER_STEPS); // Far right: off
-            configureVeto();
-            vetoBar.addChangeListener(e -> {
+            bgWeightSpin.setValue(bgWeight);
+            loadSpinners();
+            thresholdSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setVetoThreshold(vetoBar.getValue() >= SLIDER_STEPS ? Double.NaN
-                        : valueOf(vetoBar.getValue(), vetoLo, vetoHi, true));
+                config.setThreshold(val(thresholdSpin));
                 changed();
             });
-            thresholdBar.addChangeListener(e -> {
+            radiusSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setThreshold(valueOf(thresholdBar.getValue(), thresholdLo, thresholdHi, true));
+                config.setTipRadius(val(radiusSpin));
                 changed();
             });
-            radiusBar.addChangeListener(e -> {
+            extentSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setTipRadius(valueOf(radiusBar.getValue(), radiusLo, radiusHi, false));
+                config.setMinExtent(val(extentSpin));
                 changed();
             });
-            extentBar.addChangeListener(e -> {
+            puritySpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setMinExtent(extentBar.getValue() / (double) SLIDER_STEPS);
+                config.setMinPurity(val(puritySpin));
                 changed();
             });
-            purityBar.addChangeListener(e -> {
+            vetoSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setMinPurity(purityBar.getValue() / (double) SLIDER_STEPS);
+                final double v = val(vetoSpin);
+                config.setVetoThreshold((v <= 0) ? Double.NaN : v); // 0: off (n/a)
                 changed();
             });
 
@@ -655,14 +684,7 @@ public class TipPalette extends Thread {
             c.gridx = 0;
             c.gridwidth = GridBagConstraints.REMAINDER;
             int row = 0;
-            for (final Component comp : new Component[]{
-                    sliderRow("Threshold", thresholdBar, thresholdLabel),
-                    sliderRow("Tip radius", radiusBar, radiusLabel)}) {
-                c.gridy = row++;
-                root.add(comp, c);
-            }
-            c.gridy = row++;
-            root.add(statusLabel, c);
+            final int widthRow = row++; // Reserved for the strut that keeps the width constant
 
             warnings.setText(String.join("\n", config.getWarnings()));
             warnings.setEditable(false);
@@ -672,22 +694,47 @@ public class TipPalette extends Thread {
             warnings.setOpaque(false);
             warnings.setForeground(WizardSupport.WORSE_COLOR);
             warnings.setVisible(!config.getWarnings().isEmpty());
+            final JPanel detection = new JPanel(new GridBagLayout());
+            final GridBagConstraints dc = new GridBagConstraints();
+            dc.fill = GridBagConstraints.HORIZONTAL;
+            dc.weightx = 1.0;
+            dc.gridx = 0;
+            dc.gridy = 0;
+            detection.add(pair(paramRow("Threshold", thresholdSpin, () -> setIfValid(thresholdSpin, initThreshold),
+                            null, "Threshold:"),
+                    paramRow("Tip radius", radiusSpin, () -> setIfValid(radiusSpin, initRadius), radiusLabel,
+                            "Tip radius:")), dc);
+            dc.gridy = 1;
+            detection.add(statusLabel, dc);
+            dc.gridy = 2;
+            detection.add(warnings, dc);
             c.gridy = row++;
-            root.add(warnings, c);
+            final CollapsiblePanel detectionPanel = new CollapsiblePanel("Detection", detection, false);
+            detectionPanel.setTooltipText("Threshold and tip radius, number of detections and warnings");
+            root.add(section(null, detectionPanel), c);
 
             // Expert settings, collapsed by default
             final JPanel advanced = new JPanel(new GridLayout(0, 1));
-            advanced.add(sliderRow("Min. extent", extentBar, extentLabel));
-            advanced.add(sliderRow("Min. purity", purityBar, purityLabel));
+            advanced.add(pair(paramRow("Min. extent", extentSpin, () -> setIfValid(extentSpin, initExtent), null,
+                            "Min. extent:"),
+                    paramRow("Min. purity", puritySpin, () -> setIfValid(puritySpin, initPurity), null,
+                            "Min. purity:")));
             if (snt.getChannelCount() > 1) {
                 advanced.add(backgroundRow());
-                advanced.add(sliderRow("Veto (background)", vetoBar, vetoLabel));
+                advanced.add(paramRow("Veto (background)", vetoSpin, () -> vetoSpin.setValue(0d), null));
             }
             final CollapsiblePanel advancedPanel = new CollapsiblePanel("Advanced", advanced, true);
             advancedPanel.setTooltipText("Extra filters: min. extent and purity of detections, and the background "
-                    + "channel (subtraction and veto)");
+                    + "channel (subtraction and veto). The veto is off (n/a) at 0");
             c.gridy = row++;
-            root.add(advancedPanel, c);
+            root.add(section(null, advancedPanel), c);
+
+            CollapsiblePanel performance = null;
+            if (levels.size() > 1) {
+                performance = performancePanel();
+                c.gridy = row++;
+                root.add(section(null, performance), c);
+            }
 
             learnedModel = new DefaultTableModel(new String[]{"Learned from examples", "Value"}, 0) {
                 private static final long serialVersionUID = 1L;
@@ -703,9 +750,16 @@ public class TipPalette extends Thread {
             final CollapsiblePanel detailsPanel = new CollapsiblePanel("Details", details, true);
             detailsPanel.setTooltipText("Parameters learned from the example paths, and the response of each scale");
             c.gridy = row++;
-            root.add(detailsPanel, c);
+            root.add(section(null, detailsPanel), c);
 
             refresh(); // Fills the tables before the window is sized
+            // All rows share the width of the widest content, so that the window does not resize on toggling
+            int width = Math.max(details.getPreferredSize().width, Math.max(advanced.getPreferredSize().width,
+                    warnings.getPreferredSize().width));
+            if (performance != null) width = Math.max(width, performance.getPreferredSize().width);
+            c.gridy = widthRow;
+            c.weighty = 0;
+            root.add(javax.swing.Box.createHorizontalStrut(width), c);
             final JScrollPane scroll = new JScrollPane(root, javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                     javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER) {
                 private static final long serialVersionUID = 1L;
@@ -720,6 +774,7 @@ public class TipPalette extends Thread {
             };
             scroll.setBorder(null);
             scroll.getVerticalScrollBar().setUnitIncrement(16);
+            // Heavyweight container: it paints its lightweight (Swing) children reliably inside the AWT window
             final Panel south = new Panel(new BorderLayout());
             south.add(scroll, BorderLayout.CENTER);
             south.add(buttonPanel(), BorderLayout.SOUTH);
@@ -732,36 +787,116 @@ public class TipPalette extends Thread {
             new GuiUtils(this.getCanvas()).tempMsg("Click a detection to see its analysis radius", 4000);
         }
 
-        // The veto needs a background channel. Its slider is off (n/a) at its right end: moving it left enables it
-        private void configureVeto() {
-            final boolean available = vetoRegion != null && !Double.isNaN(vetoSuggested) && vetoSuggested > 0;
-            vetoBar.setEnabled(available);
-            vetoBar.setValue(SLIDER_STEPS);
-            if (available) {
-                vetoLo = vetoSuggested / 20;
-                vetoHi = vetoSuggested * 20;
-                if (!Double.isNaN(config.getVetoThreshold()))
-                    vetoBar.setValue(Math.min(SLIDER_STEPS - 1, positionOf(config.getVetoThreshold(), vetoLo, vetoHi, true)));
+        // Boxed section: titled border (as in MaterializeRegionDialog) or a plain etched one
+        private JPanel section(final String title, final Component content) {
+            final JPanel panel = new JPanel(new BorderLayout());
+            panel.setBorder(javax.swing.BorderFactory.createCompoundBorder((title == null)
+                            ? javax.swing.BorderFactory.createEtchedBorder()
+                            : javax.swing.BorderFactory.createTitledBorder(title),
+                    javax.swing.BorderFactory.createEmptyBorder(2, 2, 2, 2)));
+            panel.add(content, BorderLayout.CENTER);
+            return panel;
+        }
+
+        private double val(final JSpinner sp) {
+            return ((Number) sp.getValue()).doubleValue();
+        }
+
+        private void setIfValid(final JSpinner sp, final double value) {
+            if (!Double.isNaN(value)) sp.setValue(value);
+        }
+
+        private int decimalsFor(final double v) {
+            if (Double.isNaN(v) || v <= 0) return 3;
+            return Math.clamp(3 - (int) Math.floor(Math.log10(v)), 0, 8);
+        }
+
+        private String patternOf(final int decimals) {
+            return (decimals <= 0) ? "#0" : "#0." + "0".repeat(decimals);
+        }
+
+        private void configure(final JSpinner sp, final double value, final double min, final double max,
+                               final double step, final int decimals) {
+            final SpinnerNumberModel m = (SpinnerNumberModel) sp.getModel();
+            m.setMinimum(min);
+            m.setMaximum(max);
+            m.setStepSize(step);
+            m.setValue(Double.isNaN(value) ? min : Math.clamp(value, min, max));
+            final JSpinner.NumberEditor ed = new JSpinner.NumberEditor(sp, patternOf(decimals));
+            ed.getTextField().setColumns(8);
+            sp.setEditor(ed);
+        }
+
+        // Spinner that shows n/a for 0 (veto off)
+        private static class OffFormat extends java.text.DecimalFormat {
+            private static final long serialVersionUID = 1L;
+
+            OffFormat(final String pattern) {
+                super(pattern);
+            }
+
+            @Override
+            public StringBuffer format(final double n, final StringBuffer sb, final java.text.FieldPosition fp) {
+                return (n <= 0) ? sb.append("n/a") : super.format(n, sb, fp);
+            }
+
+            @Override
+            public StringBuffer format(final long n, final StringBuffer sb, final java.text.FieldPosition fp) {
+                return (n <= 0) ? sb.append("n/a") : super.format(n, sb, fp);
+            }
+
+            @Override
+            public Number parse(final String s, final java.text.ParsePosition pp) {
+                if (s.trim().equalsIgnoreCase("n/a")) {
+                    pp.setIndex(s.length());
+                    return 0d;
+                }
+                return super.parse(s, pp);
             }
         }
 
-        private void configureRanges() {
-            final double minSpacing = Math.min(spacing[0], Math.min(spacing[1], spacing[2]));
-            final double thr = config.getThreshold();
-            thresholdLo = (Double.isNaN(thr) ? 1e-3 : Math.max(1e-6, thr / 50));
-            thresholdHi = (Double.isNaN(thr) ? 1 : thr * 20);
-            radiusLo = 3 * minSpacing;
-            radiusHi = Math.max(2 * config.getTipRadius(), 2 * radiusLo);
+        // Sets the models and displayed values of the spinners from the current config. Callers must not rely on
+        // listeners being triggered
+        private void loadSpinners() {
+            final boolean wasLoading = loading;
+            loading = true;
+            try {
+                final double minSpacing = Math.min(spacing[0], Math.min(spacing[1], spacing[2]));
+                final double thr = config.getThreshold();
+                configure(thresholdSpin, thr, 0, 1e12, Double.isNaN(thr) ? 1 : thr / 100, decimalsFor(thr));
+                configure(radiusSpin, config.getTipRadius(), minSpacing, 1e9, minSpacing, 1);
+                configure(extentSpin, config.getMinExtent(), 0, 1, 0.05, 2);
+                configure(puritySpin, config.getMinPurity(), 0, 1, 0.05, 2);
+                final boolean available = vetoRegion != null && !Double.isNaN(vetoSuggested) && vetoSuggested > 0;
+                final double max = (available) ? vetoSuggested * 20 : 1;
+                final double veto = Double.isNaN(config.getVetoThreshold()) ? 0 : config.getVetoThreshold();
+                final SpinnerNumberModel m = (SpinnerNumberModel) vetoSpin.getModel();
+                m.setMinimum(0d);
+                m.setMaximum(max);
+                m.setStepSize((available) ? vetoSuggested / 10 : 1);
+                m.setValue(Math.clamp(veto, 0, max));
+                final String pattern = patternOf(decimalsFor((available) ? vetoSuggested : Double.NaN));
+                final JSpinner.NumberEditor ed = new JSpinner.NumberEditor(vetoSpin, pattern);
+                final NumberFormatter nf = new NumberFormatter(new OffFormat(pattern));
+                nf.setValueClass(Double.class);
+                nf.setMinimum(0d);
+                nf.setMaximum(max);
+                ed.getTextField().setFormatterFactory(new DefaultFormatterFactory(nf));
+                ed.getTextField().setColumns(8);
+                vetoSpin.setEditor(ed);
+                vetoSpin.setEnabled(available);
+                initThreshold = config.getThreshold();
+                initRadius = config.getTipRadius();
+                initExtent = config.getMinExtent();
+                initPurity = config.getMinPurity();
+            } finally {
+                loading = wasLoading;
+            }
         }
 
         // Called on the EDT after the parameters were learned again
         void reload() {
-            loading = true;
-            try {
-                reloadSliders();
-            } finally {
-                loading = false;
-            }
+            loadSpinners();
             final int nScales = scalesModel.getRowCount();
             fillScales();
             warnings.setText(String.join("\n", config.getWarnings()));
@@ -785,45 +920,84 @@ public class TipPalette extends Thread {
             if (updateButton == null) return;
             final int idx = bgChoice.getSelectedIndex();
             final int channel = (idx <= 0) ? 0 : bgChannels.get(idx - 1);
-            final double weight = bgWeightBar.getValue() * WEIGHT_MAX / SLIDER_STEPS;
+            final double weight = val(bgWeightSpin);
             updateButton.setEnabled(channel != bgChannel || (channel > 0 && Math.abs(weight - bgWeight) > 1e-3));
-        }
-
-        private void reloadSliders() {
-            configureRanges();
-            thresholdBar.setValue(positionOf(config.getThreshold(), thresholdLo, thresholdHi, true));
-            radiusBar.setValue(positionOf(config.getTipRadius(), radiusLo, radiusHi, false));
-            extentBar.setValue((int) Math.round(config.getMinExtent() * SLIDER_STEPS));
-            purityBar.setValue((int) Math.round(config.getMinPurity() * SLIDER_STEPS));
-            configureVeto();
         }
 
         private void fillScales() {
             scalesModel.setRowCount(0);
             for (final TipDetectionConfig.ScaleResponse r : config.getScaleResponses()) {
-                scalesModel.addRow(new String[]{withVoxels(r.scale()), fmt(r.nodeMedian()), fmt(r.nodeP10()),
+                scalesModel.addRow(new String[]{voxelsOnly(r.scale()), fmt(r.nodeMedian()), fmt(r.nodeP10()),
                         fmt(r.backgroundP50()), fmt(r.backgroundP99()), fmt(r.contrast())});
             }
         }
 
-        private JSlider bar(final int position) {
-            final JSlider sl = new JSlider(0, SLIDER_STEPS, Math.clamp(position, 0, SLIDER_STEPS));
-            sl.setFocusable(false);
-            return sl;
+        // Label, spinner, reset button and (optionally) a note
+        private JPanel paramRow(final String name, final JSpinner spinner, final Runnable reset, final JLabel note) {
+            return paramRow(name, spinner, reset, note, "Veto (background):");
         }
 
-        private JPanel sliderRow(final String name, final JSlider bar, final JLabel value) {
+        // Two rows side by side
+        private JPanel pair(final JPanel left, final JPanel right) {
+            final JPanel p = new JPanel(new GridLayout(1, 2, 12, 0));
+            p.add(left);
+            p.add(right);
+            return p;
+        }
+
+        // widest: text that sets the width of the label column
+        private JPanel paramRow(final String name, final JSpinner spinner, final Runnable reset, final JLabel note,
+                                final String widest) {
             final JPanel p = new JPanel(new BorderLayout(6, 0));
             final JLabel l = new JLabel(name + ":");
-            l.setPreferredSize(new Dimension(l.getFontMetrics(l.getFont()).stringWidth("Veto (background):") + 4,
+            l.setPreferredSize(new Dimension(l.getFontMetrics(l.getFont()).stringWidth(widest) + 4,
                     l.getPreferredSize().height));
-            value.setHorizontalAlignment(javax.swing.SwingConstants.RIGHT);
-            value.setPreferredSize(new Dimension(value.getFontMetrics(value.getFont()).stringWidth("0") * 22,
-                    value.getPreferredSize().height));
+            final JPanel center = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+            center.add(spinner);
+            final JButton resetButton = GuiUtils.Buttons.undo("Reset " + name.toLowerCase());
+            resetButton.addActionListener(e -> reset.run());
+            center.add(resetButton);
+            if (note != null) center.add(note);
             p.add(l, BorderLayout.WEST);
-            p.add(bar, BorderLayout.CENTER);
-            p.add(value, BorderLayout.EAST);
+            p.add(center, BorderLayout.CENTER);
             return p;
+        }
+
+        // Resolution level and empty block settings, used by whole volume runs only
+        private CollapsiblePanel performancePanel() {
+            final int rec = recommendedLevel(config, levels);
+            final String[] labels = new String[levels.size()];
+            for (int i = 0; i < labels.length; i++)
+                labels[i] = describeLevel(levels.get(i)) + ((i == rec) ? " (recommended)" : "");
+            levelChoice = new JComboBox<>(labels);
+            levelChoice.setSelectedIndex(rec);
+            levelChoice.setFocusable(false);
+            levelChoice.setPrototypeDisplayValue("Level 0: 00000 x 00000 x 00000 voxels (0.000 x 0.000 x 0.000)");
+            final JLabel warn = new JLabel(" ");
+            warn.setForeground(WizardSupport.WORSE_COLOR);
+            levelChoice.addActionListener(e -> warn.setText((levelChoice.getSelectedIndex() > rec)
+                    ? "Thin axons may be lost at this level" : " "));
+            skipEmpty = new JCheckBox("Skip empty blocks", true);
+            skipEmpty.setFocusable(false);
+            madSpin = GuiUtils.Fields.doubleSpinner(2, 0.5, 20, 0.5, 1);
+            skipEmpty.addActionListener(e -> madSpin.setEnabled(skipEmpty.isSelected()));
+            final JPanel panel = new JPanel(new GridLayout(0, 1));
+            final JPanel levelRow = new JPanel(new BorderLayout(6, 0));
+            levelRow.add(new JLabel("Level:"), BorderLayout.WEST);
+            levelRow.add(levelChoice, BorderLayout.CENTER);
+            panel.add(levelRow);
+            panel.add(warn);
+            panel.add(skipEmpty);
+            panel.add(paramRow("Signal (MAD)", madSpin, () -> madSpin.setValue(2d), null));
+            final CollapsiblePanel cp = new CollapsiblePanel("Performance", panel, true);
+            cp.setTooltipText("Whole volume runs only: resolution level to process, and skipping of blocks "
+                    + "without signal (assessed at a coarser level)");
+            return cp;
+        }
+
+        ParseOptions parseOptions() {
+            if (levelChoice == null) return null;
+            return new ParseOptions(levelChoice.getSelectedIndex(), skipEmpty.isSelected(), val(madSpin));
         }
 
         // No scroll pane of its own: the table takes the height of all its rows (the controls panel scrolls)
@@ -852,12 +1026,7 @@ public class TipPalette extends Thread {
             }
             bgChoice.setSelectedIndex(bgChannels.indexOf(bgChannel) + 1);
             bgChoice.setFocusable(false);
-            bgWeightBar = bar((int) Math.round(bgWeight / WEIGHT_MAX * SLIDER_STEPS));
-            bgWeightLabel = new JLabel(String.format("%.2f", bgWeight));
-            bgWeightBar.addChangeListener(e -> {
-                bgWeightLabel.setText(String.format("%.2f", bgWeightBar.getValue() * WEIGHT_MAX / SLIDER_STEPS));
-                syncUpdateButton();
-            });
+            bgWeightSpin.addChangeListener(e -> syncUpdateButton());
             bgChoice.addActionListener(e -> syncUpdateButton());
             final JButton update = new JButton("Update");
             updateButton = update;
@@ -866,52 +1035,40 @@ public class TipPalette extends Thread {
             update.addActionListener(e -> {
                 update.setEnabled(false); // Until the window is updated
                 final int idx = bgChoice.getSelectedIndex();
-                changeBackground((idx <= 0) ? 0 : bgChannels.get(idx - 1),
-                        bgWeightBar.getValue() * WEIGHT_MAX / SLIDER_STEPS);
+                changeBackground((idx <= 0) ? 0 : bgChannels.get(idx - 1), val(bgWeightSpin));
             });
+            final JButton resetWeight = GuiUtils.Buttons.undo("Reset weight");
+            resetWeight.addActionListener(e -> bgWeightSpin.setValue(initBgWeight));
             p.add(new JLabel("Subtract background:"));
             p.add(bgChoice);
             p.add(new JLabel("weight"));
-            p.add(bgWeightBar);
-            p.add(bgWeightLabel);
+            p.add(bgWeightSpin);
+            p.add(resetWeight);
             p.add(update);
             return p;
         }
 
-        private Panel buttonPanel() {
-            final Panel p = new Panel(new FlowLayout(FlowLayout.LEFT));
-            final Button apply = new Button("Apply...");
+        private JPanel buttonPanel() {
+            final JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            final JButton apply = new JButton("Apply...");
             apply.setFocusable(false);
-            final PopupMenu applyMenu = new PopupMenu();
-            final MenuItem regionItem = new MenuItem("Apply to Loaded Region (Dry Run)");
+            final JPopupMenu applyMenu = new JPopupMenu();
+            final JMenuItem regionItem = new JMenuItem("Apply to Loaded Region (Dry Run)");
             regionItem.addActionListener(e -> commit(false));
-            final MenuItem wholeItem = new MenuItem("Apply to Whole Volume");
+            final JMenuItem wholeItem = new JMenuItem("Apply to Whole Volume");
             wholeItem.addActionListener(e -> commit(true));
             applyMenu.add(regionItem);
             applyMenu.add(wholeItem);
-            apply.add(applyMenu);
             apply.addActionListener(e -> applyMenu.show(apply, 0, apply.getHeight()));
-            final Button bc = new Button("B&C");
+            final JButton bc = new JButton("B&C");
             bc.setFocusable(false);
             bc.addActionListener(e -> IJ.doCommand("Brightness/Contrast..."));
-            final Button more = paletteOptions.buildMoreButton(this, helpHtml(), null);
+            final JButton more = paletteOptions.buildMoreSwingButton(this, helpHtml(), null);
             more.setFocusable(false);
             p.add(apply);
             p.add(bc);
             p.add(more);
             return p;
-        }
-
-        // Slider position <-> value (log scale for the threshold, as scores span orders of magnitude)
-        private int positionOf(final double value, final double lo, final double hi, final boolean log) {
-            if (Double.isNaN(value)) return 0;
-            final double f = (log) ? Math.log(value / lo) / Math.log(hi / lo) : (value - lo) / (hi - lo);
-            return (int) Math.round(Math.max(0, Math.min(1, f)) * SLIDER_STEPS);
-        }
-
-        private double valueOf(final int position, final double lo, final double hi, final boolean log) {
-            final double f = position / (double) SLIDER_STEPS;
-            return (log) ? lo * Math.pow(hi / lo, f) : lo + f * (hi - lo);
         }
 
         private void changed() {
@@ -920,11 +1077,8 @@ public class TipPalette extends Thread {
         }
 
         private void updateLabels() {
-            thresholdLabel.setText(fmt(config.getThreshold()));
-            radiusLabel.setText(withVoxels(config.getTipRadius()));
-            extentLabel.setText(String.format("%.2f", config.getMinExtent()));
-            purityLabel.setText(String.format("%.2f", config.getMinPurity()));
-            vetoLabel.setText(Double.isNaN(config.getVetoThreshold()) ? "n/a" : fmt(config.getVetoThreshold()));
+            final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
+            radiusLabel.setText(String.format("%s (%.1f vox)", unit, config.getTipRadius() / avgSpacing));
         }
 
         // Called on the EDT after each evaluation
@@ -934,11 +1088,11 @@ public class TipPalette extends Thread {
             learnedModel.setRowCount(0);
             learnedModel.addRow(new String[]{"Example paths (nodes, tips)",
                     paths.size() + " (" + example.nodes().length + ", " + example.tips().length + ")"});
-            learnedModel.addRow(new String[]{"Radius (min / median / max)", withVoxels(config.getMinRadius()) + " / "
-                    + withVoxels(config.getMedianRadius()) + " / " + withVoxels(config.getMaxRadius())});
+            learnedModel.addRow(new String[]{"Radius (min / median / max) [" + unit + "]", voxelsOnly(config.getMinRadius()) + " / "
+                    + voxelsOnly(config.getMedianRadius()) + " / " + voxelsOnly(config.getMaxRadius())});
             final StringBuilder scales = new StringBuilder();
-            for (final double s : config.getScales()) scales.append(withVoxels(s)).append("; ");
-            learnedModel.addRow(new String[]{"Scales", scales.toString()});
+            for (final double s : config.getScales()) scales.append(voxelsOnly(s)).append("; ");
+            learnedModel.addRow(new String[]{"Scales [" + unit + "]", scales.toString()});
             learnedModel.addRow(new String[]{"Scores at nodes (p10 / median)", fmt(config.getNodeScoreP10()) + " / "
                     + fmt(config.getNodeScoreMedian())});
             learnedModel.addRow(new String[]{"Scores elsewhere (p50 / p99)", fmt(config.getBackgroundP50()) + " / "
@@ -953,10 +1107,7 @@ public class TipPalette extends Thread {
                 return;
             }
             final StringBuilder sb = new StringBuilder();
-            sb.append(String.format("%d of %d example tips found | %d detections (%d extra)", ev.matched(),
-                    ev.pathEnds(), ev.tips().size(), ev.extra()));
-            if (ev.skipped() > 0)
-                sb.append(String.format(" | %d example tip(s) too close to the border: not evaluated", ev.skipped()));
+            sb.append(String.format("%d detections", ev.tips().size()));
             final int sel = selected;
             if (sel >= 0 && sel < ev.tips().size())
                 sb.append(String.format(" | selected: score %s", fmt(ev.tips().get(sel).score())));
@@ -980,9 +1131,8 @@ public class TipPalette extends Thread {
                     + "detector from the example paths, and previews the detections on the region they span. The "
                     + "preview reads the data directly from the source: it is not affected by crops.</p>"
                     + "<ul>"
-                    + "<li><b>Rings</b> mark the ends of the example paths: green if a detection was found nearby, "
-                    + "red if not, gray if too close to the border of the region to be evaluated. <b>Dots</b> are "
-                    + "detections. Click a detection to see the sphere (dashed) in which it was analyzed</li>"
+                    + "<li><b>Dots</b> are detections. Click a detection to see the sphere (dashed) in which it "
+                    + "was analyzed</li>"
                     + "<li><b>Threshold</b>: score above which voxels are considered to be part of a structure. "
                     + "Learned from the scores along the examples</li>"
                     + "<li><b>Tip radius</b>: size of the neighborhood analyzed around each candidate (about 3x the "
@@ -991,6 +1141,9 @@ public class TipPalette extends Thread {
                     + "candidate must reach. Rejects speckles</li>"
                     + "<li><b>Min. purity</b>: fraction of the voxels in the neighborhood that must be connected "
                     + "to the candidate. Rejects clutter</li>"
+                    + "<li><b>Performance</b>: resolution level and skipping of empty blocks (whole volume runs "
+                    + "only)</li>"
+                    + "<li>Buttons next to each value restore the value learned from the examples</li>"
                     + "<li><i>Extra</i> detections are not necessarily false: the examples are only a sample of the "
                     + "structures in the region</li>"
                     + "</ul></div>";

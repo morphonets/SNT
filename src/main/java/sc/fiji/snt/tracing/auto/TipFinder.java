@@ -138,6 +138,7 @@ public class TipFinder<T extends RealType<T>> {
     private double minPurity = 0.3;
     private int stride = 0; // 0: derived from radius
     private int blockSize = 64;
+    private java.util.function.Predicate<long[]> blockFilter;
     private int numThreads = Runtime.getRuntime().availableProcessors();
     private DoubleConsumer progressListener;
     private Consumer<String> debugLog;
@@ -425,6 +426,20 @@ public class TipFinder<T extends RealType<T>> {
     }
 
     /**
+     * Sets a filter of the blocks to scan, e.g., to skip the blocks of a large volume that are empty. Blocks for
+     * which the filter returns false are not read or analyzed, and are not counted in the progress reports. The
+     * filter is called with {first voxel, last voxel (inclusive)} of the block, as {x0, y0, z0, x1, y1, z1}, in the
+     * voxel grid of the score map. It is called from a single thread
+     *
+     * @param filter the filter, or null to scan all blocks
+     * @return this instance
+     */
+    public TipFinder<T> setBlockFilter(final java.util.function.Predicate<long[]> filter) {
+        this.blockFilter = filter;
+        return this;
+    }
+
+    /**
      * Sets the number of threads (default: all available processors)
      *
      * @param numThreads the number of threads
@@ -607,6 +622,14 @@ public class TipFinder<T extends RealType<T>> {
             for (long y = vMin[1]; y <= vMax[1]; y += blockSize)
                 for (long x = vMin[0]; x <= vMax[0]; x += blockSize)
                     blocks.add(new long[]{x, y, z});
+
+        if (blockFilter != null) {
+            final int before = blocks.size();
+            blocks.removeIf(b -> !blockFilter.test(new long[]{b[0], b[1], b[2],
+                    Math.min(vMax[0], b[0] + blockSize - 1), Math.min(vMax[1], b[1] + blockSize - 1),
+                    Math.min(vMax[2], b[2] + blockSize - 1)}));
+            debug("block filter: " + (before - blocks.size()) + " of " + before + " block(s) skipped");
+        }
 
         debug("threshold " + thr + ", radius " + radius + ", cell size " + step + ", minMass " + minMass
                 + ", minExtent " + minExtent + ", minPurity " + minPurity
