@@ -762,6 +762,11 @@ public class TipPalette extends Thread {
         private JButton updateButton;
         private Panel southPanel;
         private CollapsiblePanel detectionCollapsible;
+        private CollapsiblePanel advancedCollapsible;
+        private CollapsiblePanel performanceCollapsible;
+        private CollapsiblePanel detailsCollapsible;
+        private JButton applyButton;
+        private JButton moreButton;
         private final List<CollapsiblePanel> collapsibles = new ArrayList<>();
         private JButton scalesReset;
         private JButton weightReset;
@@ -809,6 +814,13 @@ public class TipPalette extends Thread {
                 config.setVetoThreshold((v <= 0) ? Double.NaN : v); // 0: off (n/a)
                 changed();
             });
+
+            tip(thresholdSpin, "Score above which voxels are considered part of a structure");
+            tip(radiusSpin, "Size of the neighborhood analyzed around each candidate");
+            tip(extentSpin, "How far the structure connected to a candidate must reach (fraction of the radius)");
+            tip(puritySpin, "Fraction of the neighborhood that must be connected to the candidate");
+            tip(vetoSpin, "Candidates on top of background brighter than this are rejected (n/a: off)");
+            tip(bgWeightSpin, "Weight of the background channel in the subtraction");
 
             final JPanel root = new WidthTrackingPanel(new GridBagLayout());
             final GridBagConstraints c = new GridBagConstraints();
@@ -878,6 +890,9 @@ public class TipPalette extends Thread {
             root.add(section(null, detailsPanel), c);
 
             detectionCollapsible = detectionPanel;
+            advancedCollapsible = advancedPanel;
+            performanceCollapsible = performance;
+            detailsCollapsible = detailsPanel;
             collapsibles.add(detectionPanel);
             collapsibles.add(advancedPanel);
             if (performance != null) collapsibles.add(performance);
@@ -1068,7 +1083,7 @@ public class TipPalette extends Thread {
         // Scales (editable) and the Update button, which re-learns from the examples
         private void setupScales() {
             scalesField.setText(formatScales(config.getScales()));
-            scalesField.setToolTipText("Comma-separated list of scales (" + unit + "). Press Update to apply");
+            tip(scalesField, "Comma-separated list of scales (" + unit + "). Press Update to apply");
             scalesField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
                 @Override
                 public void insertUpdate(final javax.swing.event.DocumentEvent e) {
@@ -1173,6 +1188,9 @@ public class TipPalette extends Thread {
             skipEmpty.setFocusable(false);
             madSpin = GuiUtils.Fields.doubleSpinner(2, 0.5, 20, 0.5, 1);
             skipEmpty.addActionListener(e -> madSpin.setEnabled(skipEmpty.isSelected()));
+            tip(levelChoice, "Resolution level to process. Coarser levels are faster but may miss thin axons");
+            tip(skipEmpty, "Skip blocks without signal, as assessed from a coarser level");
+            tip(madSpin, "Signal is median + this many MADs of the coarse level. Lower it to skip fewer blocks");
             final JPanel panel = new JPanel(new GridLayout(0, 1));
             final JPanel levelRow = new JPanel(new BorderLayout(6, 0));
             final JLabel levelLabel = new JLabel("Level:");
@@ -1306,6 +1324,62 @@ public class TipPalette extends Thread {
             }
         }
 
+        // Adds a pointer to the tour to the tooltip of a control
+        private void tip(final javax.swing.JComponent comp, final String text) {
+            comp.setToolTipText("<html>" + text + "<br><i>More &gt; Tour of Controls... for details</i></html>");
+        }
+
+        /* Starts the tour of the controls, or moves to its next callout if it is already running */
+        private void startTour() {
+            final String group = CalloutManager.groupFor(this);
+            if (!CalloutManager.isActive(group)) {
+                // (re)registered every time: the window may have been resized or rebuilt since last time
+                CalloutManager.clearRegistrations(group);
+                registerCallouts(group);
+            }
+            CalloutManager.showAllOrAdvance(group);
+        }
+
+        // Only controls that are always visible are pointed at (panels are described by their headers)
+        private void registerCallouts(final String group) {
+            detectionCollapsible.setCollapsed(false);
+            int order = 0;
+            final Component canvas = getCanvas();
+            if (canvas.isShowing() && canvas.getWidth() > 0) {
+                CalloutManager.add(canvas, new Rectangle(canvas.getWidth() / 2, canvas.getHeight() / 2, 2, 2),
+                        CalloutManager.AUTO, "Preview of the region spanned by the example paths.<br>"
+                                + "Dots are detections. Click one to see the sphere in which it was analyzed.<br>"
+                                + "Scroll through the stack to inspect other slices.", group, order++);
+            }
+            CalloutManager.add(thresholdSpin, CalloutManager.AUTO, "<b>Threshold</b><br>"
+                    + "Score above which voxels are considered part of a structure.<br>"
+                    + "Learned from the example paths. Lower it to detect more tips, raise it for fewer.<br>"
+                    + "The reset button restores the learned value.", group, order++);
+            CalloutManager.add(radiusSpin, CalloutManager.AUTO, "<b>Tip radius</b><br>"
+                    + "Size of the neighborhood analyzed around each candidate<br>"
+                    + "(about 3x the diameter of the thickest structures).", group, order++);
+            CalloutManager.add(statusLabel, CalloutManager.AUTO, "<b>Detections</b><br>"
+                    + "Number of tips found in the preview. <i>Extra</i> detections are not necessarily false:<br>"
+                    + "the example paths are only a sample of the structures in the region.", group, order++);
+            CalloutManager.add(advancedCollapsible, CalloutManager.AUTO, "<b>Advanced</b><br>"
+                    + "Min. extent and purity reject speckles and clutter. Scales can be edited (press Update<br>"
+                    + "to re-learn). In multi-channel images, a channel can be subtracted from the signal and<br>"
+                    + "used to veto candidates sitting on bright background.", group, order++);
+            if (performanceCollapsible != null) {
+                CalloutManager.add(performanceCollapsible, CalloutManager.AUTO, "<b>Performance</b><br>"
+                        + "Whole volume runs only: resolution level to process, and whether blocks without signal<br>"
+                        + "are skipped (assessed at a coarser level).", group, order++);
+            }
+            CalloutManager.add(detailsCollapsible, CalloutManager.AUTO, "<b>Details</b><br>"
+                    + "What was learned from the example paths, and the response of each scale.", group, order++);
+            CalloutManager.add(applyButton, CalloutManager.AUTO, "<b>Apply/Run</b><br>"
+                    + "Detect tips in the preview region (a quick dry run) or in the whole volume.<br>"
+                    + "Detections are added to the Seed Manager. Export Recipe... generates a script<br>"
+                    + "to apply these parameters to other datasets.", group, order++);
+            CalloutManager.add(moreButton, CalloutManager.AUTO, "<b>More</b><br>"
+                    + "Help, display options (LUT, MIP overlay), snapshot and this tour.", group, order);
+        }
+
         private JPanel buttonPanel() {
             final JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
             p.setBackground(super.getBackground());
@@ -1324,13 +1398,19 @@ public class TipPalette extends Thread {
             applyMenu.add(export);
             final JButton apply = GuiUtils.Buttons.OptionsButton("Apply/Run", applyMenu, true);
             apply.setFocusable(false);
+            applyButton = apply;
 
             final JButton more = paletteOptions.buildMoreSwingButton(this, helpHtml(), pm -> {
+                final JMenuItem tour = new JMenuItem("Tour of Controls...",
+                        IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
+                tour.addActionListener(e -> startTour());
+                pm.add(tour);
                 final JMenuItem rebuild = new JMenuItem("Rebuild Dialog", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
                 rebuild.addActionListener(e -> rebuildControls());
                 pm.add(rebuild);
             });
             more.setFocusable(false);
+            moreButton = more;
 
             p.add(apply);
             p.add(more);
