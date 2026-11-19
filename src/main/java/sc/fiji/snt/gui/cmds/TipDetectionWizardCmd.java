@@ -32,17 +32,12 @@ import sc.fiji.snt.gui.TipPalette;
 import sc.fiji.snt.tracing.auto.TipDetectionConfig;
 
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.converter.BiConverter;
-import net.imglib2.converter.Converters;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
-import sc.fiji.snt.filter.Lazy;
-import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.seed.SeedConfidence;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.tracing.auto.TipFinder;
-import sc.fiji.snt.tracing.auto.OccupancyMask;
+import sc.fiji.snt.tracing.auto.TipDetector;
 import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.PointInCanvas;
 
@@ -132,38 +127,21 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
         if (ui != null) ui.showStatus(msg, msg == null);
     }
 
-    // Mask of non-empty regions from a coarse level, processed with the same background unmixing
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private OccupancyMask buildMask(final sc.fiji.snt.viewer.AbstractBigViewer viewer, final int srcIdx,
-                                    final int bgIdx, final BiConverter<RealType, RealType, FloatType> unmix,
-                                    final List<BigDataUtils.LevelInfo> levels, final TipPalette.ParseOptions opts) {
-        BigDataUtils.LevelInfo coarse = null;
-        for (final var l : levels) {
-            if (l.level() <= opts.level()) continue;
-            final long n = l.dims()[0] * l.dims()[1] * l.dims()[2];
-            if (n <= MAX_COARSE_VOXELS) {
-                coarse = l;
-                break;
-            }
-        }
-        if (coarse == null && levels.size() - 1 > opts.level()) coarse = levels.get(levels.size() - 1);
+    // Coarse copy of the volume to skip empty blocks: finest level coarser than the processed one that is small enough
+    private TipDetectionWizardCmd.CoarseLevels coarseOf(final sc.fiji.snt.viewer.AbstractBigViewer viewer,
+                                                        final int srcIdx, final int bgIdx,
+                                                        final List<BigDataUtils.LevelInfo> levels,
+                                                        final TipPalette.ParseOptions opts) {
+        final BigDataUtils.LevelInfo coarse = TipDetector.coarseLevel(levels, opts.level(), MAX_COARSE_VOXELS);
         if (coarse == null) {
             progress("Skip empty blocks: no coarser level available, processing all blocks", 0, true);
             return null;
         }
         progress("Skip empty blocks: building mask from " + TipPalette.describeLevel(coarse), 0, true);
-        RandomAccessibleInterval c = Views.zeroMin(viewer.getSourceData(srcIdx, coarse.level()));
-        if (bgIdx >= 0) {
-            final RandomAccessibleInterval cbg = Views.zeroMin(viewer.getSourceData(bgIdx, coarse.level()));
-            c = Converters.convert(c, cbg, unmix, new FloatType());
-        }
-        final var fine = levels.get(opts.level());
-        final OccupancyMask mask = OccupancyMask.build(c, coarse.spacing(), coarse.origin(), fine.spacing(),
-                fine.origin(), opts.madFactor());
-        progress(String.format("Skip empty blocks: threshold %s, %s%% of the coarse voxels active",
-                SNTUtils.formatDouble(mask.getThreshold(), 2),
-                SNTUtils.formatDouble(100 * mask.getActiveFraction(), 2)), 0, true);
-        return mask;
+        return new CoarseLevels(coarse, srcIdx, bgIdx);
+    }
+
+    private record CoarseLevels(BigDataUtils.LevelInfo level, int srcIdx, int bgIdx) {
     }
 
     // Seeds are placed in world coordinates: world = (voxel - defaultOffset) * spacing
@@ -171,24 +149,26 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
     private void detect(final TipDetectionConfig config, final boolean wholeVolume,
                         final TipPalette.ParseOptions opts) {
         if (ui != null) javax.swing.SwingUtilities.invokeLater(() -> ui.changeState(SNTUI.RUNNING_CMD));
+        // Whole volume runs are long: floating message, dismissed when done (same EDT queue: creation comes first)
+        final javax.swing.JDialog[] floating = new javax.swing.JDialog[1];
+        if (wholeVolume) {
+            javax.swing.SwingUtilities.invokeLater(() -> floating[0] = new sc.fiji.snt.gui.GuiUtils(ui)
+                    .floatingMsg("Detecting tips in the whole volume. This may take a long time: progress is "
+                            + "reported in the status bar. Press Cancel/Esc in the main window to abort.", false));
+        }
         try {
             final var viewer = (opts != null && ui != null) ? ui.getActiveBigViewer() : null;
             final boolean useViewer = viewer != null;
-            RandomAccessibleInterval src;
-            RandomAccessibleInterval veto = null; // Raw background channel, if enabled
-            final boolean is2D;
+            RandomAccessibleInterval signal;
+            RandomAccessibleInterval bg = null; // Background channel, if enabled
             double[] spacing = {snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
             final PointInCanvas def = snt.getDefaultCanvasPixelOffset();
             final double[] defOffset = {def.x, def.y, def.z};
             // Offset (world units) added to the position of tips in the score map
             final double[] shift = new double[3];
-            final float w = (float) config.getBackgroundWeight();
-            final BiConverter<RealType, RealType, FloatType> unmix = (s, b, o) ->
-                    o.set(Math.max(0f, (float) (s.getRealDouble() - w * b.getRealDouble()))); // signal - w * bg
             final boolean useBg = config.getBackgroundChannel() > 0;
-            OccupancyMask mask = null;
+            TipDetector.Coarse coarse = null;
             if (useViewer) {
-                is2D = false;
                 final int srcIdx = snt.getChannel() - 1;
                 final int bgIdx = config.getBackgroundChannel() - 1;
                 final var levels = viewer.getSourceLevels(srcIdx);
@@ -197,25 +177,30 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                 spacing = info.spacing();
                 for (int d = 0; d < 3; d++)
                     shift[d] = info.origin()[d] - info0.origin()[d] - defOffset[d] * info0.spacing()[d];
-                src = viewer.getSourceData(srcIdx, opts.level());
-                src = Views.zeroMin(src);
+                signal = Views.zeroMin(viewer.getSourceData(srcIdx, opts.level()));
                 if (useBg) {
                     final RandomAccessibleInterval<?> bgRai = viewer.getSourceData(bgIdx, opts.level());
                     if (bgRai == null) {
                         error("Background channel " + config.getBackgroundChannel() + " could not be read.");
                         return;
                     }
-                    final RandomAccessibleInterval bg = Views.zeroMin(bgRai);
-                    if (!Double.isNaN(config.getVetoThreshold())) veto = bg;
-                    src = Converters.convert(src, bg, unmix, new FloatType());
+                    bg = Views.zeroMin(bgRai);
                 }
                 if (opts.skipEmpty()) {
-                    mask = buildMask(viewer, srcIdx, (useBg) ? bgIdx : -1, unmix, levels, opts);
+                    final CoarseLevels cl = coarseOf(viewer, srcIdx, (useBg) ? bgIdx : -1, levels, opts);
+                    if (cl != null) {
+                        final int lvl = cl.level().level();
+                        coarse = new TipDetector.Coarse(
+                                (RandomAccessibleInterval<? extends RealType<?>>) Views.zeroMin(
+                                        viewer.getSourceData(srcIdx, lvl)),
+                                (useBg) ? (RandomAccessibleInterval<? extends RealType<?>>) Views.zeroMin(
+                                        viewer.getSourceData(bgIdx, lvl)) : null,
+                                cl.level().spacing(), cl.level().origin(), info.origin(), opts.madFactor());
+                    }
                 }
             } else {
                 RandomAccessibleInterval<?> source = snt.getFullSourceData();
-                is2D = source.numDimensions() == 2;
-                if (is2D) source = Views.addDimension((RandomAccessibleInterval) source, 0, 0);
+                if (source.numDimensions() == 2) source = Views.addDimension((RandomAccessibleInterval) source, 0, 0);
                 final long[] min = source.minAsLongArray();
                 final long[] max = source.maxAsLongArray();
                 if (!wholeVolume) {
@@ -229,55 +214,41 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                     }
                 }
                 for (int d = 0; d < 3; d++) shift[d] = (min[d] - defOffset[d]) * spacing[d];
-                src = Views.zeroMin(Views.interval(source, min, max));
+                signal = Views.zeroMin(Views.interval(source, min, max));
                 if (useBg) {
                     RandomAccessibleInterval<?> bgSource = snt.getFullSourceData(config.getBackgroundChannel());
                     if (bgSource == null) {
                         error("Background channel " + config.getBackgroundChannel() + " could not be read.");
                         return;
                     }
-                    if (is2D) bgSource = Views.addDimension((RandomAccessibleInterval) bgSource, 0, 0);
-                    final RandomAccessibleInterval bg = Views.zeroMin(Views.interval(bgSource, min, max));
-                    if (!Double.isNaN(config.getVetoThreshold())) veto = bg;
-                    // Lazy: result = signal - weight * background, clamped to zero
-                    src = Converters.convert(src, bg, unmix, new FloatType());
+                    if (bgSource.numDimensions() == 2)
+                        bgSource = Views.addDimension((RandomAccessibleInterval) bgSource, 0, 0);
+                    bg = Views.zeroMin(Views.interval(bgSource, min, max));
                 }
             }
-            final long[] dims = src.dimensionsAsLongArray();
+            final long[] dims = signal.dimensionsAsLongArray();
             status(String.format("Tip detection: %s voxels in %s...",
                     String.format("%dx%dx%d", dims[0], dims[1], dims[2]), (wholeVolume) ? "whole volume" : "region"));
-            final RandomAccessibleInterval<FloatType> ridge;
-            if (is2D) {
-                final RandomAccessibleInterval slice = Views.zeroMin(Views.hyperSlice(src, 2, src.min(2)));
-                ridge = Views.addDimension(Lazy.process(slice, slice, new int[]{256, 256}, new FloatType(),
-                        new Tubeness(config.getScales(), new double[]{spacing[0], spacing[1]})), 0, 0);
-            } else {
-                ridge = Lazy.process(src, src, new int[]{64, 64, 64}, new FloatType(),
-                        new Tubeness(config.getScales(), spacing));
-            }
-            final TipFinder<FloatType> finder = config.configure(new TipFinder<>(ridge, spacing),
-                    (RandomAccessibleInterval<? extends RealType<?>>) veto);
-            if (mask != null) {
-                final OccupancyMask m = mask;
-                finder.setBlockFilter(box -> m.isActive(new long[]{box[0], box[1], box[2]},
-                        new long[]{box[3], box[4], box[5]}));
-            }
-            if (ui != null) ui.setAbortHook(finder::cancel);
+            final long[] t0 = {System.currentTimeMillis()};
             final int[] lastPercent = {-1};
-            final long t0 = System.currentTimeMillis();
+            final TipDetector detector = new TipDetector(config, signal, bg, spacing).setCoarse(coarse)
+                    .setLogger(m -> {
+                        progress(m, 0, true);
+                        t0[0] = System.currentTimeMillis(); // The mask is the last step before the scan
+                    }).setProgressListener(f -> {
+                        final int pct = (int) (f * 100);
+                        synchronized (lastPercent) {
+                            if (pct == lastPercent[0]) return;
+                            lastPercent[0] = pct;
+                        }
+                        final double elapsed = (System.currentTimeMillis() - t0[0]) / 1000d;
+                        final double left = (f > 0) ? elapsed * (1 - f) / f : Double.NaN;
+                        progress(String.format("Tip detection: %d%% (%s elapsed, ~%s left)", pct, formatTime(elapsed),
+                                formatTime(left)), pct, false);
+                    });
+            if (ui != null) ui.setAbortHook(detector::cancel);
             progress("Tip detection: started (first update when a block completes)", 0, true);
-            finder.setProgressListener(f -> {
-                final int pct = (int) (f * 100);
-                synchronized (lastPercent) {
-                    if (pct == lastPercent[0]) return;
-                    lastPercent[0] = pct;
-                }
-                final double elapsed = (System.currentTimeMillis() - t0) / 1000d;
-                final double left = (f > 0) ? elapsed * (1 - f) / f : Double.NaN;
-                progress(String.format("Tip detection: %d%% (%s elapsed, ~%s left)", pct, formatTime(elapsed),
-                        formatTime(left)), pct, false);
-            });
-            final List<TipFinder.Tip> tips = finder.find();
+            final List<TipFinder.Tip> tips = detector.detect();
             if (tips == null) {
                 SNTUtils.log("Tip detection canceled");
                 return;
@@ -305,6 +276,9 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
             error("Tip detection failed: " + t.getMessage());
             SNTUtils.error("Tip detection failed", t);
         } finally {
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                if (floating[0] != null) floating[0].dispose();
+            });
             if (ui != null) ui.setAbortHook(null);
             status(null);
             if (snt.isStreamMode() && ui != null) {

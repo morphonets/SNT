@@ -57,6 +57,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JSpinner;
+import javax.swing.UIManager;
+import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.text.DefaultFormatterFactory;
 import javax.swing.text.NumberFormatter;
@@ -112,6 +114,9 @@ public class TipPalette extends Thread {
     }
 
     private static final double MIN_SCALE_VOXELS = 0.7;
+    private static final int PAIR_GAP = 16;
+    // Widest label of the Advanced panel: sets the label column of its rows
+    private static final String WIDEST_LABEL = "Subtract background:";
 
     /** Description of a level of the image pyramid */
     public static String describeLevel(final BigDataUtils.LevelInfo l) {
@@ -168,6 +173,7 @@ public class TipPalette extends Thread {
     private double bgWeight = 1;
     private RandomAccessibleInterval<FloatType> vetoRegion; // Raw background of the region, if any
     private double vetoSuggested = Double.NaN; // Learned veto threshold. The veto is off until the user enables it
+    private double[] customScales; // User-defined scales (calibrated units). Null: learned from the examples
     private double fixedPad = Double.NaN; // calibrated padding of the first read, reused when the background changes
 
     private ImagePlus paletteImage;
@@ -303,7 +309,8 @@ public class TipPalette extends Thread {
                 example = TipExamples.fromPaths(paths, region.data(), spacing, regionOffset);
             }
             WizardSupport.status(snt, "Tip wizard: computing score maps...");
-            config = TipDetectionConfig.learn(example, spacing, TipExamples.scales(example.radii()),
+            config = TipDetectionConfig.learn(example, spacing, (customScales != null) ? customScales
+                    : TipExamples.scales(example.radii()),
                     this::scoreMap, vetoRegion);
             if (config.getTipRadius() > padCalibrated && attempt == 0 && Double.isNaN(fixedPad)) {
                 padCalibrated = config.getTipRadius();
@@ -343,10 +350,52 @@ public class TipPalette extends Thread {
         return true;
     }
 
-    // Re-learns after a change of the background and updates the window in place
-    private void changeBackground(final int channel, final double weight) {
+    // Scales derived from the radii of the examples
+    private double[] defaultScales() {
+        return TipExamples.scales(example.radii());
+    }
+
+    private static String formatScales(final double[] scales) {
+        final StringBuilder sb = new StringBuilder();
+        for (final double s : scales) {
+            if (!sb.isEmpty()) sb.append(", ");
+            sb.append(String.format(java.util.Locale.ROOT, "%.3g", s));
+        }
+        return sb.toString();
+    }
+
+    // Null if the text is not a list of positive numbers
+    private static double[] parseScales(final String text) {
+        final String[] tokens = text.trim().split("[,;\\s]+");
+        if (tokens.length == 0 || tokens.length > 8) return null;
+        final double[] values = new double[tokens.length];
+        try {
+            for (int i = 0; i < tokens.length; i++) {
+                values[i] = Double.parseDouble(tokens[i]);
+                if (!(values[i] > 0) || Double.isInfinite(values[i])) return null;
+            }
+        } catch (final NumberFormatException ex) {
+            return null;
+        }
+        java.util.Arrays.sort(values);
+        return values;
+    }
+
+    // Displayed scales are rounded: compare with a tolerance
+    private static boolean sameScales(final double[] a, final double[] b) {
+        if (a.length != b.length) return false;
+        for (int i = 0; i < a.length; i++) {
+            if (Math.abs(a[i] - b[i]) > 0.01 * Math.max(Math.abs(a[i]), Math.abs(b[i]))) return false;
+        }
+        return true;
+    }
+
+    // Re-learns after a change of the background and/or scales and updates the window in place
+    // scales: null keeps the current ones, an empty array goes back to the ones learned from the examples
+    private void changeBackground(final int channel, final double weight, final double[] scales) {
         worker.execute(() -> {
             generation.incrementAndGet(); // Cancels pending evaluations
+            if (scales != null) customScales = (scales.length == 0) ? null : scales.clone();
             final double previousVeto = config.getVetoThreshold();
             final int previousChannel = bgChannel;
             bgChannel = channel;
@@ -434,20 +483,98 @@ public class TipPalette extends Thread {
         });
     }
 
+    // Number as a Groovy literal
+    private static String num(final double v) {
+        return Double.isNaN(v) ? "Double.NaN" : Double.toString(v);
+    }
+
+    // Path of the dataset being processed, or null
+    private String datasetPath() {
+        if (snt.isStreamMode() && snt.getUI() != null && snt.getUI().getActiveBigViewer() != null) {
+            final String path = snt.getUI().getActiveBigViewer().getPrimarySourcePath();
+            if (path != null && !path.isBlank()) return path;
+        }
+        final ImagePlus imp = snt.getImagePlus();
+        if (imp != null && imp.getOriginalFileInfo() != null && imp.getOriginalFileInfo().fileName != null
+                && imp.getOriginalFileInfo().directory != null) {
+            return new java.io.File(imp.getOriginalFileInfo().directory, imp.getOriginalFileInfo().fileName)
+                    .getAbsolutePath();
+        }
+        return null;
+    }
+
+    // Opens a Groovy recipe with the current parameters, so that they can be applied (and batched) in scripts
+    private void exportRecipe() {
+        final String path = datasetPath();
+        if (path == null) {
+            if (snt.getUI() != null) snt.getUI().error("The path of the image could not be determined. Recipes "
+                    + "require an image loaded from a file.");
+            return;
+        }
+        final ParseOptions opts = (window == null) ? null : window.parseOptions();
+        final java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
+        values.put("INPUT_PATH", path);
+        values.put("SIG_CHANNEL", snt.getChannel() - 1);
+        values.put("BG_CHANNEL", (config.getBackgroundChannel() > 0) ? config.getBackgroundChannel() - 1 : -1);
+        values.put("BG_WEIGHT", num(config.getBackgroundWeight()));
+        values.put("LEVEL", (opts == null) ? 0 : opts.level());
+        values.put("SKIP_EMPTY", (opts == null) ? "false" : String.valueOf(opts.skipEmpty()));
+        values.put("MAD_FACTOR", num((opts == null) ? 2d : opts.madFactor()));
+        values.put("SCALES", java.util.Arrays.stream(config.getScales()).mapToObj(TipPalette::num)
+                .collect(java.util.stream.Collectors.joining(", ")));
+        values.put("TIP_RADIUS", num(config.getTipRadius()));
+        values.put("THRESHOLD", num(config.getThreshold()));
+        values.put("MIN_EXTENT", num(config.getMinExtent()));
+        values.put("MIN_PURITY", num(config.getMinPurity()));
+        values.put("VETO_THRESHOLD", num(config.getVetoThreshold()));
+        values.put("VETO_RADIUS", num(config.getVetoRadius()));
+        values.put("REF_SPACING", num(spacing[0]) + ", " + num(spacing[1]) + ", " + num(spacing[2]));
+        values.put("REF_NODE_P10", num(config.getNodeScoreP10()));
+        values.put("REF_NODE_MEDIAN", num(config.getNodeScoreMedian()));
+        values.put("REF_BG_P50", num(config.getBackgroundP50()));
+        values.put("REF_BG_P99", num(config.getBackgroundP99()));
+        try {
+            ScriptInstaller.newRecipe("LazyTipDetection.groovy", values, "TipDetection.groovy");
+        } catch (final java.io.IOException | RuntimeException ex) {
+            SNTUtils.error("Recipe could not be exported", ex);
+            if (snt.getUI() != null) snt.getUI().error("Recipe could not be exported: " + ex.getMessage());
+        }
+    }
+
     private void commit(final boolean wholeVolume) {
         final List<Listener> copy = new ArrayList<>(listeners);
-        final ParseOptions options = (wholeVolume && window != null) ? window.parseOptions() : null;
+        ParseOptions options = null;
+        try {
+            if (wholeVolume && window != null) options = window.parseOptions();
+        } catch (final RuntimeException ex) {
+            SNTUtils.error("Tip wizard: could not read the performance settings", ex);
+        }
+        final ParseOptions finalOptions = options;
         if (wholeVolume) {
             dismiss(); // Clears the listeners, so use a copy
         }
-        copy.forEach(l -> l.tipConfigPicked(config, wholeVolume, options));
+        copy.forEach(l -> l.tipConfigPicked(config, wholeVolume, finalOptions));
     }
 
     public void dismiss() {
         generation.incrementAndGet();
         worker.shutdownNow();
         new ArrayList<>(listeners).forEach(Listener::dismissed);
-        if (window != null) window.close();
+        if (window != null) {
+            final TipWindow w = window;
+            window = null;
+            try {
+                if (paletteImage != null) paletteImage.changes = false; // No "save changes" prompt
+                w.close();
+            } catch (final RuntimeException ex) {
+                SNTUtils.error("Tip wizard: window could not be closed", ex);
+            }
+            // Fallback: closing can be refused (or fail) silently
+            if (w.isDisplayable()) {
+                w.setVisible(false);
+                w.dispose();
+            }
+        }
         if (paletteImage != null) paletteImage.flush();
         region = null;
         ridge = null;
@@ -616,6 +743,7 @@ public class TipPalette extends Thread {
         private final JSpinner puritySpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
         private final JSpinner vetoSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1e12, 1, 3, true);
         private final JSpinner bgWeightSpin = GuiUtils.Fields.doubleSpinner(1, 0, WEIGHT_MAX, 0.05, 2);
+        private final JTextField scalesField = new JTextField(18);
         private final JLabel radiusLabel = new JLabel();
         private final JLabel statusLabel = new JLabel(" ");
         private final DefaultTableModel learnedModel;
@@ -632,6 +760,11 @@ public class TipPalette extends Thread {
         private final JComboBox<String> bgChoice = new JComboBox<>();
         private boolean loading; // True while spinners are set by code
         private JButton updateButton;
+        private Panel southPanel;
+        private CollapsiblePanel detectionCollapsible;
+        private final List<CollapsiblePanel> collapsibles = new ArrayList<>();
+        private JButton scalesReset;
+        private JButton weightReset;
         private final java.util.List<Integer> bgChannels = new ArrayList<>();
         // Values displayed when the controls were (re)loaded: reset buttons restore them
         private double initThreshold;
@@ -702,8 +835,8 @@ public class TipPalette extends Thread {
             dc.gridy = 0;
             detection.add(pair(paramRow("Threshold", thresholdSpin, () -> setIfValid(thresholdSpin, initThreshold),
                             null, "Threshold:"),
-                    paramRow("Tip radius", radiusSpin, () -> setIfValid(radiusSpin, initRadius), radiusLabel,
-                            "Tip radius:")), dc);
+                    paramRow("Tip radius [" + unit + "]", radiusSpin, () -> setIfValid(radiusSpin, initRadius),
+                            radiusLabel, "Tip radius [" + unit + "]:")), dc);
             dc.gridy = 1;
             detection.add(statusLabel, dc);
             dc.gridy = 2;
@@ -714,15 +847,7 @@ public class TipPalette extends Thread {
             root.add(section(null, detectionPanel), c);
 
             // Expert settings, collapsed by default
-            final JPanel advanced = new JPanel(new GridLayout(0, 1));
-            advanced.add(pair(paramRow("Min. extent", extentSpin, () -> setIfValid(extentSpin, initExtent), null,
-                            "Min. extent:"),
-                    paramRow("Min. purity", puritySpin, () -> setIfValid(puritySpin, initPurity), null,
-                            "Min. purity:")));
-            if (snt.getChannelCount() > 1) {
-                advanced.add(backgroundRow());
-                advanced.add(paramRow("Veto (background)", vetoSpin, () -> vetoSpin.setValue(0d), null));
-            }
+            final JPanel advanced = advancedGrid();
             final CollapsiblePanel advancedPanel = new CollapsiblePanel("Advanced", advanced, true);
             advancedPanel.setTooltipText("Extra filters: min. extent and purity of detections, and the background "
                     + "channel (subtraction and veto). The veto is off (n/a) at 0");
@@ -744,7 +869,7 @@ public class TipPalette extends Thread {
                     return false;
                 }
             };
-            final JPanel details = new JPanel(new GridLayout(0, 1));
+            final JPanel details = new JPanel(new GridLayout(0, 1, 0, 10));
             details.add(tablePane(new JTable(learnedModel)));
             details.add(scalesPane());
             final CollapsiblePanel detailsPanel = new CollapsiblePanel("Details", details, true);
@@ -752,6 +877,11 @@ public class TipPalette extends Thread {
             c.gridy = row++;
             root.add(section(null, detailsPanel), c);
 
+            detectionCollapsible = detectionPanel;
+            collapsibles.add(detectionPanel);
+            collapsibles.add(advancedPanel);
+            if (performance != null) collapsibles.add(performance);
+            collapsibles.add(detailsPanel);
             refresh(); // Fills the tables before the window is sized
             // All rows share the width of the widest content, so that the window does not resize on toggling
             int width = Math.max(details.getPreferredSize().width, Math.max(advanced.getPreferredSize().width,
@@ -776,6 +906,7 @@ public class TipPalette extends Thread {
             scroll.getVerticalScrollBar().setUnitIncrement(16);
             // Heavyweight container: it paints its lightweight (Swing) children reliably inside the AWT window
             final Panel south = new Panel(new BorderLayout());
+            southPanel = south;
             south.add(scroll, BorderLayout.CENTER);
             south.add(buttonPanel(), BorderLayout.SOUTH);
             add(south);
@@ -784,7 +915,6 @@ public class TipPalette extends Thread {
                 setLocationRelativeTo(parent);
             else
                 GuiUtils.Windows.center(this, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
-            new GuiUtils(this.getCanvas()).tempMsg("Click a detection to see its analysis radius", 4000);
         }
 
         // Boxed section: titled border (as in MaterializeRegionDialog) or a plain etched one
@@ -911,17 +1041,65 @@ public class TipPalette extends Thread {
             } finally {
                 loading = false;
             }
+            scalesField.setText(formatScales(config.getScales()));
             syncUpdateButton();
             refresh();
         }
 
-        // Update only has an effect if the background channel or its weight differ from the ones in use
-        private void syncUpdateButton() {
-            if (updateButton == null) return;
+        private int selectedBackground() {
             final int idx = bgChoice.getSelectedIndex();
-            final int channel = (idx <= 0) ? 0 : bgChannels.get(idx - 1);
-            final double weight = val(bgWeightSpin);
-            updateButton.setEnabled(channel != bgChannel || (channel > 0 && Math.abs(weight - bgWeight) > 1e-3));
+            if (bgChoice.getItemCount() == 0) return bgChannel; // Single channel
+            return (idx <= 0) ? 0 : bgChannels.get(idx - 1);
+        }
+
+        // Update only has an effect if the background channel, its weight or the scales differ from the ones in use
+        private void syncUpdateButton() {
+            final double[] sc = parseScales(scalesField.getText());
+            scalesField.setForeground((sc == null) ? GuiUtils.Colors.errorColor()
+                    : UIManager.getColor("TextField.foreground"));
+            if (updateButton == null) return;
+            final int channel = selectedBackground();
+            final boolean bgDiff = channel != bgChannel
+                    || (channel > 0 && Math.abs(val(bgWeightSpin) - bgWeight) > 1e-3);
+            final boolean scalesDiff = sc != null && !sameScales(sc, config.getScales());
+            updateButton.setEnabled(bgDiff || scalesDiff);
+        }
+
+        // Scales (editable) and the Update button, which re-learns from the examples
+        private void setupScales() {
+            scalesField.setText(formatScales(config.getScales()));
+            scalesField.setToolTipText("Comma-separated list of scales (" + unit + "). Press Update to apply");
+            scalesField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                @Override
+                public void insertUpdate(final javax.swing.event.DocumentEvent e) {
+                    syncUpdateButton();
+                }
+
+                @Override
+                public void removeUpdate(final javax.swing.event.DocumentEvent e) {
+                    syncUpdateButton();
+                }
+
+                @Override
+                public void changedUpdate(final javax.swing.event.DocumentEvent e) {
+                    syncUpdateButton();
+                }
+            });
+            scalesReset = GuiUtils.Buttons.undo("Reset scales");
+            scalesReset.addActionListener(e -> scalesField.setText(formatScales(defaultScales())));
+            final JButton update = new JButton("Update");
+            updateButton = update;
+            update.setFocusable(false);
+            update.setEnabled(false);
+            update.setToolTipText("Re-learns from the examples using the scales and background above");
+            update.addActionListener(e -> {
+                update.setEnabled(false); // Until the window is updated
+                final double[] sc = parseScales(scalesField.getText());
+                double[] arg = null;
+                if (sc != null && !sameScales(sc, config.getScales()))
+                    arg = sameScales(sc, defaultScales()) ? new double[0] : sc;
+                changeBackground(selectedBackground(), val(bgWeightSpin), arg);
+            });
         }
 
         private void fillScales() {
@@ -934,14 +1112,28 @@ public class TipPalette extends Thread {
 
         // Label, spinner, reset button and (optionally) a note
         private JPanel paramRow(final String name, final JSpinner spinner, final Runnable reset, final JLabel note) {
-            return paramRow(name, spinner, reset, note, "Veto (background):");
+            return paramRow(name, spinner, reset, note, WIDEST_LABEL);
+        }
+
+        // Label in a column as wide as the one of the Advanced panel, so that the controls of its rows line up
+        private JPanel labeledRow(final String text, final JPanel controls) {
+            final JPanel p = new JPanel(new BorderLayout(6, 0));
+            final JLabel l = new JLabel(text);
+            l.setPreferredSize(new Dimension(l.getFontMetrics(l.getFont()).stringWidth(WIDEST_LABEL) + 4,
+                    l.getPreferredSize().height));
+            p.add(l, BorderLayout.WEST);
+            p.add(controls, BorderLayout.CENTER);
+            return p;
         }
 
         // Two rows side by side
         private JPanel pair(final JPanel left, final JPanel right) {
-            final JPanel p = new JPanel(new GridLayout(1, 2, 12, 0));
+            final JPanel p = new JPanel();
+            p.setLayout(new javax.swing.BoxLayout(p, javax.swing.BoxLayout.X_AXIS));
             p.add(left);
+            p.add(javax.swing.Box.createHorizontalStrut(PAIR_GAP));
             p.add(right);
+            p.add(javax.swing.Box.createHorizontalGlue());
             return p;
         }
 
@@ -983,12 +1175,18 @@ public class TipPalette extends Thread {
             skipEmpty.addActionListener(e -> madSpin.setEnabled(skipEmpty.isSelected()));
             final JPanel panel = new JPanel(new GridLayout(0, 1));
             final JPanel levelRow = new JPanel(new BorderLayout(6, 0));
-            levelRow.add(new JLabel("Level:"), BorderLayout.WEST);
+            final JLabel levelLabel = new JLabel("Level:");
+            levelRow.add(levelLabel, BorderLayout.WEST);
             levelRow.add(levelChoice, BorderLayout.CENTER);
             panel.add(levelRow);
             panel.add(warn);
-            panel.add(skipEmpty);
-            panel.add(paramRow("Signal (MAD)", madSpin, () -> madSpin.setValue(2d), null));
+            final JPanel skipPanel = new JPanel(new GridBagLayout()); // Centers the checkbox vertically
+            // Left edge of the checkbox: same as the one of the level choice (label width + gap of levelRow)
+            skipPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, levelLabel.getPreferredSize().width + 6,
+                    0, 0));
+            skipPanel.add(skipEmpty);
+            panel.add(pair(skipPanel, paramRow("Signal (MAD)", madSpin, () -> madSpin.setValue(2d), null,
+                    "Signal (MAD):")));
             final CollapsiblePanel cp = new CollapsiblePanel("Performance", panel, true);
             cp.setTooltipText("Whole volume runs only: resolution level to process, and skipping of blocks "
                     + "without signal (assessed at a coarser level)");
@@ -1016,8 +1214,7 @@ public class TipPalette extends Thread {
         }
 
         // Background channel and weight: the Update button re-learns from the examples
-        private JPanel backgroundRow() {
-            final JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        private void setupBackground() {
             bgChoice.addItem("None");
             for (int ch = 1; ch <= snt.getChannelCount(); ch++) {
                 if (ch == snt.getChannel()) continue;
@@ -1028,45 +1225,114 @@ public class TipPalette extends Thread {
             bgChoice.setFocusable(false);
             bgWeightSpin.addChangeListener(e -> syncUpdateButton());
             bgChoice.addActionListener(e -> syncUpdateButton());
-            final JButton update = new JButton("Update");
-            updateButton = update;
-            update.setFocusable(false);
-            update.setEnabled(false);
-            update.addActionListener(e -> {
-                update.setEnabled(false); // Until the window is updated
-                final int idx = bgChoice.getSelectedIndex();
-                changeBackground((idx <= 0) ? 0 : bgChannels.get(idx - 1), val(bgWeightSpin));
-            });
-            final JButton resetWeight = GuiUtils.Buttons.undo("Reset weight");
-            resetWeight.addActionListener(e -> bgWeightSpin.setValue(initBgWeight));
-            p.add(new JLabel("Subtract background:"));
-            p.add(bgChoice);
-            p.add(new JLabel("weight"));
-            p.add(bgWeightSpin);
-            p.add(resetWeight);
-            p.add(update);
-            return p;
+            weightReset = GuiUtils.Buttons.undo("Reset weight");
+            weightReset.addActionListener(e -> bgWeightSpin.setValue(initBgWeight));
+        }
+
+        private JButton resetButton(final String what, final Runnable action) {
+            final JButton b = GuiUtils.Buttons.undo("Reset " + what);
+            b.addActionListener(e -> action.run());
+            return b;
+        }
+
+        private void put(final JPanel panel, final Component comp, final int x, final int y, final int width,
+                         final int anchor, final int fill) {
+            final GridBagConstraints k = new GridBagConstraints();
+            k.gridx = x;
+            k.gridy = y;
+            k.gridwidth = width;
+            k.anchor = anchor;
+            k.fill = fill;
+            k.insets = new Insets(2, 2, 2, 2);
+            panel.add(comp, k);
+        }
+
+        // Advanced settings on a grid, so that the controls line up. Update applies to scales and background
+        // (and re-learns the veto), so it sits on its own at the bottom right
+        private JPanel advancedGrid() {
+            setupScales();
+            final boolean multi = snt.getChannelCount() > 1;
+            if (multi) setupBackground();
+            final JPanel g = new JPanel(new GridBagLayout());
+            final int w = GridBagConstraints.WEST;
+            final int e = GridBagConstraints.EAST;
+            final int none = GridBagConstraints.NONE;
+            put(g, new JLabel("Min. extent:"), 0, 0, 1, w, none);
+            put(g, extentSpin, 1, 0, 1, w, none);
+            put(g, resetButton("min. extent", () -> setIfValid(extentSpin, initExtent)), 2, 0, 1, w, none);
+            put(g, new JLabel("Min. purity:"), 3, 0, 1, e, none);
+            put(g, puritySpin, 4, 0, 1, w, none);
+            put(g, resetButton("min. purity", () -> setIfValid(puritySpin, initPurity)), 5, 0, 1, w, none);
+            put(g, new JLabel("Scales [" + unit + "]:"), 0, 1, 1, w, none);
+            put(g, scalesField, 1, 1, 3, w, GridBagConstraints.HORIZONTAL);
+            put(g, scalesReset, 4, 1, 1, w, none);
+            int y = 2;
+            if (multi) {
+                put(g, new JLabel(WIDEST_LABEL), 0, y, 1, w, none);
+                put(g, bgChoice, 1, y, 1, w, none);
+                put(g, new JLabel("weight"), 2, y, 1, e, none);
+                put(g, bgWeightSpin, 3, y, 1, e, none);
+                put(g, weightReset, 4, y, 1, w, none);
+                y++;
+                put(g, new JLabel("Veto (background):"), 0, y, 1, w, none);
+                put(g, vetoSpin, 1, y, 1, w, none);
+                put(g, resetButton("veto", () -> vetoSpin.setValue(0d)), 2, y, 1, w, none);
+                put(g, updateButton, 4, y, 2, e, none); // On the veto row: no empty row below
+            } else {
+                put(g, updateButton, 4, y, 2, e, none);
+            }
+            return g;
+        }
+
+        // Stop gap for occasional painting glitches (e.g., after collapsing panels quickly)
+        private void rebuildControls() {
+            if (southPanel == null) return;
+            // Painting is reliable in the startup configuration: Detection expanded, all others collapsed
+            for (final CollapsiblePanel cp : collapsibles) cp.setCollapsed(cp != detectionCollapsible);
+            repaintTree(southPanel);
+            southPanel.invalidate();
+            southPanel.validate();
+            pack();
+            southPanel.repaint();
+        }
+
+        private void repaintTree(final Component comp) {
+            if (comp instanceof javax.swing.JComponent jc) {
+                jc.revalidate();
+                jc.repaint();
+            }
+            if (comp instanceof Container ct) {
+                for (final Component child : ct.getComponents()) repaintTree(child);
+            }
         }
 
         private JPanel buttonPanel() {
             final JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            final JButton apply = new JButton("Apply...");
-            apply.setFocusable(false);
+            p.setBackground(super.getBackground());
+
             final JPopupMenu applyMenu = new JPopupMenu();
-            final JMenuItem regionItem = new JMenuItem("Apply to Loaded Region (Dry Run)");
+            final JMenuItem regionItem = new JMenuItem("Detect Tips on Preview Region (\"Dry Run\")");
             regionItem.addActionListener(e -> commit(false));
-            final JMenuItem wholeItem = new JMenuItem("Apply to Whole Volume");
+            final JMenuItem wholeItem = new JMenuItem("Detect Tips on Whole Volume");
             wholeItem.addActionListener(e -> commit(true));
+            final JMenuItem export = new JMenuItem("Export Recipe...", IconFactory.menuIcon(IconFactory.GLYPH.CODE));
+            export.addActionListener(e -> exportRecipe());
+            GuiUtils.MenuItems.addSeparator(applyMenu, "Run:");
             applyMenu.add(regionItem);
             applyMenu.add(wholeItem);
-            apply.addActionListener(e -> applyMenu.show(apply, 0, apply.getHeight()));
-            final JButton bc = new JButton("B&C");
-            bc.setFocusable(false);
-            bc.addActionListener(e -> IJ.doCommand("Brightness/Contrast..."));
-            final JButton more = paletteOptions.buildMoreSwingButton(this, helpHtml(), null);
+            GuiUtils.MenuItems.addSeparator(applyMenu, "Batch:");
+            applyMenu.add(export);
+            final JButton apply = GuiUtils.Buttons.OptionsButton("Apply/Run", applyMenu, true);
+            apply.setFocusable(false);
+
+            final JButton more = paletteOptions.buildMoreSwingButton(this, helpHtml(), pm -> {
+                final JMenuItem rebuild = new JMenuItem("Rebuild Dialog", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
+                rebuild.addActionListener(e -> rebuildControls());
+                pm.add(rebuild);
+            });
             more.setFocusable(false);
+
             p.add(apply);
-            p.add(bc);
             p.add(more);
             return p;
         }
@@ -1078,7 +1344,7 @@ public class TipPalette extends Thread {
 
         private void updateLabels() {
             final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
-            radiusLabel.setText(String.format("%s (%.1f vox)", unit, config.getTipRadius() / avgSpacing));
+            radiusLabel.setText(String.format("(%.1f vox)", config.getTipRadius() / avgSpacing));
         }
 
         // Called on the EDT after each evaluation
@@ -1111,6 +1377,8 @@ public class TipPalette extends Thread {
             final int sel = selected;
             if (sel >= 0 && sel < ev.tips().size())
                 sb.append(String.format(" | selected: score %s", fmt(ev.tips().get(sel).score())));
+            else if (!ev.tips().isEmpty())
+                sb.append(" | click a detection to see its analysis sphere");
             statusLabel.setText(sb.toString());
         }
 

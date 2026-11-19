@@ -35,6 +35,11 @@ import java.awt.Menu;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
 import java.awt.image.IndexColorModel;
+import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import java.util.function.Consumer;
 
 /**
@@ -94,16 +99,57 @@ public final class PaletteOptions {
     }
 
     /**
-     * Same as {@link #buildMoreButton(Component, String, Consumer)} but for Swing containers
+     * Same as {@link #buildMoreButton(Component, String, Consumer)} but Swing-based (a {@link JPopupMenu} with
+     * headings and icons, consistent with the rest of SNT's menus), for palettes whose controls are Swing
      *
+     * @param helpHtml HTML message displayed by the "Help" entry; pass {@code null} to omit the entry
+     * @param extras   callback that appends palette-specific items (and headings) between the display items and the
+     *                 image ones. Null for none
      * @return the Swing button that pops the menu on click
      */
-    public javax.swing.JButton buildMoreSwingButton(final Component parent, final String helpHtml,
-                                                    final Consumer<PopupMenu> extras) {
-        final PopupMenu pm = buildMoreMenu(parent, helpHtml, extras);
-        final javax.swing.JButton btn = new javax.swing.JButton("More »");
-        btn.addActionListener(e -> pm.show(btn, btn.getWidth() / 2, btn.getHeight() / 2));
-        return btn;
+    public JButton buildMoreSwingButton(final Component parent, final String helpHtml,
+                                        final Consumer<JPopupMenu> extras) {
+        final JPopupMenu pm = new JPopupMenu();
+        if (helpHtml != null) {
+            final JMenuItem help = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
+            help.addActionListener(e -> showHelp(helpHtml, parent));
+            pm.add(help);
+        }
+        GuiUtils.MenuItems.addSeparator(pm, "Display:");
+        final JMenu lutMenu = new JMenu("Lookup Table");
+        lutMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
+        addLutEntry(lutMenu, "Default", "reset");
+        lutMenu.addSeparator();
+        addLutEntry(lutMenu, "Edges", "edges");
+        addLutEntry(lutMenu, "Fire", "fire");
+        addLutEntry(lutMenu, "Grayscale", "grays");
+        addLutEntry(lutMenu, "Inferno", "mpl-inferno");
+        addLutEntry(lutMenu, "Magma", "mpl-magma");
+        addLutEntry(lutMenu, "Plasma", "mpl-plasma");
+        addLutEntry(lutMenu, "Viridis", "mpl-viridis");
+        pm.add(lutMenu);
+        final JCheckBoxMenuItem showMip = new JCheckBoxMenuItem("Overlay MIP", IconFactory.menuIcon(IconFactory.GLYPH.Z));
+        showMip.addActionListener(e -> {
+            if (showMip.isSelected()) createMip();
+            else disposeMip(true);
+        });
+        showMip.setEnabled(paletteImage.getNSlices() > 1);
+        pm.add(showMip);
+        final JMenuItem bc = new JMenuItem("Brightness & Contrast...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
+        bc.addActionListener(e -> ij.IJ.doCommand("Brightness/Contrast..."));
+        pm.add(bc);
+        GuiUtils.MenuItems.addSeparator(pm, "Utilities:");
+        final JMenuItem snapshot = new JMenuItem("Take Snapshot", IconFactory.menuIcon(IconFactory.GLYPH.CAMERA));
+        snapshot.addActionListener(e -> takeSnapshot());
+        pm.add(snapshot);
+        if (extras != null) extras.accept(pm);
+        return GuiUtils.Buttons.OptionsButton("Actions/Options", pm, true);
+    }
+
+    private void addLutEntry(final JMenu menu, final String label, final String lutName) {
+        final JMenuItem mi = new JMenuItem(label);
+        mi.addActionListener(e -> applyLut(lutName));
+        menu.add(mi);
     }
 
     private PopupMenu buildMoreMenu(final Component parent, final String helpHtml, final Consumer<PopupMenu> extras) {
@@ -157,7 +203,7 @@ public final class PaletteOptions {
      * Adds an "Overlay MIP" {@link CheckboxMenuItem}. The toggle is disabled automatically when the palette image has
      * fewer than 2 slices.
      */
-    private CheckboxMenuItem addMipToggle(final PopupMenu pm) {
+    private void addMipToggle(final PopupMenu pm) {
         final CheckboxMenuItem showMip = new CheckboxMenuItem("Overlay MIP");
         showMip.addItemListener(e -> {
             if (showMip.getState()) createMip();
@@ -165,7 +211,6 @@ public final class PaletteOptions {
         });
         showMip.setEnabled(paletteImage.getNSlices() > 1);
         pm.add(showMip);
-        return showMip;
     }
 
     private void addSnapshotEntry(final PopupMenu pm) {

@@ -125,6 +125,32 @@ public class TipDetectionConfig {
     }
 
     /**
+     * Creates a configuration from known parameters (e.g., exported by the Tip Detection Wizard)
+     *
+     * @param scales        the Tubeness scales (calibrated units)
+     * @param tipRadius     the analysis radius (calibrated units)
+     * @param threshold     the score above which voxels are considered foreground
+     * @param minExtent     min. reach of the connected structure, as a fraction of the radius
+     * @param minPurity     min. fraction of the voxels in the radius connected to the tip
+     * @param vetoThreshold the veto threshold. NaN for none
+     * @param vetoRadius    the radius (calibrated units) in which the veto image is averaged around a candidate
+     * @return the configuration (no background subtraction: see {@link #setBackground(int, double)})
+     */
+    public static TipDetectionConfig of(final double[] scales, final double tipRadius, final double threshold,
+                                        final double minExtent, final double minPurity, final double vetoThreshold,
+                                        final double vetoRadius) {
+        final TipDetectionConfig c = new TipDetectionConfig();
+        c.scales = scales.clone();
+        c.tipRadius = tipRadius;
+        c.threshold = threshold;
+        c.minExtent = minExtent;
+        c.minPurity = minPurity;
+        c.vetoThreshold = vetoThreshold;
+        c.vetoRadius = vetoRadius;
+        return c;
+    }
+
+    /**
      * Learns parameters from examples
      *
      * @param example      the examples
