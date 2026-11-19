@@ -240,7 +240,7 @@ public class TipFinder<T extends RealType<T>> {
 
     /**
      * Sets an image used to reject candidates: a candidate is discarded if the mean of this image in a small
-     * sphere around it exceeds the background threshold (see {@link #setMaxBackground(double)}). Typically a
+     * sphere around it exceeds the background threshold (see {@link #setMaxBackground(double)}). Typically, a
      * background channel (e.g., autofluorescence). For single channel images, use a heavily smoothed version of
      * the image: thin structures are diluted, whereas large bright structures (e.g., haze or tissue) are not
      *
@@ -333,44 +333,45 @@ public class TipFinder<T extends RealType<T>> {
             for (long ky = 0; ky < nk[1]; ky += kb)
                 for (long kx = 0; kx < nk[0]; kx += kb)
                     blocks.add(new long[]{kx, ky, kz});
-        final ForkJoinPool pool = new ForkJoinPool(Math.max(1, numThreads));
-        try {
-            final List<float[]> parts = pool.submit(() -> blocks.parallelStream().map(b -> {
-                final RandomAccess<? extends RealType<?>> ra = rai.randomAccess();
-                float[] values = new float[256];
-                int n = 0;
-                for (long kz = b[2]; kz < Math.min(nk[2], b[2] + kb); kz++) {
-                    for (long ky = b[1]; ky < Math.min(nk[1], b[1] + kb); ky++) {
-                        for (long kx = b[0]; kx < Math.min(nk[0], b[0] + kb); kx++) {
-                            ra.setPosition(rai.min(0) + kx * s, 0);
-                            ra.setPosition(rai.min(1) + ky * s, 1);
-                            ra.setPosition(rai.min(2) + kz * s, 2);
-                            final double v = ra.get().getRealDouble();
-                            if (positiveOnly && !(v > 0)) continue;
-                            if (n == values.length) values = java.util.Arrays.copyOf(values, n * 2);
-                            values[n++] = (float) v;
+        try (final ForkJoinPool pool = new ForkJoinPool(Math.max(1, numThreads))) {
+            try {
+                final List<float[]> parts = pool.submit(() -> blocks.parallelStream().map(b -> {
+                    final RandomAccess<? extends RealType<?>> ra = rai.randomAccess();
+                    float[] values = new float[256];
+                    int n = 0;
+                    for (long kz = b[2]; kz < Math.min(nk[2], b[2] + kb); kz++) {
+                        for (long ky = b[1]; ky < Math.min(nk[1], b[1] + kb); ky++) {
+                            for (long kx = b[0]; kx < Math.min(nk[0], b[0] + kb); kx++) {
+                                ra.setPosition(rai.min(0) + kx * s, 0);
+                                ra.setPosition(rai.min(1) + ky * s, 1);
+                                ra.setPosition(rai.min(2) + kz * s, 2);
+                                final double v = ra.get().getRealDouble();
+                                if (positiveOnly && !(v > 0)) continue;
+                                if (n == values.length) values = java.util.Arrays.copyOf(values, n * 2);
+                                values[n++] = (float) v;
+                            }
                         }
                     }
+                    return java.util.Arrays.copyOf(values, n);
+                }).toList()).get();
+                int size = 0;
+                for (final float[] part : parts) size += part.length;
+                final float[] all = new float[size];
+                int pos = 0;
+                for (final float[] part : parts) {
+                    System.arraycopy(part, 0, all, pos, part.length);
+                    pos += part.length;
                 }
-                return java.util.Arrays.copyOf(values, n);
-            }).toList()).get();
-            int size = 0;
-            for (final float[] part : parts) size += part.length;
-            final float[] all = new float[size];
-            int pos = 0;
-            for (final float[] part : parts) {
-                System.arraycopy(part, 0, all, pos, part.length);
-                pos += part.length;
+                java.util.Arrays.parallelSort(all);
+                return new Sample(all, total);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while sampling", e);
+            } catch (final ExecutionException e) {
+                throw new IllegalStateException("Sampling failed: " + e.getCause(), e.getCause());
+            } finally {
+                pool.shutdown();
             }
-            java.util.Arrays.parallelSort(all);
-            return new Sample(all, total);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while sampling", e);
-        } catch (final java.util.concurrent.ExecutionException e) {
-            throw new IllegalStateException("Sampling failed: " + e.getCause(), e.getCause());
-        } finally {
-            pool.shutdown();
         }
     }
 
@@ -536,7 +537,7 @@ public class TipFinder<T extends RealType<T>> {
         long n = 0;
         double mean = 0;
         double m2 = 0;
-        for (final Cursor<T> c = Views.iterable(sampled).cursor(); c.hasNext(); ) {
+        for (final Cursor<T> c = sampled.cursor(); c.hasNext(); ) {
             final double v = c.next().getRealDouble();
             if (!(v > 0)) continue;
             n++;
@@ -547,7 +548,7 @@ public class TipFinder<T extends RealType<T>> {
         if (n < 2) throw new IllegalStateException("No positive scores found");
         final double upper = mean + 6 * Math.sqrt(m2 / (n - 1));
         final int[] hist = new int[256];
-        for (final Cursor<T> c = Views.iterable(sampled).cursor(); c.hasNext(); ) {
+        for (final Cursor<T> c = sampled.cursor(); c.hasNext(); ) {
             final double v = c.next().getRealDouble();
             if (!(v > 0)) continue;
             hist[Math.min(255, (int) (v / upper * 256))]++;
@@ -559,7 +560,7 @@ public class TipFinder<T extends RealType<T>> {
     /**
      * Finds the tips.
      *
-     * @return the tips, best first, or null if cancelled
+     * @return the tips, best first, or null if canceled
      * @throws IllegalStateException if the threshold had to be estimated and that failed
      */
     public List<Tip> find() {
@@ -645,20 +646,22 @@ public class TipFinder<T extends RealType<T>> {
         final RandomAccessible<T> extended = Views.extendZero(ridge);
         final AtomicInteger done = new AtomicInteger();
         final List<Candidate> candidates = new ArrayList<>();
-        final ForkJoinPool pool = new ForkJoinPool(numThreads);
-        try {
-            final List<List<Candidate>> results = pool.submit(() -> blocks.parallelStream().map(b -> {
-                if (cancelled) return new ArrayList<Candidate>();
-                final List<Candidate> found = scanBlock(extended, b, vMin, vMax, step, offsets, thr, diag, rad);
-                if (progressListener != null) progressListener.accept(done.incrementAndGet() / (double) blocks.size());
-                return found;
-            }).toList()).get();
-            results.forEach(candidates::addAll);
-        } catch (final InterruptedException | ExecutionException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Tip search failed: " + e.getMessage(), e);
-        } finally {
-            pool.shutdown();
+        try (final ForkJoinPool pool = new ForkJoinPool(numThreads)) {
+            try {
+                final List<List<Candidate>> results = pool.submit(() -> blocks.parallelStream().map(b -> {
+                    if (cancelled) return new ArrayList<Candidate>();
+                    final List<Candidate> found = scanBlock(extended, b, vMin, vMax, step, offsets, thr, diag, rad);
+                    if (progressListener != null)
+                        progressListener.accept(done.incrementAndGet() / (double) blocks.size());
+                    return found;
+                }).toList()).get();
+                results.forEach(candidates::addAll);
+            } catch (final InterruptedException | ExecutionException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Tip search failed: " + e.getMessage(), e);
+            } finally {
+                pool.shutdown();
+            }
         }
         if (cancelled) return null;
         if (diag != null) reportDiagnostics(diag, candidates.size());

@@ -128,10 +128,8 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
     }
 
     // Coarse copy of the volume to skip empty blocks: finest level coarser than the processed one that is small enough
-    private TipDetectionWizardCmd.CoarseLevels coarseOf(final sc.fiji.snt.viewer.AbstractBigViewer viewer,
-                                                        final int srcIdx, final int bgIdx,
-                                                        final List<BigDataUtils.LevelInfo> levels,
-                                                        final TipPalette.ParseOptions opts) {
+    private CoarseLevels coarseOf(final int srcIdx, final int bgIdx, final List<BigDataUtils.LevelInfo> levels,
+                                  final TipPalette.ParseOptions opts) {
         final BigDataUtils.LevelInfo coarse = TipDetector.coarseLevel(levels, opts.level(), MAX_COARSE_VOXELS);
         if (coarse == null) {
             progress("Skip empty blocks: no coarser level available, processing all blocks", 0, true);
@@ -173,7 +171,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                 final int bgIdx = config.getBackgroundChannel() - 1;
                 final var levels = viewer.getSourceLevels(srcIdx);
                 final var info = levels.get(opts.level());
-                final var info0 = levels.get(0);
+                final var info0 = levels.getFirst();
                 spacing = info.spacing();
                 for (int d = 0; d < 3; d++)
                     shift[d] = info.origin()[d] - info0.origin()[d] - defOffset[d] * info0.spacing()[d];
@@ -187,7 +185,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                     bg = Views.zeroMin(bgRai);
                 }
                 if (opts.skipEmpty()) {
-                    final CoarseLevels cl = coarseOf(viewer, srcIdx, (useBg) ? bgIdx : -1, levels, opts);
+                    final CoarseLevels cl = coarseOf(srcIdx, (useBg) ? bgIdx : -1, levels, opts);
                     if (cl != null) {
                         final int lvl = cl.level().level();
                         coarse = new TipDetector.Coarse(

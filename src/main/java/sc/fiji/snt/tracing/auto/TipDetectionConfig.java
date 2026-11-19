@@ -215,9 +215,10 @@ public class TipDetectionConfig {
             c.backgroundP50 = percentile(background, 50);
             c.backgroundP99 = percentile(background, 99);
         }
-        if (!Double.isNaN(c.minScore) && !Double.isNaN(c.backgroundP99) && c.minScore <= c.backgroundP99)
-            c.warnings.add("The training paths barely stand out from their surroundings in Tubeness score: expect "
-                    + "false detections. Raise Min. Tubeness score, or set a background channel.");
+        if (c.minScore > 0 && !Double.isNaN(c.backgroundP99) && c.minScore <= c.backgroundP99)
+            c.warnings.add("The training paths score no higher than the strongest background in Tubeness: expect "
+                    + "false detections or missed tips. Try other Neurite radii or subtracting a background "
+                    + "channel. Raising Min. Tubeness score removes false detections but may miss weaker tips.");
         if (!(c.minScore > 0)) {
             c.warnings.add("Tubeness scores along the training paths are not positive, so Min. Tubeness score could "
                     + "not be learned. Check that the paths follow bright structures and that the Neurite radii "

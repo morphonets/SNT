@@ -23,9 +23,7 @@
 
 package sc.fiji.snt.gui;
 
-import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.GUI;
 import ij.gui.ImageCanvas;
 import ij.gui.StackWindow;
 import ij.measure.Calibration;
@@ -37,7 +35,6 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
@@ -68,7 +65,6 @@ import javax.swing.Scrollable;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -83,7 +79,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author Tiago Ferreira
  */
-public class TipPalette extends Thread {
+public class TipPalette extends WizardPalette {
 
     /** Receives the outcome of the wizard */
     public interface Listener {
@@ -162,15 +158,12 @@ public class TipPalette extends Thread {
     private static final Color DETECTION_COLOR = new Color(250, 215, 100);
     private static final Color SELECTED_COLOR = Color.ORANGE;
 
-    private final SNT snt;
     private final List<Path> paths;
     private final List<Listener> listeners = new ArrayList<>();
-    private Window parent;
 
     private double[] spacing;
     private String unit;
-    private double[] voxelOffset;
-    private WizardSupport.Region region;
+    private WizardUtils.Region region;
     private TipDetectionConfig.TrainingPaths example;
     private TipDetectionConfig config;
     private RandomAccessibleInterval<FloatType> ridge;
@@ -184,8 +177,6 @@ public class TipPalette extends Thread {
     private double[] customScales; // User-defined scales (calibrated units). Null: learned from the examples
     private double fixedPad = Double.NaN; // calibrated padding of the first read, reused when the background changes
 
-    private ImagePlus paletteImage;
-    private PaletteOptions paletteOptions;
     private TipWindow window;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         final Thread t = new Thread(r, "TipPalette-evaluation");
@@ -199,13 +190,9 @@ public class TipPalette extends Thread {
      * @param paths the example paths. Should be traced towards the tips of the structures
      */
     public TipPalette(final SNT snt, final List<Path> paths) {
-        this.snt = snt;
+        super(snt);
         this.paths = new ArrayList<>(paths);
         setParent(snt.getUI());
-    }
-
-    public void setParent(final Window parent) {
-        this.parent = parent;
     }
 
     public void addListener(final Listener l) {
@@ -242,9 +229,8 @@ public class TipPalette extends Thread {
         final double inside = AutoTraceConfig.fractionInBounds(paths, snt.getFullSourceData(), sp,
                 new double[]{off.x, off.y, off.z});
         if (!(inside >= 1d))
-            return "Some training paths lie outside the image data currently loaded ("
-                    + Math.round((1 - inside) * 100) + "% of nodes)"
-                    + ((snt.isStreamMode()) ? " (is a crop active?)." : ".") + " Select paths within the image.";
+            return WizardUtils.outsideDataMessage(snt, "Some training paths lie",
+                    " (" + Math.round((1 - inside) * 100) + "% of nodes)") + " Select paths within the image.";
         return null;
     }
 
@@ -253,11 +239,7 @@ public class TipPalette extends Thread {
     }
 
     @Override
-    public void run() {
-        WizardSupport.busy(snt, this::build);
-    }
-
-    private void build() {
+    protected void build() {
         try {
             if (!learn()) {
                 final String msg = (failure != null) ? failure : "The Tip Detection Wizard could not be created.";
@@ -266,7 +248,7 @@ public class TipPalette extends Thread {
                 dismiss();
                 return;
             }
-            WizardSupport.status(snt, "Tip wizard: preparing preview...");
+            WizardUtils.status(snt, "Tip wizard: preparing preview...");
             buildAndDisplay();
         } catch (final Throwable t) {
             SNTUtils.error(t);
@@ -277,11 +259,11 @@ public class TipPalette extends Thread {
 
     // Reads the region spanned by the examples, learns from them and evaluates the result. False on failure
     private boolean learn() {
-        final RandomAccessibleInterval<?> source = WizardSupport.as3D(snt.getFullSourceData());
+        final RandomAccessibleInterval<?> source = WizardUtils.as3D(snt.getFullSourceData());
         spacing = new double[]{snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
         unit = snt.getSpacingUnits();
         final PointInCanvas offset = snt.getDefaultCanvasPixelOffset();
-        voxelOffset = new double[]{offset.x, offset.y, offset.z};
+        final double[] voxelOffset = new double[]{offset.x, offset.y, offset.z};
 
         final long[][] bounds = TipTrainingPaths.voxelBounds(paths, spacing, voxelOffset);
         if (bounds == null) {
@@ -290,8 +272,7 @@ public class TipPalette extends Thread {
         }
         final double inside = AutoTraceConfig.fractionInBounds(paths, source, spacing, voxelOffset);
         if (!(inside > 0.9)) {
-            failure = "The training paths lie outside the image data currently loaded"
-                    + ((snt.isStreamMode()) ? " (is a crop active?)." : ".");
+            failure = WizardUtils.outsideDataMessage(snt, "The training paths lie", "");
             return false;
         }
 
@@ -301,11 +282,11 @@ public class TipPalette extends Thread {
         for (int attempt = 0; attempt < 2; attempt++) {
             final long[] pad = new long[3];
             for (int d = 0; d < 3; d++) pad[d] = (long) Math.ceil(padCalibrated / spacing[d]) + MIN_PAD_VOXELS;
-            final long[][] padded = WizardSupport.padAndClamp(bounds, pad, source);
-            failure = WizardSupport.checkRegionSize(padded, spacing, unit, MAX_VOXELS_PER_AXIS, MAX_VOXELS);
+            final long[][] padded = WizardUtils.padAndClamp(bounds, pad, source);
+            failure = WizardUtils.checkRegionSize(padded, spacing, unit, MAX_VOXELS_PER_AXIS, MAX_VOXELS);
             if (failure != null) return false;
-            WizardSupport.status(snt, "Tip wizard: reading region...");
-            region = WizardSupport.readRegion(source, padded);
+            WizardUtils.status(snt, "Tip wizard: reading region...");
+            region = WizardUtils.readRegion(source, padded);
             if (!subtractBackground(region, padded)) return false;
 
             // The region is the same when the background changes: the examples (radii, nodes, tips) are kept, so that
@@ -313,10 +294,10 @@ public class TipPalette extends Thread {
             if (example == null || Double.isNaN(fixedPad) || attempt > 0) {
                 final double[] regionOffset = new double[3];
                 for (int d = 0; d < 3; d++) regionOffset[d] = voxelOffset[d] - region.min()[d];
-                WizardSupport.status(snt, "Tip wizard: analyzing training paths...");
+                WizardUtils.status(snt, "Tip wizard: analyzing training paths...");
                 example = TipTrainingPaths.fromPaths(paths, region.data(), spacing, regionOffset);
             }
-            WizardSupport.status(snt, "Tip wizard: computing score maps...");
+            WizardUtils.status(snt, "Tip wizard: computing score maps...");
             config = TipDetectionConfig.learn(example, spacing, (customScales != null) ? customScales
                     : TipTrainingPaths.scales(example.radii()),
                     this::scoreMap, vetoRegion);
@@ -333,14 +314,13 @@ public class TipPalette extends Thread {
         vetoSuggested = config.getMaxBackground();
         config.setMaxBackground(Double.NaN); // Off
         ridge = scoreMap(config.getNeuriteRadii());
-        WizardSupport.status(snt, "Tip wizard: detecting tips...");
+        WizardUtils.status(snt, "Tip wizard: detecting tips...");
         evaluation = config.evaluate(ridge, example, vetoRegion);
         return true;
     }
 
     // Subtracts the weighted background channel from the signal (in place), clamping to zero
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private boolean subtractBackground(final WizardSupport.Region signal, final long[][] box) {
+    private boolean subtractBackground(final WizardUtils.Region signal, final long[][] box) {
         vetoRegion = null;
         if (bgChannel <= 0) return true;
         final RandomAccessibleInterval<?> bgSource = snt.getFullSourceData(bgChannel);
@@ -349,8 +329,8 @@ public class TipPalette extends Thread {
                     + "active channel?).";
             return false;
         }
-        WizardSupport.status(snt, "Tip wizard: reading background...");
-        final WizardSupport.Region bg = WizardSupport.readRegion(bgSource, box);
+        WizardUtils.status(snt, "Tip wizard: reading background...");
+        final WizardUtils.Region bg = WizardUtils.readRegion(bgSource, box);
         vetoRegion = bg.data(); // Raw: read before subtracting
         final float w = (float) bgWeight;
         LoopBuilder.setImages(signal.data(), bg.data()).multiThreaded()
@@ -412,7 +392,7 @@ public class TipPalette extends Thread {
             final int previousChannel = bgChannel;
             bgChannel = channel;
             bgWeight = weight;
-            WizardSupport.busy(snt, () -> {
+            WizardUtils.busy(snt, () -> {
                 if (!learn()) {
                     final String msg = (failure != null) ? failure : "Tip detection could not be updated.";
                     if (snt.getUI() != null) snt.getUI().error(msg);
@@ -447,8 +427,7 @@ public class TipPalette extends Thread {
             if (!p.hasRadii()) continue;
             for (int i = 0; i < p.size(); i++) maxRadius = Math.max(maxRadius, p.getNode(i).getRadius());
         }
-        final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
-        return (maxRadius > 0) ? 6 * maxRadius : 10 * avgSpacing;
+        return (maxRadius > 0) ? 6 * maxRadius : 10 * avgSpacing();
     }
 
     private RandomAccessibleInterval<FloatType> scoreMap(final double[] scales) {
@@ -472,7 +451,7 @@ public class TipPalette extends Thread {
         cal.pixelDepth = spacing[2];
         cal.setUnit(unit);
         paletteImage.resetDisplayRange();
-        paletteOptions = new PaletteOptions(paletteImage, null, "TipDetection_Snapshot", this::dismiss);
+        paletteOptions = new PaletteOptions(paletteImage, null, "TipDetection_Snapshot");
         // Middle of the example tips (or of the region) along Z
         paletteImage.setZ(Math.max(1, Math.min(paletteImage.getNSlices(), (int) (paletteImage.getNSlices() / 2d))));
         window = new TipWindow(paletteImage, new TipCanvas(paletteImage));
@@ -570,30 +549,33 @@ public class TipPalette extends Thread {
         copy.forEach(l -> l.tipConfigPicked(config, wholeVolume, finalOptions));
     }
 
-    public void dismiss() {
+    @Override
+    protected void beforeDismiss() {
         generation.incrementAndGet();
         worker.shutdownNow();
+    }
+
+    @Override
+    protected void notifyDismissed() {
         new ArrayList<>(listeners).forEach(Listener::dismissed);
-        if (window != null) {
-            final TipWindow w = window;
-            window = null;
-            try {
-                if (paletteImage != null) paletteImage.changes = false; // No "save changes" prompt
-                w.close();
-            } catch (final RuntimeException ex) {
-                SNTUtils.error("Tip wizard: window could not be closed", ex);
-            }
-            // Fallback: closing can be refused (or fail) silently
-            if (w.isDisplayable()) {
-                w.setVisible(false);
-                w.dispose();
-            }
-        }
-        if (paletteImage != null) paletteImage.flush();
+    }
+
+    @Override
+    protected StackWindow windowToClose() {
+        final TipWindow w = window;
+        window = null; // A closing window must not be found again
+        return w;
+    }
+
+    @Override
+    protected void afterDismiss() {
         region = null;
         ridge = null;
+    }
+
+    @Override
+    protected void clearListeners() {
         listeners.clear();
-        if (snt.getUI() != null) snt.getUI().changeState(SNTUI.READY); // Runs on EDT
     }
 
     private static String fmt(final double v) {
@@ -603,15 +585,11 @@ public class TipPalette extends Thread {
     // Value in calibrated units (unit shown in the label of the row), with its size in voxels
     private String voxelsOnly(final double calibrated) {
         if (Double.isNaN(calibrated)) return "n/a";
-        final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
-        return String.format("%.3g (%.1f vox)", calibrated, calibrated / avgSpacing);
+        return String.format("%.3g (%.1f vox)", calibrated, calibrated / avgSpacing());
     }
 
-    // Value in calibrated units, with its size in voxels
-    private String withVoxels(final double calibrated) {
-        if (Double.isNaN(calibrated)) return "n/a";
-        final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
-        return String.format("%.3g %s (%.1f vox)", calibrated, unit, calibrated / avgSpacing);
+    private double avgSpacing() {
+        return (spacing[0] + spacing[1] + spacing[2]) / 3;
     }
 
     // Canvas: draws the examples, the detections, and the analysis sphere of the selected detection
@@ -749,7 +727,7 @@ public class TipPalette extends Thread {
     // Window: image (StackWindow, AWT) + one Swing panel with the parameters (in a scroll pane) + Swing buttons.
     // Mixing AWT and Swing controls inside the same container is avoided: heavyweight components do not paint
     // correctly there
-    private class TipWindow extends StackWindow {
+    private class TipWindow extends PaletteWindow {
         private static final long serialVersionUID = 1L;
         private final JSpinner thresholdSpin = GuiUtils.Fields.doubleSpinner(1, 0, 1e12, 1, 3, true);
         private final JSpinner radiusSpin = GuiUtils.Fields.doubleSpinner(1, 0, 1e9, 1, 1, true);
@@ -773,11 +751,11 @@ public class TipPalette extends Thread {
         private final JComboBox<String> bgChoice = new JComboBox<>();
         private boolean loading; // True while spinners are set by code
         private JButton updateButton;
-        private Panel southPanel;
-        private CollapsiblePanel detectionCollapsible;
-        private CollapsiblePanel advancedCollapsible;
-        private CollapsiblePanel performanceCollapsible;
-        private CollapsiblePanel detailsCollapsible;
+        private final Panel southPanel;
+        private final CollapsiblePanel detectionCollapsible;
+        private final CollapsiblePanel advancedCollapsible;
+        private final CollapsiblePanel performanceCollapsible;
+        private final CollapsiblePanel detailsCollapsible;
         private JButton applyButton;
         private JButton moreButton;
         private final List<CollapsiblePanel> collapsibles = new ArrayList<>();
@@ -797,7 +775,7 @@ public class TipPalette extends Thread {
         private JSpinner madSpin;
 
         TipWindow(final ImagePlus imp, final ImageCanvas ic) {
-            super(imp, ic);
+            super(imp, ic, TipPalette.this::dismiss);
             GuiUtils.zoomToScreenFraction(getCanvas(), 0.55, 8);
             bgWeightSpin.setValue(bgWeight);
             loadSpinners();
@@ -856,7 +834,7 @@ public class TipPalette extends Thread {
             warnings.setFocusable(false);
             warnings.setOpaque(false);
             warnings.setMargin(new java.awt.Insets(8, 0, 0, 8)); // gap from top/right. Align w/ status label on left
-            warnings.setForeground(WizardSupport.WORSE_COLOR);
+            warnings.setForeground(WizardUtils.WORSE_COLOR);
             warnings.setVisible(!config.getWarnings().isEmpty());
             final JPanel detection = new JPanel(new GridBagLayout());
             final GridBagConstraints dc = new GridBagConstraints();
@@ -945,21 +923,7 @@ public class TipPalette extends Thread {
             south.add(buttonPanel(), BorderLayout.SOUTH);
             add(south);
             pack();
-            if (parent != null)
-                setLocationRelativeTo(parent);
-            else
-                GuiUtils.Windows.center(this, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
-        }
-
-        // Boxed section: titled border (as in MaterializeRegionDialog) or a plain etched one
-        private JPanel section(final String title, final Component content) {
-            final JPanel panel = new JPanel(new BorderLayout());
-            panel.setBorder(javax.swing.BorderFactory.createCompoundBorder((title == null)
-                            ? javax.swing.BorderFactory.createEtchedBorder()
-                            : javax.swing.BorderFactory.createTitledBorder(title),
-                    javax.swing.BorderFactory.createEmptyBorder(2, 2, 2, 2)));
-            panel.add(content, BorderLayout.CENTER);
-            return panel;
+            WizardUtils.place(this, parent, snt);
         }
 
         private double val(final JSpinner sp) {
@@ -1202,7 +1166,7 @@ public class TipPalette extends Thread {
             levelChoice.setFocusable(false);
             levelChoice.setPrototypeDisplayValue("Level 0: 00000 x 00000 x 00000 voxels (0.000 x 0.000 x 0.000)");
             final JLabel warn = new JLabel(" ");
-            warn.setForeground(WizardSupport.WORSE_COLOR);
+            warn.setForeground(WizardUtils.WORSE_COLOR);
             levelChoice.addActionListener(e -> warn.setText((levelChoice.getSelectedIndex() > rec)
                     ? "Thin axons may be lost at this level" : " "));
             skipEmpty = new JCheckBox("Skip empty blocks", true);
@@ -1328,37 +1292,12 @@ public class TipPalette extends Thread {
             if (southPanel == null) return;
             // Painting is reliable in the startup configuration: Detection expanded, all others collapsed
             for (final CollapsiblePanel cp : collapsibles) cp.setCollapsed(cp != detectionCollapsible);
-            repaintTree(southPanel);
-            southPanel.invalidate();
-            southPanel.validate();
-            pack();
-            southPanel.repaint();
-        }
-
-        private void repaintTree(final Component comp) {
-            if (comp instanceof javax.swing.JComponent jc) {
-                jc.revalidate();
-                jc.repaint();
-            }
-            if (comp instanceof Container ct) {
-                for (final Component child : ct.getComponents()) repaintTree(child);
-            }
-        }
-
-        // Adds a pointer to the tour to the tooltip of a control
-        private void tip(final javax.swing.JComponent comp, final String text) {
-            comp.setToolTipText("<html>" + text + "<br><i>More &gt; Tour of Controls... for details</i></html>");
+            refreshLayout(southPanel);
         }
 
         /* Starts the tour of the controls, or moves to its next callout if it is already running */
         private void startTour() {
-            final String group = CalloutManager.groupFor(this);
-            if (!CalloutManager.isActive(group)) {
-                // (re)registered every time: the window may have been resized or rebuilt since last time
-                CalloutManager.clearRegistrations(group);
-                registerCallouts(group);
-            }
-            CalloutManager.showAllOrAdvance(group);
+            runTour(this::registerCallouts);
         }
 
         // Only controls that are always visible are pointed at (panels are described by their headers)
@@ -1384,8 +1323,8 @@ public class TipPalette extends Thread {
                     + "the training paths are only a sample of the structures in the region.", group, order++);
             CalloutManager.add(advancedCollapsible, CalloutManager.AUTO, "<b>Advanced</b><br>"
                     + "Min. length and min. connected fraction reject speckles and clutter. Neurite radii can<br>"
-                    + "be edited (press Re-learn). In multi-channel images, a channel can be subtracted from the<br>"
-                    + "signal and used to reject candidates over bright background (max. background).", group, order++);
+                    + "be edited (press Re-learn). In multi-channel images, a channel can be subtracted from<br>"
+                    + "the signal and used to reject candidates over bright background (max. background).", group, order++);
             if (performanceCollapsible != null) {
                 CalloutManager.add(performanceCollapsible, CalloutManager.AUTO, "<b>Performance</b><br>"
                         + "Whole volume runs only: resolution level to process, and whether blocks without signal<br>"
@@ -1395,20 +1334,19 @@ public class TipPalette extends Thread {
                     + "What was learned from the training paths, and the response of each scale.", group, order++);
             CalloutManager.add(applyButton, CalloutManager.AUTO, "<b>Apply/Run</b><br>"
                     + "Detect tips in the preview region (a quick dry run) or in the whole volume.<br>"
-                    + "Detections are added to the Seed Manager. Export Recipe... generates a script<br>"
-                    + "to apply these parameters to other datasets.", group, order++);
-            CalloutManager.add(moreButton, CalloutManager.AUTO, "<b>More</b><br>"
-                    + "Help, display options (LUT, MIP overlay), snapshot and this tour.", group, order);
+                    + "Detections are added to the Seed Manager. Export Recipe... generates a<br>"
+                    + "script to apply these parameters to other datasets.", group, order++);
+            CalloutManager.add(moreButton, CalloutManager.AUTO, "<b>Actions/Options</b><br>"
+                    + "Display options (LUT, MIP overlay, B&amp;C), snapshot, and help.", group, order);
         }
 
         private JPanel buttonPanel() {
-            final JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            p.setBackground(super.getBackground());
+            final JPanel p = newButtonRow();
 
             final JPopupMenu applyMenu = new JPopupMenu();
-            final JMenuItem regionItem = new JMenuItem("Detect Tips on Preview Region (\"Dry Run\")");
+            final JMenuItem regionItem = new JMenuItem("Detect Tips in Preview Region (\"Dry Run\")");
             regionItem.addActionListener(e -> commit(false));
-            final JMenuItem wholeItem = new JMenuItem("Detect Tips on Whole Volume");
+            final JMenuItem wholeItem = new JMenuItem("Detect Tips in Whole Volume");
             wholeItem.addActionListener(e -> commit(true));
             final JMenuItem export = new JMenuItem("Export Recipe...", IconFactory.menuIcon(IconFactory.GLYPH.CODE));
             export.addActionListener(e -> exportRecipe());
@@ -1421,17 +1359,13 @@ public class TipPalette extends Thread {
             apply.setFocusable(false);
             applyButton = apply;
 
-            final JButton more = paletteOptions.buildMoreSwingButton(pm -> {
-                final JMenuItem rebuild = new JMenuItem("Rebuild Dialog", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
-                rebuild.addActionListener(e -> rebuildControls());
-                pm.add(rebuild);
+            final JButton more = paletteOptions.getOptionsButton(pm -> {
+                paletteOptions.addRebuildItem(pm, this::rebuildControls);
                 GuiUtils.MenuItems.addSeparator(pm, "Help:");
                 final JMenuItem help = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
                 help.addActionListener(e -> new GuiUtils(parent).showHTMLDialog(helpHtml(), "Help", false));
                 pm.add(help);
-                final JMenuItem tour = new JMenuItem("Tour of Controls...", IconFactory.menuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
-                tour.addActionListener(e -> startTour());
-                pm.add(tour);
+                paletteOptions.addTourItem(pm, this::startTour);
 
             });
             more.setFocusable(false);
@@ -1498,12 +1432,6 @@ public class TipPalette extends Thread {
         public String createSubtitle() {
             return String.format("Preview | %s x %s x %s voxels", region.data().dimension(0),
                     region.data().dimension(1), region.data().dimension(2));
-        }
-
-        @Override
-        public void windowClosing(final WindowEvent e) {
-            dismiss();
-            super.windowClosing(e);
         }
 
         private String helpHtml() {

@@ -61,9 +61,117 @@ import java.util.function.BiPredicate;
  *
  * @author Tiago Ferreira
  */
-final class WizardSupport {
+final class WizardUtils {
 
-    private WizardSupport() {}
+    private WizardUtils() {}
+
+    /**
+     * Grid coordinate of a world coordinate along one axis: {@code world / spacing + offset}
+     *
+     * @param world   the world (calibrated) coordinate
+     * @param spacing the voxel size
+     * @param offset  the offset, in voxels, between the world origin and the grid of the image
+     * @return the (fractional) voxel coordinate
+     */
+    static double gridCoord(final double world, final double spacing, final double offset) {
+        return world / Math.max(1e-9, spacing) + offset;
+    }
+
+    /**
+     * Places a wizard window next to its parent or, if there is none, over SNT's image window
+     *
+     * @param window the window
+     * @param parent the parent window. May be null
+     * @param snt    the SNT instance
+     */
+    static void place(final Window window, final Window parent, final SNT snt) {
+        if (parent != null)
+            window.setLocationRelativeTo(parent);
+        else
+            GuiUtils.Windows.center(window, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
+    }
+
+    /**
+     * Crops an image to a box, leaving its ROI as it was
+     *
+     * @param image  the image
+     * @param x      left edge (pixels)
+     * @param y      top edge (pixels)
+     * @param width  width (pixels)
+     * @param height height (pixels)
+     * @param zFirst first slice (1-based)
+     * @param zLast  last slice (1-based)
+     * @return the cropped image
+     */
+    static ij.ImagePlus cropImp(final ij.ImagePlus image, final int x, final int y, final int width,
+                                final int height, final int zFirst, final int zLast) {
+        final ij.gui.Roi existingRoi = image.getRoi();
+        image.setRoi(x, y, width, height);
+        final ij.ImagePlus cropped = image.crop(zFirst + "-" + zLast);
+        image.setRoi(existingRoi);
+        return cropped;
+    }
+
+    /**
+     * Message for data that lies outside of the image data currently loaded
+     *
+     * @param snt     the SNT instance
+     * @param subject the subject and verb, e.g., "The training paths lie"
+     * @param detail  details to be appended after the complement (e.g., " (12% of nodes)"). May be empty
+     * @return the message
+     */
+    static String outsideDataMessage(final SNT snt, final String subject, final String detail) {
+        return subject + " outside the image data currently loaded" + detail
+                + ((snt.isStreamMode()) ? " (is a crop active?)." : ".");
+    }
+
+    /**
+     * Table model of the preview tables of the wizards: a label column, the time column and one column per metric
+     *
+     * @param firstColumn name of the label column
+     * @param units       the spatial units (for the header of the metrics)
+     * @param ms          the metrics
+     * @param rows        number of rows
+     * @param label       the label of a row
+     * @param failed      whether a row has no result ("n/a" is shown for all but the label)
+     * @param time        the time column of a row
+     * @param metric      the text of a metric (row, index of the metric) of a row that did not fail
+     * @return the model
+     */
+    static AbstractTableModel metricsModel(final String firstColumn, final String units, final Metric[] ms,
+                                           final int rows, final java.util.function.IntFunction<String> label,
+                                           final java.util.function.IntPredicate failed,
+                                           final java.util.function.IntFunction<String> time,
+                                           final java.util.function.BiFunction<Integer, Integer, String> metric) {
+        return new AbstractTableModel() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public int getRowCount() {
+                return rows;
+            }
+
+            @Override
+            public int getColumnCount() {
+                return ms.length + 2; // label, time, metrics
+            }
+
+            @Override
+            public String getColumnName(final int col) {
+                if (col == 0) return firstColumn;
+                if (col == 1) return "Time (ms)";
+                return ms[col - 2].columnName(units);
+            }
+
+            @Override
+            public Object getValueAt(final int row, final int col) {
+                if (col == 0) return label.apply(row);
+                if (failed.test(row)) return "n/a";
+                if (col == 1) return time.apply(row);
+                return metric.apply(row, col - 2);
+            }
+        };
+    }
 
     /**
      * Outcome of a single A* run

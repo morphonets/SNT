@@ -88,6 +88,10 @@ public class CollapsiblePanel extends JPanel {
 	 * @param collapse true to collapse the panel, false to expand it
 	 */
 	public void setCollapsed(final boolean collapse) {
+		if (checkbox.isSelected() == collapse) { // header out of sync (e.g., called by code): its listener does the rest
+			checkbox.setSelected(!collapse);
+			return;
+		}
 		contents.setVisible(!collapse);
 		final Window parent = SwingUtilities.windowForComponent(this);
 		if (parent != null)
@@ -100,9 +104,19 @@ public class CollapsiblePanel extends JPanel {
 	 * @return true if the panel is collapsed, false if expanded
 	 */
 	public boolean isCollapsed() {
-		return contents.isVisible();
+		return !contents.isVisible();
 	}
 	
+	/**
+	 * Sets whether the header can take the keyboard focus. Windows that rely on key shortcuts of another component
+	 * (e.g., an image canvas) should make it non-focusable, so that toggling the panel does not take the focus away
+	 *
+	 * @param focusable true if the header can take the focus
+	 */
+	public void setHeaderFocusable(final boolean focusable) {
+		checkbox.setFocusable(focusable);
+	}
+
 	public void setTooltipText(final String text) {
 		checkbox.setToolTipText(text);
 	}
