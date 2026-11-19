@@ -405,14 +405,16 @@ public class BigDataUtils {
 
     /**
      * Describes a dataset without reading its pixels: channels, timepoints, chunking and the dimensions and
-     * voxel size of each resolution level. Supports N5/OME-Zarr containers (local or remote), and single-level
-     * images (reported as one level). BDV XML and IMS datasets are not supported.
+     * voxel size of each resolution level. Supports N5/OME-Zarr containers (local or remote), Imaris (.ims) and
+     * BDV XML datasets, and single-level images (reported as one level).
      *
      * @param path path or URL of the dataset
      * @return the dataset summary
      * @throws IllegalArgumentException if the dataset cannot be opened or its format is not supported
      */
     public static DatasetInfo describe(final String path) {
+        final String lowerPath = path.toLowerCase(Locale.ROOT);
+        if (lowerPath.endsWith(".ims") || lowerPath.endsWith(".xml")) return describeSpimData(path, lowerPath);
         final Object resolved = resolvePathToSource(path);
         if (resolved instanceof N5Sources(
                 List<SourceAndConverter<?>> sources, int numTimepoints, String name, int[] chunkShape, boolean remote
@@ -538,6 +540,40 @@ public class BigDataUtils {
             return head.contains("<SpimData");
         } catch (final java.io.IOException | RuntimeException ex) {
             return false;
+        }
+    }
+
+    // Same access as openChannel(): .ims files are opened in memory (no XML sidecar is written next to them)
+    private static DatasetInfo describeSpimData(final String path, final String lowerPath) {
+        try {
+            final AbstractSpimData<?> sd = lockImarisReads(
+                    lowerPath.endsWith(".ims") ? Imaris.openIms(path) : loadXml(path));
+            final var seq = sd.getSequenceDescription();
+            final var setups = seq.getViewSetupsOrdered();
+            if (setups.isEmpty()) throw new IllegalArgumentException("No channels found in: " + path);
+            final var timepoints = seq.getTimePoints().getTimePointsOrdered();
+            if (!(seq.getImgLoader() instanceof bdv.ViewerImgLoader loader))
+                throw new IllegalArgumentException("Unsupported image loader: " + seq.getImgLoader().getClass());
+            final var setup = setups.getFirst();
+            final var setupLoader = loader.getSetupImgLoader(setup.getId());
+            final double[] voxel = {1, 1, 1};
+            String unit = null;
+            if (setup.hasVoxelSize()) {
+                for (int d = 0; d < 3; d++) voxel[d] = setup.getVoxelSize().dimension(d);
+                unit = setup.getVoxelSize().unit();
+            }
+            final double[][] factors = setupLoader.getMipmapResolutions();
+            final List<LevelInfo> levels = new ArrayList<>();
+            for (int l = 0; l < setupLoader.numMipmapLevels(); l++) {
+                final long[] dims = setupLoader.getImage(timepoints.getFirst().getId(), l).dimensionsAsLongArray();
+                final double[] spacing = new double[3];
+                for (int d = 0; d < 3; d++) spacing[d] = voxel[d] * factors[l][d];
+                levels.add(new LevelInfo(l, Arrays.copyOf(dims, 3), spacing, new double[]{0, 0, 0}));
+            }
+            return new DatasetInfo(new File(path).getName(), setups.size(), timepoints.size(), unit, false, null,
+                    levels);
+        } catch (final IOException | SpimDataException e) {
+            throw new IllegalArgumentException("Could not open " + path + ": " + rootMessage(e), e);
         }
     }
 
