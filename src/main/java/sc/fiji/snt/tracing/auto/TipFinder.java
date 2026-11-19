@@ -54,8 +54,8 @@ import net.imglib2.view.Views;
  * other than skipping voxels closer than the analysis radius to the faces of
  * the volume.
  * </p>
- * Local geometry: at each candidate voxel above {@link #setThreshold(double)},
- * the voxels above threshold within {@link #setRadius(double)} are summarized by
+ * Local geometry: at each candidate voxel above {@link #setMinScore(double)},
+ * the voxels above threshold within {@link #setAnalysisRadius(double)} are summarized by
  * their centroid and covariance. At a tip, the structure lies on one side
  * only, i.e., the centroid is displaced from the candidate (asymmetry), the
  * structure is elongated (linearity) and the displacement follows its main
@@ -87,14 +87,14 @@ public class TipFinder<T extends RealType<T>> {
     /** Counts of voxels reaching/failing each test, for debugging */
     private static final class Diagnostics {
         final LongAdder visited = new LongAdder(), aboveThreshold = new LongAdder(), failMass = new LongAdder(),
-                failVeto = new LongAdder(), failConnected = new LongAdder(), failExtent = new LongAdder(), failPurity = new LongAdder(),
+                failBackground = new LongAdder(), failConnected = new LongAdder(), failLength = new LongAdder(), failConnectedFraction = new LongAdder(),
                 failAsymmetry = new LongAdder(), failLinearity = new LongAdder(), failAlignment = new LongAdder(),
                 accepted = new LongAdder();
         // Sums over the voxels that reached each test
         final DoubleAdder sumAsymmetry = new DoubleAdder(), sumLinearity = new DoubleAdder(),
                 sumAlignment = new DoubleAdder(), sumMass = new DoubleAdder(), sumConnected = new DoubleAdder(),
-                sumExtent = new DoubleAdder(), sumPurity = new DoubleAdder(), sumVeto = new DoubleAdder();
-        final LongAdder nVeto = new LongAdder(), nConnected = new LongAdder(), nExtent = new LongAdder(), nPurity = new LongAdder(),
+                sumExtent = new DoubleAdder(), sumPurity = new DoubleAdder(), sumBackground = new DoubleAdder();
+        final LongAdder nBackground = new LongAdder(), nConnected = new LongAdder(), nExtent = new LongAdder(), nPurity = new LongAdder(),
                 nAsymmetry = new LongAdder(), nLinearity = new LongAdder(), nAlignment = new LongAdder();
     }
 
@@ -104,7 +104,7 @@ public class TipFinder<T extends RealType<T>> {
         final int nx, ny;
         final int[] stamp;
         final int[] queue;
-        RandomAccess<? extends RealType<?>> vetoAccess;
+        RandomAccess<? extends RealType<?>> backgroundAccess;
         int current;
 
         Scratch(final int[] rad) {
@@ -123,19 +123,19 @@ public class TipFinder<T extends RealType<T>> {
 
     private final RandomAccessibleInterval<T> ridge;
     private final double[] spacing;
-    private double threshold = Double.NaN;
+    private double minScore = Double.NaN;
     private double radius;
     private double minAsymmetry = 0.5;
     private double minLinearity = 0.6;
     private double minAlignment = 0.7;
     private int minMass = 10;
-    private RandomAccessibleInterval<? extends RealType<?>> vetoImg;
-    private RandomAccessible<? extends RealType<?>> vetoExt;
-    private double vetoThreshold = Double.NaN;
-    private double vetoRadius = 0;
-    private List<int[]> vetoOffsets;
-    private double minExtent = 0.6;
-    private double minPurity = 0.3;
+    private RandomAccessibleInterval<? extends RealType<?>> backgroundImg;
+    private RandomAccessible<? extends RealType<?>> backgroundExt;
+    private double maxBackground = Double.NaN;
+    private double backgroundRadius = 0;
+    private List<int[]> backgroundOffsets;
+    private double minLength = 0.6;
+    private double minConnectedFraction = 0.3;
     private int stride = 0; // 0: derived from radius
     private int blockSize = 64;
     private java.util.function.Predicate<long[]> blockFilter;
@@ -168,11 +168,11 @@ public class TipFinder<T extends RealType<T>> {
      * If never set (or NaN), {@link #find()} uses
      * {@link #estimateThreshold(AutoThresholder.Method, int)}
      *
-     * @param threshold the threshold
+     * @param minScore the min. Tubeness score
      * @return this instance
      */
-    public TipFinder<T> setThreshold(final double threshold) {
-        this.threshold = threshold;
+    public TipFinder<T> setMinScore(final double minScore) {
+        this.minScore = minScore;
         return this;
     }
 
@@ -184,7 +184,7 @@ public class TipFinder<T extends RealType<T>> {
      * @param radius the radius in calibrated units
      * @return this instance
      */
-    public TipFinder<T> setRadius(final double radius) {
+    public TipFinder<T> setAnalysisRadius(final double radius) {
         if (!(radius > 0)) throw new IllegalArgumentException("Radius must be positive");
         this.radius = radius;
         return this;
@@ -240,68 +240,68 @@ public class TipFinder<T extends RealType<T>> {
 
     /**
      * Sets an image used to reject candidates: a candidate is discarded if the mean of this image in a small
-     * sphere around it exceeds the veto threshold (see {@link #setVetoThreshold(double)}). Typically a
+     * sphere around it exceeds the background threshold (see {@link #setMaxBackground(double)}). Typically a
      * background channel (e.g., autofluorescence). For single channel images, use a heavily smoothed version of
      * the image: thin structures are diluted, whereas large bright structures (e.g., haze or tissue) are not
      *
-     * @param veto   the veto image. Must have the same interval as the score map. Null disables the veto
-     * @param radius the radius (calibrated units) of the sphere in which the veto image is averaged
-     * @param <V>    the veto image type
+     * @param background   the background image. Must have the same interval as the score map. Null disables the background
+     * @param radius the radius (calibrated units) of the sphere in which the background image is averaged
+     * @param <V>    the background image type
      * @return this instance
      */
-    public <V extends RealType<V>> TipFinder<T> setVeto(final RandomAccessibleInterval<V> veto, final double radius) {
-        if (veto == null) {
-            vetoImg = null;
-            vetoExt = null;
+    public <V extends RealType<V>> TipFinder<T> setBackground(final RandomAccessibleInterval<V> background, final double radius) {
+        if (background == null) {
+            backgroundImg = null;
+            backgroundExt = null;
             return this;
         }
-        if (!net.imglib2.util.Intervals.equals(veto, ridge))
-            throw new IllegalArgumentException("The veto image must have the same interval as the score map");
-        vetoImg = veto;
-        vetoExt = Views.extendZero(veto);
-        vetoRadius = Math.max(0, radius);
+        if (!net.imglib2.util.Intervals.equals(background, ridge))
+            throw new IllegalArgumentException("The background image must have the same interval as the score map");
+        backgroundImg = background;
+        backgroundExt = Views.extendZero(background);
+        backgroundRadius = Math.max(0, radius);
         return this;
     }
 
     /**
-     * Sets the veto threshold: candidates are discarded when the mean of the veto image around them is larger. If
-     * NaN (default), the 95th percentile of the veto image is used
+     * Sets the background threshold: candidates are discarded when the mean of the background image around them is larger. If
+     * NaN (default), the 95th percentile of the background image is used
      *
-     * @param threshold the threshold, in the intensity units of the veto image
+     * @param threshold the threshold, in the intensity units of the background image
      * @return this instance
-     * @see #setVeto(RandomAccessibleInterval, double)
-     * @see #vetoPercentile(double, int)
+     * @see #setBackground(RandomAccessibleInterval, double)
+     * @see #backgroundPercentile(double, int)
      */
-    public TipFinder<T> setVetoThreshold(final double threshold) {
-        this.vetoThreshold = threshold;
+    public TipFinder<T> setMaxBackground(final double threshold) {
+        this.maxBackground = threshold;
         return this;
     }
 
     /**
-     * Gets a percentile of the veto image from a strided sample (all values, including zeros)
+     * Gets a percentile of the background image from a strided sample (all values, including zeros)
      *
      * @param percentile   the percentile, in the range (0, 100)
      * @param sampleStride the sampling step (voxels) along each axis
      * @return the value at that percentile
-     * @throws IllegalStateException if no veto image has been set
+     * @throws IllegalStateException if no background image has been set
      */
-    public double vetoPercentile(final double percentile, final int sampleStride) {
-        if (vetoImg == null) throw new IllegalStateException("No veto image set");
+    public double backgroundPercentile(final double percentile, final int sampleStride) {
+        if (backgroundImg == null) throw new IllegalStateException("No background image set");
         if (!(percentile > 0 && percentile < 100))
             throw new IllegalArgumentException("Percentile must be in the range (0, 100): " + percentile);
-        final float[] v = sample(vetoImg, sampleStride, false).values();
+        final float[] v = sample(backgroundImg, sampleStride, false).values();
         return v[(int) Math.round(percentile / 100d * (v.length - 1))];
     }
 
     /**
-     * Summarizes the veto image from a strided sample: mean, median and some percentiles
+     * Summarizes the background image from a strided sample: mean, median and some percentiles
      *
      * @param sampleStride the sampling step (voxels) along each axis
      * @return the summary
      */
-    public String describeVeto(final int sampleStride) {
-        if (vetoImg == null) return "no veto image";
-        final float[] v = sample(vetoImg, sampleStride, false).values();
+    public String describeBackground(final int sampleStride) {
+        if (backgroundImg == null) return "no background image";
+        final float[] v = sample(backgroundImg, sampleStride, false).values();
         double sum = 0;
         for (final float f : v) sum += f;
         final int n = v.length;
@@ -379,11 +379,11 @@ public class TipFinder<T extends RealType<T>> {
      * (default 0.6). Connected means 26-connected voxels above threshold within the neighborhood. Isolated
      * speckles, which are small, do not reach it. Use 0 to disable
      *
-     * @param minExtent the fraction of the radius that the connected structure must span, in [0, 1]
+     * @param minLength the fraction of the radius that the connected structure must span, in [0, 1]
      * @return this instance
      */
-    public TipFinder<T> setMinExtent(final double minExtent) {
-        this.minExtent = Math.max(0, Math.min(1, minExtent));
+    public TipFinder<T> setMinLength(final double minLength) {
+        this.minLength = Math.max(0, Math.min(1, minLength));
         return this;
     }
 
@@ -392,11 +392,11 @@ public class TipFinder<T extends RealType<T>> {
      * are connected to the candidate. Low values mean that the candidate sits in clutter (e.g., speckles, haze)
      * Use 0 to disable
      *
-     * @param minPurity the fraction, in [0, 1]
+     * @param minConnectedFraction the fraction, in [0, 1]
      * @return this instance
      */
-    public TipFinder<T> setMinPurity(final double minPurity) {
-        this.minPurity = Math.max(0, Math.min(1, minPurity));
+    public TipFinder<T> setMinConnectedFraction(final double minConnectedFraction) {
+        this.minConnectedFraction = Math.max(0, Math.min(1, minConnectedFraction));
         return this;
     }
 
@@ -564,10 +564,10 @@ public class TipFinder<T extends RealType<T>> {
      */
     public List<Tip> find() {
         cancelled = false;
-        if (Double.isNaN(threshold)) threshold = percentileThreshold(90, 8);
-        final double thr = threshold;
+        if (Double.isNaN(minScore)) minScore = percentileThreshold(90, 8);
+        final double thr = minScore;
         final Diagnostics diag = (debugLog == null) ? null : new Diagnostics();
-        if (vetoImg != null && Double.isNaN(vetoThreshold)) vetoThreshold = vetoPercentile(95, 8);
+        if (backgroundImg != null && Double.isNaN(maxBackground)) maxBackground = backgroundPercentile(95, 8);
         final double minSpacing = Math.min(spacing[0], Math.min(spacing[1], spacing[2]));
         final int step = (stride > 0) ? stride : Math.max(1, (int) Math.round(radius / minSpacing / 3));
 
@@ -602,19 +602,19 @@ public class TipFinder<T extends RealType<T>> {
             }
         }
 
-        vetoOffsets = null;
-        if (vetoImg != null) {
+        backgroundOffsets = null;
+        if (backgroundImg != null) {
             final int[] vr = new int[3];
-            for (int d = 0; d < 3; d++) vr[d] = (int) Math.floor(vetoRadius / spacing[d]);
-            vetoOffsets = new ArrayList<>();
+            for (int d = 0; d < 3; d++) vr[d] = (int) Math.floor(backgroundRadius / spacing[d]);
+            backgroundOffsets = new ArrayList<>();
             for (int dz = -vr[2]; dz <= vr[2]; dz++)
                 for (int dy = -vr[1]; dy <= vr[1]; dy++)
                     for (int dx = -vr[0]; dx <= vr[0]; dx++) {
                         final double px = dx * spacing[0], py = dy * spacing[1], pz = dz * spacing[2];
-                        if (px * px + py * py + pz * pz <= vetoRadius * vetoRadius)
-                            vetoOffsets.add(new int[]{dx, dy, dz});
+                        if (px * px + py * py + pz * pz <= backgroundRadius * backgroundRadius)
+                            backgroundOffsets.add(new int[]{dx, dy, dz});
                     }
-            debug("veto: radius " + vetoRadius + " (" + vetoOffsets.size() + " voxels), threshold " + vetoThreshold);
+            debug("background: radius " + backgroundRadius + " (" + backgroundOffsets.size() + " voxels), threshold " + maxBackground);
         }
 
         final List<long[]> blocks = new ArrayList<>();
@@ -632,7 +632,7 @@ public class TipFinder<T extends RealType<T>> {
         }
 
         debug("threshold " + thr + ", radius " + radius + ", cell size " + step + ", minMass " + minMass
-                + ", minExtent " + minExtent + ", minPurity " + minPurity
+                + ", minLength " + minLength + ", minConnectedFraction " + minConnectedFraction
                 + ", min asymmetry/linearity/alignment " + minAsymmetry + "/" + minLinearity + "/" + minAlignment
                 + ", neighborhood " + offsets.size() + " voxels, volume "
                 + java.util.Arrays.toString(ridge.dimensionsAsLongArray()) + ", scanned "
@@ -684,16 +684,16 @@ public class TipFinder<T extends RealType<T>> {
         final long above = d.aboveThreshold.sum();
         debug(String.format("visited %d cells, %d with voxels above threshold (%.2f%%)", d.visited.sum(), above,
                 100d * above / Math.max(1, d.visited.sum())));
-        if (vetoImg != null)
-            debug(String.format("veto: %d failed (> %.4g); mean %.4g", d.failVeto.sum(), vetoThreshold,
-                    d.sumVeto.sum() / Math.max(1, d.nVeto.sum())));
+        if (backgroundImg != null)
+            debug(String.format("background: %d failed (> %.4g); mean %.4g", d.failBackground.sum(), maxBackground,
+                    d.sumBackground.sum() / Math.max(1, d.nBackground.sum())));
         debug(String.format("mass: %d failed (< %d voxels in neighborhood); mean %.1f", d.failMass.sum(), minMass,
                 d.sumMass.sum() / Math.max(1, above)));
         debug(String.format("connected mass: %d failed (< %d voxels connected to the voxel); mean %.1f",
                 d.failConnected.sum(), minMass, d.sumConnected.sum() / Math.max(1, d.nConnected.sum())));
-        debug(String.format("extent: %d failed (< %.2f of radius); mean %.3f", d.failExtent.sum(), minExtent,
+        debug(String.format("min. length: %d failed (< %.2f of radius); mean %.3f", d.failLength.sum(), minLength,
                 d.sumExtent.sum() / Math.max(1, d.nExtent.sum())));
-        debug(String.format("purity: %d failed (< %.2f); mean %.3f", d.failPurity.sum(), minPurity,
+        debug(String.format("min. connected fraction: %d failed (< %.2f); mean %.3f", d.failConnectedFraction.sum(), minConnectedFraction,
                 d.sumPurity.sum() / Math.max(1, d.nPurity.sum())));
         debug(String.format("asymmetry: %d failed (< %.2f); mean %.3f", d.failAsymmetry.sum(), minAsymmetry,
                 d.sumAsymmetry.sum() / Math.max(1, d.nAsymmetry.sum())));
@@ -708,7 +708,7 @@ public class TipFinder<T extends RealType<T>> {
                                       final long[] vMax, final int step, final List<int[]> offsets,
                                       final double thr, final Diagnostics diag, final int[] rad) {
         final Scratch scratch = new Scratch(rad);
-        if (vetoExt != null) scratch.vetoAccess = vetoExt.randomAccess();
+        if (backgroundExt != null) scratch.backgroundAccess = backgroundExt.randomAccess();
         final List<Candidate> found = new ArrayList<>();
         final RandomAccess<T> ra = extended.randomAccess();
         final long[] lo = new long[3];
@@ -765,21 +765,21 @@ public class TipFinder<T extends RealType<T>> {
     private Candidate evaluate(final RandomAccess<T> ra, final long x, final long y, final long z,
                                final List<int[]> offsets, final double thr, final double[] eig, final double[] axis,
                                final Diagnostics diag, final Scratch sc) {
-        if (sc.vetoAccess != null) {
+        if (sc.backgroundAccess != null) {
             double sum = 0;
-            for (final int[] o : vetoOffsets) {
-                sc.vetoAccess.setPosition(x + o[0], 0);
-                sc.vetoAccess.setPosition(y + o[1], 1);
-                sc.vetoAccess.setPosition(z + o[2], 2);
-                sum += sc.vetoAccess.get().getRealDouble();
+            for (final int[] o : backgroundOffsets) {
+                sc.backgroundAccess.setPosition(x + o[0], 0);
+                sc.backgroundAccess.setPosition(y + o[1], 1);
+                sc.backgroundAccess.setPosition(z + o[2], 2);
+                sum += sc.backgroundAccess.get().getRealDouble();
             }
-            final double mean = sum / vetoOffsets.size();
+            final double mean = sum / backgroundOffsets.size();
             if (diag != null) {
-                diag.sumVeto.add(mean);
-                diag.nVeto.increment();
+                diag.sumBackground.add(mean);
+                diag.nBackground.increment();
             }
-            if (mean > vetoThreshold) {
-                if (diag != null) diag.failVeto.increment();
+            if (mean > maxBackground) {
+                if (diag != null) diag.failBackground.increment();
                 return null;
             }
         }
@@ -866,8 +866,8 @@ public class TipFinder<T extends RealType<T>> {
             diag.sumExtent.add(extent);
             diag.nExtent.increment();
         }
-        if (extent < minExtent) {
-            if (diag != null) diag.failExtent.increment();
+        if (extent < minLength) {
+            if (diag != null) diag.failLength.increment();
             return null;
         }
         final double purity = (double) n / total;
@@ -875,8 +875,8 @@ public class TipFinder<T extends RealType<T>> {
             diag.sumPurity.add(purity);
             diag.nPurity.increment();
         }
-        if (purity < minPurity) {
-            if (diag != null) diag.failPurity.increment();
+        if (purity < minConnectedFraction) {
+            if (diag != null) diag.failConnectedFraction.increment();
             return null;
         }
 

@@ -42,25 +42,25 @@ def level = #{LEVEL}              // resolution level (0: full resolution). See 
 def timepoint = 0                 // 0-based
 def regionWorld = null            // [xMin, yMin, zMin, xMax, yMax, zMax] in world (calibrated) units. null: whole volume
 def skipEmpty = #{SKIP_EMPTY}     // skip blocks without signal, as assessed at a coarser level
-def madFactor = #{MAD_FACTOR}     // signal: median + madFactor * MAD of the coarse level. Lower to skip fewer blocks
+def deviationFactor = #{DEVIATION_FACTOR}     // skip blocks darker than background + k x absolute deviation (coarse level). Lower k to skip fewer blocks
 
 // Learned by the wizard (calibrated units)
-def scales = [#{SCALES}]          // Tubeness scales
-def tipRadius = #{TIP_RADIUS}     // analysis radius
-def threshold = #{THRESHOLD}      // Tubeness score for foreground (scales with image intensity)
-def minExtent = #{MIN_EXTENT}     // min reach of the connected structure, as a fraction of tipRadius
-def minPurity = #{MIN_PURITY}     // min fraction of voxels in the radius that are connected to the tip
-def vetoThreshold = #{VETO_THRESHOLD} // candidates with a larger mean background are rejected. NaN: no veto
-def vetoRadius = #{VETO_RADIUS}   // radius in which the background is averaged around a candidate
+def neuriteRadii = [#{NEURITE_RADII}]          // neurite radii: scales (sigma) of the Tubeness filter
+def analysisRadius = #{ANALYSIS_RADIUS}     // analysis radius: of the sphere analyzed around each candidate. Also the min. distance between tips
+def minScore = #{MIN_SCORE}      // min. Tubeness score for foreground (scales with image intensity)
+def minLength = #{MIN_LENGTH}     // min. length: reach of the connected structure, as a fraction of analysisRadius
+def minConnectedFraction = #{MIN_CONNECTED_FRACTION}     // min. connected fraction: of the structure voxels in the radius that are connected to the tip
+def maxBackground = #{MAX_BACKGROUND} // max. background: candidates over a larger mean background are rejected. NaN: off
+def backgroundRadius = #{BACKGROUND_RADIUS}   // radius in which the background is averaged around a candidate
 
-// Reference from the wizard: voxel size of level 0 and scores along the examples (and elsewhere)
+// Reference from the wizard: voxel size of level 0 and scores along the training paths (and elsewhere)
 def refSpacing = [#{REF_SPACING}]
 def refScores = [nodeP10: #{REF_NODE_P10}, nodeMedian: #{REF_NODE_MEDIAN},
                  backgroundP50: #{REF_BG_P50}, backgroundP99: #{REF_BG_P99}]
 
 // -------- Detection --------
-def config = TipDetectionConfig.of(scales as double[], tipRadius, threshold, minExtent, minPurity, vetoThreshold,
-        vetoRadius)
+def config = TipDetectionConfig.of(neuriteRadii as double[], analysisRadius, minScore, minLength,
+        minConnectedFraction, maxBackground, backgroundRadius)
 config.setBackground((bgChannel >= 0) ? bgChannel + 1 : 0, bgWeight) // 1-based. 0: none
 def maxCoarseVoxels = 32_000_000L
 
@@ -92,7 +92,7 @@ inputPaths.each { inputPath ->
             def cs = BigDataUtils.openChannel(inputPath, sigChannel, timepoint, cl.level())
             def cb = (bgChannel >= 0) ? BigDataUtils.openChannel(inputPath, bgChannel, timepoint, cl.level()) : null
             coarse = new TipDetector.Coarse(Views.zeroMin(cs.img()), (cb != null) ? Views.zeroMin(cb.img()) : null,
-                    cs.spacing() as double[], cs.origin() as double[], offset as double[], madFactor)
+                    cs.spacing() as double[], cs.origin() as double[], offset as double[], deviationFactor)
             println "Empty blocks assessed at level ${cl.level()} (${cl.dims().toList()} voxels)"
         }
     }

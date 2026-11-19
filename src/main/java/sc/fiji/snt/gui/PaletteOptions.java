@@ -102,19 +102,12 @@ public final class PaletteOptions {
      * Same as {@link #buildMoreButton(Component, String, Consumer)} but Swing-based (a {@link JPopupMenu} with
      * headings and icons, consistent with the rest of SNT's menus), for palettes whose controls are Swing
      *
-     * @param helpHtml HTML message displayed by the "Help" entry; pass {@code null} to omit the entry
      * @param extras   callback that appends palette-specific items (and headings) between the display items and the
      *                 image ones. Null for none
      * @return the Swing button that pops the menu on click
      */
-    public JButton buildMoreSwingButton(final Component parent, final String helpHtml,
-                                        final Consumer<JPopupMenu> extras) {
+    public JButton buildMoreSwingButton(final Consumer<JPopupMenu> extras) {
         final JPopupMenu pm = new JPopupMenu();
-        if (helpHtml != null) {
-            final JMenuItem help = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
-            help.addActionListener(e -> showHelp(helpHtml, parent));
-            pm.add(help);
-        }
         GuiUtils.MenuItems.addSeparator(pm, "Display:");
         final JMenu lutMenu = new JMenu("Lookup Table");
         lutMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));

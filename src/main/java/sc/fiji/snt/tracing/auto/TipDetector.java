@@ -62,11 +62,11 @@ public class TipDetector {
      * @param spacing    voxel size of the coarse images
      * @param origin     world position of the first voxel of the coarse images
      * @param fineOrigin world position of the first voxel of the signal image of the detector
-     * @param madFactor  the number of median absolute deviations above the median defining signal
+     * @param deviationFactor  the number of median absolute deviations above the median defining signal
      */
     public record Coarse(RandomAccessibleInterval<? extends RealType<?>> signal,
                          RandomAccessibleInterval<? extends RealType<?>> background, double[] spacing,
-                         double[] origin, double[] fineOrigin, double madFactor) {
+                         double[] origin, double[] fineOrigin, double deviationFactor) {
     }
 
     /**
@@ -156,17 +156,17 @@ public class TipDetector {
         RandomAccessibleInterval src = signal;
         RandomAccessibleInterval veto = null;
         if (background != null) {
-            if (!Double.isNaN(config.getVetoThreshold())) veto = background; // The veto uses the raw background
+            if (!Double.isNaN(config.getMaxBackground())) veto = background; // The veto uses the raw background
             src = Converters.convert(src, (RandomAccessibleInterval) background, unmix, new FloatType());
         }
         final RandomAccessibleInterval<FloatType> ridge;
         if (src.dimension(2) == 1) { // 2D data, held as a one-slice volume
             final RandomAccessibleInterval slice = Views.zeroMin(Views.hyperSlice(src, 2, src.min(2)));
             ridge = Views.addDimension(Lazy.process(slice, slice, new int[]{CELL_2D, CELL_2D}, new FloatType(),
-                    new Tubeness(config.getScales(), new double[]{spacing[0], spacing[1]})), 0, 0);
+                    new Tubeness(config.getNeuriteRadii(), new double[]{spacing[0], spacing[1]})), 0, 0);
         } else {
             ridge = Lazy.process(src, src, new int[]{CELL_3D, CELL_3D, CELL_3D}, new FloatType(),
-                    new Tubeness(config.getScales(), spacing));
+                    new Tubeness(config.getNeuriteRadii(), spacing));
         }
         final TipFinder<FloatType> f = config.configure(new TipFinder<>(ridge, spacing),
                 (RandomAccessibleInterval<? extends RealType<?>>) veto);
@@ -177,7 +177,7 @@ public class TipDetector {
             if (coarse.background() != null)
                 c = Converters.convert(c, (RandomAccessibleInterval) coarse.background(), unmix, new FloatType());
             final OccupancyMask mask = OccupancyMask.build(c, coarse.spacing(), coarse.origin(), spacing,
-                    coarse.fineOrigin(), coarse.madFactor());
+                    coarse.fineOrigin(), coarse.deviationFactor());
             log(String.format("Empty blocks: threshold %.4g, %.2f%% of the coarse voxels active",
                     mask.getThreshold(), 100 * mask.getActiveFraction()));
             f.setBlockFilter(box -> mask.isActive(new long[]{box[0], box[1], box[2]},

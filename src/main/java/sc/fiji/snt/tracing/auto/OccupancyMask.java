@@ -73,14 +73,14 @@ public final class OccupancyMask {
      * @param coarseOrigin  the position of its first voxel in the same (world) coordinates as {@code fineOrigin}
      * @param fineSpacing   the voxel size of the full resolution volume
      * @param fineOrigin    the position of the first voxel of the full resolution volume (world coordinates)
-     * @param madFactor     the number of robust standard deviations above the median that make a voxel active
+     * @param deviationFactor     the number of robust standard deviations (scaled median absolute deviations) above the median that make a voxel active
      * @return the mask
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static OccupancyMask build(final RandomAccessibleInterval<? extends RealType<?>> coarse,
                                       final double[] coarseSpacing, final double[] coarseOrigin,
                                       final double[] fineSpacing, final double[] fineOrigin,
-                                      final double madFactor) {
+                                      final double deviationFactor) {
         if (coarse.numDimensions() != 3) throw new IllegalArgumentException("A 3D image is required");
         final long[] dims = coarse.dimensionsAsLongArray();
         final long total = dims[0] * dims[1] * dims[2];
@@ -100,7 +100,7 @@ public final class OccupancyMask {
         for (int i = 0; i < sample.length; i++) deviations[i] = (float) Math.abs(sample[i] - median);
         Arrays.sort(deviations);
         final double sigma = 1.4826 * deviations[deviations.length / 2];
-        final double threshold = median + madFactor * Math.max(sigma, 1e-9);
+        final double threshold = median + deviationFactor * Math.max(sigma, 1e-9);
 
         final BitSet bits = new BitSet((int) total);
         for (int i = 0; i < total; i++) {

@@ -34,12 +34,12 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 
 /**
- * Parameters of {@link TipFinder} learned from example paths: the radii of the examples give the scales of the
- * score map and the analysis radius, and the scores (and, optionally, the veto image) sampled along them give the
- * thresholds. The path ends of the examples are taken as known tips, which allows the learned parameters to be
+ * Parameters of {@link TipFinder} learned from training paths: the radii of the training paths give the scales of the
+ * score map and the analysis radius, and the scores (and, optionally, the background image) sampled along them give the
+ * thresholds. The path ends of the training paths are taken as known tips, which allows the learned parameters to be
  * checked (see {@link #evaluate}).
  * <p>
- * This class has no dependency on SNT paths: examples are described by a {@link Example}.
+ * This class has no dependency on SNT paths: examples are described by a {@link TrainingPaths}.
  * </p>
  *
  * @author Tiago Ferreira
@@ -47,13 +47,13 @@ import net.imglib2.type.numeric.RealType;
 public class TipDetectionConfig {
 
     /**
-     * Example structures, in the voxel grid of the image that is analyzed
+     * Training paths, in the voxel grid of the image that is analyzed
      *
-     * @param radii the radii (calibrated units) sampled along the example paths
-     * @param nodes the voxel position {x, y, z} of every node of the example paths
-     * @param tips  the voxel position {x, y, z} of the tips (the path ends) of the examples
+     * @param radii the radii (calibrated units) sampled along the training paths
+     * @param nodes the voxel position {x, y, z} of every node of the training paths
+     * @param tips  the voxel position {x, y, z} of the tips (the path ends) of the training paths
      */
-    public record Example(double[] radii, long[][] nodes, long[][] tips) {
+    public record TrainingPaths(double[] radii, long[][] nodes, long[][] tips) {
     }
 
     /** Computes the score map of the analyzed region for a set of scales (calibrated units) */
@@ -63,13 +63,13 @@ public class TipDetectionConfig {
     }
 
     /**
-     * Response of a single scale: how the score map separates the examples from their surroundings
+     * Response of a single scale: how the score map separates the training paths from their surroundings
      *
      * @param scale          the scale (calibrated units)
      * @param nodeMedian     median score at the nodes
      * @param nodeP10        10th percentile of the scores at the nodes
-     * @param backgroundP50  median score away from the examples
-     * @param backgroundP99  99th percentile of the scores away from the examples
+     * @param backgroundP50  median score away from the training paths
+     * @param backgroundP99  99th percentile of the scores away from the training paths
      */
     public record ScaleResponse(double scale, double nodeMedian, double nodeP10, double backgroundP50,
                                 double backgroundP99) {
@@ -88,11 +88,11 @@ public class TipDetectionConfig {
      * @param matched   number of those that have a detected tip nearby
      * @param skipped   number of example tips that are too close to the border of the region
      * @param tolerance the distance (calibrated units) within which a detection matches an example tip
-     * @param status    the outcome for each example tip (same order as {@link Example#tips()})
+     * @param status    the outcome for each example tip (same order as {@link TrainingPaths#tips()})
      */
     public record Evaluation(List<TipFinder.Tip> tips, int pathEnds, int matched, int skipped, double tolerance,
                              TipStatus[] status) {
-        /** Detections that are not close to an example tip (not necessarily false: the examples are partial) */
+        /** Detections that are not close to an example tip (not necessarily false: the training paths are partial) */
         public int extra() {
             return tips.size() - matched;
         }
@@ -104,12 +104,12 @@ public class TipDetectionConfig {
     }
 
     private double[] scales = {};
-    private double tipRadius = Double.NaN;
-    private double threshold = Double.NaN;
-    private double vetoThreshold = Double.NaN;
-    private double vetoRadius = Double.NaN;
-    private double minExtent = 0.6;
-    private double minPurity = 0.3;
+    private double analysisRadius = Double.NaN;
+    private double minScore = Double.NaN;
+    private double maxBackground = Double.NaN;
+    private double backgroundRadius = Double.NaN;
+    private double minLength = 0.6;
+    private double minConnectedFraction = 0.3;
     private double minRadius = Double.NaN;
     private double medianRadius = Double.NaN;
     private double maxRadius = Double.NaN;
@@ -127,43 +127,43 @@ public class TipDetectionConfig {
     /**
      * Creates a configuration from known parameters (e.g., exported by the Tip Detection Wizard)
      *
-     * @param scales        the Tubeness scales (calibrated units)
-     * @param tipRadius     the analysis radius (calibrated units)
-     * @param threshold     the score above which voxels are considered foreground
-     * @param minExtent     min. reach of the connected structure, as a fraction of the radius
-     * @param minPurity     min. fraction of the voxels in the radius connected to the tip
-     * @param vetoThreshold the veto threshold. NaN for none
-     * @param vetoRadius    the radius (calibrated units) in which the veto image is averaged around a candidate
+     * @param neuriteRadii  the neurite radii (Tubeness scales, calibrated units)
+     * @param analysisRadius     the analysis radius (calibrated units)
+     * @param minScore      the Tubeness score above which voxels are considered foreground
+     * @param minLength     min. length: reach of the connected structure, as a fraction of the radius
+     * @param minConnectedFraction     min. connected fraction: fraction of the voxels in the radius connected to the tip
+     * @param maxBackground the max. background (mean in backgroundRadius around a candidate). NaN for none
+     * @param backgroundRadius the radius (calibrated units) in which the background is averaged around a candidate
      * @return the configuration (no background subtraction: see {@link #setBackground(int, double)})
      */
-    public static TipDetectionConfig of(final double[] scales, final double tipRadius, final double threshold,
-                                        final double minExtent, final double minPurity, final double vetoThreshold,
-                                        final double vetoRadius) {
+    public static TipDetectionConfig of(final double[] neuriteRadii, final double analysisRadius, final double minScore,
+                                        final double minLength, final double minConnectedFraction, final double maxBackground,
+                                        final double backgroundRadius) {
         final TipDetectionConfig c = new TipDetectionConfig();
-        c.scales = scales.clone();
-        c.tipRadius = tipRadius;
-        c.threshold = threshold;
-        c.minExtent = minExtent;
-        c.minPurity = minPurity;
-        c.vetoThreshold = vetoThreshold;
-        c.vetoRadius = vetoRadius;
+        c.scales = neuriteRadii.clone();
+        c.analysisRadius = analysisRadius;
+        c.minScore = minScore;
+        c.minLength = minLength;
+        c.minConnectedFraction = minConnectedFraction;
+        c.maxBackground = maxBackground;
+        c.backgroundRadius = backgroundRadius;
         return c;
     }
 
     /**
      * Learns parameters from examples
      *
-     * @param example      the examples
+     * @param example      the training paths
      * @param spacing      voxel size (x, y, z) in calibrated units
      * @param scales       the scales to use (e.g., see {@code AutoTraceConfig#deriveScales}). If null or empty,
      *                     the median radius is used
      * @param scoreMaps    computes the score map of the region for a set of scales
-     * @param veto         the veto image (e.g., a background channel), on the same grid as the score maps. May be null
+     * @param backgroundImg         the background image (e.g., a background channel), on the same grid as the score maps. May be null
      * @return the learned configuration. Values that could not be derived are NaN
      */
-    public static TipDetectionConfig learn(final Example example, final double[] spacing, final double[] scales,
+    public static TipDetectionConfig learn(final TrainingPaths example, final double[] spacing, final double[] scales,
                                            final ScoreMapFactory scoreMaps,
-                                           final RandomAccessibleInterval<? extends RealType<?>> veto) {
+                                           final RandomAccessibleInterval<? extends RealType<?>> backgroundImg) {
         if (example == null || example.nodes() == null || example.nodes().length == 0)
             throw new IllegalArgumentException("At least one example node is required");
         final TipDetectionConfig c = new TipDetectionConfig();
@@ -178,24 +178,25 @@ public class TipDetectionConfig {
             c.maxRadius = radii[radii.length - 1];
             c.medianRadius = radii[radii.length / 2];
         } else {
-            c.warnings.add("The examples have no radii: the scales and the analysis radius are guesses");
+            c.warnings.add("The training paths have no radii, so the Neurite radii and Analysis radius are guesses. "
+                    + "Check them.");
         }
         final double robustRadius = (radii.length > 0) ? percentile(radii, 95) : 2 * minSpacing;
         c.scales = (scales != null && scales.length > 0) ? scales.clone()
                 : new double[]{(radii.length > 0) ? c.medianRadius : minSpacing};
         // About 3x the diameter of the thickest structures, and enough voxels to have a meaningful neighborhood
-        c.tipRadius = Math.max(6 * robustRadius, 5 * minSpacing);
-        c.vetoRadius = Math.max(2 * robustRadius, minSpacing);
+        c.analysisRadius = Math.max(6 * robustRadius, 5 * minSpacing);
+        c.backgroundRadius = Math.max(2 * robustRadius, minSpacing);
         for (final double s : c.scales) {
             if (s < 0.7 * minSpacing)
-                c.warnings.add(String.format("Scale %.3g is smaller than the voxel size (%.3g): the score map "
-                        + "will be unreliable. Consider a coarser resolution level", s, minSpacing));
+                c.warnings.add(String.format("Neurite radius %.3g is smaller than the voxel size (%.3g): the Tubeness "
+                        + "score will be unreliable. Increase the radius.", s, minSpacing));
         }
         if (example.nodes().length < 30)
-            c.warnings.add("Few example nodes (" + example.nodes().length + "): learned values may be poorly "
-                    + "supported");
+            c.warnings.add("Only " + example.nodes().length + " nodes in the training paths: the learned values may "
+                    + "be unreliable. Trace more paths.");
 
-        // Scores along the examples versus the rest of the region
+        // Scores along the training paths versus the rest of the region
         final BitSet nearExamples = markNeighborhood(example.nodes(), dims(scoreMaps.create(c.scales)), spacing,
                 Math.max(2 * robustRadius, 2 * minSpacing));
         for (final double s : c.scales) {
@@ -208,25 +209,26 @@ public class TipDetectionConfig {
             c.nodeScoreP10 = percentile(nodeScores, 10);
             c.nodeScoreMedian = percentile(nodeScores, 50);
             // Below the score of the thinnest structures, so that they stay continuous
-            c.threshold = c.nodeScoreP10;
+            c.minScore = c.nodeScoreP10;
         }
         if (background.length > 0) {
             c.backgroundP50 = percentile(background, 50);
             c.backgroundP99 = percentile(background, 99);
         }
-        if (!Double.isNaN(c.threshold) && !Double.isNaN(c.backgroundP99) && c.threshold <= c.backgroundP99)
-            c.warnings.add("The scores along the examples are not clearly above the background (10th percentile "
-                    + "of the examples <= 99th percentile of the background): expect false detections. A veto "
-                    + "image (e.g., a background channel) may help");
-        if (!(c.threshold > 0)) {
-            c.warnings.add("The scores along the examples are not positive: the threshold could not be derived");
-            c.threshold = Double.NaN;
+        if (!Double.isNaN(c.minScore) && !Double.isNaN(c.backgroundP99) && c.minScore <= c.backgroundP99)
+            c.warnings.add("The training paths barely stand out from their surroundings in Tubeness score: expect "
+                    + "false detections. Raise Min. Tubeness score, or set a background channel.");
+        if (!(c.minScore > 0)) {
+            c.warnings.add("Tubeness scores along the training paths are not positive, so Min. Tubeness score could "
+                    + "not be learned. Check that the paths follow bright structures and that the Neurite radii "
+                    + "fit them.");
+            c.minScore = Double.NaN;
         }
 
-        // Veto: above what is seen along the examples
-        if (veto != null) {
-            final double[] vetoValues = sample(veto, example.nodes());
-            if (vetoValues.length > 0) c.vetoThreshold = percentile(vetoValues, 99);
+        // Max. background: above what is seen along the training paths
+        if (backgroundImg != null) {
+            final double[] backgroundValues = sample(backgroundImg, example.nodes());
+            if (backgroundValues.length > 0) c.maxBackground = percentile(backgroundValues, 99);
         }
         return c;
     }
@@ -235,21 +237,21 @@ public class TipDetectionConfig {
      * Runs {@link TipFinder} with the learned parameters on the region, and compares its detections to the example
      * tips
      *
-     * @param ridge     the score map (as computed for {@link #getScales()})
-     * @param examples  the examples this configuration was learned from
-     * @param veto      the veto image, or null
+     * @param ridge     the score map (as computed for {@link #getNeuriteRadii()})
+     * @param examples  the training paths this configuration was learned from
+     * @param backgroundImg      the background image, or null
      * @return the evaluation, or null if the parameters are incomplete
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public Evaluation evaluate(final RandomAccessibleInterval<? extends RealType<?>> ridge, final Example examples,
-                               final RandomAccessibleInterval<? extends RealType<?>> veto) {
-        if (Double.isNaN(threshold) || Double.isNaN(tipRadius)) return null;
-        final TipFinder finder = configure(new TipFinder(ridge, spacing), veto);
+    public Evaluation evaluate(final RandomAccessibleInterval<? extends RealType<?>> ridge, final TrainingPaths examples,
+                               final RandomAccessibleInterval<? extends RealType<?>> backgroundImg) {
+        if (Double.isNaN(minScore) || Double.isNaN(analysisRadius)) return null;
+        final TipFinder finder = configure(new TipFinder(ridge, spacing), backgroundImg);
         final List<TipFinder.Tip> tips = finder.find();
-        final double tolerance = tipRadius;
+        final double tolerance = analysisRadius;
         int pathEnds = 0, matched = 0, skipped = 0;
         final long[] margin = new long[3];
-        for (int d = 0; d < 3; d++) margin[d] = (ridge.dimension(d) == 1) ? 0 : (long) Math.ceil(tipRadius / spacing[d]) + 1;
+        for (int d = 0; d < 3; d++) margin[d] = (ridge.dimension(d) == 1) ? 0 : (long) Math.ceil(analysisRadius / spacing[d]) + 1;
         final TipStatus[] status = new TipStatus[(examples.tips() == null) ? 0 : examples.tips().length];
         if (examples.tips() != null) {
             for (int i = 0; i < status.length; i++) {
@@ -286,22 +288,22 @@ public class TipDetectionConfig {
      * Applies the learned parameters to a finder. Values that could not be derived are not changed
      *
      * @param finder the finder to configure
-     * @param veto   the veto image, or null
+     * @param backgroundImg   the background image, or null
      * @param <T>    the score map type
      * @return the finder
      */
     public <T extends RealType<T>> TipFinder<T> configure(final TipFinder<T> finder,
-                                                          final RandomAccessibleInterval<? extends RealType<?>> veto) {
-        if (!Double.isNaN(tipRadius)) finder.setRadius(tipRadius);
-        if (!Double.isNaN(threshold)) finder.setThreshold(threshold);
-        finder.setMinExtent(minExtent).setMinPurity(minPurity);
-        if (veto != null && !Double.isNaN(vetoThreshold)) setVeto(finder, veto);
+                                                          final RandomAccessibleInterval<? extends RealType<?>> backgroundImg) {
+        if (!Double.isNaN(analysisRadius)) finder.setAnalysisRadius(analysisRadius);
+        if (!Double.isNaN(minScore)) finder.setMinScore(minScore);
+        finder.setMinLength(minLength).setMinConnectedFraction(minConnectedFraction);
+        if (backgroundImg != null && !Double.isNaN(maxBackground)) configureBackground(finder, backgroundImg);
         return finder;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private void setVeto(final TipFinder finder, final RandomAccessibleInterval veto) {
-        finder.setVeto(veto, vetoRadius).setVetoThreshold(vetoThreshold);
+    private void configureBackground(final TipFinder finder, final RandomAccessibleInterval backgroundImg) {
+        finder.setBackground(backgroundImg, backgroundRadius).setMaxBackground(maxBackground);
     }
 
     // -- Getters and setters --
@@ -324,13 +326,13 @@ public class TipDetectionConfig {
         this.backgroundWeight = weight;
     }
 
-    public double[] getScales() { return scales.clone(); }
-    public double getTipRadius() { return tipRadius; }
-    public double getThreshold() { return threshold; }
-    public double getVetoThreshold() { return vetoThreshold; }
-    public double getVetoRadius() { return vetoRadius; }
-    public double getMinExtent() { return minExtent; }
-    public double getMinPurity() { return minPurity; }
+    public double[] getNeuriteRadii() { return scales.clone(); }
+    public double getAnalysisRadius() { return analysisRadius; }
+    public double getMinScore() { return minScore; }
+    public double getMaxBackground() { return maxBackground; }
+    public double getBackgroundRadius() { return backgroundRadius; }
+    public double getMinLength() { return minLength; }
+    public double getMinConnectedFraction() { return minConnectedFraction; }
     public double getMinRadius() { return minRadius; }
     public double getMedianRadius() { return medianRadius; }
     public double getMaxRadius() { return maxRadius; }
@@ -341,11 +343,11 @@ public class TipDetectionConfig {
     public List<ScaleResponse> getScaleResponses() { return Collections.unmodifiableList(responses); }
     public List<String> getWarnings() { return Collections.unmodifiableList(warnings); }
 
-    public void setTipRadius(final double tipRadius) { this.tipRadius = tipRadius; }
-    public void setThreshold(final double threshold) { this.threshold = threshold; }
-    public void setVetoThreshold(final double vetoThreshold) { this.vetoThreshold = vetoThreshold; }
-    public void setMinExtent(final double minExtent) { this.minExtent = minExtent; }
-    public void setMinPurity(final double minPurity) { this.minPurity = minPurity; }
+    public void setAnalysisRadius(final double analysisRadius) { this.analysisRadius = analysisRadius; }
+    public void setMinScore(final double minScore) { this.minScore = minScore; }
+    public void setMaxBackground(final double maxBackground) { this.maxBackground = maxBackground; }
+    public void setMinLength(final double minLength) { this.minLength = minLength; }
+    public void setMinConnectedFraction(final double minConnectedFraction) { this.minConnectedFraction = minConnectedFraction; }
 
     // -- Sampling helpers --
 

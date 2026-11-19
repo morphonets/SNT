@@ -76,7 +76,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
             }
         }
         if (examples.isEmpty()) {
-            error("The <i>Tip Detection Wizard</i> learns from example paths. Trace (or select in the Path "
+            error("The <i>Tip Detection Wizard</i> learns from training paths. Trace (or select in the Path "
                     + "Manager) a few representative axons, from a branch point or origin towards their tips, "
                     + "and re-launch the wizard.");
             return;
@@ -94,9 +94,9 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
     private void run(final TipDetectionConfig config, final boolean wholeVolume,
                      final TipPalette.ParseOptions options) {
         final String summary = String.format("Tip detection parameters: scales %s, tip radius %s, threshold %s, "
-                        + "min. extent %s, min. purity %s", java.util.Arrays.toString(config.getScales()),
-                SNTUtils.formatDouble(config.getTipRadius(), 2), SNTUtils.formatDouble(config.getThreshold(), 3),
-                SNTUtils.formatDouble(config.getMinExtent(), 2), SNTUtils.formatDouble(config.getMinPurity(), 2));
+                        + "min. extent %s, min. purity %s", java.util.Arrays.toString(config.getNeuriteRadii()),
+                SNTUtils.formatDouble(config.getAnalysisRadius(), 2), SNTUtils.formatDouble(config.getMinScore(), 3),
+                SNTUtils.formatDouble(config.getMinLength(), 2), SNTUtils.formatDouble(config.getMinConnectedFraction(), 2));
         SNTUtils.log(summary);
         final Thread t = new Thread(() -> detect(config, wholeVolume, options), "SNT Tip Detection");
         t.setDaemon(true);
@@ -195,7 +195,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                                         viewer.getSourceData(srcIdx, lvl)),
                                 (useBg) ? (RandomAccessibleInterval<? extends RealType<?>>) Views.zeroMin(
                                         viewer.getSourceData(bgIdx, lvl)) : null,
-                                cl.level().spacing(), cl.level().origin(), info.origin(), opts.madFactor());
+                                cl.level().spacing(), cl.level().origin(), info.origin(), opts.deviationFactor());
                     }
                 }
             } else {
@@ -254,7 +254,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                 return;
             }
             if (tips.isEmpty()) {
-                msg("No tips detected. Try lowering the threshold in the wizard.", "Tip Detection");
+                msg("No tips detected. Try lowering the Min. Tubeness score in the wizard.", "Tip Detection");
                 return;
             }
             // Confidence: score ranked within the batch, robust to outliers

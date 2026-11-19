@@ -1303,7 +1303,7 @@ public class SeedManager extends JPanel {
         jmi.addActionListener(e -> detectSomas());
         jmi = new JMenuItem("Detect Tips...", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
-                + "parameters from example paths");
+                + "parameters from training paths");
         menu.add(jmi);
         jmi.addActionListener(e -> detectTips());
 

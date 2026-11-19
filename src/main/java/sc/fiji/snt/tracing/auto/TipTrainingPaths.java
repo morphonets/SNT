@@ -34,30 +34,30 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.util.PointInImage;
 
 /**
- * Bridges SNT paths and {@link TipDetectionConfig}: converts example paths to {@link TipDetectionConfig.Example}
+ * Bridges SNT paths and {@link TipDetectionConfig}: converts training paths to {@link TipDetectionConfig.TrainingPaths}
  * (radii, node voxels and tip voxels in the grid of an image).
  *
  * @author Tiago Ferreira
  */
-public final class TipExamples {
+public final class TipTrainingPaths {
 
-    private TipExamples() {
+    private TipTrainingPaths() {
     }
 
     /**
-     * Converts example paths to examples. Paths without radii are fitted (non-destructively) to obtain them. The tips
+     * Converts training paths to examples. Paths without radii are fitted (non-destructively) to obtain them. The tips
      * are the ends of the paths, except for those that are branching points of other paths. The start of a path is
      * never a tip: it is either a branching point or the origin of the structure
      *
-     * @param paths       the example paths (traced towards the tips of the structures)
+     * @param paths       the training paths (traced towards the tips of the structures)
      * @param source      the image the paths refer to: needed to fit radii
      * @param spacing     voxel size (x, y, z) in calibrated units
      * @param voxelOffset the offset [x, y, z], in voxels, between the coordinate frame of the paths and the grid of the
      *                    image: {@code voxel = node / spacing + voxelOffset} (null: none)
-     * @return the examples, in the grid of the image
+     * @return the training paths, in the grid of the image
      * @throws IllegalArgumentException if paths is null or empty
      */
-    public static TipDetectionConfig.Example fromPaths(final List<Path> paths,
+    public static TipDetectionConfig.TrainingPaths fromPaths(final List<Path> paths,
                                                        final RandomAccessibleInterval<? extends RealType<?>> source,
                                                        final double[] spacing, final double[] voxelOffset) {
         if (paths == null || paths.isEmpty()) throw new IllegalArgumentException("At least one path is required");
@@ -77,13 +77,13 @@ public final class TipExamples {
             final PointInImage end = p.getNode(p.size() - 1);
             if (!isBranchPoint(p, end, tolerance)) tips.add(toVoxel(end, spacing, offset));
         }
-        return new TipDetectionConfig.Example(radii, nodes.toArray(new long[0][]), tips.toArray(new long[0][]));
+        return new TipDetectionConfig.TrainingPaths(radii, nodes.toArray(new long[0][]), tips.toArray(new long[0][]));
     }
 
     /**
-     * Gets the scales of the score map that suit the radii of the examples
+     * Gets the scales of the score map that suit the radii of the training paths
      *
-     * @param radii the radii of the examples (see {@link TipDetectionConfig.Example})
+     * @param radii the radii of the training paths (see {@link TipDetectionConfig.TrainingPaths})
      * @return the scales (calibrated units), empty if there are no radii
      */
     public static double[] scales(final double[] radii) {

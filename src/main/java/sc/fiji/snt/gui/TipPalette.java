@@ -42,7 +42,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
 import sc.fiji.snt.tracing.auto.TipDetectionConfig;
-import sc.fiji.snt.tracing.auto.TipExamples;
+import sc.fiji.snt.tracing.auto.TipTrainingPaths;
 import sc.fiji.snt.tracing.auto.TipFinder;
 import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.ImgUtils;
@@ -108,13 +108,21 @@ public class TipPalette extends Thread {
      *
      * @param level     the resolution level (0: full resolution)
      * @param skipEmpty whether blocks without signal (assessed at a coarser level) are skipped
-     * @param madFactor the number of median absolute deviations above the median defining signal
+     * @param deviationFactor the number of median absolute deviations above the median defining signal
      */
-    public record ParseOptions(int level, boolean skipEmpty, double madFactor) {
+    public record ParseOptions(int level, boolean skipEmpty, double deviationFactor) {
     }
 
     private static final double MIN_SCALE_VOXELS = 0.7;
     private static final int PAIR_GAP = 16;
+    // Names of the parameters (ASCII source: sigma is a unicode escape)
+    private static final String L_SCORE = "Min. Tubeness score";
+    private static final String L_RADIUS = "Analysis radius";
+    private static final String L_LENGTH = "Min. length";
+    private static final String L_CONNECTED = "Min. connected fraction";
+    private static final String L_BACKGROUND = "Max. background";
+    private static final String L_RADII = "Neurite radii (\u03c3)";
+    private static final String L_EMPTY = "Skip blocks darker than background + k x absolute deviation, with k";
     // Widest label of the Advanced panel: sets the label column of its rows
     private static final String WIDEST_LABEL = "Subtract background:";
 
@@ -128,7 +136,7 @@ public class TipPalette extends Thread {
     // Coarsest level at which the smallest learned scale still spans a few voxels
     private static int recommendedLevel(final TipDetectionConfig config, final List<BigDataUtils.LevelInfo> levels) {
         double minScale = Double.MAX_VALUE;
-        for (final double sc : config.getScales()) minScale = Math.min(minScale, sc);
+        for (final double sc : config.getNeuriteRadii()) minScale = Math.min(minScale, sc);
         int best = 0;
         for (final var l : levels) {
             if (minScale / Math.max(l.spacing()[0], l.spacing()[1]) >= MIN_SCALE_VOXELS) best = l.level();
@@ -163,7 +171,7 @@ public class TipPalette extends Thread {
     private String unit;
     private double[] voxelOffset;
     private WizardSupport.Region region;
-    private TipDetectionConfig.Example example;
+    private TipDetectionConfig.TrainingPaths example;
     private TipDetectionConfig config;
     private RandomAccessibleInterval<FloatType> ridge;
     private volatile TipDetectionConfig.Evaluation evaluation;
@@ -211,7 +219,7 @@ public class TipPalette extends Thread {
      */
     public String validate() {
         if (snt.getFullSourceData() == null) return "No valid image data loaded.";
-        if (paths.isEmpty()) return "No example paths: trace, or select in the Path Manager, a few representative "
+        if (paths.isEmpty()) return "No training paths: trace, or select in the Path Manager, a few representative "
                 + "axons (traced towards their tips), and re-launch the wizard.";
         // Unset (non-positive) channel/frame values match anything
         final java.util.Set<String> ct = new java.util.TreeSet<>();
@@ -219,12 +227,12 @@ public class TipPalette extends Thread {
             if (p.getChannel() > 0 && p.getFrame() > 0)
                 ct.add("channel " + p.getChannel() + ", frame " + p.getFrame());
         }
-        if (ct.size() > 1) return "The example paths belong to different channels/frames (" + String.join("; ", ct)
+        if (ct.size() > 1) return "The training paths belong to different channels/frames (" + String.join("; ", ct)
                 + "). Select paths from a single channel and frame.";
         for (final Path p : paths) {
             if ((p.getChannel() > 0 && p.getChannel() != snt.getChannel())
                     || (p.getFrame() > 0 && p.getFrame() != snt.getFrame()))
-                return "The example paths were traced in channel " + p.getChannel() + ", frame " + p.getFrame()
+                return "The training paths were traced in channel " + p.getChannel() + ", frame " + p.getFrame()
                         + " but SNT is showing channel " + snt.getChannel() + ", frame " + snt.getFrame()
                         + ". Switch to the paths' channel/frame and re-launch the wizard.";
         }
@@ -234,7 +242,7 @@ public class TipPalette extends Thread {
         final double inside = AutoTraceConfig.fractionInBounds(paths, snt.getFullSourceData(), sp,
                 new double[]{off.x, off.y, off.z});
         if (!(inside >= 1d))
-            return "Some example paths lie outside the image data currently loaded ("
+            return "Some training paths lie outside the image data currently loaded ("
                     + Math.round((1 - inside) * 100) + "% of nodes)"
                     + ((snt.isStreamMode()) ? " (is a crop active?)." : ".") + " Select paths within the image.";
         return null;
@@ -275,14 +283,14 @@ public class TipPalette extends Thread {
         final PointInCanvas offset = snt.getDefaultCanvasPixelOffset();
         voxelOffset = new double[]{offset.x, offset.y, offset.z};
 
-        final long[][] bounds = TipExamples.voxelBounds(paths, spacing, voxelOffset);
+        final long[][] bounds = TipTrainingPaths.voxelBounds(paths, spacing, voxelOffset);
         if (bounds == null) {
-            failure = "The example paths have no nodes.";
+            failure = "The training paths have no nodes.";
             return false;
         }
         final double inside = AutoTraceConfig.fractionInBounds(paths, source, spacing, voxelOffset);
         if (!(inside > 0.9)) {
-            failure = "The example paths lie outside the image data currently loaded"
+            failure = "The training paths lie outside the image data currently loaded"
                     + ((snt.isStreamMode()) ? " (is a crop active?)." : ".");
             return false;
         }
@@ -305,26 +313,26 @@ public class TipPalette extends Thread {
             if (example == null || Double.isNaN(fixedPad) || attempt > 0) {
                 final double[] regionOffset = new double[3];
                 for (int d = 0; d < 3; d++) regionOffset[d] = voxelOffset[d] - region.min()[d];
-                WizardSupport.status(snt, "Tip wizard: analyzing example paths...");
-                example = TipExamples.fromPaths(paths, region.data(), spacing, regionOffset);
+                WizardSupport.status(snt, "Tip wizard: analyzing training paths...");
+                example = TipTrainingPaths.fromPaths(paths, region.data(), spacing, regionOffset);
             }
             WizardSupport.status(snt, "Tip wizard: computing score maps...");
             config = TipDetectionConfig.learn(example, spacing, (customScales != null) ? customScales
-                    : TipExamples.scales(example.radii()),
+                    : TipTrainingPaths.scales(example.radii()),
                     this::scoreMap, vetoRegion);
-            if (config.getTipRadius() > padCalibrated && attempt == 0 && Double.isNaN(fixedPad)) {
-                padCalibrated = config.getTipRadius();
+            if (config.getAnalysisRadius() > padCalibrated && attempt == 0 && Double.isNaN(fixedPad)) {
+                padCalibrated = config.getAnalysisRadius();
                 continue;
             }
             break;
         }
         fixedPad = padCalibrated;
         SNTUtils.log(String.format("Tip wizard: background channel %d (weight %.2f), scales %s, threshold %s",
-                bgChannel, bgWeight, java.util.Arrays.toString(config.getScales()), config.getThreshold()));
+                bgChannel, bgWeight, java.util.Arrays.toString(config.getNeuriteRadii()), config.getMinScore()));
         config.setBackground(bgChannel, bgWeight);
-        vetoSuggested = config.getVetoThreshold();
-        config.setVetoThreshold(Double.NaN); // Off
-        ridge = scoreMap(config.getScales());
+        vetoSuggested = config.getMaxBackground();
+        config.setMaxBackground(Double.NaN); // Off
+        ridge = scoreMap(config.getNeuriteRadii());
         WizardSupport.status(snt, "Tip wizard: detecting tips...");
         evaluation = config.evaluate(ridge, example, vetoRegion);
         return true;
@@ -352,7 +360,7 @@ public class TipPalette extends Thread {
 
     // Scales derived from the radii of the examples
     private double[] defaultScales() {
-        return TipExamples.scales(example.radii());
+        return TipTrainingPaths.scales(example.radii());
     }
 
     private static String formatScales(final double[] scales) {
@@ -396,7 +404,11 @@ public class TipPalette extends Thread {
         worker.execute(() -> {
             generation.incrementAndGet(); // Cancels pending evaluations
             if (scales != null) customScales = (scales.length == 0) ? null : scales.clone();
-            final double previousVeto = config.getVetoThreshold();
+            final double previousVeto = config.getMaxBackground();
+            // Not affected by the background or the scales: kept as set by the user
+            final double previousRadius = config.getAnalysisRadius();
+            final double previousExtent = config.getMinLength();
+            final double previousPurity = config.getMinConnectedFraction();
             final int previousChannel = bgChannel;
             bgChannel = channel;
             bgWeight = weight;
@@ -408,11 +420,13 @@ public class TipPalette extends Thread {
                     bgChannel = 0;
                     learn(); // Back to the signal alone
                 }
+                if (!Double.isNaN(previousRadius)) config.setAnalysisRadius(previousRadius);
+                config.setMinLength(previousExtent);
+                config.setMinConnectedFraction(previousPurity);
                 // Same background: the veto stays as the user set it
-                if (!Double.isNaN(previousVeto) && vetoRegion != null && bgChannel == previousChannel) {
-                    config.setVetoThreshold(previousVeto);
-                    evaluation = config.evaluate(ridge, example, vetoRegion);
-                }
+                if (!Double.isNaN(previousVeto) && vetoRegion != null && bgChannel == previousChannel)
+                    config.setMaxBackground(previousVeto);
+                evaluation = config.evaluate(ridge, example, vetoRegion);
             });
             selected = -1;
             EventQueue.invokeLater(() -> {
@@ -519,15 +533,15 @@ public class TipPalette extends Thread {
         values.put("BG_WEIGHT", num(config.getBackgroundWeight()));
         values.put("LEVEL", (opts == null) ? 0 : opts.level());
         values.put("SKIP_EMPTY", (opts == null) ? "false" : String.valueOf(opts.skipEmpty()));
-        values.put("MAD_FACTOR", num((opts == null) ? 2d : opts.madFactor()));
-        values.put("SCALES", java.util.Arrays.stream(config.getScales()).mapToObj(TipPalette::num)
+        values.put("DEVIATION_FACTOR", num((opts == null) ? 2d : opts.deviationFactor()));
+        values.put("NEURITE_RADII", java.util.Arrays.stream(config.getNeuriteRadii()).mapToObj(TipPalette::num)
                 .collect(java.util.stream.Collectors.joining(", ")));
-        values.put("TIP_RADIUS", num(config.getTipRadius()));
-        values.put("THRESHOLD", num(config.getThreshold()));
-        values.put("MIN_EXTENT", num(config.getMinExtent()));
-        values.put("MIN_PURITY", num(config.getMinPurity()));
-        values.put("VETO_THRESHOLD", num(config.getVetoThreshold()));
-        values.put("VETO_RADIUS", num(config.getVetoRadius()));
+        values.put("ANALYSIS_RADIUS", num(config.getAnalysisRadius()));
+        values.put("MIN_SCORE", num(config.getMinScore()));
+        values.put("MIN_LENGTH", num(config.getMinLength()));
+        values.put("MIN_CONNECTED_FRACTION", num(config.getMinConnectedFraction()));
+        values.put("MAX_BACKGROUND", num(config.getMaxBackground()));
+        values.put("BACKGROUND_RADIUS", num(config.getBackgroundRadius()));
         values.put("REF_SPACING", num(spacing[0]) + ", " + num(spacing[1]) + ", " + num(spacing[2]));
         values.put("REF_NODE_P10", num(config.getNodeScoreP10()));
         values.put("REF_NODE_MEDIAN", num(config.getNodeScoreMedian()));
@@ -634,7 +648,7 @@ public class TipPalette extends Thread {
             if (sel >= 0 && sel < found.size()) {
                 final double[] v = voxel(found.get(sel));
                 final double dz = (v[2] - z) * spacing[2];
-                final double r2 = config.getTipRadius() * config.getTipRadius() - dz * dz;
+                final double r2 = config.getAnalysisRadius() * config.getAnalysisRadius() - dz * dz;
                 if (r2 > 0) {
                     g2.setColor(SELECTED_COLOR);
                     g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f,
@@ -744,11 +758,10 @@ public class TipPalette extends Thread {
         private final JSpinner vetoSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1e12, 1, 3, true);
         private final JSpinner bgWeightSpin = GuiUtils.Fields.doubleSpinner(1, 0, WEIGHT_MAX, 0.05, 2);
         private final JTextField scalesField = new JTextField(18);
-        private final JLabel radiusLabel = new JLabel();
         private final JLabel statusLabel = new JLabel(" ");
         private final DefaultTableModel learnedModel;
-        private final DefaultTableModel scalesModel = new DefaultTableModel(new String[]{"Scale [" + unit + "]", "Nodes (median)",
-                "Nodes (p10)", "Background (p50)", "Background (p99)", "Contrast"}, 0) {
+        private final DefaultTableModel scalesModel = new DefaultTableModel(new String[]{"Radius (\u03c3) [" + unit + "]", "Nodes (median)",
+                "Nodes (P10)", "Background (P50)", "Background (P99)", "Contrast"}, 0) {
             private static final long serialVersionUID = 1L;
 
             @Override
@@ -790,37 +803,42 @@ public class TipPalette extends Thread {
             loadSpinners();
             thresholdSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setThreshold(val(thresholdSpin));
+                config.setMinScore(val(thresholdSpin));
                 changed();
             });
             radiusSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setTipRadius(val(radiusSpin));
+                config.setAnalysisRadius(val(radiusSpin));
                 changed();
             });
             extentSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setMinExtent(val(extentSpin));
+                config.setMinLength(val(extentSpin));
                 changed();
             });
             puritySpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setMinPurity(val(puritySpin));
+                config.setMinConnectedFraction(val(puritySpin));
                 changed();
             });
             vetoSpin.addChangeListener(e -> {
                 if (loading) return;
                 final double v = val(vetoSpin);
-                config.setVetoThreshold((v <= 0) ? Double.NaN : v); // 0: off (n/a)
+                config.setMaxBackground((v <= 0) ? Double.NaN : v); // 0: off (n/a)
                 changed();
             });
 
-            tip(thresholdSpin, "Score above which voxels are considered part of a structure");
-            tip(radiusSpin, "Size of the neighborhood analyzed around each candidate");
-            tip(extentSpin, "How far the structure connected to a candidate must reach (fraction of the radius)");
-            tip(puritySpin, "Fraction of the neighborhood that must be connected to the candidate");
-            tip(vetoSpin, "Candidates on top of background brighter than this are rejected (n/a: off)");
-            tip(bgWeightSpin, "Weight of the background channel in the subtraction");
+            tip(thresholdSpin, "Tubeness (ridge) score above which voxels are considered part of a structure.<br>"
+                    + "Learned as the 10th percentile of the scores along the training paths");
+            tip(radiusSpin, "Radius of the sphere analyzed around each candidate (about 3x the diameter of the "
+                    + "thickest neurites).<br>Also the min. distance between tips, and the margin to the volume faces "
+                    + "where tips are not sought");
+            updateLengthTip();
+            tip(puritySpin, "Fraction of the structure voxels in the sphere that must be connected to the candidate."
+                    + "<br>Low values mean the candidate sits in clutter");
+            tip(vetoSpin, "Candidates over background brighter than this are rejected (n/a: off).<br>"
+                    + "In the intensity units of the background channel");
+            tip(bgWeightSpin, "Weight of the background channel: signal - weight x background");
 
             final JPanel root = new WidthTrackingPanel(new GridBagLayout());
             final GridBagConstraints c = new GridBagConstraints();
@@ -837,6 +855,7 @@ public class TipPalette extends Thread {
             warnings.setWrapStyleWord(true);
             warnings.setFocusable(false);
             warnings.setOpaque(false);
+            warnings.setMargin(new java.awt.Insets(8, 0, 0, 8)); // gap from top/right. Align w/ status label on left
             warnings.setForeground(WizardSupport.WORSE_COLOR);
             warnings.setVisible(!config.getWarnings().isEmpty());
             final JPanel detection = new JPanel(new GridBagLayout());
@@ -845,24 +864,24 @@ public class TipPalette extends Thread {
             dc.weightx = 1.0;
             dc.gridx = 0;
             dc.gridy = 0;
-            detection.add(pair(paramRow("Threshold", thresholdSpin, () -> setIfValid(thresholdSpin, initThreshold),
-                            null, "Threshold:"),
-                    paramRow("Tip radius [" + unit + "]", radiusSpin, () -> setIfValid(radiusSpin, initRadius),
-                            radiusLabel, "Tip radius [" + unit + "]:")), dc);
+            detection.add(pair(paramRow(L_SCORE, thresholdSpin, () -> setIfValid(thresholdSpin, initThreshold),
+                            null, L_SCORE + ":"),
+                    paramRow(L_RADIUS + " [" + unit + "]", radiusSpin, () -> setIfValid(radiusSpin, initRadius),
+                            null, L_RADIUS + " [" + unit + "]:")), dc);
             dc.gridy = 1;
             detection.add(statusLabel, dc);
             dc.gridy = 2;
             detection.add(warnings, dc);
             c.gridy = row++;
             final CollapsiblePanel detectionPanel = new CollapsiblePanel("Detection", detection, false);
-            detectionPanel.setTooltipText("Threshold and tip radius, number of detections and warnings");
+            detectionPanel.setTooltipText("Tubeness score and analysis radius, number of detections and warnings");
             root.add(section(null, detectionPanel), c);
 
             // Expert settings, collapsed by default
             final JPanel advanced = advancedGrid();
             final CollapsiblePanel advancedPanel = new CollapsiblePanel("Advanced", advanced, true);
-            advancedPanel.setTooltipText("Extra filters: min. extent and purity of detections, and the background "
-                    + "channel (subtraction and veto). The veto is off (n/a) at 0");
+            advancedPanel.setTooltipText("Extra filters (min. length and connected fraction), neurite radii, and the "
+                    + "background channel (subtraction and maximum). The maximum background is off (n/a) at 0");
             c.gridy = row++;
             root.add(section(null, advancedPanel), c);
 
@@ -873,7 +892,7 @@ public class TipPalette extends Thread {
                 root.add(section(null, performance), c);
             }
 
-            learnedModel = new DefaultTableModel(new String[]{"Learned from examples", "Value"}, 0) {
+            learnedModel = new DefaultTableModel(new String[]{"Learned from paths", "Value"}, 0) {
                 private static final long serialVersionUID = 1L;
 
                 @Override
@@ -885,7 +904,7 @@ public class TipPalette extends Thread {
             details.add(tablePane(new JTable(learnedModel)));
             details.add(scalesPane());
             final CollapsiblePanel detailsPanel = new CollapsiblePanel("Details", details, true);
-            detailsPanel.setTooltipText("Parameters learned from the example paths, and the response of each scale");
+            detailsPanel.setTooltipText("Parameters learned from the training paths, and the response of each scale");
             c.gridy = row++;
             root.add(section(null, detailsPanel), c);
 
@@ -1007,14 +1026,14 @@ public class TipPalette extends Thread {
             loading = true;
             try {
                 final double minSpacing = Math.min(spacing[0], Math.min(spacing[1], spacing[2]));
-                final double thr = config.getThreshold();
+                final double thr = config.getMinScore();
                 configure(thresholdSpin, thr, 0, 1e12, Double.isNaN(thr) ? 1 : thr / 100, decimalsFor(thr));
-                configure(radiusSpin, config.getTipRadius(), minSpacing, 1e9, minSpacing, 1);
-                configure(extentSpin, config.getMinExtent(), 0, 1, 0.05, 2);
-                configure(puritySpin, config.getMinPurity(), 0, 1, 0.05, 2);
+                configure(radiusSpin, config.getAnalysisRadius(), minSpacing, 1e9, minSpacing, 1);
+                configure(extentSpin, config.getMinLength(), 0, 1, 0.05, 2);
+                configure(puritySpin, config.getMinConnectedFraction(), 0, 1, 0.05, 2);
                 final boolean available = vetoRegion != null && !Double.isNaN(vetoSuggested) && vetoSuggested > 0;
                 final double max = (available) ? vetoSuggested * 20 : 1;
-                final double veto = Double.isNaN(config.getVetoThreshold()) ? 0 : config.getVetoThreshold();
+                final double veto = Double.isNaN(config.getMaxBackground()) ? 0 : config.getMaxBackground();
                 final SpinnerNumberModel m = (SpinnerNumberModel) vetoSpin.getModel();
                 m.setMinimum(0d);
                 m.setMaximum(max);
@@ -1030,10 +1049,10 @@ public class TipPalette extends Thread {
                 ed.getTextField().setColumns(8);
                 vetoSpin.setEditor(ed);
                 vetoSpin.setEnabled(available);
-                initThreshold = config.getThreshold();
-                initRadius = config.getTipRadius();
-                initExtent = config.getMinExtent();
-                initPurity = config.getMinPurity();
+                initThreshold = config.getMinScore();
+                initRadius = config.getAnalysisRadius();
+                initExtent = config.getMinLength();
+                initPurity = config.getMinConnectedFraction();
             } finally {
                 loading = wasLoading;
             }
@@ -1056,7 +1075,7 @@ public class TipPalette extends Thread {
             } finally {
                 loading = false;
             }
-            scalesField.setText(formatScales(config.getScales()));
+            scalesField.setText(formatScales(config.getNeuriteRadii()));
             syncUpdateButton();
             refresh();
         }
@@ -1067,7 +1086,7 @@ public class TipPalette extends Thread {
             return (idx <= 0) ? 0 : bgChannels.get(idx - 1);
         }
 
-        // Update only has an effect if the background channel, its weight or the scales differ from the ones in use
+        // Re-learn only has an effect if the background channel, its weight or the scales differ from the ones in use
         private void syncUpdateButton() {
             final double[] sc = parseScales(scalesField.getText());
             scalesField.setForeground((sc == null) ? GuiUtils.Colors.errorColor()
@@ -1076,14 +1095,15 @@ public class TipPalette extends Thread {
             final int channel = selectedBackground();
             final boolean bgDiff = channel != bgChannel
                     || (channel > 0 && Math.abs(val(bgWeightSpin) - bgWeight) > 1e-3);
-            final boolean scalesDiff = sc != null && !sameScales(sc, config.getScales());
+            final boolean scalesDiff = sc != null && !sameScales(sc, config.getNeuriteRadii());
             updateButton.setEnabled(bgDiff || scalesDiff);
         }
 
-        // Scales (editable) and the Update button, which re-learns from the examples
+        // Neurite radii (editable) and the Re-learn button, which re-learns from the examples
         private void setupScales() {
-            scalesField.setText(formatScales(config.getScales()));
-            tip(scalesField, "Comma-separated list of scales (" + unit + "). Press Update to apply");
+            scalesField.setText(formatScales(config.getNeuriteRadii()));
+            tip(scalesField, "Radii of the neurites to detect (comma-separated, " + unit + "): the scales (sigma) of the "
+                    + "Tubeness filter.<br>Press Re-learn to apply");
             scalesField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
                 @Override
                 public void insertUpdate(final javax.swing.event.DocumentEvent e) {
@@ -1102,16 +1122,17 @@ public class TipPalette extends Thread {
             });
             scalesReset = GuiUtils.Buttons.undo("Reset scales");
             scalesReset.addActionListener(e -> scalesField.setText(formatScales(defaultScales())));
-            final JButton update = new JButton("Update");
+            final JButton update = new JButton("Re-learn");
             updateButton = update;
             update.setFocusable(false);
             update.setEnabled(false);
-            update.setToolTipText("Re-learns from the examples using the scales and background above");
+            update.setToolTipText("<html>Re-learns the Tubeness score from the training paths using the radii and background above.<br>"
+                    + "Analysis radius, min. length and min. connected fraction are kept</html>");
             update.addActionListener(e -> {
                 update.setEnabled(false); // Until the window is updated
                 final double[] sc = parseScales(scalesField.getText());
                 double[] arg = null;
-                if (sc != null && !sameScales(sc, config.getScales()))
+                if (sc != null && !sameScales(sc, config.getNeuriteRadii()))
                     arg = sameScales(sc, defaultScales()) ? new double[0] : sc;
                 changeBackground(selectedBackground(), val(bgWeightSpin), arg);
             });
@@ -1190,7 +1211,7 @@ public class TipPalette extends Thread {
             skipEmpty.addActionListener(e -> madSpin.setEnabled(skipEmpty.isSelected()));
             tip(levelChoice, "Resolution level to process. Coarser levels are faster but may miss thin axons");
             tip(skipEmpty, "Skip blocks without signal, as assessed from a coarser level");
-            tip(madSpin, "Signal is median + this many MADs of the coarse level. Lower it to skip fewer blocks");
+            tip(madSpin, "A block has signal if its coarse level exceeds the median + k times the<br>absolute deviation (a robust standard deviation). Lower k to skip fewer blocks");
             final JPanel panel = new JPanel(new GridLayout(0, 1));
             final JPanel levelRow = new JPanel(new BorderLayout(6, 0));
             final JLabel levelLabel = new JLabel("Level:");
@@ -1203,8 +1224,8 @@ public class TipPalette extends Thread {
             skipPanel.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, levelLabel.getPreferredSize().width + 6,
                     0, 0));
             skipPanel.add(skipEmpty);
-            panel.add(pair(skipPanel, paramRow("Signal (MAD)", madSpin, () -> madSpin.setValue(2d), null,
-                    "Signal (MAD):")));
+            panel.add(pair(skipPanel, paramRow(L_EMPTY, madSpin, () -> madSpin.setValue(2d), null,
+                    L_EMPTY + ":")));
             final CollapsiblePanel cp = new CollapsiblePanel("Performance", panel, true);
             cp.setTooltipText("Whole volume runs only: resolution level to process, and skipping of blocks "
                     + "without signal (assessed at a coarser level)");
@@ -1231,7 +1252,7 @@ public class TipPalette extends Thread {
             return tablePane(new JTable(scalesModel));
         }
 
-        // Background channel and weight: the Update button re-learns from the examples
+        // Background channel and weight: the Re-learn button re-learns from the examples
         private void setupBackground() {
             bgChoice.addItem("None");
             for (int ch = 1; ch <= snt.getChannelCount(); ch++) {
@@ -1265,8 +1286,8 @@ public class TipPalette extends Thread {
             panel.add(comp, k);
         }
 
-        // Advanced settings on a grid, so that the controls line up. Update applies to scales and background
-        // (and re-learns the veto), so it sits on its own at the bottom right
+        // Advanced settings on a grid, so that the controls line up. Re-learn applies to scales and background
+        // (and re-learns the score), so it sits on its own at the bottom right
         private JPanel advancedGrid() {
             setupScales();
             final boolean multi = snt.getChannelCount() > 1;
@@ -1275,13 +1296,13 @@ public class TipPalette extends Thread {
             final int w = GridBagConstraints.WEST;
             final int e = GridBagConstraints.EAST;
             final int none = GridBagConstraints.NONE;
-            put(g, new JLabel("Min. extent:"), 0, 0, 1, w, none);
+            put(g, new JLabel(L_LENGTH + ":"), 0, 0, 1, w, none);
             put(g, extentSpin, 1, 0, 1, w, none);
-            put(g, resetButton("min. extent", () -> setIfValid(extentSpin, initExtent)), 2, 0, 1, w, none);
-            put(g, new JLabel("Min. purity:"), 3, 0, 1, e, none);
+            put(g, resetButton("min. length", () -> setIfValid(extentSpin, initExtent)), 2, 0, 1, w, none);
+            put(g, new JLabel(L_CONNECTED + ":"), 3, 0, 1, e, none);
             put(g, puritySpin, 4, 0, 1, w, none);
-            put(g, resetButton("min. purity", () -> setIfValid(puritySpin, initPurity)), 5, 0, 1, w, none);
-            put(g, new JLabel("Scales [" + unit + "]:"), 0, 1, 1, w, none);
+            put(g, resetButton("min. connected fraction", () -> setIfValid(puritySpin, initPurity)), 5, 0, 1, w, none);
+            put(g, new JLabel(L_RADII + " [" + unit + "]:"), 0, 1, 1, w, none);
             put(g, scalesField, 1, 1, 3, w, GridBagConstraints.HORIZONTAL);
             put(g, scalesReset, 4, 1, 1, w, none);
             int y = 2;
@@ -1292,9 +1313,9 @@ public class TipPalette extends Thread {
                 put(g, bgWeightSpin, 3, y, 1, e, none);
                 put(g, weightReset, 4, y, 1, w, none);
                 y++;
-                put(g, new JLabel("Veto (background):"), 0, y, 1, w, none);
+                put(g, new JLabel(L_BACKGROUND + ":"), 0, y, 1, w, none);
                 put(g, vetoSpin, 1, y, 1, w, none);
-                put(g, resetButton("veto", () -> vetoSpin.setValue(0d)), 2, y, 1, w, none);
+                put(g, resetButton("max. background", () -> vetoSpin.setValue(0d)), 2, y, 1, w, none);
                 put(g, updateButton, 4, y, 2, e, none); // On the veto row: no empty row below
             } else {
                 put(g, updateButton, 4, y, 2, e, none);
@@ -1347,31 +1368,31 @@ public class TipPalette extends Thread {
             final Component canvas = getCanvas();
             if (canvas.isShowing() && canvas.getWidth() > 0) {
                 CalloutManager.add(canvas, new Rectangle(canvas.getWidth() / 2, canvas.getHeight() / 2, 2, 2),
-                        CalloutManager.AUTO, "Preview of the region spanned by the example paths.<br>"
+                        CalloutManager.AUTO, "Preview of the region spanned by the training paths.<br>"
                                 + "Dots are detections. Click one to see the sphere in which it was analyzed.<br>"
                                 + "Scroll through the stack to inspect other slices.", group, order++);
             }
-            CalloutManager.add(thresholdSpin, CalloutManager.AUTO, "<b>Threshold</b><br>"
+            CalloutManager.add(thresholdSpin, CalloutManager.AUTO, "<b>Min. Tubeness score</b><br>"
                     + "Score above which voxels are considered part of a structure.<br>"
-                    + "Learned from the example paths. Lower it to detect more tips, raise it for fewer.<br>"
+                    + "Learned from the training paths. Lower it to detect more tips, raise it for fewer.<br>"
                     + "The reset button restores the learned value.", group, order++);
-            CalloutManager.add(radiusSpin, CalloutManager.AUTO, "<b>Tip radius</b><br>"
-                    + "Size of the neighborhood analyzed around each candidate<br>"
-                    + "(about 3x the diameter of the thickest structures).", group, order++);
+            CalloutManager.add(radiusSpin, CalloutManager.AUTO, "<b>Analysis radius</b><br>"
+                    + "Radius of the sphere analyzed around each candidate (about 3x the diameter of the<br>"
+                    + "thickest neurites). Also the min. distance between tips.", group, order++);
             CalloutManager.add(statusLabel, CalloutManager.AUTO, "<b>Detections</b><br>"
                     + "Number of tips found in the preview. <i>Extra</i> detections are not necessarily false:<br>"
-                    + "the example paths are only a sample of the structures in the region.", group, order++);
+                    + "the training paths are only a sample of the structures in the region.", group, order++);
             CalloutManager.add(advancedCollapsible, CalloutManager.AUTO, "<b>Advanced</b><br>"
-                    + "Min. extent and purity reject speckles and clutter. Scales can be edited (press Update<br>"
-                    + "to re-learn). In multi-channel images, a channel can be subtracted from the signal and<br>"
-                    + "used to veto candidates sitting on bright background.", group, order++);
+                    + "Min. length and min. connected fraction reject speckles and clutter. Neurite radii can<br>"
+                    + "be edited (press Re-learn). In multi-channel images, a channel can be subtracted from the<br>"
+                    + "signal and used to reject candidates over bright background (max. background).", group, order++);
             if (performanceCollapsible != null) {
                 CalloutManager.add(performanceCollapsible, CalloutManager.AUTO, "<b>Performance</b><br>"
                         + "Whole volume runs only: resolution level to process, and whether blocks without signal<br>"
                         + "are skipped (assessed at a coarser level).", group, order++);
             }
             CalloutManager.add(detailsCollapsible, CalloutManager.AUTO, "<b>Details</b><br>"
-                    + "What was learned from the example paths, and the response of each scale.", group, order++);
+                    + "What was learned from the training paths, and the response of each scale.", group, order++);
             CalloutManager.add(applyButton, CalloutManager.AUTO, "<b>Apply/Run</b><br>"
                     + "Detect tips in the preview region (a quick dry run) or in the whole volume.<br>"
                     + "Detections are added to the Seed Manager. Export Recipe... generates a script<br>"
@@ -1400,14 +1421,18 @@ public class TipPalette extends Thread {
             apply.setFocusable(false);
             applyButton = apply;
 
-            final JButton more = paletteOptions.buildMoreSwingButton(this, helpHtml(), pm -> {
-                final JMenuItem tour = new JMenuItem("Tour of Controls...",
-                        IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
-                tour.addActionListener(e -> startTour());
-                pm.add(tour);
+            final JButton more = paletteOptions.buildMoreSwingButton(pm -> {
                 final JMenuItem rebuild = new JMenuItem("Rebuild Dialog", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
                 rebuild.addActionListener(e -> rebuildControls());
                 pm.add(rebuild);
+                GuiUtils.MenuItems.addSeparator(pm, "Help:");
+                final JMenuItem help = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
+                help.addActionListener(e -> new GuiUtils(parent).showHTMLDialog(helpHtml(), "Help", false));
+                pm.add(help);
+                final JMenuItem tour = new JMenuItem("Tour of Controls...", IconFactory.menuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
+                tour.addActionListener(e -> startTour());
+                pm.add(tour);
+
             });
             more.setFocusable(false);
             moreButton = more;
@@ -1422,9 +1447,15 @@ public class TipPalette extends Thread {
             scheduleEvaluation();
         }
 
+        // Min. length is a fraction of the radius: its absolute value is part of the tooltip
+        private void updateLengthTip() {
+            tip(extentSpin, String.format("How far the structure connected to a candidate must reach, as a fraction "
+                    + "of the analysis radius (currently %.3g %s).<br>Rejects speckles", val(extentSpin)
+                    * val(radiusSpin), unit));
+        }
+
         private void updateLabels() {
-            final double avgSpacing = (spacing[0] + spacing[1] + spacing[2]) / 3;
-            radiusLabel.setText(String.format("(%.1f vox)", config.getTipRadius() / avgSpacing));
+            updateLengthTip();
         }
 
         // Called on the EDT after each evaluation
@@ -1432,16 +1463,16 @@ public class TipPalette extends Thread {
             updateLabels();
             updateStatus();
             learnedModel.setRowCount(0);
-            learnedModel.addRow(new String[]{"Example paths (nodes, tips)",
+            learnedModel.addRow(new String[]{"Training paths (nodes, tips)",
                     paths.size() + " (" + example.nodes().length + ", " + example.tips().length + ")"});
             learnedModel.addRow(new String[]{"Radius (min / median / max) [" + unit + "]", voxelsOnly(config.getMinRadius()) + " / "
                     + voxelsOnly(config.getMedianRadius()) + " / " + voxelsOnly(config.getMaxRadius())});
             final StringBuilder scales = new StringBuilder();
-            for (final double s : config.getScales()) scales.append(voxelsOnly(s)).append("; ");
-            learnedModel.addRow(new String[]{"Scales [" + unit + "]", scales.toString()});
-            learnedModel.addRow(new String[]{"Scores at nodes (p10 / median)", fmt(config.getNodeScoreP10()) + " / "
+            for (final double s : config.getNeuriteRadii()) scales.append(voxelsOnly(s)).append("; ");
+            learnedModel.addRow(new String[]{L_RADII + " [" + unit + "]", scales.toString()});
+            learnedModel.addRow(new String[]{"Scores at nodes (P10 / median)", fmt(config.getNodeScoreP10()) + " / "
                     + fmt(config.getNodeScoreMedian())});
-            learnedModel.addRow(new String[]{"Scores elsewhere (p50 / p99)", fmt(config.getBackgroundP50()) + " / "
+            learnedModel.addRow(new String[]{"Scores elsewhere (P50 / P99)", fmt(config.getBackgroundP50()) + " / "
                     + fmt(config.getBackgroundP99())});
             getCanvas().repaint();
         }
@@ -1449,7 +1480,8 @@ public class TipPalette extends Thread {
         void updateStatus() {
             final TipDetectionConfig.Evaluation ev = evaluation;
             if (ev == null) {
-                statusLabel.setText("Parameters are incomplete: no detection possible");
+                statusLabel.setText("Set " + (Double.isNaN(config.getMinScore()) ? L_SCORE
+                        : L_RADIUS) + " to preview detections");
                 return;
             }
             final StringBuilder sb = new StringBuilder();
@@ -1476,23 +1508,26 @@ public class TipPalette extends Thread {
 
         private String helpHtml() {
             return "<HTML><div WIDTH=500><p>The <i>Tip Detection Wizard</i> learns the parameters of the tip "
-                    + "detector from the example paths, and previews the detections on the region they span. The "
+                    + "detector from the training paths, and previews the detections on the region they span. The "
                     + "preview reads the data directly from the source: it is not affected by crops.</p>"
                     + "<ul>"
                     + "<li><b>Dots</b> are detections. Click a detection to see the sphere (dashed) in which it "
                     + "was analyzed</li>"
-                    + "<li><b>Threshold</b>: score above which voxels are considered to be part of a structure. "
-                    + "Learned from the scores along the examples</li>"
-                    + "<li><b>Tip radius</b>: size of the neighborhood analyzed around each candidate (about 3x the "
-                    + "diameter of the thickest structures)</li>"
-                    + "<li><b>Min. extent</b>: how far (as a fraction of the radius) the structure connected to a "
-                    + "candidate must reach. Rejects speckles</li>"
-                    + "<li><b>Min. purity</b>: fraction of the voxels in the neighborhood that must be connected "
-                    + "to the candidate. Rejects clutter</li>"
+                    + "<li><b>Min. Tubeness score</b>: score above which voxels are considered to be part of a "
+                    + "structure. Learned from the scores along the training paths (10th percentile)</li>"
+                    + "<li><b>Analysis radius</b>: radius of the sphere analyzed around each candidate (about 3x "
+                    + "the diameter of the thickest neurites). Also the min. distance between tips</li>"
+                    + "<li><b>Min. length</b>: how far (as a fraction of the analysis radius) the structure "
+                    + "connected to a candidate must reach. Rejects speckles</li>"
+                    + "<li><b>Min. connected fraction</b>: fraction of the structure voxels in the sphere that "
+                    + "must be connected to the candidate. Rejects clutter</li>"
+                    + "<li><b>Neurite radii</b>: scales (sigma) of the Tubeness filter. Edit and press "
+                    + "<i>Re-learn</i> to apply</li>"
+                    + "<li><b>Max. background</b>: candidates over background brighter than this are rejected</li>"
                     + "<li><b>Performance</b>: resolution level and skipping of empty blocks (whole volume runs "
                     + "only)</li>"
-                    + "<li>Buttons next to each value restore the value learned from the examples</li>"
-                    + "<li><i>Extra</i> detections are not necessarily false: the examples are only a sample of the "
+                    + "<li>Buttons next to each value restore the value learned from the training paths</li>"
+                    + "<li><i>Extra</i> detections are not necessarily false: the training paths are only a sample of the "
                     + "structures in the region</li>"
                     + "</ul></div>";
         }
