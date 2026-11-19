@@ -458,6 +458,7 @@ public class BookmarkManager {
                     if (viewRow < 0 || viewRow >= table.getRowCount()) return;
                     table.setRowSelectionInterval(viewRow, viewRow);
                     table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
+                    viewer.notePicked(true);
                 }
             });
         }
@@ -1148,6 +1149,21 @@ public class BookmarkManager {
             }
             imp.updateAndDraw();
         }
+    }
+
+    /**
+     * Deletes the entries currently selected in the table (nothing is deleted if there is no selection)
+     *
+     * @return the number of entries deleted
+     */
+    public int deleteSelected() {
+        final int[] viewRows = table.getSelectedRows();
+        if (viewRows.length == 0) return 0;
+        final int[] modelRows = Arrays.stream(viewRows).map(table::convertRowIndexToModel).boxed()
+                .sorted(Comparator.reverseOrder()).mapToInt(Integer::intValue).toArray(); // Last first
+        for (final int modelRow : modelRows)
+            model.removeRow(modelRow);
+        return modelRows.length;
     }
 
     private JPopupMenu exportMenu() {

@@ -207,7 +207,7 @@ public class SeedManager extends JPanel {
 
     private String panelHeading() {
         return """
-                Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
+                Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks, \
                 used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
                 (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
                 
@@ -1245,7 +1245,7 @@ public class SeedManager extends JPanel {
     public void showDiscoveryHint() {
         if (createButton == null) return;
         CalloutManager.showTip(createButton, "Probabilistic (seeded) detections of tips, tufts, swellings, maxima, "
-                + "roots and somas are available from the + button. Detected seeds are listed here and can be "
+                + "roots and somas are available from the + button. Detected seeds are listed in the table above and can be "
                 + "filtered by confidence.", CalloutManager.AUTO, 15000);
     }
 
@@ -1279,7 +1279,7 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Detects cell bodies in the current image, adding one seed per detected soma");
         menu.add(jmi);
         jmi.addActionListener(e -> detectSomas());
-        jmi = new JMenuItem("Detect Tips...");
+        jmi = new JMenuItem("Detect Tips...", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
                 + "parameters from example paths");
         menu.add(jmi);

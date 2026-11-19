@@ -84,6 +84,21 @@ public abstract class AbstractBigViewer {
 
     /** The SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     protected final SNT snt;
+    /** Seeds deleted with D/Backspace (most recent first), for undo */
+    private final java.util.Deque<List<sc.fiji.snt.seed.SeedPoint>> deletedSeeds = new java.util.ArrayDeque<>();
+    private static final int MAX_UNDO_DELETIONS = 100;
+    /** Whether the last item picked in the viewer by clicking was a bookmark marker (otherwise, a seed) */
+    private volatile boolean lastPickedBookmark;
+
+    /**
+     * Records the kind of item last picked by clicking on it in the viewer, so that the delete shortcut knows what
+     * to act on
+     *
+     * @param bookmark true if a bookmark marker was picked, false if a seed was
+     */
+    public void notePicked(final boolean bookmark) {
+        lastPickedBookmark = bookmark;
+    }
 
     protected boolean tracingEnabled;
 
@@ -1436,6 +1451,53 @@ public abstract class AbstractBigViewer {
             @Override
             public void actionPerformed(final ActionEvent e) {
                 toggleEditMode();
+            }
+        });
+        // D/Backspace: deletes the last marker or seed(s) picked by clicking on it in the viewer. Speeds up the
+        // curation of false positives. Seed deletions can be undone with Ctrl/Cmd+Z (markers: press M to re-add)
+        final Action deleteSeeds = new AbstractAction("Delete Selected Marker/Seed(s)") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (snt == null) return;
+                if (lastPickedBookmark) {
+                    final sc.fiji.snt.BookmarkManager bm = (snt.getUI() == null) ? null : snt.getUI().getBookmarkManager();
+                    final int nb = (bm == null) ? 0 : bm.deleteSelected();
+                    if (nb > 0) showViewerMessage(nb + ((nb == 1) ? " marker deleted" : " markers deleted"));
+                    return;
+                }
+                if (snt.getSeedOverlay() == null) return;
+                final List<sc.fiji.snt.seed.SeedPoint> selected = new ArrayList<>(snt.getSeedOverlay().getSelectedSeeds());
+                final int n = snt.getSeedOverlay().removeSelected();
+                if (n <= 0) return;
+                synchronized (deletedSeeds) {
+                    deletedSeeds.push(selected);
+                    while (deletedSeeds.size() > MAX_UNDO_DELETIONS) deletedSeeds.removeLast();
+                }
+                showViewerMessage(n + ((n == 1) ? " seed deleted" : " seeds deleted") + " (undo: "
+                        + GuiUtils.ctrlKey() + "+Z)");
+            }
+        };
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_D, 0), "snt-delete-selected-seeds");
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0), "snt-delete-selected-seeds");
+        sntAMap.put("snt-delete-selected-seeds", deleteSeeds);
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
+                "snt-undo-seed-deletion");
+        sntAMap.put("snt-undo-seed-deletion", new AbstractAction("Undo Seed Deletion") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (snt == null || snt.getSeedOverlay() == null) return;
+                final List<sc.fiji.snt.seed.SeedPoint> restored;
+                synchronized (deletedSeeds) {
+                    restored = deletedSeeds.isEmpty() ? null : deletedSeeds.pop();
+                }
+                if (restored == null) {
+                    showViewerMessage("Nothing to undo");
+                    return;
+                }
+                snt.getSeedOverlay().addAll(restored);
+                snt.getSeedOverlay().setSelectedSeeds(restored);
+                final int n = restored.size();
+                showViewerMessage(n + ((n == 1) ? " seed restored" : " seeds restored"));
             }
         });
         if (tracer == null) return;
