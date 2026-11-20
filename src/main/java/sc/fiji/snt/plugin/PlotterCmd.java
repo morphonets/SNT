@@ -45,11 +45,16 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer2D;
 
+import java.awt.Rectangle;
+import java.awt.Window;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.swing.JDialog;
+import javax.swing.SwingUtilities;
 
 /**
  * Implements Reconstruction Plotter, a command wrapper for interactively
@@ -83,12 +88,19 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		callback = "currentZangleChanged")
 	private double angleZ = 0;
 
-	@Parameter(required = false, label = "Color", callback = "colorChanged")
+	@Parameter(required = false, persist = false, label = "Colors", choices = { COLORS_KEEP, COLORS_MONO },
+		callback = "colorChanged",
+		description = "Monochrome renders the tree with the color below. It is much faster for trees with "
+				+ "many colors (e.g., color-mapped) and is the default for them")
+	private String colorMode = COLORS_KEEP;
+
+	@Parameter(required = false, label = "Monochrome color", callback = "colorChanged",
+		description = "Color used by the monochrome option")
 	private ColorRGB color;
 
 	@Parameter(required = false, persist = false, label = "Actions", choices = {
 			ACTION_NONE, ACTION_ADD_CONVEXHULL, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET_ROT,
-			ACTION_RESET_COLOR, ACTION_SNAPSHOT, ACTION_SHOW_DENDROGRAM}, callback = "runAction")
+			ACTION_SNAPSHOT, ACTION_SHOW_DENDROGRAM}, callback = "runAction")
 	private String actionChoice = ACTION_NONE;
 
 	@Parameter(required = false, persist = false, label = "Preview",
@@ -103,12 +115,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	@Parameter(required = true)
 	private Tree tree;
 
+	private static final String COLORS_KEEP = "Don't change";
+	private static final String COLORS_MONO = "Monochrome (expedites transformations)";
 	private static final String ACTION_NONE = "Choose...";
 	private static final String ACTION_RESET_ROT = "Reset rotation";
-	private static final String ACTION_RESET_COLOR = "Reset color";
 	private static final String ACTION_FLIP_H = "Flip horizontally";
 	private static final String ACTION_FLIP_V = "Flip vertically";
-	private static final String ACTION_SNAPSHOT = "Snapshot [w/ color-mapping (if any)]";
+	private static final String ACTION_SNAPSHOT = "Snapshot";
 	private static final String ACTION_ADD_CONVEXHULL = "Add convex hull";
 	private static final String ACTION_SHOW_DENDROGRAM = "Show dendrogram...";
 
@@ -154,12 +167,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				error("No reconstructions imported.");
 			}
 			else {
-				logService.info("" + counter +
-					" reconstruction(s) successfully imported ");
+				logService.info(counter + " reconstruction(s) successfully imported ");
 			}
 		}
 		if (color == null)
 			color = DEF_COLOR;
+		// Node colors trigger one series per color in Viewer2D: default to monochrome
+		colorMode = (tree.list().stream().anyMatch(Path::hasNodeColors)) ? COLORS_MONO : COLORS_KEEP;
 	}
 
 	@Override
@@ -171,11 +185,11 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		}
 		status("Building Plot...", false);
 		// Tree rotation occurs in place so we'll copy plotting coordinates
-		// to a new Tree. To avoid rotation lags we'll keep it monochrome,
-		// We'll store input colors to be restored by the 'snapshot' action
+		// to a new Tree. Input colors are stored so that they can be restored
+		// when the monochrome option is toggled
 		plottingTree = tree.clone();
 		snapshotTree = tree.clone();
-		plottingTree.setColor(color);
+		applyColorMode();
 		buildPlot();
 		chart = viewer.getChart();
 		chart.setSize(500, 500);
@@ -187,9 +201,32 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				super.windowClosing(e);
 			}
 		});
-		chart.show();
+		showBesidePrompt();
 		status(null, false);
 
+	}
+
+	/** Shows the chart next to the command prompt (SNTChart.show() centers it on screen, hiding the prompt) */
+	private void showBesidePrompt() {
+		chart.show();
+		Window prompt = null;
+		for (final Window w : Window.getWindows()) {
+			if (w.isVisible() && w instanceof JDialog d && d.getTitle() != null
+					&& d.getTitle().startsWith("Reconstruction Plotter")) {
+				prompt = w;
+				break;
+			}
+		}
+		if (prompt == null) return;
+		final Window anchor = prompt;
+		// Queued after the (invokeLater) show() call in SNTChart
+		SwingUtilities.invokeLater(() -> {
+			final java.awt.Frame f = chart.getFrame();
+			final Rectangle screen = anchor.getGraphicsConfiguration().getBounds();
+			int x = anchor.getX() + anchor.getWidth() + 10;
+			if (x + f.getWidth() > screen.x + screen.width) x = anchor.getX() - f.getWidth() - 10;
+			f.setLocation(Math.max(screen.x, x), anchor.getY());
+		});
 	}
 
 	private void buildPlot() {
@@ -205,7 +242,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private void updatePlot(final boolean resetConvexHull) {
 		if (preview && msg.isEmpty() && hasInitialized()) {
 			msg = BUSY_MSG;
-			plottingTree.setColor(color);
+			applyColorMode();
 			if (resetConvexHull)
 				hull2D = null;
 			buildPlot();
@@ -286,11 +323,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				resetRotation();
 				actionChoice = ACTION_NONE;
 				return;
-			case ACTION_RESET_COLOR:
-				color = DEF_COLOR;
-				updatePlot(false);
-				actionChoice = ACTION_NONE;
-				return;
 			case ACTION_SNAPSHOT:
 				snapshot();
 				actionChoice = ACTION_NONE;
@@ -324,23 +356,32 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		actionChoice = ACTION_NONE;
 	}
 
-	private void snapshot() {
-		// apply input tree colors
-		msg = BUSY_MSG;
+	private void restoreInputColors() {
 		for (int i = 0; i < plottingTree.size(); i++) {
 			final Path plottingPath = plottingTree.list().get(i);
 			final Path inputPath = snapshotTree.list().get(i);
 			plottingPath.setColor(inputPath.getColor());
 			plottingPath.setNodeColors(inputPath.getNodeColors());
 		}
+	}
+
+	private void applyColorMode() {
+		if (COLORS_MONO.equals(colorMode)) {
+			ColorMapper.unMap(plottingTree);
+			plottingTree.setColor(color);
+		} else {
+			restoreInputColors();
+		}
+	}
+
+	private void snapshot() {
+		msg = BUSY_MSG;
 		buildPlot();
 		viewer.setTitle("[X " + angleX + "deg Y " + angleY + "deg Z " + angleZ +
 			"deg]");
 		final SNTChart snapshotChart = viewer.getChart();
 		snapshotChart.applyStyle(chart);
 		snapshotChart.show();
-		// make tree monochrome
-		ColorMapper.unMap(plottingTree);
 		msg = "";
 	}
 

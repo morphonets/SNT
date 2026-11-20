@@ -27,6 +27,7 @@ import net.imglib2.RealLocalizable;
 import net.imglib2.display.ColorTable;
 import net.imglib2.roi.geom.real.Polygon2D;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.scijava.Context;
 import org.scijava.plot.*;
 import org.scijava.plot.defaultplot.DefaultPlotService;
@@ -171,33 +172,49 @@ public class Viewer2D extends TreeColorMapper {
             throw new IllegalArgumentException("No paths to plot");
         }
         initPlot();
+        // One series per color, with NaN separating paths (rendered as gaps). A series per Path does not scale:
+        // JFreeChart recomputes the axis ranges every time a series is added, which is prohibitively slow
+        // for thousands of series
+        final Map<Integer, XYData> seriesMap = new LinkedHashMap<>();
         for (final Path p : paths) {
-            final XYSeries series = plot.addXYSeries();
-            series.setLegendVisible(false);
-            series.setLabel(p.getName());
-
-            final int capacity = p.size() + (p.getBranchPoint() != null ? 1 : 0);
-            final List<Double> xc = new ArrayList<>(capacity);
-            final List<Double> yc = new ArrayList<>(capacity);
-
-            final PointInImage branchPoint = p.getBranchPoint();
-            if (branchPoint != null) {
-                xc.add(branchPoint.x);
-                yc.add(branchPoint.y);
-            }
-            for (int node = 0; node < p.size(); node++) {
-                final PointInImage pim = p.getNode(node);
-                xc.add(pim.x);
-                yc.add(pim.y);
-            }
-            series.setValues(xc, yc);
-
             final Color pathColor = p.getColor();
             final ColorRGB color = (pathColor == null) ? defaultColor
                     : new ColorRGB(pathColor.getRed(), pathColor.getGreen(), pathColor.getBlue());
-            series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.NONE));
+            final int key = (color.getRed() << 16) | (color.getGreen() << 8) | color.getBlue();
+            final XYData data = seriesMap.computeIfAbsent(key, k -> new XYData(color));
+            if (!data.xc.isEmpty()) {
+                data.xc.add(Double.NaN);
+                data.yc.add(Double.NaN);
+            }
+            final PointInImage branchPoint = p.getBranchPoint();
+            if (branchPoint != null) {
+                data.xc.add(branchPoint.x);
+                data.yc.add(branchPoint.y);
+            }
+            for (int node = 0; node < p.size(); node++) {
+                final PointInImage pim = p.getNode(node);
+                data.xc.add(pim.x);
+                data.yc.add(pim.y);
+            }
         }
+        seriesMap.forEach((key, data) -> {
+            final XYSeries series = plot.addXYSeries();
+            series.setLegendVisible(false);
+            series.setLabel(String.format("paths #%06x", key));
+            series.setValues(data.xc, data.yc);
+            series.setStyle(plotService.newSeriesStyle(data.color, LineStyle.SOLID, MarkerStyle.NONE));
+        });
         plotColoredNodePathsFast();
+    }
+
+    private static class XYData {
+        final ColorRGB color;
+        final List<Double> xc = new ArrayList<>();
+        final List<Double> yc = new ArrayList<>();
+
+        XYData(final ColorRGB color) {
+            this.color = color;
+        }
     }
 
     private Map<Color, List<PointInImage>> getNodesColorMapFast() {
@@ -494,6 +511,11 @@ public class Viewer2D extends TreeColorMapper {
 			chart = new SNTChart(
 					(getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
 					converter.convert(plot, JFreeChart.class));
+			// Draw each series as a single path: much faster than segment-by-segment for large reconstructions
+			if (chart.getChart().getPlot() instanceof org.jfree.chart.plot.XYPlot xyPlot
+					&& xyPlot.getRenderer() instanceof XYLineAndShapeRenderer renderer) {
+				renderer.setDrawSeriesLineAsPath(true);
+			}
 		}
 		chart.setEqualizeAxes(getEqualizeAxes());
 		chart.setAxesVisible(getAxesVisible());
