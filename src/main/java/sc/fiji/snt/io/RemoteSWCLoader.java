@@ -22,15 +22,19 @@
 
 package sc.fiji.snt.io;
 
-import org.apache.commons.io.IOUtils;
-import sc.fiji.snt.SNTUtils;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.IOUtils;
 
-import java.io.*;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
  * Importers downloading remote SWC files should extend this interface.
@@ -47,22 +51,56 @@ public interface RemoteSWCLoader {
 
 	public Tree getTree(final String cellId);
 
-	static boolean download(final String urlString, final File destinationFile) {
+	/**
+	 * Retrieves multiple reconstructions concurrently, see {@link RemoteRetriever}.
+	 *
+	 * @param cellIds   the ids of the cells to be retrieved
+	 * @param nThreads  the maximum number of simultaneous retrievals (see {@link RemoteRetriever#DEFAULT_THREADS})
+	 * @param progress  the progress listener. Null allowed
+	 * @param cancelled polled while waiting for retrievals. Null allowed
+	 * @return the trees, in the order of {@code cellIds}. Cells that could not be retrieved are represented by an
+	 *         empty Tree
+	 */
+	default List<Tree> getTrees(final Collection<String> cellIds, final int nThreads,
+			final RemoteRetriever.ProgressListener progress, final BooleanSupplier cancelled) {
+		return RemoteRetriever.retrieve(new ArrayList<>(cellIds), this::getTree, nThreads, progress, cancelled);
+	}
+
+	/**
+	 * Opens a character stream to a remote text resource using the shared HTTP client. Transient failures (HTTP 429
+	 * and 5xx) are retried a couple of times with increasing delays. Closing the reader releases the connection
+	 *
+	 * @param url the resource URL
+	 * @return the reader. The caller is responsible for closing it
+	 * @throws IOException if the URL is invalid, the resource could not be reached, or the server response was not
+	 *                     successful
+	 */
+	static BufferedReader openReader(final String url) throws IOException {
+		final Request request;
 		try {
-			final BufferedReader br = new BufferedReader(new InputStreamReader(new URI(urlString).toURL().openStream()));
-			final BufferedWriter bw = Files.newBufferedWriter(destinationFile.toPath(), StandardCharsets.UTF_8);
-//			final char[] buffer = new char[8192];
-//			int n;
-//			while (-1 != (n = br.read())) {
-//				bw.write(buffer, 0, n);
-//			}
-//			br.close();
-//			bw.close();
-			return IOUtils.copy(br, bw) > 0 && destinationFile.exists() && destinationFile.length() > 0;
-		} catch (final IOException | URISyntaxException e) {
-			SNTUtils.error("Download failed", e);
+			request = new Request.Builder().url(url).build();
+		} catch (final IllegalArgumentException e) {
+			throw new IOException("Invalid URL: " + url, e);
 		}
-		return false;
+		IOException failure = null;
+		for (int attempt = 0; attempt < 3; attempt++) {
+			if (attempt > 0) {
+				try {
+					Thread.sleep(500L << attempt);
+				} catch (final InterruptedException e) {
+					Thread.currentThread().interrupt();
+					throw new InterruptedIOException("Interrupted while retrying " + url);
+				}
+			}
+			final Response response = IOUtils.httpClient().newCall(request).execute();
+			final ResponseBody body = response.body();
+			if (response.isSuccessful() && body != null) return new BufferedReader(body.charStream());
+			final int code = response.code();
+			response.close();
+			failure = new IOException("Unsuccessful response (" + code + ") from " + url);
+			if (code != 429 && code < 500) break; // not transient
+		}
+		throw failure;
 	}
 
 }

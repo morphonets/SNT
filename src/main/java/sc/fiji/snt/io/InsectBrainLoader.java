@@ -117,17 +117,17 @@ public class InsectBrainLoader {
         }
 		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
         pafm.setHeadless(true);
-        neuronInfo = getNeuronInfo();
-        Tree tree = null;
-        if (pafm.importSWC(String.valueOf(this.id), url)) {
-            tree = new Tree(pafm.getPaths());
+        try {
+            neuronInfo = getNeuronInfo();
+            if (!pafm.importSWC(String.valueOf(this.id), url)) return null;
+            final Tree tree = new Tree(pafm.getPaths());
             tree.setType(Path.SWC_UNDEFINED);
-            tree.setLabel(neuronInfo.getFullName());
+            tree.setLabel((neuronInfo == null) ? String.valueOf(id) : neuronInfo.getFullName());
             tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "IBD");
             return tree;
+        } finally {
+            pafm.dispose();
         }
-        pafm.dispose();
-        return tree;
     }
 
     /**

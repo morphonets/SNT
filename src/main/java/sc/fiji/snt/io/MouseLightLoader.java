@@ -39,6 +39,7 @@ import sc.fiji.snt.util.SWCPoint;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.function.BooleanSupplier;
 import java.util.*;
 
 /**
@@ -106,8 +107,8 @@ public class MouseLightLoader {
 	}
 
 	private JSONObject getJSON(final String url, final int format) {
-		try {
-			final Response response = getResponse(url, format);
+		try (Response response = getResponse(url, format)) {
+			if (response.body() == null) return null;
 			final String responseBody = response.body().string();
 			if (responseBody.length() < MIN_CHARS_IN_VALID_RESPONSE_BODY) {
 				return null;
@@ -115,12 +116,44 @@ public class MouseLightLoader {
 			final JSONObject json = new JSONObject(responseBody);
 			if (format == JSON_FORMAT && json.getJSONObject("contents").getJSONArray("neurons").isEmpty())
 				return null;
-			response.close();
 			return json;
 		} catch (final IOException e) {
 			SNTUtils.error("Failed to retrieve id " + id, e);
+		} catch (final JSONException e) {
+			SNTUtils.error("Unexpected response while retrieving id " + id, e);
 		}
 		return null;
+	}
+
+	/**
+	 * Retrieves multiple neurons concurrently, see {@link RemoteRetriever}.
+	 *
+	 * @param ids         the neuron ids (e.g., "AA0001")
+	 * @param compartment 'soma', 'axon', 'dendrite', 'all' (case insensitive)
+	 * @return the trees, in the order of {@code ids}. Neurons that could not be retrieved are represented by an empty
+	 *         Tree
+	 * @see #getTree(String, ColorRGB)
+	 */
+	public static List<Tree> getTrees(final Collection<String> ids, final String compartment) {
+		return getTrees(ids, compartment, null, null);
+	}
+
+	/**
+	 * Retrieves multiple neurons concurrently, reporting progress.
+	 *
+	 * @param ids         the neuron ids (e.g., "AA0001")
+	 * @param compartment 'soma', 'axon', 'dendrite', 'all' (case insensitive)
+	 * @param progress    optional progress listener (null allowed)
+	 * @param cancelled   optional cancellation flag (null allowed)
+	 * @return the trees, in the order of {@code ids}. Neurons that could not be retrieved are represented by an empty
+	 *         Tree
+	 * @see #getTrees(Collection, String)
+	 */
+	public static List<Tree> getTrees(final Collection<String> ids, final String compartment,
+			final RemoteRetriever.ProgressListener progress, final BooleanSupplier cancelled) {
+		return RemoteRetriever.retrieve(new ArrayList<>(ids),
+				id -> new MouseLightLoader(id).getTree(compartment, null),
+				RemoteRetriever.DEFAULT_THREADS, progress, cancelled);
 	}
 
 	/**

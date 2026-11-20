@@ -35,8 +35,10 @@ import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
+import sc.fiji.snt.io.RemoteRetriever;
 import sc.fiji.snt.io.RemoteSWCLoader;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -135,8 +137,8 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			((NeuroMorphoLoader) loader).setVersion(v.contains("source") ? NeuroMorphoLoader.Version.SOURCE
 					: v.contains("cng") ? NeuroMorphoLoader.Version.CNG : NeuroMorphoLoader.Version.CCF);
 		}
-		final LinkedHashMap<String, String> urlsMap = getURLmapFromQuery(query);
-		if (urlsMap == null || urlsMap.isEmpty()) {
+		final List<String> ids = getIdsFromQuery(query);
+		if (ids.isEmpty()) {
 			error("Invalid query. No reconstructions retrieved.");
 			return;
 		}
@@ -162,10 +164,12 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 
 		notifyLoadingStart(recViewer);
 		status("Retrieving cells. Please wait...", false);
-		SNTUtils.log(database + " import: Downloading from URL(s)...");
+		SNTUtils.log(database + " import: Retrieving " + ids.size() + " cell(s)...");
 		final int lastExistingPathIdx = pafm.size() - 1;
-		final List<Tree> rawResult = pafm.importSWCs(urlsMap, getColor(),
-			(i, n, label) -> status(String.format("Retrieving %d/%d: %s", i, n, label), false));
+		final List<Tree> rawResult = loader.getTrees(ids, RemoteRetriever.DEFAULT_THREADS,
+			(done, total, id) -> status(String.format("Retrieved %d/%d: %s", done, total, id), false),
+			() -> Thread.currentThread().isInterrupted());
+		applyColors(rawResult);
 		final List<Tree> filteredResult = rawResult.stream().filter(tree -> tree != null && !tree
 			.isEmpty()).collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
@@ -175,6 +179,8 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			status("Error... No reconstructions imported", true);
 			return;
 		}
+
+		if (!standAloneViewer) pafm.addTrees(filteredResult, null);
 
 		if (clearExisting) {
 			if (standAloneViewer) {
@@ -217,7 +223,32 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			status("Successful imported " + filteredResult.size() + " reconstruction(s)...",
 				true);
 		}
+		warnIfCoordinateSpacesDiffer(filteredResult);
+	}
 
+	private void warnIfCoordinateSpacesDiffer(final Collection<Tree> trees) {
+		if (!(loader instanceof NeuroMorphoLoader nm) || nm.getVersion() != NeuroMorphoLoader.Version.CCF) return;
+		final String ccfTag = NeuroMorphoLoader.Version.CCF.name();
+		final long total = trees.size();
+		final long ccf = trees.stream().filter(t -> ccfTag.equals(t.getProperties().getProperty(
+				NeuroMorphoLoader.KEY_VERSION))).count();
+		if (total == 0 || ccf == total) return;
+		if (ccf == 0) {
+			msg("<HTML>None of the cells has a CCF registration.<br>CNG versions were loaded instead: "
+					+ "coordinates are those of the original reconstructions, not CCF.", "No CCF Versions");
+			return;
+		}
+		msg(String.format("<HTML>Only %d of %d cells have a CCF registration.<br>The remaining %d were loaded as "
+				+ "CNG (original coordinates), and will not align with the CCF-registered cells.<br>"
+				+ "Choose 'CNG' in the Version field to import all cells in their original coordinates.",
+				ccf, total, total - ccf), "Mixed Coordinate Spaces");
+	}
+
+	private void applyColors(final List<Tree> trees) {
+		final ColorRGB common = getColor();
+		final ColorRGB[] distinct = (common == null) ? SNTColor.getDistinctColors(trees.size()) : null;
+		for (int i = 0; i < trees.size(); i++)
+			trees.get(i).setColor((common != null) ? common : distinct[i]);
 	}
 
 	private ColorRGB getColor() {
@@ -228,16 +259,10 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		return commonColor;
 	}
 
-	private LinkedHashMap<String, String> getURLmapFromQuery(final String query) {
-		if (query == null) return null;
-		final List<String> ids = new LinkedList<>(Arrays.asList(query.split(
-			"\\s*(,|\\s)\\s*")));
-		if (ids.isEmpty()) return null;
-		Collections.sort(ids);
-		final LinkedHashMap<String, String> map =
-			new LinkedHashMap<>();
-		ids.forEach(id -> map.put(id, loader.getReconstructionURL(id)));
-		return map;
+	private List<String> getIdsFromQuery(final String query) {
+		if (query == null) return Collections.emptyList();
+		return Arrays.stream(query.split("\\s*(,|\\s)\\s*")).filter(id -> !id.isBlank()).distinct().sorted()
+			.toList();
 	}
 
 	protected void init() {

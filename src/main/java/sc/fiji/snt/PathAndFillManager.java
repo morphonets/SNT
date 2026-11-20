@@ -2511,12 +2511,10 @@ public class PathAndFillManager extends DefaultHandler implements
      */
     public boolean importSWC(final String descriptor, final String urlOrFilePath) {
         if (BigDataUtils.isRemoteUrl(urlOrFilePath)) {
-            try {
-                final URL url = new URI(urlOrFilePath).toURL(); //new URL(urlOrFilePath);
-                final InputStream is = url.openStream();
-                return importSWC(descriptor, new BufferedReader(new InputStreamReader(is)));
+            try (BufferedReader br = RemoteSWCLoader.openReader(urlOrFilePath)) {
+                return importSWC(descriptor, br);
             }
-            catch (final IOException | URISyntaxException | IllegalArgumentException e) {
+            catch (final IOException | IllegalArgumentException e) {
                 return false;
             }
         }
@@ -2581,7 +2579,6 @@ public class PathAndFillManager extends DefaultHandler implements
         }
         final boolean headlessState = headless;
         final boolean existingEnableUIupdates = enableUIupdates;
-        SNTUtils.log("importSWCs: enableUIupdates=" + existingEnableUIupdates + " on entry");
         setHeadless(true);
         // Suppress per-file Path Manager refreshes: they are expensive and interleave with
         // the flag handling of the refresh itself. Applied once, below
@@ -2620,7 +2617,6 @@ public class PathAndFillManager extends DefaultHandler implements
             }
         }
         resetListeners(null, true);
-        SNTUtils.log("importSWCs: enableUIupdates=" + enableUIupdates + " on exit");
         return result;
     }
 

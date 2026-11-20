@@ -22,18 +22,17 @@
 
 package sc.fiji.snt.io;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Absurdly simple importer for retrieving SWC data from
@@ -55,24 +54,16 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	 */
 	@Override
 	public boolean isDatabaseAvailable() {
-		HttpURLConnection connection = null;
-		boolean isOnline = false;
-		try {
-			final URL url = new URI(BASE_URL).toURL();
-			connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("GET");
-			connection.setConnectTimeout(5000);
-			connection.connect();
-			isOnline = connection
-				.getResponseCode() == HttpURLConnection.HTTP_FORBIDDEN;
+		final OkHttpClient client = IOUtils.httpClient().newBuilder()
+				.connectTimeout(5, TimeUnit.SECONDS).build();
+		final Request request = new Request.Builder().url(BASE_URL).build();
+		// The base URL of the data directory is expected to be forbidden when the server is up
+		try (Response response = client.newCall(request).execute()) {
+			return response.code() == 403;
 		}
-		catch (final IOException | URISyntaxException ignored) {
-			// do nothing
+		catch (final IOException ignored) {
+			return false;
 		}
-		finally {
-			connection.disconnect();
-		}
-		return isOnline;
 	}
 
 	/**
@@ -99,11 +90,9 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	@Override
 	public BufferedReader getReader(final String cellId) {
 		try {
-			final URL url = new URI(getReconstructionURL(cellId)).toURL();
-			final InputStream is = url.openStream();
-			return new BufferedReader(new InputStreamReader(is));
+			return RemoteSWCLoader.openReader(getReconstructionURL(cellId));
 		}
-		catch (final IOException | URISyntaxException e) {
+		catch (final IOException e) {
 			return null;
 		}
 	}
@@ -144,7 +133,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 		System.out.println("FlyCircuit available: " + loader.isDatabaseAvailable());
 		System.out.println("URL :" + loader.getReconstructionURL(cellId));
 		System.out.println("Successful import: " + (tree != null));
-		System.out.println(cellId + " contains  " + tree.size() + " paths");
+		if (tree != null) System.out.println(cellId + " contains  " + tree.size() + " paths");
 		System.out.println("# All done");
 	}
 }

@@ -32,10 +32,10 @@ import org.scijava.util.ColorRGB;
 import org.scijava.widget.Button;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
-import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import java.util.*;
@@ -48,8 +48,7 @@ import java.util.stream.IntStream;
  * @see MouseLightLoader
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class,
-	label = "Import MouseLight Reconstructions", initializer = "init")
+@Plugin(type = Command.class, label = "Import MouseLight Reconstructions", initializer = "init")
 public class MLImporterCmd extends CommonDynamicCmd {
 
 	private static final String EMPTY_LABEL = "<html>&nbsp;";
@@ -58,7 +57,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 	private static final String CHOICE_SOMA = "Soma";
 	private static final String CHOICE_BOTH = "All compartments";
 	private static final String CHOICE_BOTH_COMBINED = "All compartments (as single object)";
-	private static final String CHOICE_BOTH_SPLIT = "All compartments (splitted objects)";
+	private static final String CHOICE_BOTH_SPLIT = "All compartments (split objects)";
 	private final static String DOI_MATCHER = ".*\\d+/janelia\\.\\d+.*";
 	private final static String ID_MATCHER = "[A-Z]{2}\\d{4}";
 
@@ -124,15 +123,13 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		notifyLoadingStart(recViewer);
 		status("Retrieving ids... Please wait...", false);
 		final int lastExistingPathIdx = pafm.size() - 1;
-		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
 		final String compartment = (!arborChoice.contains(" ")) ? arborChoice
 				: arborChoice.substring(0, arborChoice.indexOf(' '));
-		for (final String id : ids) {
-			final MouseLightLoader loader = new MouseLightLoader(id);
-			inMap.put(id, (loader.idExists()) ? loader.getNodes(compartment) : null);
-		}
-		final Map<String, Tree> result = pafm.importNeurons(inMap, getColor(), GuiUtils.micrometer());
-		final List<Tree> filteredResult = result.values().stream().filter(tree -> (tree != null && !tree.isEmpty()))
+		final List<Tree> rawResult = MouseLightLoader.getTrees(ids, compartment,
+				(done, total, id) -> status(String.format("Retrieved %d/%d: %s", done, total, id), false),
+				() -> Thread.currentThread().isInterrupted());
+		applyColors(rawResult);
+		final List<Tree> filteredResult = rawResult.stream().filter(tree -> tree != null && !tree.isEmpty())
 				.collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
 			resetUI(false);
@@ -145,6 +142,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 
 		if (recViewer == null) {
 			// We are importing into a functional SNTUI with Path Manager
+			pafm.addTrees(filteredResult, null);
 			if (clearExisting) {
 				final int[] indices = IntStream.rangeClosed(0, lastExistingPathIdx)
 						.toArray();
@@ -163,19 +161,26 @@ public class MLImporterCmd extends CommonDynamicCmd {
 
 		notifyLoadingEnd(recViewer);
 		resetUI(recViewer == null);
-		if (filteredResult.size() < result.size()) {
+		if (filteredResult.size() < rawResult.size()) {
 			status("Partially successful import...", true);
 			error(String.format("Only %d of %d reconstructions could be retrieved.",
-				filteredResult.size(), result.size()));
+				filteredResult.size(), rawResult.size()));
 		}
 		else {
-			status("Successful imported " + result.size() + " reconstruction(s)...", true);
+			status("Successful imported " + filteredResult.size() + " reconstruction(s)...", true);
 		}
 		// Only dispose the throwaway manager created for a stand-alone viewer.
 		// When recViewer == null, pafm is SNT's shared PathAndFillManager
 		// (sntService.getPathAndFillManager()); disposing it here would clear the
 		// just-imported paths and null its plugin reference, blanking the canvas.
 		if (recViewer != null && pafm != null) pafm.dispose();
+	}
+
+	private void applyColors(final List<Tree> trees) {
+		final ColorRGB common = getColor();
+		final ColorRGB[] distinct = (common == null) ? SNTColor.getDistinctColors(trees.size()) : null;
+		for (int i = 0; i < trees.size(); i++)
+			trees.get(i).setColor((common != null) ? common : distinct[i]);
 	}
 
 	/**

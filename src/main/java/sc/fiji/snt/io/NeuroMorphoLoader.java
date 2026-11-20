@@ -38,10 +38,6 @@ import sc.fiji.snt.Tree;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -88,7 +84,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	private static final String SELECT_URL = BASE_URL + "neuron/select";
 	private static final int MAX_PAGE_SIZE = 500;
 	private static final MediaType JSON_TYPE = MediaType.parse("application/json");
-	private Version version = Version.CCF;
+	private volatile Version version = Version.CCF;
 
 	private JSONObject getJSon(final String url, final String anchor) {
 		final Request request = new Request.Builder().url(url + anchor).build();
@@ -169,11 +165,9 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	public BufferedReader getReader(final String cellId) {
 		try {
 			final String urlString = getReconstructionURL(cellId);
-			if (urlString == null) return null;
-			final InputStream is = new URI(urlString).toURL().openStream();
-			return new BufferedReader(new InputStreamReader(is));
+			return (urlString == null) ? null : RemoteSWCLoader.openReader(urlString);
 		}
-		catch (final IOException | URISyntaxException e) {
+		catch (final IOException e) {
 			return null;
 		}
 	}
@@ -352,19 +346,15 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	}
 
 	/**
-	 * Retrieves multiple neurons.
+	 * Retrieves multiple neurons concurrently, see {@link RemoteRetriever}.
 	 *
 	 * @param cellIds the neuron names, e.g., as returned by
 	 *                {@link #getNeuronNames(Map)}
-	 * @return the neurons that could be retrieved
+	 * @return the neurons that could be retrieved, in the order of {@code cellIds}
 	 */
 	public List<Tree> getTrees(final Collection<String> cellIds) {
-		final List<Tree> trees = new ArrayList<>();
-		for (final String id : cellIds) {
-			final Tree tree = getTree(id);
-			if (tree != null) trees.add(tree);
-		}
-		return trees;
+		return getTrees(cellIds, RemoteRetriever.DEFAULT_THREADS, null, null).stream()
+				.filter(tree -> !tree.isEmpty()).toList();
 	}
 
 	private static void toStrings(final JSONArray array, final List<String> list) {
