@@ -1981,7 +1981,7 @@ public class Tree implements TreeProperties, Cloneable {
 	/**
 	 * Fits radii to all paths in this Tree by fitting circular cross-sections
 	 * to the image signal. Paths are fitted in parallel; results are applied
-	 * sequentially. This is the scripting equivalent of the UI's "Fit Paths"
+	 * sequentially. This is the scripting equivalent of the UI's "Fit Path(s)"
 	 * action. Node positions are not modified; only radii and tangent vectors
 	 * are computed.
 	 *

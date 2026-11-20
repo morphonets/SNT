@@ -120,7 +120,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private final ProofReadingTagsToolBar proofReadingToolBar;
     private ButtonGroup swcTypeButtonGroup;
     private final ColorMenu colorMenu;
-    private final JMenuItem fitVolumeMenuItem;
     private FitHelper fittingHelper;
     private MultiSpectralRefineHelper multiSpectralRefineHelper;
     private AStarRefineHelper aStarRefineHelper;
@@ -175,13 +174,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(getDeleteMenuItem(multiPathListener));
         editMenu.add(getDuplicateMenuItem(singlePathListener));
         editMenu.add(getRenameMenuItem(singlePathListener));
-        JMenuItem jmi = new JMenuItem(MultiPathActionListener.RENAME_BY_PATTERN_CMD, IconFactory.menuIcon('\ue521', true));
-        editMenu.add(jmi);
-        jmi.setToolTipText("Renames multiple paths using Find/Replace matching");
-        jmi.addActionListener(multiPathListener);
-        editMenu.addSeparator();
 
-        jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.MAGIC));
+        GuiUtils.MenuItems.addSeparator(editMenu, "Connectivity:");
+        JMenuItem jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.MAGIC));
         jmi.setToolTipText("<HTML>Connects 2 paths (parent-child) at an inferred fork point.<br>" +
                 "Suggests parent based on path properties.");
         jmi.addActionListener(multiPathListener);
@@ -190,8 +185,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setToolTipText("Disconnects selected path(s) from all of their connections");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
-        editMenu.addSeparator();
-
         jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
         jmi.setToolTipText("Connect selected primary paths to a shared root placed at their\n" +
                 "averaged origin, or the centroid of a ROI-defining soma");
@@ -211,8 +204,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(jmi);
         jmi.setToolTipText("Reverses orientation of primary path(s), with option to update child connections");
         jmi.addActionListener(multiPathListener);
-        editMenu.addSeparator();
 
+        GuiUtils.MenuItems.addSeparator(editMenu, "Attributes:");
         jmi = new JMenuItem(MultiPathActionListener.SPECIFY_CT_POSITION_CMD);
         jmi.setToolTipText("Changes CT position of selected path(s)");
         IconFactory.assignDoubleLetterIcon(jmi, 'C', 'T', true);
@@ -228,8 +221,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
-        editMenu.addSeparator();
 
+        GuiUtils.MenuItems.addSeparator(editMenu, "Geometry:");
         jmi = new JMenuItem(MultiPathActionListener.Z_CORRECTION_CMD, IconFactory.menuIcon('\ue4b8', true));
         jmi.setToolTipText("Corrects Z-axis shrinkage from tissue processing (e.g., cut/mounted thickness ratio)");
         jmi.addActionListener(multiPathListener);
@@ -238,13 +231,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setToolTipText("Simplifies paths by reducing node count (Ramer-Douglas-Peucker algorithm)");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
-        editMenu.addSeparator();
 
+        GuiUtils.MenuItems.addSeparator(editMenu, "Repair:");
         jmi = new JMenuItem(MultiPathActionListener.REBUILD_CMD);
-        jmi.setToolTipText("Analyzes and re-computes all hierarchical connections in the list");
+        jmi.setToolTipText("<HTML>Analyzes and re-computes all hierarchical connections in the list.<br>"
+                + "Applies to all paths, regardless of selection");
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FIRST_AID));
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
+
 
         tagsMenu = new JMenu("Tag");
         menuBar.add(tagsMenu);
@@ -317,25 +312,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu fitMenu = new JMenu("Refine");
         menuBar.add(fitMenu);
-        fitVolumeMenuItem = new JMenuItem("Fit Path(s)...");
-        fitVolumeMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CROSSHAIR));
-        fitVolumeMenuItem.addActionListener(multiPathListener);
-        fitMenu.add(fitVolumeMenuItem);
+        GuiUtils.MenuItems.addSeparator(fitMenu, "Fitting:");
+        jmi = new JMenuItem(MultiPathActionListener.FIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CROSSHAIR));
+        jmi.setToolTipText("<HTML>Fits selected path(s) to the signal (refined radii and node positions).<br>"
+                + "Existing fits are re-used unless you choose to recompute them");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.UNFIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        jmi.setToolTipText("<HTML>Reverts selected path(s) to their raw (unfitted) geometry.<br>"
+                + "Reversible: fits are kept in memory and can be re-applied");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
         jmi = new JMenuItem(SinglePathActionListener.EXPLORE_FIT_CMD);
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPLORE));
         jmi.setToolTipText("Displays fitting details for single paths");
         jmi.addActionListener(singlePathListener);
         fitMenu.add(jmi);
-        fitMenu.addSeparator();
-        jmi = new JMenuItem(MultiPathActionListener.RESET_FITS, IconFactory.menuIcon(IconFactory.GLYPH.BROOM));
-        jmi.setToolTipText("Resets fits for selected path(s)");
-        jmi.addActionListener(multiPathListener);
-        fitMenu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.FLATTEN_FITS, IconFactory.menuIcon('\uf06d', true));
-        jmi.setToolTipText("Makes the fitted geometry permanent (discarding the raw/unfitted flavor");
-        jmi.addActionListener(multiPathListener);
-        fitMenu.add(jmi);
-        fitMenu.addSeparator();
         jmi = new JMenuItem("Parameters...", IconFactory.menuIcon(IconFactory.GLYPH.SLIDERS));
         jmi.setToolTipText("Options for fitting operations");
         jmi.addActionListener(e -> {
@@ -348,23 +340,31 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         });
         fitMenu.add(jmi);
         fitMenu.addSeparator();
-
+        jmi = new JMenuItem(MultiPathActionListener.RESET_FITS, IconFactory.menuIcon(IconFactory.GLYPH.BROOM));
+        jmi.setToolTipText("<HTML>Permanently discards the fits of selected path(s).<br>"
+                + "Not reversible: use Un-fit to temporarily revert to raw geometry");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.FLATTEN_FITS, IconFactory.menuIcon('\uf06d', true));
+        jmi.setToolTipText("Makes the fitted geometry permanent (discarding the raw/unfitted flavor)");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.INTERPOLATE_MISSING_RADII,
                 IconFactory.menuIcon(IconFactory.GLYPH.DOTCIRCLE));
         jmi.setToolTipText("Corrects fitted nodes with invalid radius");
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
 
-        jmi = new JMenuItem(MultiPathActionListener.MULTI_SPECTRAL_REFINE_CMD,
-                IconFactory.menuIcon('\uf75b', true));
-        jmi.setToolTipText("Refines paths in multispectral (Brainbow) images");
-        jmi.addActionListener(multiPathListener);
-        fitMenu.add(jmi);
-
+        GuiUtils.MenuItems.addSeparator(fitMenu, "Re-tracing:");
         jmi = new JMenuItem(MultiPathActionListener.A_STAR_REFINE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ROUTE));
         jmi.setToolTipText("<HTML>Re-traces selected path(s) with A*, using their existing nodes as waypoints."
                 + "<br>Intended for paths traced manually (e.g. against data streamed from disk/network),"
                 + "<br>to be refined once A* search is practical (data cached, or e.g., overnight run).");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.MULTI_SPECTRAL_REFINE_CMD,
+                IconFactory.menuIcon('\uf75b', true));
+        jmi.setToolTipText("Refines paths in multispectral (Brainbow) images");
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
         fitMenu.addSeparator();
@@ -385,6 +385,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu process = new JMenu("Process");
         menuBar.add(process);
+        GuiUtils.MenuItems.addSeparator(process, "Convert & Export:");
         jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD, IconFactory.menuIcon(IconFactory.GLYPH.BEZIER_CURVE));
         jmi.setToolTipText("Converts selected path(s) into ROIs (polylines and points)");
         jmi.addActionListener(multiPathListener);
@@ -396,6 +397,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN, IconFactory.menuIcon(IconFactory.GLYPH.STAIRS));
         jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
         jmi.addActionListener(singlePathListener);
+        process.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SWC_CMD);
+        jmi.setToolTipText("Exports selected path(s) into dedicated SWC file(s).\nConnectivity constrains apply");
+        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        jmi.addActionListener(multiPathListener);
         process.add(jmi);
         GuiUtils.MenuItems.addSeparator(process, "Semantic Segmentation:");
         jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
@@ -413,7 +419,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu colorMapMenu = new JMenu("Color Mapping");
         colorMapMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
-        advanced.add(colorMapMenu);
         jmi = new JMenuItem(MultiPathActionListener.COLORIZE_TREES_CMD);
         jmi.setToolTipText("Color codes complete arbors using connectivity-dependent metrics");
         jmi.addActionListener(multiPathListener);
@@ -430,7 +435,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu distributionMenu = new JMenu("Frequency Analysis");
         distributionMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHART));
-        advanced.add(distributionMenu);
         jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_TREES_CMD);
         jmi.setToolTipText("Computes frequency histograms for measurements of complete arbors");
         jmi.addActionListener(multiPathListener);
@@ -447,7 +451,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu measureMenu = new JMenu("Measurements");
         measureMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
-        advanced.add(measureMenu);
         jmi = new JMenuItem(MultiPathActionListener.MEASURE_TREES_CMD);
         jmi.setToolTipText("Measures complete arbors");
         jmi.addActionListener(multiPathListener);
@@ -458,12 +461,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Measure Path(s)...\")");
         measureMenu.add(jmi);
 
-        //advanced.addSeparator();
+        GuiUtils.MenuItems.addSeparator(advanced, "Statistics & Plots:");
+        advanced.add(measureMenu);
+        advanced.add(distributionMenu);
         jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
         jmi.setToolTipText("Plots a Path metric against several others");
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Multimetric Plot...\")");
         advanced.add(jmi);
+        GuiUtils.MenuItems.addSeparator(advanced, "Visualization:");
+        advanced.add(colorMapMenu);
         GuiUtils.MenuItems.addSeparator(advanced, "Intensity Profilers:");
         jmi = new JMenuItem(SinglePathActionListener.NODE_PROFILER, IconFactory.menuIcon(IconFactory.GLYPH.CHART_MAGNIFIED));
         jmi.setToolTipText("Cross-section profiles of single paths");
@@ -475,14 +482,30 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Path Profiler...\")");
         advanced.add(jmi);
-        advanced.addSeparator();
+        GuiUtils.MenuItems.addSeparator(advanced, "Specialized:");
         advanced.add(getSpineUtilsMenu(multiPathListener));
         advanced.add(getTimeSequenceMenu(multiPathListener));
         advanced.addSeparator();
-        jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SWC_CMD);
-        jmi.setToolTipText("Exports selected path(s) into dedicated SWC file(s).\nConnectivity constrains apply");
-        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
-        jmi.addActionListener(multiPathListener);
+        jmi = new JMenuItem("More in Analysis Menu...", IconFactory.menuIcon(IconFactory.GLYPH.EXTERNAL_LINK));
+        jmi.setToolTipText("<HTML>Analyses that operate on whole cells (e.g., Sholl, Strahler, Root Angle)<br>"
+                + "are listed in the Analysis menu of SNT's main window");
+        jmi.putClientProperty("cmdFinder-ignore", true);
+        jmi.addActionListener(e -> {
+            final SNTUI ui = plugin.getUI();
+            if (ui == null) return;
+            ui.setVisible(true);
+            ui.toFront();
+            SwingUtilities.invokeLater(() -> {
+                final JMenuBar bar = ui.getJMenuBar();
+                for (int i = 0; i < bar.getMenuCount(); i++) {
+                    final JMenu m = bar.getMenu(i);
+                    if (m != null && "Analysis".equals(m.getText())) {
+                        GuiUtils.MenuItems.revealMenuItem(m);
+                        return;
+                    }
+                }
+            });
+        });
         advanced.add(jmi);
 
         final JPopupMenu popup = new JPopupMenu();
@@ -682,7 +705,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 SinglePathActionListener.RENAME_CMD);
         renameMitem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         renameMitem.addActionListener(singlePathListener);
-        renameMitem.setToolTipText("Renames a single path");
+        renameMitem.setToolTipText("<HTML>Renames the selected path. If multiple paths are selected,<br>"
+                + "renames them using Find/Replace pattern matching");
         return renameMitem;
     }
 
@@ -948,17 +972,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     private void updateCmdsOneSelected(final Path p) {
         assert SwingUtilities.isEventDispatchThread();
-        if (p.getUseFitted()) {
-            fitVolumeMenuItem.setText("Un-fit Path");
-        }
-        else {
-            final boolean fitExists = p.getFitted() != null;
-            fitVolumeMenuItem.setText((fitExists) ? "Apply Existing Fit"
-                    : "Fit Path...");
-            fitVolumeMenuItem.setToolTipText((fitExists)
-                    ? "<html>Path has never been fitted:<br>Fit will be computed for the first time"
-                    : "<html>Path has already been fitted:\nCached properties will be applied");
-        }
         colorMenu.selectSWCColor(new SNTColor(p.getColor()));
         selectSWCTypeMenuEntry(p.getSWCType());
     }
@@ -967,17 +980,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final Collection<Path> selectedPaths)
     {
         assert SwingUtilities.isEventDispatchThread();
-
-        if (allUsingFittedVersion(selectedPaths)) {
-            fitVolumeMenuItem.setText("Un-fit Paths");
-            fitVolumeMenuItem.setToolTipText(null);
-        }
-        else {
-            fitVolumeMenuItem.setText("Fit Paths...");
-            fitVolumeMenuItem.setToolTipText(
-                    "<html>If fitting has run for a selected path, cached properties<br>" +
-                            " will be applied, otherwise a new computation will be performed");
-        }
 
         // Update Type & Tags Menu entries only if a real selection exists
         if (tree.getSelectionCount() == 0) {
@@ -2669,6 +2671,62 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
     }
 
+    /** A compiled Find/Replace pair (see {@link #promptFindReplace(String, String)}) */
+    private record FindReplace(Pattern pattern, String replacement) {
+
+        boolean matches(final String input) {
+            return pattern.matcher(input).find();
+        }
+
+        String apply(final String input) {
+            return pattern.matcher(input).replaceAll(Matcher.quoteReplacement(replacement));
+        }
+    }
+
+    /**
+     * Prompts for a Find/Replace pair, honoring the [Cc] (case sensitive) and [.*] (wildcards) options of the
+     * search bar. Without wildcards the Find string is matched literally
+     *
+     * @param title       the prompt title
+     * @param defaultFind the initial content of the Find field
+     * @return the pair, or null if the prompt was canceled or no Find string was entered
+     */
+    private FindReplace promptFindReplace(final String title, final String defaultFind) {
+        final boolean caseSensitive = getSearchable().isCaseSensitive();
+        final boolean wildcards = getSearchable().isWildcardEnabled();
+        final String[] labels = {"<HTML>Find", "<HTML>Replace&nbsp;"};
+        if (caseSensitive) labels[0] += " <i>[Cc]</i> ";
+        if (wildcards) labels[0] += " <i>[.*]</i> ";
+        labels[0] += "&nbsp;";
+        final String[] input = guiUtils.getStrings(title, labels, new String[]{defaultFind, ""},
+                "<HTML>Use <i>[Cc]</i> and <i>[.*]</i> in the search bar to refine matching");
+        if (input == null || input[0] == null || input[0].isEmpty() || input[1] == null)
+            return null; // user pressed cancel or chose no inputs
+        final StringBuilder regex = new StringBuilder(caseSensitive ? "" : "(?i)");
+        if (wildcards) {
+            // Literal text between wildcards: '*' matches any run of characters, '?' any single one
+            final StringBuilder literal = new StringBuilder();
+            for (final char c : input[0].toCharArray()) {
+                if (c == '*' || c == '?') {
+                    if (!literal.isEmpty()) regex.append(Pattern.quote(literal.toString()));
+                    literal.setLength(0);
+                    regex.append((c == '*') ? ".*" : ".");
+                } else {
+                    literal.append(c);
+                }
+            }
+            if (!literal.isEmpty()) regex.append(Pattern.quote(literal.toString()));
+        } else {
+            regex.append(Pattern.quote(input[0]));
+        }
+        try {
+            return new FindReplace(Pattern.compile(regex.toString()), input[1]);
+        } catch (final IllegalArgumentException ex) {
+            guiUtils.error("Find pattern invalid: " + ex.getMessage());
+            return null;
+        }
+    }
+
     /** ActionListener for commands operating exclusively on a single path */
     private class SinglePathActionListener implements ActionListener {
 
@@ -2686,13 +2744,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         @Override
         public void actionPerformed(final ActionEvent e) {
 
-            // Process nothing without a single path selection
-            final List<Path> selectedPaths = getSelectedPaths(false);
-            if (RENAME_CMD.equals(e.getActionCommand()) && selectedPaths.size() > 1) {
-                if (guiUtils.getConfirmation("This command accepts only one path. Run "
-                        + MultiPathActionListener.RENAME_BY_PATTERN_CMD + " instead?", "Single Path Command"))
-                    multiPathActionListener.commands.get(MultiPathActionListener.RENAME_BY_PATTERN_CMD)
-                            .execute(selectedPaths, MultiPathActionListener.RENAME_BY_PATTERN_CMD);
+            // Rename: no selection means all paths, as in multi-path commands. Other commands need a selection
+            final boolean isRename = RENAME_CMD.equals(e.getActionCommand());
+            final List<Path> selectedPaths = getSelectedPaths(isRename);
+            if (isRename && selectedPaths.size() > 1) {
+                // Multiple paths: rename by Find/Replace pattern
+                multiPathActionListener.commands.get(MultiPathActionListener.RENAME_BY_PATTERN_CMD)
+                        .execute(selectedPaths, MultiPathActionListener.RENAME_BY_PATTERN_CMD);
                 return;
             } else if (selectedPaths.size() != 1) {
                 guiUtils.error("This command accepts only a single path. Please re-run after having only one path selected.");
@@ -3052,6 +3110,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String Z_CORRECTION_CMD = "Correct Z-Shrinkage...";
         private static final String CUSTOM_TAG_CMD = "Other...";
         private static final String RENAME_BY_PATTERN_CMD = "Rename by Pattern...";
+        private static final String FIT_CMD = "Fit Path(s)...";
+        private static final String UNFIT_CMD = "Un-fit Path(s)";
         private static final String REPLACE_TAG_CMD = "Replace...";
         private static final String LENGTH_TAG_CMD = "Length";
         private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
@@ -3203,7 +3263,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(DELETE_CMD, new DeleteCommand());
 
             // Fit command (special case with dynamic text)
-            commands.put("fit", new FitCommand()); // handles both fit and unfit
+            commands.put(FIT_CMD, new FitCommand());
+            commands.put(UNFIT_CMD, new UnfitCommand());
         }
 
         private void selectChildren(final List<Path> paths, final boolean recursive) {
@@ -3232,12 +3293,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             if (selectedPaths.isEmpty()) {
                 guiUtils.error("There are no traced paths.");
-                return;
-            }
-
-            // Handle fit command specially due to dynamic text
-            if (e.getSource().equals(fitVolumeMenuItem) || cmd.toLowerCase().contains("fit paths")) {
-                commands.get("fit").execute(selectedPaths, cmd);
                 return;
             }
 
@@ -4154,46 +4209,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class RenameByPatternCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                final String[] labels = {"<HTML>Find", "<HTML>Replace&nbsp;"};
-                if (getSearchable().isCaseSensitive()) labels[0] += " <i>[Cc]</i> ";
-                if (getSearchable().isWildcardEnabled()) labels[0] += " <i>[.*]</i> ";
-                labels[0] += "&nbsp;";
-                final String[] defaults = {PathManagerUI.this.getSearchable().getSearchingText(), ""};
-                final String[] findReplace = guiUtils.getStrings(
+                final FindReplace fr = promptFindReplace(
                         String.format("Renaming %d Path(s) by Pattern", selectedPaths.size()),
-                        labels, defaults,
-                        "<HTML>Use <i>[Cc]</i> and <i>[.*]</i> in the search bar to refine matching");
-                if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty())
-                    return; // user pressed cancel or chose no inputs
-
-                if (findReplace[1] == null || findReplace[1].isEmpty())
-                    return; // nothing to replace
-                if (getSearchable().isWildcardEnabled()) {
-                    findReplace[0] = findReplace[0].replaceAll("\\?", ".?");
-                    findReplace[0] = findReplace[0].replaceAll("\\*", ".*");
-                }
-                if (!getSearchable().isCaseSensitive()) {
-                    findReplace[0] = "(?i)" + findReplace[0];
-                }
+                        PathManagerUI.this.getSearchable().getSearchingText());
+                if (fr == null || fr.replacement().isEmpty())
+                    return; // user pressed cancel, or nothing to find/replace
                 int replacements = 0;
-                try {
-                    final Pattern pattern = Pattern.compile(findReplace[0]);
-                    for (final Path p : selectedPaths) {
-                        final Matcher matcher = pattern.matcher(p.getName());
-                        if (matcher.find()) {
-                            replacements++;
-                            p.setName(matcher.replaceAll(findReplace[1]));
-                        }
+                for (final Path p : selectedPaths) {
+                    if (fr.matches(p.getName())) {
+                        replacements++;
+                        p.setName(fr.apply(p.getName()));
                     }
-                    if (replacements > 0) {
-                        refreshManager(false, false, selectedPaths);
-                        plugin.setUnsavedChanges(true);
-                        displayTmpMsg(String.format("%d/%d path(s) renamed.", replacements, selectedPaths.size()));
-                    } else {
-                        guiUtils.error(String.format("None of the %d paths matched the specified pattern.", selectedPaths.size()));
-                    }
-                } catch (final IllegalArgumentException ex) {
-                    guiUtils.error("Replacement pattern invalid: " + ex.getMessage());
+                }
+                if (replacements > 0) {
+                    refreshManager(false, false, selectedPaths);
+                    plugin.setUnsavedChanges(true);
+                    displayTmpMsg(String.format("%d/%d path(s) renamed.", replacements, selectedPaths.size()));
+                } else {
+                    guiUtils.error(String.format("None of the %d paths matched the specified pattern.", selectedPaths.size()));
                 }
             }
 
@@ -5401,16 +5434,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class FitCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                // this MenuItem is a toggle: check if it is set for 'unfitting'
-                if (fitVolumeMenuItem.getText().contains("Un-fit")) {
-                    for (final Path p : selectedPaths)
-                        p.setUseFitted(false);
-                    refreshManager(true, false, selectedPaths);
-                    return;
-                }
-
                 selectedPaths = resolveActiveCTPathSelection(selectedPaths);
                 if (selectedPaths == null) return;
+
+                // Existing fits are re-used unless the user asks to recompute them
+                boolean recompute = false;
+                int nFitted = 0;
+                for (final Path p : selectedPaths) {
+                    if (p.getFitted() != null) nFitted++;
+                }
+                if (nFitted > 0 && plugin.getUI().askUserConfirmation) {
+                    final String[] options = {"Use existing fit(s)", "Recompute"};
+                    final String choice = guiUtils.getChoice(String.format(
+                            "%d of %d selected path(s) already have a fit.", nFitted, selectedPaths.size()),
+                            "Fit Path(s)", options, options[0]);
+                    if (choice == null) return; // user pressed cancel
+                    recompute = choice.equals(options[1]);
+                }
 
                 final boolean imageNotAvailable = !plugin.accessToValidImageData();
                 final ArrayList<PathFitter> pathsToFit = new ArrayList<>();
@@ -5418,24 +5458,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
                 try {
                     for (final Path p : selectedPaths) {
-                        // If the fitted version is already being used. Do nothing
-                        if (p.getUseFitted()) {
-                            continue;
-                        }
-                        // A fitted version does not exist
-                        else if (p.getFitted() == null) {
-                            if (imageNotAvailable) {
-                                // Keep a tally of how many computations we are skipping
-                                skippedFits++;
-                            } else {
-                                // Prepare for computation
-                                final PathFitter pathFitter = new PathFitter(plugin, p);
-                                pathsToFit.add(pathFitter);
-                            }
-                        }
-                        // Just use the existing fitted version:
-                        else {
+                        if (p.getFitted() != null && !recompute) {
                             p.setUseFitted(true);
+                        } else if (imageNotAvailable) {
+                            // Keep a tally of how many computations we are skipping
+                            skippedFits++;
+                        } else {
+                            pathsToFit.add(new PathFitter(plugin, p));
                         }
                     }
                 } catch (final IllegalArgumentException ex) {
@@ -5457,8 +5486,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     plugin.setUnsavedChanges(true);
                 }
                 else {
+                    plugin.setUnsavedChanges(true);
                     refreshManager(true, false, selectedPaths);
                 }
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class UnfitCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                int unfitted = 0;
+                for (final Path p : selectedPaths) {
+                    if (p.getUseFitted()) {
+                        p.setUseFitted(false);
+                        unfitted++;
+                    }
+                }
+                if (unfitted == 0) {
+                    displayTmpMsg("None of the selected path(s) are using a fit.");
+                    return;
+                }
+                plugin.setUnsavedChanges(true);
+                refreshManager(true, false, selectedPaths);
+                displayTmpMsg(String.format("%d/%d path(s) un-fitted.", unfitted, selectedPaths.size()));
             }
 
             @Override
@@ -5651,18 +5706,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private void replaceTags(final List<Path> selectedPaths) {
-            final String[] labels = { "Find (case-sensitive) ", "Replace with " };
-            final String[] defaults = { GuiUtils.toString(extractTagsFromPaths(selectedPaths)), "" };
-            final String[] findReplace = guiUtils.getStrings("Replace Tag(s)...", labels, defaults, null);
-            if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty() || findReplace[1] == null)
-                return; // nothing to replace
-            findReplace[1] = findReplace[1].replace("[", "(").replace("]", ")")
-                    .replace("{", "").replace("}", "");
+            final FindReplace input = promptFindReplace("Replace Tag(s)...",
+                    GuiUtils.toString(extractTagsFromPaths(selectedPaths)));
+            if (input == null) return; // user pressed cancel, or nothing to find
+            // Tag delimiters are not allowed in the replacement
+            final FindReplace fr = new FindReplace(input.pattern(), input.replacement()
+                    .replace("[", "(").replace("]", ")").replace("{", "").replace("}", ""));
             int counter = 0;
             for (final Path p : selectedPaths) {
                 final String existingTags = extractTagsFromPath(p);
-                if (existingTags.contains(findReplace[0])) {
-                    final String replacedTags = existingTags.replace(findReplace[0], findReplace[1]);
+                if (fr.matches(existingTags)) {
+                    final String replacedTags = fr.apply(existingTags);
                     p.setName(removeTags(p) + ((replacedTags.isEmpty()) ? "" : "{" + replacedTags + "}"));
                     counter++;
                 }

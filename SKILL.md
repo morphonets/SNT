@@ -326,7 +326,7 @@ Before handing a script back to the user:
 
 ---
 
-### Two helper scripts (bundled; SNT menu: Scripts > Develop)
+### Two helper scripts (bundled; SNT menu: Scripts > Agentic Scripting)
 
 Run these instead of guessing. Both work headlessly and print to the console. Use `output="JSON"` (API_Lookup) for machine-readable
 results. Never pass `output="Text window"`: it opens a window on the user's screen when Fiji is not headless.

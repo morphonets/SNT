@@ -3830,11 +3830,11 @@ public class SNTUI extends JDialog {
         final JMenuItem fromClipboard = getImportActionMenuItem(ImportAction.IMAGE_CLIPBOARD);
         fromClipboard.setIcon(IconFactory.menuIcon(GLYPH.CLIPBOARD));
         changeImpMenu.add(fromClipboard);
+        GuiUtils.MenuItems.addSeparator(fileMenu, "Load:");
         fileMenu.add(changeImpMenu);
 
         // Load
         fileMenu.add(importSubmenu);
-        fileMenu.addSeparator();
         final JMenuItem fromDemo = getImportActionMenuItem(ImportAction.DEMO);
         fromDemo.setIcon(IconFactory.menuIcon(GLYPH.GRADUATION_CAP));
         fromDemo.setToolTipText("Load sample images and/or reconstructions");
@@ -3851,7 +3851,7 @@ public class SNTUI extends JDialog {
         fileMenu.add(loadLabelsMenuItem);
 
         // Save
-        fileMenu.addSeparator();
+        GuiUtils.MenuItems.addSeparator(fileMenu, "Save & Export:");
         final JMenuItem saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.SAVE));
         saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file.\n"
                 + "This file may be gzip compressed as per options in the Preferences dialog.");
@@ -3890,7 +3890,7 @@ public class SNTUI extends JDialog {
         fileMenu.add(saveTable);
 
         // Backup
-        fileMenu.addSeparator();
+        GuiUtils.MenuItems.addSeparator(fileMenu, "Backups & Sessions:");
         final JMenuItem saveCopyMenuItem = new JMenuItem("Backup Tracings",
                 IconFactory.menuIcon('\uf1cd', false));
         saveCopyMenuItem.setToolTipText("Saves paths to a timestamped backup file in the workspace directory");
@@ -3909,7 +3909,6 @@ public class SNTUI extends JDialog {
         fileMenu.add(manageBackups);
 
         // Session
-        fileMenu.addSeparator();
         final JMenuItem saveSession = new JMenuItem("Save Session...",
                 IconFactory.menuIcon('\uf574', true));
         addDynamicCmdAction(saveSession, SaveSessionCmd.class, null, getState());
@@ -3919,8 +3918,8 @@ public class SNTUI extends JDialog {
         addDynamicCmdAction(restoreSession, RestoreSessionCmd.class, null, getState());
         fileMenu.add(restoreSession);
 
-        // Utilities
-        fileMenu.addSeparator();
+        // External
+        GuiUtils.MenuItems.addSeparator(fileMenu, "External:");
         fileMenu.add(showFolderMenu(installer));
         final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2",
                 IconFactory.menuIcon('T', false));
@@ -4032,7 +4031,7 @@ public class SNTUI extends JDialog {
         final JMenu menu = new JMenu("Auto-trace");
 
         // Interactive: operates on images already loaded in SNT
-        GuiUtils.MenuItems.addSeparator(menu, "Interactive:");
+        GuiUtils.MenuItems.addSeparator(menu, "Interactive Tracing:");
         final JMenuItem jmiGray = new JMenuItem("Grayscale Image...");
         jmiGray.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGray.setToolTipText("Runs automated tracing on a grayscale image already open");
@@ -4052,7 +4051,7 @@ public class SNTUI extends JDialog {
         jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiBinaryImg);
-        menu.addSeparator();
+        GuiUtils.MenuItems.addSeparator(menu, "Detection:");
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
         jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.");
@@ -4080,20 +4079,23 @@ public class SNTUI extends JDialog {
         jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGrayFile.putClientProperty("cmdFinder-keywords", "wizard, learn parameters");
         jmiGrayFile.setToolTipText("Runs automated tracing on a large grayscale image file or\n" +
-                "directory of images with optional SWC export.");
+                "directory of images with optional SWC export.\n" +
+                "Parameters are entered manually (see Interactive Tracing to learn them).");
         menu.add(jmiGrayFile);
 
         final JMenuItem jmiGrayMultiFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_MULTI);
         jmiGrayMultiFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGrayMultiFile.putClientProperty("cmdFinder-keywords", "wizard, learn parameters");
         jmiGrayMultiFile.setToolTipText("Runs automated tracing of multiple cells on a large grayscale\n" +
-                "image file or directory of images with optional SWC export.");
+                "image file or directory of images with optional SWC export.\n" +
+                "Parameters are entered manually (see Interactive Tracing to learn them).");
         menu.add(jmiGrayMultiFile);
 
         final JMenuItem jmiBinaryFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_BINARY_IMAGE);
         jmiBinaryFile.setIcon(IconFactory.menuIcon('\ue69b', true));
         jmiBinaryFile.setToolTipText("Runs automated tracing on a segmented image file or\n" +
-                "directory of images with optional SWC export.");
+                "directory of images with optional SWC export.\n" +
+                "Parameters are entered manually (see Interactive Tracing to learn them).");
         menu.add(jmiBinaryFile);
         CalloutManager.add(menu, CalloutManager.AUTO,
                 String.format("Use the <i>%s</i> menu for fully-automated<br>reconstruction tasks.", menu.getText()),
@@ -4103,72 +4105,7 @@ public class SNTUI extends JDialog {
 
     private JMenu analysisMenu() {
         final JMenu analysisMenu = new JMenu("Analysis");
-        analysisMenu.add(getBrainAnnotationMenu());
-        analysisMenu.add(getPathAnalysisMenu());
-        analysisMenu.addSeparator();
-        analysisMenu.add(compareReconstructionsMenuItem());
-        analysisMenu.addSeparator();
-        final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
-        convexHullMenuItem.addActionListener(e -> {
-            if (noPathsError()) return;
-            final Collection<Tree> trees = getPathManager().getMultipleTrees();
-            if (trees == null || trees.isEmpty()) return;
-            final HashMap<String, Object> inputs = new HashMap<>();
-            inputs.put("trees", trees);
-            inputs.put("table", getPathManager().getTable());
-            inputs.put("calledFromRecViewerInstance", false);
-            (new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
-        });
-        analysisMenu.add(convexHullMenuItem);
-        final JMenuItem tmdMenuItem = GuiUtils.MenuItems.persistenceAnalysis();
-        tmdMenuItem.addActionListener(e -> {
-            if (noPathsError()) return;
-            final Collection<Tree> trees = getPathManager().getMultipleTrees();
-            if (trees == null || trees.isEmpty()) return;
-            final HashMap<String, Object> inputs = new HashMap<>();
-            inputs.put("trees", trees);
-            new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
-        });
-        ScriptRecorder.setRecordingCall(tmdMenuItem, "snt.getUI().runCommand(\"Persistent Homology...\")");
-        analysisMenu.add(tmdMenuItem);
-        final JMenuItem rootAnalysisMenuItem = GuiUtils.MenuItems.rootAngleAnalysis();
-        rootAnalysisMenuItem.addActionListener(e -> {
-            if (noPathsError()) return;
-            final Collection<Tree> trees = getPathManager().getMultipleTrees();
-            if (trees == null || trees.isEmpty()) return;
-            final HashMap<String, Object> inputs = new HashMap<>();
-            inputs.put("trees", trees);
-            (new CmdRunner(RootAngleAnalyzerCmd.class, inputs, getState())).execute();
-        });
-        analysisMenu.add(rootAnalysisMenuItem);
-        final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
-        shollMenuItem.addActionListener(e -> {
-            if (noPathsShollError()) return;
-            softWarningOnShollPreview();
-            final Tree tree = getPathManager().getSingleTree();
-            if (tree == null) return;
-            final HashMap<String, Object> inputs = new HashMap<>();
-            inputs.put("tree", tree);
-            inputs.put("snt", plugin);
-            new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
-        });
-        ScriptRecorder.setRecordingCall(shollMenuItem, "snt.getUI().runCommand(\"Sholl Analysis (Tracings)...\")");
-        analysisMenu.add(shollMenuItem);
-        analysisMenu.add(shollAnalysisHelpMenuItem());
-        final JMenuItem strahlerMenuItem = GuiUtils.MenuItems.strahlerAnalysis();
-        strahlerMenuItem.addActionListener(e -> {
-            if (noPathsError()) return;
-            final Collection<Tree> trees = getPathManager().getMultipleTrees();
-            if (trees == null || trees.isEmpty()) return;
-            final HashMap<String, Object> inputs = new HashMap<>();
-            inputs.put("trees", trees);
-            (new CmdRunner(StrahlerCmd.class, inputs, getState())).execute();
-        });
-        analysisMenu.add(strahlerMenuItem);
-        analysisMenu.addSeparator();
-        analysisMenu.add(utilitiesMenu());
-        analysisMenu.addSeparator();
-
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Measurements:");
         // Measuring options : All Paths
         final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
         measureWithPrompt.addActionListener(e -> {
@@ -4197,17 +4134,130 @@ public class SNTUI extends JDialog {
             }
         });
         analysisMenu.add(measureMenuItem);
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Morphometry:");
+        final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
+        shollMenuItem.addActionListener(e -> {
+            if (noPathsShollError()) return;
+            softWarningOnShollPreview();
+            final Tree tree = getPathManager().getSingleTree();
+            if (tree == null) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("tree", tree);
+            inputs.put("snt", plugin);
+            new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
+        });
+        ScriptRecorder.setRecordingCall(shollMenuItem, "snt.getUI().runCommand(\"Sholl Analysis (Tracings)...\")");
+        analysisMenu.add(shollMenuItem);
+        analysisMenu.add(shollAnalysisHelpMenuItem());
+        final JMenuItem strahlerMenuItem = GuiUtils.MenuItems.strahlerAnalysis();
+        strahlerMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            (new CmdRunner(StrahlerCmd.class, inputs, getState())).execute();
+        });
+        analysisMenu.add(strahlerMenuItem);
+        final JMenuItem rootAnalysisMenuItem = GuiUtils.MenuItems.rootAngleAnalysis();
+        rootAnalysisMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            (new CmdRunner(RootAngleAnalyzerCmd.class, inputs, getState())).execute();
+        });
+        analysisMenu.add(rootAnalysisMenuItem);
+        final JMenuItem tmdMenuItem = GuiUtils.MenuItems.persistenceAnalysis();
+        tmdMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
+        });
+        ScriptRecorder.setRecordingCall(tmdMenuItem, "snt.getUI().runCommand(\"Persistent Homology...\")");
+        analysisMenu.add(tmdMenuItem);
+        final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
+        convexHullMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            inputs.put("table", getPathManager().getTable());
+            inputs.put("calledFromRecViewerInstance", false);
+            (new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
+        });
+        analysisMenu.add(convexHullMenuItem);
+        analysisMenu.add(compareReconstructionsMenuItem());
+        analysisMenu.add(getPathAnalysisMenu());
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Frequency Analysis:");
+        analysisMenu.add(pathManagerMirror("Cell-based Distributions...", GLYPH.CHART,
+                "Computes frequency histograms for measurements of complete arbors"));
+        analysisMenu.add(pathManagerMirror("Two-Dimensional Histograms...", GLYPH.CHART_AREA,
+                "Computes distributions of 2-dimensional data (3D histograms)"));
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Atlas Annotations:");
+        addAtlasItems(analysisMenu);
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Visualization:");
+        analysisMenu.add(pathManagerMirror("Cell-based Color Mapping...", GLYPH.COLOR2,
+                "Color codes complete arbors using connectivity-dependent metrics"));
+        addFigureItems(analysisMenu);
+        analysisMenu.addSeparator();
+        analysisMenu.add(pathManagerPointer());
         CalloutManager.add(analysisMenu, CalloutManager.AUTO,
                 String.format("Use the <i>%s</i> menu for actions that<br>operate on complete structures.", analysisMenu.getText()),
                 calloutGroup(), 3);
         return analysisMenu;
     }
 
-    private JMenu utilitiesMenu() {
-        final JMenu utilitiesMenu = new JMenu("Utilities");
-        utilitiesMenu.setIcon(IconFactory.menuIcon(GLYPH.TOOL));
+    /**
+     * Mirrors a cell-level Path Manager command so that it is also reachable from the Analysis menu. The
+     * Path Manager's own entry is the one indexed by the command palette
+     */
+    private JMenuItem pathManagerMirror(final String cmd, final GLYPH glyph, final String tooltip) {
+        final JMenuItem mi = new JMenuItem(cmd, IconFactory.menuIcon(glyph));
+        mi.setToolTipText(tooltip);
+        mi.putClientProperty("cmdFinder-ignore", true);
+        ScriptRecorder.setRecordingCall(mi, "snt.getUI().getPathManager().runCommand(\"" + cmd + "\")");
+        mi.addActionListener(e -> {
+            if (noPathsError()) return;
+            try {
+                getPathManager().runCommand(cmd);
+            } catch (final IllegalArgumentException ex) {
+                guiError("Command could not be run: " + cmd);
+            }
+        });
+        return mi;
+    }
+
+    /** Opens the Path Manager's Analyze menu: analyses that also operate on path selections are listed there */
+    private JMenuItem pathManagerPointer() {
+        final JMenuItem mi = new JMenuItem("More in Path Manager...", IconFactory.menuIcon(GLYPH.EXTERNAL_LINK));
+        mi.setToolTipText("<HTML>Analyses that operate on selected paths, or sub-cellular structures,<br>"
+                + "are listed in the Analyze menu of the Path Manager");
+        mi.putClientProperty("cmdFinder-ignore", true);
+        mi.addActionListener(e -> {
+            setPathListVisible(true, true);
+            SwingUtilities.invokeLater(() -> {
+                final JMenuBar bar = pmUI.getJMenuBar();
+                for (int i = 0; i < bar.getMenuCount(); i++) {
+                    final JMenu m = bar.getMenu(i);
+                    if (m != null && "Analyze".equals(m.getText())) {
+                        GuiUtils.MenuItems.revealMenuItem(m);
+                        return;
+                    }
+                }
+            });
+        });
+        return mi;
+    }
+
+    private void addFigureItems(final JMenu menu) {
         final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
-        utilitiesMenu.add(graphGenerator);
+        menu.add(graphGenerator);
         graphGenerator.addActionListener(e -> {
             if (noPathsError()) return;
             final Tree tree = getPathManager().getSingleTree();
@@ -4227,15 +4277,8 @@ public class SNTUI extends JDialog {
             (new DynamicCmdRunner(FigCreatorCmd.class, inputs)).run();
         });
         ScriptRecorder.setRecordingCall(figureGenerator, "snt.getUI().runCommand(\"Render Illustrations...\")");
-        utilitiesMenu.add(figureGenerator);
-        utilitiesMenu.add(getRecPlotterMenuItem());
-        utilitiesMenu.addSeparator();
-        final JMenuItem ontologyItem = new JMenuItem("Ontology Browser...", IconFactory.menuIcon(GLYPH.ATLAS));
-        ontologyItem.setToolTipText("Structural ontology of brain regions (mouse/fly)");
-        ontologyItem.putClientProperty("cmdFinder-keywords", "drosophila,FBbt,CCF,mouse");
-        ontologyItem.addActionListener(e -> showOntologyBrowser());
-        utilitiesMenu.add(ontologyItem);
-        return utilitiesMenu;
+        menu.add(figureGenerator);
+        menu.add(getRecPlotterMenuItem());
     }
 
     private void showOntologyBrowser() {
@@ -4293,6 +4336,7 @@ public class SNTUI extends JDialog {
             else
                 arrangeBigViewerOnly(layout); // canvas is handled by arrangeCanvases(): just the viewer
         });
+        GuiUtils.MenuItems.addSeparator(viewMenu, "Windows:");
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
         arrangeWindowsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
@@ -4300,37 +4344,6 @@ public class SNTUI extends JDialog {
         arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
         arrangeWindowsMenuItem.setEnabled(!plugin.isStreamMode());
         viewMenu.add(arrangeWindowsMenuItem);
-        final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
-        hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
-        final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
-        xyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XY_PLANE, xyCanvasMenuItem));
-        hideViewsMenu.add(xyCanvasMenuItem);
-        final JCheckBoxMenuItem zyCanvasMenuItem = new JCheckBoxMenuItem("Hide ZY View");
-        zyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.ZY_PLANE, zyCanvasMenuItem));
-        hideViewsMenu.add(zyCanvasMenuItem);
-        final JCheckBoxMenuItem xzCanvasMenuItem = new JCheckBoxMenuItem("Hide XZ View");
-        xzCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XZ_PLANE, xzCanvasMenuItem));
-        hideViewsMenu.add(xzCanvasMenuItem);
-        hideViewsMenu.addSeparator();
-        hideViewsMenu.add(getTracerVisibilityMenuItem("BDV"));
-        hideViewsMenu.add(getTracerVisibilityMenuItem("BVV"));
-        hideViewsMenu.add(getTracerVisibilityMenuItem("Legacy 3D Viewer"));
-        hideViewsMenu.setEnabled(!plugin.isStreamMode());
-        viewMenu.add(hideViewsMenu);
-        final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
-        showImpMenuItem.setEnabled(!plugin.isStreamMode());
-        showImpMenuItem.addActionListener(e -> {
-            if (noSecondaryDataAvailableError())
-                return;
-            final ImagePlus imp = plugin.getSecondaryDataAsImp();
-            if (imp == null) {
-                guiError("Somehow image could not be created.", "Secondary Image Unavailable?");
-            } else {
-                imp.show();
-            }
-        });
-        viewMenu.add(showImpMenuItem);
-        viewMenu.addSeparator();
         final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.menuIcon(GLYPH.CODE));
         consoleJMI.addActionListener(e -> {
             try {
@@ -4353,6 +4366,37 @@ public class SNTUI extends JDialog {
             }
         });
         viewMenu.add(consoleJMI);
+        final JMenu hideViewsMenu = new JMenu("Hide Tracing Views");
+        hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
+        final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
+        xyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XY_PLANE, xyCanvasMenuItem));
+        hideViewsMenu.add(xyCanvasMenuItem);
+        final JCheckBoxMenuItem zyCanvasMenuItem = new JCheckBoxMenuItem("Hide ZY View");
+        zyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.ZY_PLANE, zyCanvasMenuItem));
+        hideViewsMenu.add(zyCanvasMenuItem);
+        final JCheckBoxMenuItem xzCanvasMenuItem = new JCheckBoxMenuItem("Hide XZ View");
+        xzCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XZ_PLANE, xzCanvasMenuItem));
+        hideViewsMenu.add(xzCanvasMenuItem);
+        hideViewsMenu.addSeparator();
+        hideViewsMenu.add(getTracerVisibilityMenuItem("BDV"));
+        hideViewsMenu.add(getTracerVisibilityMenuItem("BVV"));
+        hideViewsMenu.add(getTracerVisibilityMenuItem("Legacy 3D Viewer"));
+        hideViewsMenu.setEnabled(!plugin.isStreamMode());
+        GuiUtils.MenuItems.addSeparator(viewMenu, "Views:");
+        viewMenu.add(hideViewsMenu);
+        final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
+        showImpMenuItem.setEnabled(!plugin.isStreamMode());
+        showImpMenuItem.addActionListener(e -> {
+            if (noSecondaryDataAvailableError())
+                return;
+            final ImagePlus imp = plugin.getSecondaryDataAsImp();
+            if (imp == null) {
+                guiError("Somehow image could not be created.", "Secondary Image Unavailable?");
+            } else {
+                imp.show();
+            }
+        });
+        viewMenu.add(showImpMenuItem);
         return viewMenu;
     }
 
@@ -4380,9 +4424,7 @@ public class SNTUI extends JDialog {
         return plotMenuItem;
     }
 
-    private JMenu getBrainAnnotationMenu() {
-        final JMenu menu = new JMenu("Atlas-based");
-        menu.setIcon(IconFactory.menuIcon(GLYPH.ATLAS));
+    private void addAtlasItems(final JMenu menu) {
         JMenuItem mi = GuiUtils.MenuItems.createAnnotationGraph();
         mi.addActionListener(e -> {
             if (noPathsError()) return;
@@ -4405,7 +4447,11 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(mi, "snt.getUI().runCommand(\"Show Brain Area Info...\")");
         menu.add(mi);
-        return menu;
+        mi = new JMenuItem("Ontology Browser...", IconFactory.menuIcon(GLYPH.ATLAS));
+        mi.setToolTipText("Structural ontology of brain regions (mouse/fly)");
+        mi.putClientProperty("cmdFinder-keywords", "drosophila,FBbt,CCF,mouse");
+        mi.addActionListener(e -> showOntologyBrowser());
+        menu.add(mi);
     }
 
     private JMenu getPathAnalysisMenu() {

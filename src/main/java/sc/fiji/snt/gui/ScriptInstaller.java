@@ -265,7 +265,7 @@ public class ScriptInstaller {
 	}
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
 		final IconActionableMenuItem mItem = new IconActionableMenuItem(getScriptLabel(si, trimExtension),
-				UIManager.getIcon("Tree.openIcon")); // not cached: tied to current L&F
+				IconFactory.menuIcon(GLYPH.EXTERNAL_LINK));
 		mItem.setToolTipText("Click to run script. Click the icon to open it");
 		mItem.putClientProperty("cmdFinder-icon", getCmdFinderIcon());
 		mItem.addActionListener(e -> runScript(si));
@@ -304,10 +304,8 @@ public class ScriptInstaller {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Big_Data", "Misc", "Render",
-				"Recipes", "Skeletons_and_ROIs", "Spines_and_Varicosities", "Tracing", "Time-lapses");
-		menus.insert(getDemosMenu(), 3);
-		return menus;
+		return getScriptsMenu(DEMO_SCRIPT, true, "Analysis", "Batch", "Big_Data", "Render", "Skeletons_and_ROIs",
+				"Spines_and_Varicosities", "Time-lapses", "Tracing", "Misc");
 	}
 
 	/**
@@ -319,15 +317,27 @@ public class ScriptInstaller {
 	 * @return the scripts menu
 	 */
 	public JMenu getScriptsMenu(final Pattern excludePattern, final String... directories) {
+		return getScriptsMenu(excludePattern, false, directories);
+	}
+
+	private JMenu getScriptsMenu(final Pattern excludePattern, final boolean learnGroup, final String... directories) {
 		final JMenu sMenu = new JMenu("Scripts");
+		GuiUtils.MenuItems.addSeparator(sMenu, "Templates:");
 		for (final String dir : directories) {
 			final JMenu menu = getMenu(dir, excludePattern, true);
 			if (menu.getMenuComponents().length > 0)
 				sMenu.add(menu);
 		}
+		if (learnGroup) {
+			GuiUtils.MenuItems.addSeparator(sMenu, "Learn:");
+			sMenu.add(getDemosMenu());
+			final JMenu recipes = getMenu("Recipes", excludePattern, true);
+			if (recipes.getMenuComponents().length > 0)
+				sMenu.add(recipes);
+		}
 
-		final JMenu listMenu = getFullListMenu();
-		final int listMenuPosition = sMenu.getItemCount();
+		// Held in an array: the list is replaced when scripts are reloaded
+		final JMenu[] listMenu = { getFullListMenu() };
 		final JMenuItem reloadMI = new JMenuItem("Reload Scripts...", IconFactory.menuIcon(GLYPH.REDO));
 		reloadMI.addActionListener(e -> {
 			final int oldCount = scripts.size();
@@ -337,12 +347,14 @@ public class ScriptInstaller {
 				guiUtils.centeredMsg(newCount + " items loaded. No new scripts detected.", "List Reloaded");
 				return;
 			}
-			sMenu.remove(listMenuPosition);
-			sMenu.add(getFullListMenu(), listMenuPosition);
+			final int listMenuPosition = sMenu.getPopupMenu().getComponentIndex(listMenu[0]);
+			sMenu.remove(listMenu[0]);
+			listMenu[0] = getFullListMenu();
+			sMenu.insert(listMenu[0], listMenuPosition);
 			sMenu.revalidate();
 			guiUtils.centeredMsg((newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
-		final JMenuItem mi1 = new JMenuItem("New Script from Template...", IconFactory.menuIcon(GLYPH.FILE));
+		final JMenuItem mi1 = new JMenuItem("From Boilerplate...", IconFactory.menuIcon(GLYPH.FILE));
 		mi1.addActionListener(e -> {
 			final HashMap<String, String> map = new HashMap<>();
 			map.put("BeanShell", "BSH.bsh");
@@ -367,13 +379,8 @@ public class ScriptInstaller {
 							getScriptsDir() + File.separator + "_SNT_script." + FileUtils.getExtension(map.get(choice)));
 			}
 		});
-		final JMenuItem mi2 = new JMenuItem("New Script from Clipboard...", IconFactory.menuIcon(GLYPH.CLIPBOARD));
+		final JMenuItem mi2 = new JMenuItem("From Clipboard...", IconFactory.menuIcon(GLYPH.CLIPBOARD));
 		mi2.addActionListener(e -> newScriptFromClipboard());
-		final JMenu nMenu = new JMenu("Develop");
-		nMenu.setIcon(IconFactory.menuIcon(GLYPH.TOOLBOX));
-		nMenu.add(mi1);
-		nMenu.add(mi2);
-
 		final JMenuItem mi3 = new JMenuItem("REPL", IconFactory.menuIcon(GLYPH.CODE));
 		mi3.setToolTipText("Launch terminal to run and evaluate code in real time");
 		mi3.addActionListener(e -> {
@@ -381,30 +388,43 @@ public class ScriptInstaller {
 			repl.setLocationRelativeTo(ui);
 			SwingUtilities.invokeLater(() -> repl.setVisible(true));
 		});
-		nMenu.addSeparator();
-		nMenu.add(mi3);
 
 		// Helper scripts for script/agent development (script_templates/Neuroanatomy/Develop)
+		final JMenu agentMenu = new JMenu("Agentic Scripting");
+		agentMenu.setIcon(IconFactory.menuIcon(GLYPH.ROBOT));
+		agentMenu.setToolTipText("Tools for scripting SNT with AI coding agents");
+		final String aiKeywords = "AI,agent,LLM,Claude,Codex,Copilot,vibe coding,skill";
 		final JMenuItem apiMI = developItem("API Lookup");
 		final JMenuItem sessionMI = developItem("Inspect Session");
 		if (apiMI != null) {
 			apiMI.setIcon(IconFactory.menuIcon(GLYPH.SEARCH));
-			nMenu.add(apiMI);
+			apiMI.putClientProperty("cmdFinder-keywords", aiKeywords + ",classes,methods,javadoc");
+			agentMenu.add(apiMI);
 		}
 		if (sessionMI != null) {
 			sessionMI.setIcon(IconFactory.menuIcon(GLYPH.STETHOSCOPE));
-			nMenu.add(sessionMI);
+			sessionMI.putClientProperty("cmdFinder-keywords", aiKeywords + ",state,debug");
+			agentMenu.add(sessionMI);
 		}
 		final JMenuItem skillMI = new JMenuItem("Download Agent Skill...", IconFactory.menuIcon(GLYPH.ROBOT));
 		skillMI.setToolTipText("Saves SNT's skill file for AI coding agents (e.g., Claude Code) to a snt/ folder");
+		skillMI.putClientProperty("cmdFinder-keywords", aiKeywords + ",SKILL.md");
 		skillMI.addActionListener(e -> downloadAgentSkill());
-		nMenu.addSeparator();
-		nMenu.add(skillMI);
+		agentMenu.add(skillMI);
 
-		sMenu.add(listMenu);
-		sMenu.addSeparator();
-		sMenu.add(nMenu);
+		GuiUtils.MenuItems.addSeparator(sMenu, "All Scripts:");
+		sMenu.add(listMenu[0]);
 		sMenu.add(reloadMI);
+
+		// Authoring tools, then the agent submenu
+		GuiUtils.MenuItems.addSeparator(sMenu, "Develop:");
+		final JMenu submenu = new JMenu("New Script");
+		submenu.setIcon(IconFactory.menuIcon(GLYPH.PLUS));
+		sMenu.add(submenu);
+		submenu.add(mi1);
+		submenu.add(mi2);
+		sMenu.add(mi3);
+		sMenu.add(agentMenu);
 
 		if (ui != null) {
 			final JMenuItem mi4 = new JMenuItem("Record... (Experimental)", IconFactory.menuIcon(GLYPH.CIRCLE));

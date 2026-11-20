@@ -4587,7 +4587,7 @@ public class Path implements Comparable<Path>, Cloneable {
 
 	/**
 	 * Fits radii to this Path by fitting circular cross-sections to the image
-	 * signal. This is the scripting equivalent of the UI's "Fit Path" action.
+	 * signal. This is the scripting equivalent of the UI's "Fit Path(s)" action.
 	 * Node positions are not modified; only radii and tangent vectors are
 	 * computed.
 	 *

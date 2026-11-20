@@ -746,7 +746,8 @@ public class GuiUtils {
 		list.setVisibleRowCount(Math.min(20, choices.length));
 		final List<JButton> actionButtons = new ArrayList<>(acts.size());
 		for (final ChoiceAction action : acts) {
-			final JButton button = new JButton(action.label(), action.icon());
+			final JButton button = Buttons.smallButton(action.label());
+			button.setIcon(action.icon());
 			button.setToolTipText(action.tooltip());
 			button.addActionListener(e -> {
 				final int idx = list.getSelectedIndex();
@@ -785,7 +786,7 @@ public class GuiUtils {
 		gbc.gridy++;
 		panel.add(ScrollPanes.create(ta), gbc);
 		if (!actionButtons.isEmpty()) {
-			final JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+			final JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
 			actionButtons.forEach(actionPanel::add);
 			gbc.gridy++;
 			panel.add(actionPanel, gbc);
@@ -4175,14 +4176,26 @@ public class GuiUtils {
 			}
 		}
 
-		public static void addSeparator(final JPopupMenu menu, final String header) {
+		/**
+		 * Heading label spanning the full width of its menu. Left at its defaults, the menu's BoxLayout offsets
+		 * it from the left edge whenever the menu holds an item with HTML text, because such items report a
+		 * different maximum width than plain ones
+		 */
+		private static JLabel headingLabel(final String header) {
 			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
+			label.setAlignmentX(Component.CENTER_ALIGNMENT); // same as JMenuItem
+			label.setMaximumSize(new Dimension(Integer.MAX_VALUE, label.getPreferredSize().height));
+			return label;
+		}
+
+		public static void addSeparator(final JPopupMenu menu, final String header) {
+			final JLabel label = headingLabel(header);
 			if (menu.getComponentCount() > 0) menu.addSeparator();
 			menu.add(label);
 		}
 
 		public static void addSeparator(final JMenu menu, final String header) {
-			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
+			final JLabel label = headingLabel(header);
 			final int nItems = menu.getMenuComponents().length;
 			if (nItems > 1 && !(menu.getMenuComponent(nItems-1) instanceof JPopupMenu.Separator)) menu.addSeparator();
 			menu.add(label);

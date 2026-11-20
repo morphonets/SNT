@@ -1355,7 +1355,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
 
         final JMenuItem heatmapItem = new JMenuItem("Issue Heatmap...",
-                IconFactory.menuIcon(IconFactory.GLYPH.COLOR2, IconFactory.selectedColor(), IconFactory.secondaryColor()));
+                IconFactory.menuIcon(IconFactory.GLYPH.COLOR2, GuiUtils.Colors.infoColor(), GuiUtils.Colors.errorColor()));
         heatmapItem.setToolTipText("<html>Colors every node by the combined severity &amp; impact of every issue at that<br>" +
                 " node. Nodes hit by more/worse issues are rendered with warmer colors.<br>" +
                 "Unlike <i>Color Affected Paths by Issue Severity</i>, this recolors every path (not<br>" +

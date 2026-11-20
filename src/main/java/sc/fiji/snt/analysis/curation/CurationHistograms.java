@@ -319,7 +319,7 @@ public final class CurationHistograms {
                 case "terminal branch" -> "This check evaluates terminal branches (paths with no children). " +
                         "Trace at least one branch.";
                 case "node pair", "monotonic run" -> "This check needs paths with fitted radii. " +
-                        "Run \"Refine › Fit Paths...\" or set radii manually in the Path Manager.";
+                        "Run \"Refine › Fit Path(s)...\" or set radii manually in the Path Manager.";
                 case "cross-over" -> "This check needs at least two paths close enough to overlap.";
                 default -> "Enable debug mode and check the Console for per-item skip reasons.";
             };

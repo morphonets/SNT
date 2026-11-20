@@ -1125,7 +1125,7 @@ public final class PlausibilityCheck {
             final Measurements m = toMeasurements(vals, skipped, "Adjacent radius ratio", "ratio", "node pair");
             return vals.isEmpty()
                     ? m.withHint("This check needs paths with fitted radii. Run " +
-                                 "Run \"Refine › Fit Paths...\" or set radii manually in the Path Manager.")
+                                 "Run \"Refine › Fit Path(s)...\" or set radii manually in the Path Manager.")
                     : m;
         }
     }
@@ -1212,7 +1212,7 @@ public final class PlausibilityCheck {
                     "nodes", "monotonic run");
             return vals.isEmpty()
                     ? m.withHint("This check needs paths with fitted radii. Run " +
-                                 "Run \"Refine › Fit Paths...\" or set radii manually in the Path Manager.")
+                                 "Run \"Refine › Fit Path(s)...\" or set radii manually in the Path Manager.")
                     : m;
         }
     }
@@ -2244,7 +2244,7 @@ public final class PlausibilityCheck {
                     "Invalid-radius nodes per path", "count", "path");
             return vals.isEmpty()
                     ? m.withHint("This check needs paths with fitted radii. Run " +
-                                 "\"Refine → Fit Paths...\" or set radii manually in the Path Manager.")
+                                 "\"Refine › Fit Path(s)...\" or set radii manually in the Path Manager.")
                     : m;
         }
     }

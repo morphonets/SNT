@@ -231,17 +231,18 @@ public final class SNTDoctor {
         // Capacity is expressed in voxels at a reference depth (16-bit), as it depends on bit depth.
         // Rule of thumb: processing (filtering, tracing) needs about as much memory as 3 copies of the image
         final long voxels = Math.max(0, heap.availableMB()) * 1024L * 1024L / 3 / 2;
-        final String ramStr = (ram > 0) ? SNTUtils.formatBytes(ram) + " RAM, " : "";
-        final String summary = ramStr + SNTUtils.formatBytes(maxHeap) + " max heap. A 16-bit image of up to ~"
-                + cube(voxels) + " voxels can be held and processed in memory (~" + cube(voxels / 2.0)
-                + " at 32-bit, ~" + cube(voxels * 2.0) + " at 8-bit). "
-                + "Larger images: stream them lazily with SNT Stream (N5, Zarr, HDF5, IMS, BDV XML), or crop/downsample them first";
+        final String ramStr = (ram > 0) ? " of this computer's " + SNTUtils.formatBytes(ram) + " of memory" : "";
+        final String summary = "Fiji/SNT can use up to " + SNTUtils.formatBytes(maxHeap) + ramStr
+                + ". That is enough to open and process a 16-bit image of up to ~" + cube(voxels)
+                + " pixels (~" + cube(voxels / 2.0) + " at 32-bit, ~" + cube(voxels * 2.0) + " at 8-bit). "
+                + "Larger images can be streamed instead of fully loaded (SNT Stream: N5, Zarr, HDF5, IMS, "
+                + "BDV XML), or cropped/downsampled first";
         final String raise = (System.getProperty("pysnt.version") != null)
-                ? "Set the heap when initializing PySNT, e.g., pysnt.initialize(max_heap=\"8g\")"
-                : "Increase heap in Edit > Options > Memory & Threads (Fiji's default is 75% of physical RAM)";
+                ? "Set the memory limit when initializing PySNT, e.g., pysnt.initialize(max_heap=\"8g\")"
+                : "Raise the limit in Edit > Options > Memory & Threads (Fiji's default is 75% of the computer's memory)";
         if (maxHeap < 2L << 30) return new Result("Memory", Status.LIMITED, summary, raise);
         if (ram > 0 && maxHeap < ram / 2 && (ram - maxHeap) > (4L << 30)) {
-            return new Result("Memory", Status.LIMITED, summary + ". Heap is under half of physical RAM", raise);
+            return new Result("Memory", Status.LIMITED, summary + ". Fiji/SNT is allowed to use less than half of this computer's memory", raise);
         }
         return new Result("Memory", Status.OK, summary, "");
     }
@@ -262,15 +263,15 @@ public final class SNTDoctor {
         final double ms = (System.nanoTime() - t0) / 1e6;
         final double mvox = (double) dims[0] * dims[1] * dims[2] / 1e6;
         final String summary = String.format(Locale.US,
-                "%d/%d cores used by SNT. Gaussian filter on %dx%dx%d voxels took %.0f ms (%.1f Mvoxels/s)",
+                "SNT is set to use %d of %d CPU cores. A test filter on a %dx%dx%d image took %.0f ms (%.1f Mvoxels/s)",
                 threads, cores, dims[0], dims[1], dims[2], ms, mvox / (ms / 1000));
-        final String prefs = "Adjust the number of threads in SNT's preferences";
+        final String prefs = "Change the number of threads in Edit > Options > Memory & Threads";
         if (threads > cores) return new Result("Compute", Status.LIMITED,
-                summary + ". More threads than cores", prefs);
+                summary + ". SNT is set to use more threads than this CPU has cores, which does not make it faster", prefs);
         if (threads == 1 && cores > 2) return new Result("Compute", Status.LIMITED,
-                summary + ". Multithreading is disabled", prefs);
+                summary + ". SNT is set to use a single thread, so your other cores are not used", prefs);
         if (cores <= 2) return new Result("Compute", Status.LIMITED, summary,
-                "Few cores: auto-tracing and filtering of large images will be slow");
+                "This CPU has few cores: auto-tracing and filtering of large images will be slow");
         return new Result("Compute", Status.OK, summary, "");
     }
 
@@ -279,11 +280,11 @@ public final class SNTDoctor {
         final String tip = "2D tracing is unaffected. The Reconstruction Viewer and BigVolumeViewer need OpenGL";
         if (!gl.available()) {
             return new Result("Graphics", Status.UNAVAILABLE,
-                    "No OpenGL context could be created: 3D viewers will not work", tip);
+                    "OpenGL (needed by the 3D viewers) is not available on this computer, or its graphics driver is not working", tip);
         }
         final String id = gl.renderer() + ", OpenGL " + gl.version();
         if (SOFTWARE_GL.matcher(gl.renderer()).find()) {
-            return new Result("Graphics", Status.LIMITED, id + ". Software rendering: expect slow 3D viewers",
+            return new Result("Graphics", Status.LIMITED, id + ". The 3D viewers are being drawn by the CPU instead of a graphics card and will be slow",
                     "Update GPU drivers, or check that Fiji is using your GPU (hybrid graphics systems)");
         }
         final Matcher m = Pattern.compile("^(\\d+)\\.(\\d+)").matcher(gl.version());
@@ -297,7 +298,7 @@ public final class SNTDoctor {
                     "Update GPU drivers");
         }
         // Speed of a working GPU is not predicted by this test
-        return new Result("Graphics", Status.OK, id + ". " + probe + ". Rendering speed: unknown", "");
+        return new Result("Graphics", Status.OK, id + ". " + probe + ". Actual 3D speed depends on the scene", "");
     }
 
     /**
@@ -327,7 +328,7 @@ public final class SNTDoctor {
                 final boolean ok = gl.glGetError() == GL.GL_NO_ERROR;
                 gl.glDeleteTextures(1, tex, 0);
                 if (!ok) return null;
-                return String.format(Locale.US, "Test frame and %d^3 3D texture OK (%.0f ms)", n, ms);
+                return String.format(Locale.US, "A %1$dx%1$dx%1$d test volume loaded onto the graphics card in %2$.0f ms", n, ms);
             } finally {
                 drawable.getContext().release();
             }
@@ -348,10 +349,17 @@ public final class SNTDoctor {
     static Result checkDisk() {
         final File dir = SNTUtils.getCacheDir();
         final long free = dir.getUsableSpace();
-        final String summary = SNTUtils.formatBytes(free) + " free in cache directory (" + anonymize(dir.getAbsolutePath())
-                + ")";
-        if (free <= 0 || !dir.canWrite()) return new Result("Disk", Status.UNAVAILABLE, summary,
-                "Disk-backed operations (e.g., auto-tracing of large images) will fail");
+        String used;
+        try {
+            used = SNTUtils.formatBytes(SNTUtils.getCacheDirSize());
+        } catch (final Throwable ignored) {
+            used = "an unknown amount of space";
+        }
+        final String summary = "SNT's cache folder is using " + used + ". The disk it is on has "
+                + SNTUtils.formatBytes(free) + " free (" + anonymize(dir.getAbsolutePath()) + ")";
+        if (free <= 0 || !dir.canWrite()) return new Result("Disk", Status.UNAVAILABLE,
+                "Cannot write to SNT's cache folder (" + anonymize(dir.getAbsolutePath()) + ")",
+                "Operations that need temporary disk space (e.g., auto-tracing of large images) will fail");
         if (free < (1L << 30)) return new Result("Disk", Status.LIMITED, summary,
                 "Free up space or change java.io.tmpdir");
         return new Result("Disk", Status.OK, summary, "");
@@ -366,11 +374,11 @@ public final class SNTDoctor {
             c.setReadTimeout(4000);
             final int code = c.getResponseCode();
             if (code < 400)
-                return new Result("Network", Status.OK, "imagej.net reachable: remote data can be accessed", "");
+                return new Result("Network", Status.OK, "Internet connection works (imagej.net reachable): demo images and remote datasets can be downloaded", "");
             return new Result("Network", Status.LIMITED, "imagej.net answered with HTTP " + code, "Check proxy/firewall settings");
         } catch (final Exception e) {
             return new Result("Network", Status.UNAVAILABLE,
-                    "imagej.net unreachable: remote demo images and datasets may not load",
+                    "imagej.net is unreachable: demo images and remote datasets may not load",
                     "Check connection, proxy and firewall settings");
         } finally {
             if (c != null) c.disconnect();
@@ -421,7 +429,7 @@ public final class SNTDoctor {
         final boolean headless = java.awt.GraphicsEnvironment.isHeadless();
         final String sep = File.separator;
         final boolean jgo = System.getProperty("java.class.path", "").contains(sep + ".jgo" + sep);
-        final StringBuilder sb = new StringBuilder("Initialized through ");
+        final StringBuilder sb = new StringBuilder("SNT was started from ");
         final List<String> extra = new ArrayList<>(); // details for non-PySNT sessions
         if (version != null) {
             sb.append("PySNT ").append(version);
@@ -467,7 +475,7 @@ public final class SNTDoctor {
         final String state = UpdateChecker.upToDateState();
         final boolean skipSite = state.equals("DEVELOPER") || state.equals("UPDATES_MANAGED_DIFFERENTLY");
         final String note = switch (state) {
-            case "UP_TO_DATE" -> "Fiji updater reports no pending updates";
+            case "UP_TO_DATE" -> "No pending Fiji updates";
             case "UPDATEABLE" -> "Fiji updates are available";
             default -> "Fiji update check not applicable (" + state.toLowerCase(Locale.ROOT).replace('_', ' ') + ")";
         };
@@ -487,7 +495,7 @@ public final class SNTDoctor {
                     "Not managed by the Fiji updater (no updater database found)", "");
             final long days = TimeUnit.MILLISECONDS.toDays(Math.max(0, System.currentTimeMillis() - db.lastModified()));
             final List<String> info = new ArrayList<>();
-            info.add("Updater database last written " + (days == 0 ? "today" : days == 1 ? "1 day ago" : days + " days ago"));
+            info.add("Fiji's update records were last written " + (days == 0 ? "today" : days == 1 ? "1 day ago" : days + " days ago"));
             boolean limited = false;
             if (online) {
                 try {
@@ -501,7 +509,7 @@ public final class SNTDoctor {
                     info.add(probe.note());
                     if (probe.sntNewer() != null)
                         info.add(probe.sntNewer() ? "a newer SNT is available on the Neuroanatomy update site"
-                                : "SNT matches the Neuroanatomy update site");
+                                : "SNT is current with the Neuroanatomy update site");
                     limited = probe.updateable() || Boolean.TRUE.equals(probe.sntNewer());
                 } catch (final java.util.concurrent.TimeoutException e) {
                     info.add("online check timed out");
@@ -509,7 +517,7 @@ public final class SNTDoctor {
                     info.add("online check could not be completed");
                 }
             } else {
-                info.add("online check skipped (network unavailable)");
+                info.add("online check skipped (no internet connection)");
             }
             return new Result("Updates", limited ? Status.LIMITED : Status.OK, String.join("; ", info),
                     limited ? "Run Help > Update... in Fiji, then restart" : "");
@@ -523,7 +531,7 @@ public final class SNTDoctor {
         final List<Integration> missing = new ArrayList<>(List.of(Integration.values()));
         missing.removeAll(available);
         final StringBuilder sb = new StringBuilder();
-        sb.append(available.size()).append("/").append(Integration.values().length).append(" optional integrations available");
+        sb.append(available.size()).append(" of ").append(Integration.values().length).append(" optional add-ons found");
         if (!available.isEmpty()) {
             sb.append(" (");
             available.forEach(i -> sb.append(i.getDisplayName()).append(", "));
@@ -560,7 +568,7 @@ public final class SNTDoctor {
                 "Failed: " + String.join("; ", failures),
                 "Update Fiji (Help > Update...) and report the issue with this output at forum.image.sc/tag/snt");
         return new Result("Sanity test", Status.OK, String.format(Locale.US,
-                "Measured %.0f units of cable length in demo tree, and traced a %d-node path in a synthetic image (%.0f ms in total)",
+                "Core functions work: loaded a demo neuron (cable length %.0f units) and traced a %d-node path in a synthetic image (%.0f ms in total)",
                 cableLength, nodes, ms), "");
     }
 
