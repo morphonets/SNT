@@ -89,12 +89,13 @@ public class TipDetectionConfig {
      * @param skipped   number of example tips that are too close to the border of the region
      * @param tolerance the distance (calibrated units) within which a detection matches an example tip
      * @param status    the outcome for each example tip (same order as {@link TrainingPaths#tips()})
+     * @param near      number of detections within the tolerance of an evaluated example tip
      */
     public record Evaluation(List<TipFinder.Tip> tips, int pathEnds, int matched, int skipped, double tolerance,
-                             TipStatus[] status) {
+                             TipStatus[] status, int near) {
         /** Detections that are not close to an example tip (not necessarily false: the training paths are partial) */
         public int extra() {
-            return tips.size() - matched;
+            return tips.size() - near;
         }
     }
 
@@ -102,6 +103,16 @@ public class TipDetectionConfig {
     public enum TipStatus {
         MATCHED, MISSED, SKIPPED
     }
+
+    // Heuristic defaults: the analysis radius is this many times the 95th
+    // percentile of the training radii. A tube of length R and radius r has
+    // linearity 1 - 3r^2/R^2, so R = 2.7r just reaches the default min.
+    // linearity (0.6), and 6r leaves about 2x margin for curvature and the
+    // apparent widening caused by smoothing
+    private static final double ANALYSIS_RADIUS_FACTOR = 6;
+    // Floor of the analysis radius, in voxels, so that the neighborhood holds
+    // enough voxels to pass the default min. mass
+    private static final double MIN_ANALYSIS_RADIUS_VOXELS = 5;
 
     private double[] scales = {};
     private double analysisRadius = Double.NaN;
@@ -157,7 +168,8 @@ public class TipDetectionConfig {
      * @param spacing      voxel size (x, y, z) in calibrated units
      * @param scales       the scales to use (e.g., see {@code AutoTraceConfig#deriveScales}). If null or empty,
      *                     the median radius is used
-     * @param scoreMaps    computes the score map of the region for a set of scales
+     * @param scoreMaps    computes the score map of the region for a set of scales. The maps must be zero-min,
+     *                     in the grid of the nodes of the training paths
      * @param backgroundImg         the background image (e.g., a background channel), on the same grid as the score maps. May be null
      * @return the learned configuration. Values that could not be derived are NaN
      */
@@ -184,8 +196,7 @@ public class TipDetectionConfig {
         final double robustRadius = (radii.length > 0) ? percentile(radii, 95) : 2 * minSpacing;
         c.scales = (scales != null && scales.length > 0) ? scales.clone()
                 : new double[]{(radii.length > 0) ? c.medianRadius : minSpacing};
-        // About 3x the diameter of the thickest structures, and enough voxels to have a meaningful neighborhood
-        c.analysisRadius = Math.max(6 * robustRadius, 5 * minSpacing);
+        c.analysisRadius = Math.max(ANALYSIS_RADIUS_FACTOR * robustRadius, MIN_ANALYSIS_RADIUS_VOXELS * minSpacing);
         c.backgroundRadius = Math.max(2 * robustRadius, minSpacing);
         for (final double s : c.scales) {
             if (s < 0.7 * minSpacing)
@@ -197,12 +208,18 @@ public class TipDetectionConfig {
                     + "be unreliable. Trace more paths.");
 
         // Scores along the training paths versus the rest of the region
-        final BitSet nearExamples = markNeighborhood(example.nodes(), dims(scoreMaps.create(c.scales)), spacing,
+        final RandomAccessibleInterval<? extends RealType<?>> ridge = scoreMaps.create(c.scales);
+        for (int d = 0; d < 3; d++) {
+            if (ridge.min(d) != 0) throw new IllegalArgumentException("Score maps must be zero-min");
+        }
+        final BitSet nearExamples = markNeighborhood(example.nodes(), dims(ridge), spacing,
                 Math.max(2 * robustRadius, 2 * minSpacing));
+        if (nearExamples == null)
+            c.warnings.add("The region is too large to exclude the training paths from the background sample: "
+                    + "background percentiles may be inflated.");
         for (final double s : c.scales) {
             c.responses.add(response(s, scoreMaps.create(new double[]{s}), example.nodes(), nearExamples));
         }
-        final RandomAccessibleInterval<? extends RealType<?>> ridge = scoreMaps.create(c.scales);
         final double[] nodeScores = sample(ridge, example.nodes());
         final double[] background = backgroundSample(ridge, nearExamples);
         if (nodeScores.length > 0) {
@@ -247,10 +264,12 @@ public class TipDetectionConfig {
     public Evaluation evaluate(final RandomAccessibleInterval<? extends RealType<?>> ridge, final TrainingPaths examples,
                                final RandomAccessibleInterval<? extends RealType<?>> backgroundImg) {
         if (Double.isNaN(minScore) || Double.isNaN(analysisRadius)) return null;
+        if (spacing == null) throw new IllegalStateException("Voxel size unknown: call setSpacing() first");
         final TipFinder finder = configure(new TipFinder(ridge, spacing), backgroundImg);
         final List<TipFinder.Tip> tips = finder.find();
         final double tolerance = analysisRadius;
         int pathEnds = 0, matched = 0, skipped = 0;
+        final boolean[] isNear = new boolean[tips.size()];
         final long[] margin = new long[3];
         for (int d = 0; d < 3; d++) margin[d] = (ridge.dimension(d) == 1) ? 0 : (long) Math.ceil(analysisRadius / spacing[d]) + 1;
         final TipStatus[] status = new TipStatus[(examples.tips() == null) ? 0 : examples.tips().length];
@@ -268,21 +287,26 @@ public class TipDetectionConfig {
                 }
                 pathEnds++;
                 status[i] = TipStatus.MISSED;
-                for (final TipFinder.Tip tip : tips) {
+                for (int k = 0; k < tips.size(); k++) {
+                    final double[] pos = tips.get(k).position();
                     double d2 = 0;
                     for (int d = 0; d < 3; d++) {
-                        final double dd = tip.position()[d] - t[d] * spacing[d];
+                        final double dd = pos[d] - t[d] * spacing[d];
                         d2 += dd * dd;
                     }
                     if (d2 <= tolerance * tolerance) {
-                        matched++;
-                        status[i] = TipStatus.MATCHED;
-                        break;
+                        isNear[k] = true;
+                        if (status[i] != TipStatus.MATCHED) {
+                            matched++;
+                            status[i] = TipStatus.MATCHED;
+                        }
                     }
                 }
             }
         }
-        return new Evaluation(tips, pathEnds, matched, skipped, tolerance, status);
+        int near = 0;
+        for (final boolean b : isNear) if (b) near++;
+        return new Evaluation(tips, pathEnds, matched, skipped, tolerance, status, near);
     }
 
     /**
@@ -305,6 +329,59 @@ public class TipDetectionConfig {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void configureBackground(final TipFinder finder, final RandomAccessibleInterval backgroundImg) {
         finder.setBackground(backgroundImg, backgroundRadius).setMaxBackground(maxBackground);
+    }
+
+    // -- Persistence --
+
+    /**
+     * Gets the parameters needed to run {@link TipDetector} (the statistics learned from the training paths are not
+     * included)
+     *
+     * @return the parameters, to be restored with {@link #fromProperties(java.util.Properties)}
+     */
+    public java.util.Properties toProperties() {
+        final java.util.Properties p = new java.util.Properties();
+        final StringBuilder sb = new StringBuilder();
+        for (final double s : scales) sb.append((sb.length() == 0) ? "" : ",").append(s);
+        p.setProperty("scales", sb.toString());
+        p.setProperty("analysisRadius", Double.toString(analysisRadius));
+        p.setProperty("minScore", Double.toString(minScore));
+        p.setProperty("minLength", Double.toString(minLength));
+        p.setProperty("minConnectedFraction", Double.toString(minConnectedFraction));
+        p.setProperty("maxBackground", Double.toString(maxBackground));
+        p.setProperty("backgroundRadius", Double.toString(backgroundRadius));
+        p.setProperty("backgroundChannel", Integer.toString(backgroundChannel));
+        p.setProperty("backgroundWeight", Double.toString(backgroundWeight));
+        p.setProperty("medianRadius", Double.toString(medianRadius));
+        return p;
+    }
+
+    /**
+     * Restores parameters saved with {@link #toProperties()}
+     *
+     * @param p the properties
+     * @return the configuration
+     * @throws IllegalArgumentException if the neurite radii, analysis radius or min. score are missing or invalid
+     */
+    public static TipDetectionConfig fromProperties(final java.util.Properties p) {
+        try {
+            final String[] tokens = p.getProperty("scales", "").trim().split("\\s*,\\s*");
+            final double[] radii = Arrays.stream(tokens).filter(t -> !t.isEmpty()).mapToDouble(Double::parseDouble)
+                    .toArray();
+            final TipDetectionConfig c = of(radii, Double.parseDouble(p.getProperty("analysisRadius")),
+                    Double.parseDouble(p.getProperty("minScore")), Double.parseDouble(p.getProperty("minLength", "0.6")),
+                    Double.parseDouble(p.getProperty("minConnectedFraction", "0.3")),
+                    Double.parseDouble(p.getProperty("maxBackground", "NaN")),
+                    Double.parseDouble(p.getProperty("backgroundRadius", "NaN")));
+            c.setBackground(Integer.parseInt(p.getProperty("backgroundChannel", "0")),
+                    Double.parseDouble(p.getProperty("backgroundWeight", "1")));
+            c.medianRadius = Double.parseDouble(p.getProperty("medianRadius", "NaN"));
+            if (radii.length == 0 || !(c.analysisRadius > 0) || Double.isNaN(c.minScore))
+                throw new IllegalArgumentException("Incomplete parameters");
+            return c;
+        } catch (final NumberFormatException | NullPointerException ex) {
+            throw new IllegalArgumentException("Invalid tip detection parameters: " + ex.getMessage(), ex);
+        }
     }
 
     // -- Getters and setters --
@@ -344,6 +421,8 @@ public class TipDetectionConfig {
     public List<ScaleResponse> getScaleResponses() { return Collections.unmodifiableList(responses); }
     public List<String> getWarnings() { return Collections.unmodifiableList(warnings); }
 
+    /** Sets the voxel size {x, y, z}, needed by {@link #evaluate} (set by {@link #learn}) */
+    public void setSpacing(final double[] spacing) { this.spacing = (spacing == null) ? null : spacing.clone(); }
     public void setAnalysisRadius(final double analysisRadius) { this.analysisRadius = analysisRadius; }
     public void setMinScore(final double minScore) { this.minScore = minScore; }
     public void setMaxBackground(final double maxBackground) { this.maxBackground = maxBackground; }

@@ -1321,12 +1321,18 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Detects cell bodies in the current image, adding one seed per detected soma");
         menu.add(jmi);
         jmi.addActionListener(e -> detectSomas());
-        jmi = new JMenuItem("Detect Tips...", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
+        jmi = new JMenuItem("Detect Tips... (Interactive Wizard)", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
                 + "parameters from training paths");
-        jmi.putClientProperty("cmdFinder-keywords", "wizard, learn parameters, detector, tracing free");
+        jmi.putClientProperty("cmdFinder-keywords", "learn parameters, detector, tracing free");
         menu.add(jmi);
         jmi.addActionListener(e -> detectTips());
+        jmi = new JMenuItem("Detect Tips with Saved Parameters...");
+        jmi.setToolTipText("Detects tips in the whole volume using parameters saved by the Tip Detection Wizard,\n"
+                + "without training paths");
+        jmi.putClientProperty("cmdFinder-keywords", "re-run, repeat, saved, tracing free");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectTipsWithSavedParameters());
         return menu;
     }
 
@@ -1662,6 +1668,15 @@ public class SeedManager extends JPanel {
         }
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(TipDetectionWizardCmd.class, true);
+    }
+
+    private void detectTipsWithSavedParameters() {
+        if (!snt.accessToValidImageData()) {
+            sntui.error("No valid image data available.");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(TipDetectionSavedCmd.class, true);
     }
 
     private void detectSomas() {

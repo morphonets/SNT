@@ -91,14 +91,14 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
         wizard.show(); // UI STATE: is currently RUNNING_CMD. wizard's dismiss will reset it
     }
 
-    private void run(final TipDetectionConfig config, final boolean wholeVolume,
-                     final TipPalette.ParseOptions options) {
+    protected void run(final TipDetectionConfig config, final boolean wholeVolume,
+                     final TipPalette.ParseOptions options, final long[][] previewBox) {
         final String summary = String.format("Tip detection parameters: scales %s, tip radius %s, threshold %s, "
-                        + "min. extent %s, min. purity %s", java.util.Arrays.toString(config.getNeuriteRadii()),
+                        + "min. length %s, min. connected fraction %s", java.util.Arrays.toString(config.getNeuriteRadii()),
                 SNTUtils.formatDouble(config.getAnalysisRadius(), 2), SNTUtils.formatDouble(config.getMinScore(), 3),
                 SNTUtils.formatDouble(config.getMinLength(), 2), SNTUtils.formatDouble(config.getMinConnectedFraction(), 2));
         SNTUtils.log(summary);
-        final Thread t = new Thread(() -> detect(config, wholeVolume, options), "SNT Tip Detection");
+        final Thread t = new Thread(() -> detect(config, wholeVolume, options, previewBox), "SNT Tip Detection");
         t.setDaemon(true);
         t.start();
     }
@@ -107,7 +107,6 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
 
     // Temporary progress report: console, log, status bar and (Stream mode) the viewer's progress bar
     private void progress(final String msg, final int percent, final boolean indeterminate) {
-        System.out.println(msg);
         SNTUtils.log(msg);
         status(msg);
         if (snt.isStreamMode() && ui != null) {
@@ -142,19 +141,46 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
     private record CoarseLevels(BigDataUtils.LevelInfo level, int srcIdx, int bgIdx) {
     }
 
+    // Footprint ({min, max}, inclusive) of the materialized crop in the voxel grid of the full source, within the
+    // given bounds. Null if it does not overlap them. The crop-local voxel v is v + (default - active) in that grid
+    private long[][] cropFootprint(final long[] srcMin, final long[] srcMax, final double[] defOffset) {
+        final PointInCanvas act = snt.getActiveCanvasPixelOffset();
+        final double[] actOffset = {act.x, act.y, act.z};
+        final RandomAccessibleInterval<?> loaded = snt.getLoadedData();
+        final long[] min = srcMin.clone();
+        final long[] max = srcMax.clone();
+        for (int d = 0; d < Math.min(3, loaded.numDimensions()); d++) {
+            final long start = Math.round(defOffset[d] - actOffset[d]);
+            min[d] = Math.max(srcMin[d], start);
+            max[d] = Math.min(srcMax[d], start + loaded.dimension(d) - 1);
+            if (max[d] < min[d]) return null;
+        }
+        return new long[][]{min, max};
+    }
+
     // Seeds are placed in world coordinates: world = (voxel - defaultOffset) * spacing
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void detect(final TipDetectionConfig config, final boolean wholeVolume,
-                        final TipPalette.ParseOptions opts) {
+                        final TipPalette.ParseOptions opts, final long[][] previewBox) {
+        final boolean restrict = wholeVolume && opts != null && opts.restrictToCrop();
         if (ui != null) javax.swing.SwingUtilities.invokeLater(() -> ui.changeState(SNTUI.RUNNING_CMD));
         // Whole volume runs are long: floating message, dismissed when done (same EDT queue: creation comes first)
         final javax.swing.JDialog[] floating = new javax.swing.JDialog[1];
         if (wholeVolume) {
             javax.swing.SwingUtilities.invokeLater(() -> floating[0] = new sc.fiji.snt.gui.GuiUtils(ui)
-                    .floatingMsg("Detecting tips in the whole volume. This may take a long time: progress is "
-                            + "reported in the status bar. Press Cancel/Esc in the main window to abort.", false));
+                    .floatingMsg("Detecting tips in " + ((restrict) ? "the materialized crop" : "the whole volume")
+                            + ". This may take a long time: progress is reported in the status bar. "
+                            + "Press Cancel/Esc in the main window to abort.", false));
         }
         try {
+            if (restrict && !snt.isMaterializedCrop()) {
+                error("There is no materialized crop to restrict the detection to.");
+                return;
+            }
+            if (!wholeVolume && previewBox == null) {
+                error("The preview region of the wizard is not available.");
+                return;
+            }
             final var viewer = (opts != null && ui != null) ? ui.getActiveBigViewer() : null;
             final boolean useViewer = viewer != null;
             RandomAccessibleInterval signal;
@@ -175,15 +201,41 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                 spacing = info.spacing();
                 for (int d = 0; d < 3; d++)
                     shift[d] = info.origin()[d] - info0.origin()[d] - defOffset[d] * info0.spacing()[d];
-                signal = Views.zeroMin(viewer.getSourceData(srcIdx, opts.level()));
+                RandomAccessibleInterval<?> full = Views.zeroMin(viewer.getSourceData(srcIdx, opts.level()));
+                // Voxels of the processed level (zero-min grid): all of them, or the footprint of the crop
+                final long[] lo = new long[3];
+                final long[] hi = full.maxAsLongArray();
+                if (restrict) {
+                    // The crop holds full resolution data: the processed level is 0
+                    final long[] last0 = info0.dims().clone();
+                    for (int d = 0; d < 3; d++) last0[d]--;
+                    final long[][] crop = cropFootprint(new long[3], last0, defOffset);
+                    if (crop == null) {
+                        error("The materialized crop lies outside the image data.");
+                        return;
+                    }
+                    for (int d = 0; d < 3; d++) {
+                        lo[d] = crop[0][d];
+                        hi[d] = crop[1][d];
+                        shift[d] += lo[d] * spacing[d];
+                    }
+                    full = Views.interval(full, lo, hi);
+                    SNTUtils.log("Tip detection restricted to the materialized crop: voxels "
+                            + java.util.Arrays.toString(lo) + " to " + java.util.Arrays.toString(hi));
+                }
+                signal = Views.zeroMin(full);
                 if (useBg) {
                     final RandomAccessibleInterval<?> bgRai = viewer.getSourceData(bgIdx, opts.level());
                     if (bgRai == null) {
                         error("Background channel " + config.getBackgroundChannel() + " could not be read.");
                         return;
                     }
-                    bg = Views.zeroMin(bgRai);
+                    RandomAccessibleInterval<?> bgBase = Views.zeroMin(bgRai);
+                    if (restrict) bgBase = Views.interval(bgBase, lo, hi);
+                    bg = Views.zeroMin(bgBase);
                 }
+                final double[] fineOrigin = info.origin().clone();
+                for (int d = 0; d < 3; d++) fineOrigin[d] += lo[d] * spacing[d];
                 if (opts.skipEmpty()) {
                     final CoarseLevels cl = coarseOf(srcIdx, (useBg) ? bgIdx : -1, levels, opts);
                     if (cl != null) {
@@ -193,7 +245,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                                         viewer.getSourceData(srcIdx, lvl)),
                                 (useBg) ? (RandomAccessibleInterval<? extends RealType<?>>) Views.zeroMin(
                                         viewer.getSourceData(bgIdx, lvl)) : null,
-                                cl.level().spacing(), cl.level().origin(), info.origin(), opts.deviationFactor());
+                                cl.level().spacing(), cl.level().origin(), fineOrigin, opts.deviationFactor());
                     }
                 }
             } else {
@@ -202,14 +254,21 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                 final long[] min = source.minAsLongArray();
                 final long[] max = source.maxAsLongArray();
                 if (!wholeVolume) {
-                    // Loaded region: crop-local voxel v is v + (default - active) in the source grid
-                    final PointInCanvas act = snt.getActiveCanvasPixelOffset();
-                    final double[] actOffset = {act.x, act.y, act.z};
-                    final RandomAccessibleInterval<?> loaded = snt.getLoadedData();
-                    for (int d = 0; d < loaded.numDimensions(); d++) {
-                        min[d] = Math.max(min[d], Math.round(defOffset[d] - actOffset[d]));
-                        max[d] = Math.min(max[d], min[d] + loaded.dimension(d) - 1);
+                    // Preview region of the wizard (in the grid of the source)
+                    for (int d = 0; d < 3; d++) {
+                        min[d] = Math.max(min[d], previewBox[0][d]);
+                        max[d] = Math.min(max[d], previewBox[1][d]);
                     }
+                } else if (restrict) {
+                    final long[][] crop = cropFootprint(min, max, defOffset);
+                    if (crop == null) {
+                        error("The materialized crop lies outside the image data.");
+                        return;
+                    }
+                    System.arraycopy(crop[0], 0, min, 0, 3);
+                    System.arraycopy(crop[1], 0, max, 0, 3);
+                    SNTUtils.log("Tip detection restricted to the materialized crop: voxels "
+                            + java.util.Arrays.toString(min) + " to " + java.util.Arrays.toString(max));
                 }
                 for (int d = 0; d < 3; d++) shift[d] = (min[d] - defOffset[d]) * spacing[d];
                 signal = Views.zeroMin(Views.interval(source, min, max));
@@ -226,7 +285,7 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
             }
             final long[] dims = signal.dimensionsAsLongArray();
             status(String.format("Tip detection: %s voxels in %s...",
-                    String.format("%dx%dx%d", dims[0], dims[1], dims[2]), (wholeVolume) ? "whole volume" : "region"));
+                    String.format("%dx%dx%d", dims[0], dims[1], dims[2]), (restrict) ? "materialized crop" : (wholeVolume) ? "whole volume" : "preview region"));
             final long[] t0 = {System.currentTimeMillis()};
             final int[] lastPercent = {-1};
             final TipDetector detector = new TipDetector(config, signal, bg, spacing).setCoarse(coarse)
@@ -246,13 +305,13 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                     });
             if (ui != null) ui.setAbortHook(detector::cancel);
             progress("Tip detection: started (first update when a block completes)", 0, true);
+            // If aborted, the tips found so far are kept
             final List<TipFinder.Tip> tips = detector.detect();
-            if (tips == null) {
-                SNTUtils.log("Tip detection canceled");
-                return;
-            }
+            final boolean aborted = detector.isCanceled();
+            if (aborted) SNTUtils.log("Tip detection aborted: " + tips.size() + " partial detection(s)");
             if (tips.isEmpty()) {
-                msg("No tips detected. Try lowering the Min. Tubeness score in the wizard.", "Tip Detection");
+                msg((aborted) ? "Tip detection aborted before any tip was detected."
+                        : "No tips detected. Try lowering the Min. Tubeness score in the wizard.", "Tip Detection");
                 return;
             }
             // Confidence: score ranked within the batch, robust to outliers
@@ -268,10 +327,16 @@ public class TipDetectionWizardCmd extends CommonDynamicCmd {
                         "tip", "TipFinder"));
             }
             snt.getSeedOverlay().addAll(seeds);
-            msg(String.format("%d tip(s) added to the Seed Manager. Use its confidence sliders to filter them.",
-                    seeds.size()), "Tip Detection Complete");
+            if (aborted) {
+                msg(String.format("Detection aborted: %d tip(s) found so far were added to the Seed Manager. "
+                        + "Blocks are scanned in parallel, so the volume is only partially covered.",
+                        seeds.size()), "Tip Detection Aborted");
+            } else {
+                msg(String.format("%d tip(s) added to the Seed Manager. Use its confidence sliders to filter them.",
+                        seeds.size()), "Tip Detection Complete");
+            }
         } catch (final Throwable t) {
-            error("Tip detection failed: " + t.getMessage());
+            error("Tip detection failed: " + ((t.getMessage() == null) ? t.getClass().getSimpleName() : t.getMessage()));
             SNTUtils.error("Tip detection failed", t);
         } finally {
             javax.swing.SwingUtilities.invokeLater(() -> {

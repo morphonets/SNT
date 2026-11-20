@@ -38,6 +38,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
+import sc.fiji.snt.tracing.auto.SavedTipDetection;
 import sc.fiji.snt.tracing.auto.TipDetectionConfig;
 import sc.fiji.snt.tracing.auto.TipTrainingPaths;
 import sc.fiji.snt.tracing.auto.TipFinder;
@@ -87,12 +88,15 @@ public class TipPalette extends WizardPalette {
          * Called when the user accepts the parameters
          *
          * @param config      the (possibly adjusted) parameters
-         * @param wholeVolume true to detect in the whole volume, false to detect in the region currently
-         *                    loaded (a dry run)
-         * @param options     resolution level and empty block settings of whole volume runs. Null if not
+         * @param wholeVolume true to detect in the whole volume, false to detect in the preview region (a dry
+         *                    run)
+         * @param options     resolution level, empty block and crop settings of whole volume runs. Null if not
          *                    applicable (e.g., no image pyramid)
+         * @param previewBox  {min, max} (voxels, inclusive, in the grid of the image) of the preview region. Only
+         *                    for dry runs: null otherwise
          */
-        void tipConfigPicked(TipDetectionConfig config, boolean wholeVolume, ParseOptions options);
+        void tipConfigPicked(TipDetectionConfig config, boolean wholeVolume, ParseOptions options,
+                             long[][] previewBox);
 
         /** Called when the wizard is closed */
         default void dismissed() {
@@ -105,8 +109,9 @@ public class TipPalette extends WizardPalette {
      * @param level     the resolution level (0: full resolution)
      * @param skipEmpty whether blocks without signal (assessed at a coarser level) are skipped
      * @param deviationFactor the number of median absolute deviations above the median defining signal
+     * @param restrictToCrop whether the run is restricted to the footprint of the materialized crop (Stream mode)
      */
-    public record ParseOptions(int level, boolean skipEmpty, double deviationFactor) {
+    public record ParseOptions(int level, boolean skipEmpty, double deviationFactor, boolean restrictToCrop) {
     }
 
     private static final double MIN_SCALE_VOXELS = 0.7;
@@ -172,8 +177,8 @@ public class TipPalette extends WizardPalette {
     private String failure;
     private int bgChannel = 0; // 1-based. 0: none
     private double bgWeight = 1;
-    private RandomAccessibleInterval<FloatType> vetoRegion; // Raw background of the region, if any
-    private double vetoSuggested = Double.NaN; // Learned veto threshold. The veto is off until the user enables it
+    private RandomAccessibleInterval<FloatType> backgroundRegion; // Raw background of the region, if any
+    private double maxBackgroundSuggested = Double.NaN; // Learned max. background. The test is off until the user enables it
     private double[] customScales; // User-defined scales (calibrated units). Null: learned from the examples
     private double fixedPad = Double.NaN; // calibrated padding of the first read, reused when the background changes
 
@@ -300,7 +305,7 @@ public class TipPalette extends WizardPalette {
             WizardUtils.status(snt, "Tip wizard: computing score maps...");
             config = TipDetectionConfig.learn(example, spacing, (customScales != null) ? customScales
                     : TipTrainingPaths.scales(example.radii()),
-                    this::scoreMap, vetoRegion);
+                    this::scoreMap, backgroundRegion);
             if (config.getAnalysisRadius() > padCalibrated && attempt == 0 && Double.isNaN(fixedPad)) {
                 padCalibrated = config.getAnalysisRadius();
                 continue;
@@ -311,17 +316,17 @@ public class TipPalette extends WizardPalette {
         SNTUtils.log(String.format("Tip wizard: background channel %d (weight %.2f), scales %s, threshold %s",
                 bgChannel, bgWeight, java.util.Arrays.toString(config.getNeuriteRadii()), config.getMinScore()));
         config.setBackground(bgChannel, bgWeight);
-        vetoSuggested = config.getMaxBackground();
+        maxBackgroundSuggested = config.getMaxBackground();
         config.setMaxBackground(Double.NaN); // Off
         ridge = scoreMap(config.getNeuriteRadii());
         WizardUtils.status(snt, "Tip wizard: detecting tips...");
-        evaluation = config.evaluate(ridge, example, vetoRegion);
+        evaluation = config.evaluate(ridge, example, backgroundRegion);
         return true;
     }
 
     // Subtracts the weighted background channel from the signal (in place), clamping to zero
     private boolean subtractBackground(final WizardUtils.Region signal, final long[][] box) {
-        vetoRegion = null;
+        backgroundRegion = null;
         if (bgChannel <= 0) return true;
         final RandomAccessibleInterval<?> bgSource = snt.getFullSourceData(bgChannel);
         if (bgSource == null) {
@@ -331,7 +336,7 @@ public class TipPalette extends WizardPalette {
         }
         WizardUtils.status(snt, "Tip wizard: reading background...");
         final WizardUtils.Region bg = WizardUtils.readRegion(bgSource, box);
-        vetoRegion = bg.data(); // Raw: read before subtracting
+        backgroundRegion = bg.data(); // Raw: read before subtracting
         final float w = (float) bgWeight;
         LoopBuilder.setImages(signal.data(), bg.data()).multiThreaded()
                 .forEachPixel((s, b) -> s.set(Math.max(0f, s.get() - w * b.get())));
@@ -384,11 +389,11 @@ public class TipPalette extends WizardPalette {
         worker.execute(() -> {
             generation.incrementAndGet(); // Cancels pending evaluations
             if (scales != null) customScales = (scales.length == 0) ? null : scales.clone();
-            final double previousVeto = config.getMaxBackground();
+            final double previousMaxBackground = config.getMaxBackground();
             // Not affected by the background or the scales: kept as set by the user
             final double previousRadius = config.getAnalysisRadius();
-            final double previousExtent = config.getMinLength();
-            final double previousPurity = config.getMinConnectedFraction();
+            final double previousMinLength = config.getMinLength();
+            final double previousMinConnectedFraction = config.getMinConnectedFraction();
             final int previousChannel = bgChannel;
             bgChannel = channel;
             bgWeight = weight;
@@ -401,12 +406,12 @@ public class TipPalette extends WizardPalette {
                     learn(); // Back to the signal alone
                 }
                 if (!Double.isNaN(previousRadius)) config.setAnalysisRadius(previousRadius);
-                config.setMinLength(previousExtent);
-                config.setMinConnectedFraction(previousPurity);
-                // Same background: the veto stays as the user set it
-                if (!Double.isNaN(previousVeto) && vetoRegion != null && bgChannel == previousChannel)
-                    config.setMaxBackground(previousVeto);
-                evaluation = config.evaluate(ridge, example, vetoRegion);
+                config.setMinLength(previousMinLength);
+                config.setMinConnectedFraction(previousMinConnectedFraction);
+                // Same background: max. background stays as the user set it
+                if (!Double.isNaN(previousMaxBackground) && backgroundRegion != null && bgChannel == previousChannel)
+                    config.setMaxBackground(previousMaxBackground);
+                evaluation = config.evaluate(ridge, example, backgroundRegion);
             });
             selected = -1;
             EventQueue.invokeLater(() -> {
@@ -463,7 +468,7 @@ public class TipPalette extends WizardPalette {
         worker.submit(() -> {
             if (id != generation.get()) return;
             try {
-                final TipDetectionConfig.Evaluation ev = config.evaluate(ridge, example, vetoRegion);
+                final TipDetectionConfig.Evaluation ev = config.evaluate(ridge, example, backgroundRegion);
                 if (id != generation.get()) return;
                 evaluation = ev;
                 selected = -1;
@@ -534,6 +539,28 @@ public class TipPalette extends WizardPalette {
         }
     }
 
+    // Saves the parameters in the tip detection folder of the workspace, so that the run can be repeated without the
+    // training paths (see TipDetectionSavedCmd)
+    private void saveParameters() {
+        try {
+            final java.io.File workspace = (snt.getUI() == null) ? null : snt.getUI().getOrPromptForWorkspace();
+            final java.io.File dir = (workspace == null) ? null : snt.getPrefs().getTipDetectionDir();
+            if (dir == null) return;
+            ParseOptions o = null;
+            try {
+                if (window != null) o = window.parseOptions();
+            } catch (final RuntimeException ignored) {
+                // Defaults below
+            }
+            if (o == null) o = new ParseOptions(0, false, 2d, false);
+            final java.io.File f = SavedTipDetection.save(dir, snt.getImageFilenamePrefix(), snt.getChannel(),
+                    o.level(), o.skipEmpty(), o.deviationFactor(), config);
+            SNTUtils.log("Tip detection parameters saved to " + f);
+        } catch (final java.io.IOException | RuntimeException ex) {
+            SNTUtils.error("Tip detection parameters could not be saved", ex);
+        }
+    }
+
     private void commit(final boolean wholeVolume) {
         final List<Listener> copy = new ArrayList<>(listeners);
         ParseOptions options = null;
@@ -544,9 +571,13 @@ public class TipPalette extends WizardPalette {
         }
         final ParseOptions finalOptions = options;
         if (wholeVolume) {
+            saveParameters();
             dismiss(); // Clears the listeners, so use a copy
         }
-        copy.forEach(l -> l.tipConfigPicked(config, wholeVolume, finalOptions));
+        final long[][] box = (wholeVolume || region == null) ? null : new long[][]{region.min().clone(),
+                {region.min()[0] + region.data().dimension(0) - 1, region.min()[1] + region.data().dimension(1) - 1,
+                        region.min()[2] + region.data().dimension(2) - 1}};
+        copy.forEach(l -> l.tipConfigPicked(config, wholeVolume, finalOptions, box));
     }
 
     @Override
@@ -731,9 +762,9 @@ public class TipPalette extends WizardPalette {
         private static final long serialVersionUID = 1L;
         private final JSpinner thresholdSpin = GuiUtils.Fields.doubleSpinner(1, 0, 1e12, 1, 3, true);
         private final JSpinner radiusSpin = GuiUtils.Fields.doubleSpinner(1, 0, 1e9, 1, 1, true);
-        private final JSpinner extentSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
-        private final JSpinner puritySpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
-        private final JSpinner vetoSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1e12, 1, 3, true);
+        private final JSpinner minLengthSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
+        private final JSpinner minConnectedFractionSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1, 0.05, 2);
+        private final JSpinner maxBackgroundSpin = GuiUtils.Fields.doubleSpinner(0, 0, 1e12, 1, 3, true);
         private final JSpinner bgWeightSpin = GuiUtils.Fields.doubleSpinner(1, 0, WEIGHT_MAX, 0.05, 2);
         private final JTextField scalesField = new JTextField(18);
         private final JLabel statusLabel = new JLabel(" ");
@@ -765,8 +796,8 @@ public class TipPalette extends WizardPalette {
         // Values displayed when the controls were (re)loaded: reset buttons restore them
         private double initThreshold;
         private double initRadius;
-        private double initExtent;
-        private double initPurity;
+        private double initMinLength;
+        private double initMinConnectedFraction;
         private final double initBgWeight = bgWeight;
         // Whole volume settings (Stream mode)
         private final List<BigDataUtils.LevelInfo> levels = streamLevels();
@@ -789,19 +820,19 @@ public class TipPalette extends WizardPalette {
                 config.setAnalysisRadius(val(radiusSpin));
                 changed();
             });
-            extentSpin.addChangeListener(e -> {
+            minLengthSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setMinLength(val(extentSpin));
+                config.setMinLength(val(minLengthSpin));
                 changed();
             });
-            puritySpin.addChangeListener(e -> {
+            minConnectedFractionSpin.addChangeListener(e -> {
                 if (loading) return;
-                config.setMinConnectedFraction(val(puritySpin));
+                config.setMinConnectedFraction(val(minConnectedFractionSpin));
                 changed();
             });
-            vetoSpin.addChangeListener(e -> {
+            maxBackgroundSpin.addChangeListener(e -> {
                 if (loading) return;
-                final double v = val(vetoSpin);
+                final double v = val(maxBackgroundSpin);
                 config.setMaxBackground((v <= 0) ? Double.NaN : v); // 0: off (n/a)
                 changed();
             });
@@ -812,9 +843,9 @@ public class TipPalette extends WizardPalette {
                     + "thickest neurites).<br>Also the min. distance between tips, and the margin to the volume faces "
                     + "where tips are not sought");
             updateLengthTip();
-            tip(puritySpin, "Fraction of the structure voxels in the sphere that must be connected to the candidate."
+            tip(minConnectedFractionSpin, "Fraction of the structure voxels in the sphere that must be connected to the candidate."
                     + "<br>Low values mean the candidate sits in clutter");
-            tip(vetoSpin, "Candidates over background brighter than this are rejected (n/a: off).<br>"
+            tip(maxBackgroundSpin, "Candidates over background brighter than this are rejected (n/a: off).<br>"
                     + "In the intensity units of the background channel");
             tip(bgWeightSpin, "Weight of the background channel: signal - weight x background");
 
@@ -955,7 +986,7 @@ public class TipPalette extends WizardPalette {
             sp.setEditor(ed);
         }
 
-        // Spinner that shows n/a for 0 (veto off)
+        // Spinner that shows n/a for 0 (max. background off)
         private static class OffFormat extends java.text.DecimalFormat {
             private static final long serialVersionUID = 1L;
 
@@ -993,30 +1024,30 @@ public class TipPalette extends WizardPalette {
                 final double thr = config.getMinScore();
                 configure(thresholdSpin, thr, 0, 1e12, Double.isNaN(thr) ? 1 : thr / 100, decimalsFor(thr));
                 configure(radiusSpin, config.getAnalysisRadius(), minSpacing, 1e9, minSpacing, 1);
-                configure(extentSpin, config.getMinLength(), 0, 1, 0.05, 2);
-                configure(puritySpin, config.getMinConnectedFraction(), 0, 1, 0.05, 2);
-                final boolean available = vetoRegion != null && !Double.isNaN(vetoSuggested) && vetoSuggested > 0;
-                final double max = (available) ? vetoSuggested * 20 : 1;
-                final double veto = Double.isNaN(config.getMaxBackground()) ? 0 : config.getMaxBackground();
-                final SpinnerNumberModel m = (SpinnerNumberModel) vetoSpin.getModel();
+                configure(minLengthSpin, config.getMinLength(), 0, 1, 0.05, 2);
+                configure(minConnectedFractionSpin, config.getMinConnectedFraction(), 0, 1, 0.05, 2);
+                final boolean available = backgroundRegion != null && !Double.isNaN(maxBackgroundSuggested) && maxBackgroundSuggested > 0;
+                final double max = (available) ? maxBackgroundSuggested * 20 : 1;
+                final double maxBackground = Double.isNaN(config.getMaxBackground()) ? 0 : config.getMaxBackground();
+                final SpinnerNumberModel m = (SpinnerNumberModel) maxBackgroundSpin.getModel();
                 m.setMinimum(0d);
                 m.setMaximum(max);
-                m.setStepSize((available) ? vetoSuggested / 10 : 1);
-                m.setValue(Math.clamp(veto, 0, max));
-                final String pattern = patternOf(decimalsFor((available) ? vetoSuggested : Double.NaN));
-                final JSpinner.NumberEditor ed = new JSpinner.NumberEditor(vetoSpin, pattern);
+                m.setStepSize((available) ? maxBackgroundSuggested / 10 : 1);
+                m.setValue(Math.clamp(maxBackground, 0, max));
+                final String pattern = patternOf(decimalsFor((available) ? maxBackgroundSuggested : Double.NaN));
+                final JSpinner.NumberEditor ed = new JSpinner.NumberEditor(maxBackgroundSpin, pattern);
                 final NumberFormatter nf = new NumberFormatter(new OffFormat(pattern));
                 nf.setValueClass(Double.class);
                 nf.setMinimum(0d);
                 nf.setMaximum(max);
                 ed.getTextField().setFormatterFactory(new DefaultFormatterFactory(nf));
                 ed.getTextField().setColumns(8);
-                vetoSpin.setEditor(ed);
-                vetoSpin.setEnabled(available);
+                maxBackgroundSpin.setEditor(ed);
+                maxBackgroundSpin.setEnabled(available);
                 initThreshold = config.getMinScore();
                 initRadius = config.getAnalysisRadius();
-                initExtent = config.getMinLength();
-                initPurity = config.getMinConnectedFraction();
+                initMinLength = config.getMinLength();
+                initMinConnectedFraction = config.getMinConnectedFraction();
             } finally {
                 loading = wasLoading;
             }
@@ -1158,22 +1189,27 @@ public class TipPalette extends WizardPalette {
         // Resolution level and empty block settings, used by whole volume runs only
         private CollapsiblePanel performancePanel() {
             final int rec = recommendedLevel(config, levels);
-            final String[] labels = new String[levels.size()];
-            for (int i = 0; i < labels.length; i++)
+            // A materialized crop holds full resolution data: its entry follows the levels
+            final boolean cropAvailable = snt.isMaterializedCrop();
+            final String[] labels = new String[levels.size() + ((cropAvailable) ? 1 : 0)];
+            for (int i = 0; i < levels.size(); i++)
                 labels[i] = describeLevel(levels.get(i)) + ((i == rec) ? " (recommended)" : "");
+            if (cropAvailable) labels[levels.size()] = "Materialized crop only (level 0)";
             levelChoice = new JComboBox<>(labels);
             levelChoice.setSelectedIndex(rec);
             levelChoice.setFocusable(false);
             levelChoice.setPrototypeDisplayValue("Level 0: 00000 x 00000 x 00000 voxels (0.000 x 0.000 x 0.000)");
             final JLabel warn = new JLabel(" ");
             warn.setForeground(WizardUtils.WORSE_COLOR);
-            levelChoice.addActionListener(e -> warn.setText((levelChoice.getSelectedIndex() > rec)
+            levelChoice.addActionListener(e -> warn.setText((levelChoice.getSelectedIndex() > rec && levelChoice.getSelectedIndex() < levels.size())
                     ? "Thin axons may be lost at this level" : " "));
             skipEmpty = new JCheckBox("Skip empty blocks", true);
             skipEmpty.setFocusable(false);
             madSpin = GuiUtils.Fields.doubleSpinner(2, 0.5, 20, 0.5, 1);
             skipEmpty.addActionListener(e -> madSpin.setEnabled(skipEmpty.isSelected()));
-            tip(levelChoice, "Resolution level to process. Coarser levels are faster but may miss thin axons");
+            tip(levelChoice, "Resolution level to process. Coarser levels are faster but may miss thin axons."
+                    + ((cropAvailable) ? "<br>The last option processes only the footprint of the materialized crop, "
+                    + "a quick way to test on a subset of the volume" : ""));
             tip(skipEmpty, "Skip blocks without signal, as assessed from a coarser level");
             tip(madSpin, "A block has signal if its coarse level exceeds the median + k times the<br>absolute deviation (a robust standard deviation). Lower k to skip fewer blocks");
             final JPanel panel = new JPanel(new GridLayout(0, 1));
@@ -1198,7 +1234,9 @@ public class TipPalette extends WizardPalette {
 
         ParseOptions parseOptions() {
             if (levelChoice == null) return null;
-            return new ParseOptions(levelChoice.getSelectedIndex(), skipEmpty.isSelected(), val(madSpin));
+            final boolean crop = levelChoice.getSelectedIndex() >= levels.size();
+            return new ParseOptions((crop) ? 0 : levelChoice.getSelectedIndex(), skipEmpty.isSelected(),
+                    val(madSpin), crop);
         }
 
         // No scroll pane of its own: the table takes the height of all its rows (the controls panel scrolls)
@@ -1261,11 +1299,11 @@ public class TipPalette extends WizardPalette {
             final int e = GridBagConstraints.EAST;
             final int none = GridBagConstraints.NONE;
             put(g, new JLabel(L_LENGTH + ":"), 0, 0, 1, w, none);
-            put(g, extentSpin, 1, 0, 1, w, none);
-            put(g, resetButton("min. length", () -> setIfValid(extentSpin, initExtent)), 2, 0, 1, w, none);
+            put(g, minLengthSpin, 1, 0, 1, w, none);
+            put(g, resetButton("min. length", () -> setIfValid(minLengthSpin, initMinLength)), 2, 0, 1, w, none);
             put(g, new JLabel(L_CONNECTED + ":"), 3, 0, 1, e, none);
-            put(g, puritySpin, 4, 0, 1, w, none);
-            put(g, resetButton("min. connected fraction", () -> setIfValid(puritySpin, initPurity)), 5, 0, 1, w, none);
+            put(g, minConnectedFractionSpin, 4, 0, 1, w, none);
+            put(g, resetButton("min. connected fraction", () -> setIfValid(minConnectedFractionSpin, initMinConnectedFraction)), 5, 0, 1, w, none);
             put(g, new JLabel(L_RADII + " [" + unit + "]:"), 0, 1, 1, w, none);
             put(g, scalesField, 1, 1, 3, w, GridBagConstraints.HORIZONTAL);
             put(g, scalesReset, 4, 1, 1, w, none);
@@ -1278,9 +1316,9 @@ public class TipPalette extends WizardPalette {
                 put(g, weightReset, 4, y, 1, w, none);
                 y++;
                 put(g, new JLabel(L_BACKGROUND + ":"), 0, y, 1, w, none);
-                put(g, vetoSpin, 1, y, 1, w, none);
-                put(g, resetButton("max. background", () -> vetoSpin.setValue(0d)), 2, y, 1, w, none);
-                put(g, updateButton, 4, y, 2, e, none); // On the veto row: no empty row below
+                put(g, maxBackgroundSpin, 1, y, 1, w, none);
+                put(g, resetButton("max. background", () -> maxBackgroundSpin.setValue(0d)), 2, y, 1, w, none);
+                put(g, updateButton, 4, y, 2, e, none); // On the max. background row: no empty row below
             } else {
                 put(g, updateButton, 4, y, 2, e, none);
             }
@@ -1327,8 +1365,8 @@ public class TipPalette extends WizardPalette {
                     + "the signal and used to reject candidates over bright background (max. background).", group, order++);
             if (performanceCollapsible != null) {
                 CalloutManager.add(performanceCollapsible, CalloutManager.AUTO, "<b>Performance</b><br>"
-                        + "Whole volume runs only: resolution level to process, and whether blocks without signal<br>"
-                        + "are skipped (assessed at a coarser level).", group, order++);
+                        + "Whole volume runs only: resolution level to process, whether blocks without signal<br>"
+                        + "are skipped (assessed at a coarser level), and processing only the materialized crop.", group, order++);
             }
             CalloutManager.add(detailsCollapsible, CalloutManager.AUTO, "<b>Details</b><br>"
                     + "What was learned from the training paths, and the response of each scale.", group, order++);
@@ -1383,8 +1421,8 @@ public class TipPalette extends WizardPalette {
 
         // Min. length is a fraction of the radius: its absolute value is part of the tooltip
         private void updateLengthTip() {
-            tip(extentSpin, String.format("How far the structure connected to a candidate must reach, as a fraction "
-                    + "of the analysis radius (currently %.3g %s).<br>Rejects speckles", val(extentSpin)
+            tip(minLengthSpin, String.format("How far the structure connected to a candidate must reach, as a fraction "
+                    + "of the analysis radius (currently %.3g %s).<br>Rejects speckles", val(minLengthSpin)
                     * val(radiusSpin), unit));
         }
 

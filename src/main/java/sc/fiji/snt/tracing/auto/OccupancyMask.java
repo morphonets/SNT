@@ -91,7 +91,9 @@ public final class OccupancyMask {
                 .multiThreaded().forEachPixel((in, out) -> out.setReal(in.getRealDouble()));
 
         // Robust background statistics from a strided sample
-        final int stride = (int) Math.max(1, total / 2_000_000);
+        // A stride sharing factors with the row length would only hit a few columns
+        int stride = (int) Math.max(1, total / 2_000_000);
+        while (stride > 1 && gcd(stride, dims[0]) != 1) stride++;
         final float[] sample = new float[(int) ((total + stride - 1) / stride)];
         for (int i = 0, k = 0; i < total; i += stride) sample[k++] = values[i];
         Arrays.sort(sample);
@@ -110,6 +112,10 @@ public final class OccupancyMask {
                 fineOrigin.clone(), threshold, bits.cardinality() / (double) total);
     }
 
+    private static long gcd(final long a, final long b) {
+        return (b == 0) ? a : gcd(b, a % b);
+    }
+
     /**
      * Tests a box of the full resolution volume
      *
@@ -118,11 +124,24 @@ public final class OccupancyMask {
      * @return false only if the box and its surroundings are all below the threshold
      */
     public boolean isActive(final long[] min, final long[] max) {
+        return isActive(min, max, 0);
+    }
+
+    /**
+     * Tests a box of the full resolution volume, padded
+     *
+     * @param min the first voxel of the box
+     * @param max the last voxel of the box (inclusive)
+     * @param pad distance (calibrated units) around the box that is also tested, e.g., the analysis radius of the
+     *            detector, since structures that are within it influence the tips of the box
+     * @return false only if the padded box and its surroundings are all below the threshold
+     */
+    public boolean isActive(final long[] min, final long[] max, final double pad) {
         final long[] c0 = new long[3];
         final long[] c1 = new long[3];
         for (int d = 0; d < 3; d++) {
-            final double w0 = fineOrigin[d] + (min[d] - 0.5) * fineSpacing[d];
-            final double w1 = fineOrigin[d] + (max[d] + 0.5) * fineSpacing[d];
+            final double w0 = fineOrigin[d] + (min[d] - 0.5) * fineSpacing[d] - pad;
+            final double w1 = fineOrigin[d] + (max[d] + 0.5) * fineSpacing[d] + pad;
             // Voxel v of the coarse image is centered at origin + v * spacing. One voxel of margin
             c0[d] = Math.max(0, (long) Math.floor((w0 - coarseOrigin[d]) / coarseSpacing[d] + 0.5) - 1);
             c1[d] = Math.min(dims[d] - 1, (long) Math.floor((w1 - coarseOrigin[d]) / coarseSpacing[d] + 0.5) + 1);

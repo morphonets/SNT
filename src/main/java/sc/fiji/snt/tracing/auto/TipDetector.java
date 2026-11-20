@@ -32,6 +32,7 @@ import net.imglib2.view.Views;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
@@ -106,6 +107,8 @@ public class TipDetector {
      */
     public TipDetector(final TipDetectionConfig config, final RandomAccessibleInterval<? extends RealType<?>> signal,
                        final RandomAccessibleInterval<? extends RealType<?>> background, final double[] spacing) {
+        if (config.getBackgroundChannel() > 0 && background == null)
+            throw new IllegalArgumentException("The configuration specifies a background channel: none provided");
         this.config = config;
         this.signal = signal;
         this.background = background;
@@ -130,11 +133,19 @@ public class TipDetector {
         return this;
     }
 
-    /** Requests {@link #detect()} to return as soon as possible (it then returns null) */
+    /**
+     * Requests {@link #detect()} to return as soon as possible. It then returns the tips found so far (see
+     * {@link #isCanceled()})
+     */
     public void cancel() {
         canceled = true;
         final TipFinder<?> f = finder;
         if (f != null) f.cancel();
+    }
+
+    /** @return true if {@link #cancel()} was called, i.e., the tips returned by {@link #detect()} are partial */
+    public boolean isCanceled() {
+        return canceled;
     }
 
     private void log(final String msg) {
@@ -144,7 +155,7 @@ public class TipDetector {
     /**
      * Runs the detection
      *
-     * @return the tips (best first), or null if canceled
+     * @return the tips (best first). If canceled, those found in the blocks scanned so far (possibly none)
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public List<TipFinder.Tip> detect() {
@@ -154,10 +165,11 @@ public class TipDetector {
         final BiConverter<RealType, RealType, FloatType> unmix = (s, b, o) -> o
                 .set(Math.max(0f, (float) (s.getRealDouble() - w * b.getRealDouble())));
         RandomAccessibleInterval src = signal;
-        RandomAccessibleInterval veto = null;
+        RandomAccessibleInterval rawBackground = null;
         if (background != null) {
-            if (!Double.isNaN(config.getMaxBackground())) veto = background; // The veto uses the raw background
-            src = Converters.convert(src, (RandomAccessibleInterval) background, unmix, new FloatType());
+            // The max. background test uses the raw background
+            if (!Double.isNaN(config.getMaxBackground())) rawBackground = background;
+            if (config.getBackgroundChannel() > 0) src = Converters.convert(src, (RandomAccessibleInterval) background, unmix, new FloatType());
         }
         final RandomAccessibleInterval<FloatType> ridge;
         if (src.dimension(2) == 1) { // 2D data, held as a one-slice volume
@@ -169,9 +181,9 @@ public class TipDetector {
                     new Tubeness(config.getNeuriteRadii(), spacing));
         }
         final TipFinder<FloatType> f = config.configure(new TipFinder<>(ridge, spacing),
-                (RandomAccessibleInterval<? extends RealType<?>>) veto);
+                (RandomAccessibleInterval<? extends RealType<?>>) rawBackground);
         finder = f;
-        if (canceled) return null;
+        if (canceled) return new ArrayList<>();
         if (coarse != null) {
             RandomAccessibleInterval c = coarse.signal();
             if (coarse.background() != null)
@@ -180,12 +192,12 @@ public class TipDetector {
                     coarse.fineOrigin(), coarse.deviationFactor());
             log(String.format("Empty blocks: threshold %.4g, %.2f%% of the coarse voxels active",
                     mask.getThreshold(), 100 * mask.getActiveFraction()));
+            final double pad = Double.isNaN(config.getAnalysisRadius()) ? 0 : config.getAnalysisRadius();
             f.setBlockFilter(box -> mask.isActive(new long[]{box[0], box[1], box[2]},
-                    new long[]{box[3], box[4], box[5]}));
+                    new long[]{box[3], box[4], box[5]}, pad));
         }
-        if (canceled) return null;
+        if (canceled) return new ArrayList<>();
         if (progressListener != null) f.setProgressListener(progressListener);
-        final List<TipFinder.Tip> tips = f.find();
-        return (canceled) ? null : tips;
+        return f.find(); // Partial if canceled
     }
 }

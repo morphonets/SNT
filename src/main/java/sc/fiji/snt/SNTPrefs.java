@@ -786,6 +786,18 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	/**
+	 * Returns the directory of the saved tip detection parameters, or null if workspace doesn't exist.
+	 */
+	public File getTipDetectionDir() {
+		if (!getWorkspaceDir().exists()) {
+			return null;
+		}
+		final File result = new File(workspaceDirectory, "tip-detection");
+		result.mkdirs();
+		return result;
+	}
+
+	/**
 	 * Returns the sessions directory, or null if workspace doesn't exist.
 	 * Does NOT create directories.
 	 */
