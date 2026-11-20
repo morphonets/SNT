@@ -78,6 +78,8 @@ public class CommonDynamicCmd extends DynamicCommand {
 		snt = sntService.getInstance();
 		ui = sntService.getUI();
 		if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
+		// Stream mode: make channel/frame/pixel data reflect the active Bdv/Bvv source (no-op otherwise)
+		if (snt != null) snt.syncWithActiveSource();
 	}
 
 	protected void status(final String statusMsg, final boolean temporaryMsg) {

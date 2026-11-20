@@ -23,27 +23,27 @@
 package sc.fiji.snt.gui;
 
 import ij.ImagePlus;
-import ij.gui.GUI;
 import ij.gui.ImageRoi;
 import ij.plugin.LutLoader;
 import sc.fiji.snt.util.ImpUtils;
 
-import java.awt.Button;
-import java.awt.CheckboxMenuItem;
 import java.awt.Component;
-import java.awt.Menu;
-import java.awt.MenuItem;
-import java.awt.PopupMenu;
 import java.awt.image.IndexColorModel;
+import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import java.util.function.Consumer;
 
 /**
  * Per-palette delegate that builds the "More »" pop-up menu and supplies supporting operations (LUT, MIP overlay,
- * snapshot, etc.) shared by SNT's preview-wizard windows ({@link SigmaPalette}, and {@link CostPalette}).
+ * snapshot, etc.) shared by SNT's preview-wizard windows ({@link SigmaPalette}, {@link CostPalette} and {@link TipPalette}).
  *
  * @author Tiago Ferreira
  * @see SigmaPalette
  * @see CostPalette
+ * @see TipPalette
  */
 public final class PaletteOptions {
 
@@ -53,7 +53,6 @@ public final class PaletteOptions {
     private final ImagePlus paletteImage;
     private final ImagePlus sourceImage;
     private final String snapshotTitle;
-    private final Runnable onDismiss;
 
     /**
      * @param paletteImage  the wizard's preview image (the one whose LUT,
@@ -62,68 +61,28 @@ public final class PaletteOptions {
      *                      "Default" LUT entry; may be {@code null}
      * @param snapshotTitle title given to the duplicated image produced by
      *                      the "Take Snapshot" entry
-     * @param onDismiss     called when the user picks the "Dismiss" item
      */
     public PaletteOptions(final ImagePlus paletteImage,
                           final ImagePlus sourceImage,
-                          final String snapshotTitle,
-                          final Runnable onDismiss) {
+                          final String snapshotTitle) {
         this.paletteImage = paletteImage;
         this.sourceImage = sourceImage;
         this.snapshotTitle = snapshotTitle;
-        this.onDismiss = onDismiss;
     }
 
+
     /**
-     * Builds the standard "More »" button populated with help, LUT submenu,
-     * MIP toggle, optional wizard-specific items, snapshot, and dismiss.
+     * Options button with display, LUT choices, MIP overlay action, and other utilities
      *
-     * @param parent   the AWT container the {@link PopupMenu} attaches to  (typically the wizard window). PopupMenu
-     *                 instances must  be added to a Component before {@code show()} can display them.
-     * @param helpHtml HTML message displayed by the "Help" entry; pass  {@code null} to omit the entry
-     * @param extras   callback that appends wizard-specific menu items between the MIP toggle and the snapshot entry;
-     *                 pass {@code null} for none. The callback receives the rin-progress popup menu and may add items /
-     *                 separators.
-     * @return the AWT {@link Button} that pops the menu on click
+     * @param extras   callback that appends palette-specific items (and headings) between the display items and the
+     *                 image ones. Null for none
+     * @return the Swing button that pops the menu on click
      */
-    public Button buildMoreButton(final Component parent, final String helpHtml, final Consumer<PopupMenu> extras) {
-        final PopupMenu pm = new PopupMenu();
-        GUI.scalePopupMenu(pm);
-        parent.add(pm);
-
-        if (helpHtml != null) {
-            addHelpEntry(pm, helpHtml, parent);
-            pm.addSeparator();
-        }
-        addLutSubmenu(pm);
-        addMipToggle(pm);
-        if (extras != null) {
-            pm.addSeparator();
-            extras.accept(pm);
-        }
-        pm.addSeparator();
-        addSnapshotEntry(pm);
-        pm.addSeparator();
-        addDismissEntry(pm);
-
-        final Button btn = new Button("More »"); // matches IJ1 convention
-        btn.addActionListener(e -> pm.show(btn, btn.getWidth() / 2, btn.getHeight() / 2));
-        return btn;
-    }
-
-    public void addHelpEntry(final PopupMenu pm, final String htmlMessage, final Component dialogParent) {
-        final MenuItem mi = new MenuItem("Help...");
-        mi.addActionListener(e -> showHelp(htmlMessage, dialogParent));
-        pm.add(mi);
-    }
-
-    /**
-     * Adds the standard LUT submenu (Default + 7 SNT favourites) to the supplied popup menu. The "Default" entry
-     * restores the source image's primary LUT if one is available.
-     */
-    public void addLutSubmenu(final PopupMenu pm) {
-        final Menu lutMenu = new Menu("Lookup Table");
-        pm.add(lutMenu);
+    public JButton getOptionsButton(final Consumer<JPopupMenu> extras) {
+        final JPopupMenu pm = new JPopupMenu();
+        GuiUtils.MenuItems.addSeparator(pm, "Display:");
+        final JMenu lutMenu = new JMenu("Lookup Table");
+        lutMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
         addLutEntry(lutMenu, "Default", "reset");
         lutMenu.addSeparator();
         addLutEntry(lutMenu, "Edges", "edges");
@@ -133,39 +92,68 @@ public final class PaletteOptions {
         addLutEntry(lutMenu, "Magma", "mpl-magma");
         addLutEntry(lutMenu, "Plasma", "mpl-plasma");
         addLutEntry(lutMenu, "Viridis", "mpl-viridis");
-    }
-
-    /**
-     * Adds an "Overlay MIP" {@link CheckboxMenuItem}. The toggle is disabled automatically when the palette image has
-     * fewer than 2 slices.
-     */
-    private CheckboxMenuItem addMipToggle(final PopupMenu pm) {
-        final CheckboxMenuItem showMip = new CheckboxMenuItem("Overlay MIP");
-        showMip.addItemListener(e -> {
-            if (showMip.getState()) createMip();
+        pm.add(lutMenu);
+        final JCheckBoxMenuItem showMip = new JCheckBoxMenuItem("Overlay MIP", IconFactory.menuIcon(IconFactory.GLYPH.Z));
+        showMip.addActionListener(e -> {
+            if (showMip.isSelected()) createMip();
             else disposeMip(true);
         });
         showMip.setEnabled(paletteImage.getNSlices() > 1);
         pm.add(showMip);
-        return showMip;
+        final JMenuItem bc = new JMenuItem("Brightness & Contrast...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
+        bc.addActionListener(e -> ij.IJ.doCommand("Brightness/Contrast..."));
+        pm.add(bc);
+        GuiUtils.MenuItems.addSeparator(pm, "Utilities:");
+        final JMenuItem snapshot = new JMenuItem("Take Snapshot", IconFactory.menuIcon(IconFactory.GLYPH.CAMERA));
+        snapshot.addActionListener(e -> takeSnapshot());
+        pm.add(snapshot);
+        if (extras != null) extras.accept(pm);
+        return GuiUtils.Buttons.OptionsButton("Actions/Options", pm, true);
     }
 
-    private void addSnapshotEntry(final PopupMenu pm) {
-        final MenuItem mi = new MenuItem("Take Snapshot");
-        mi.addActionListener(e -> takeSnapshot());
-        pm.add(mi);
+    /**
+     * Adds a "Help" heading with a Help entry to a Swing popup menu
+     *
+     * @param pm         the menu
+     * @param helpHtml   the HTML message
+     * @param dialogParent the parent of the help dialog
+     */
+    public void addHelpItem(final JPopupMenu pm, final String helpHtml, final Component dialogParent) {
+        GuiUtils.MenuItems.addSeparator(pm, "Help:");
+        final JMenuItem help = new JMenuItem("Help...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
+        help.addActionListener(e -> showHelp(helpHtml, dialogParent));
+        pm.add(help);
     }
 
-    private void addDismissEntry(final PopupMenu pm) {
-        final MenuItem mi = new MenuItem("Dismiss");
-        mi.addActionListener(e -> {
-            if (onDismiss != null) onDismiss.run();
-        });
-        pm.add(mi);
+    /**
+     * Adds a "Rebuild Dialog" entry (a stop gap for painting glitches) to a Swing popup menu
+     *
+     * @param pm     the menu
+     * @param action what the entry does
+     */
+    public void addRebuildItem(final JPopupMenu pm, final Runnable action) {
+        final JMenuItem rebuild = new JMenuItem("Rebuild Dialog", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
+        rebuild.setToolTipText("Troubleshooting option: Embedding a image into this dialog may cause\n" +
+                "flickering, layout, or resizing problems. Run it if you run into such issues.");
+        rebuild.addActionListener(e -> action.run());
+        pm.add(rebuild);
     }
 
-    private void addLutEntry(final Menu menu, final String label, final String lutName) {
-        final MenuItem mi = new MenuItem(label);
+    /**
+     * Adds a "Tour of Controls..." entry to a Swing popup menu
+     *
+     * @param pm     the menu
+     * @param action starts the tour
+     */
+    public void addTourItem(final JPopupMenu pm, final Runnable action) {
+        final JMenuItem tour = new JMenuItem("Tour of Controls...",
+                IconFactory.menuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
+        tour.addActionListener(e -> action.run());
+        pm.add(tour);
+    }
+
+    private void addLutEntry(final JMenu menu, final String label, final String lutName) {
+        final JMenuItem mi = new JMenuItem(label);
         mi.addActionListener(e -> applyLut(lutName));
         menu.add(mi);
     }
@@ -238,9 +226,14 @@ public final class PaletteOptions {
         }
     }
 
-    /** Pops a duplicate of the palette image into its own window. */
+    /**
+     * Pops what is displayed (canvas with paths, detections, labels, etc.) into
+     * its own window. Falls back to a copy of the image if rendering fails.
+     */
     private void takeSnapshot() {
-        final ImagePlus snap = paletteImage.duplicate();
+        ImagePlus snap = ImpUtils.snapshot(paletteImage);
+        if (snap == null)
+            snap = paletteImage.duplicate();
         snap.setTitle(snapshotTitle);
         snap.show();
     }

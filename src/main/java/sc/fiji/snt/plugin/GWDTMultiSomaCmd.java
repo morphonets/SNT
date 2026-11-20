@@ -110,7 +110,7 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
             @Override
             protected void done() {
                 // Unregister regardless of outcome (normal completion, error, or cancellation) so
-                // a stale reference is never cancelled by a later, unrelated abort/exit request
+                // a stale reference is never canceled by a later, unrelated abort/exit request
                 if (ui != null) ui.registerActiveCmdWorker(null);
             }
         };

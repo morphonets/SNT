@@ -201,6 +201,7 @@ public final class SeedOverlayBigViewerHandler {
         if (idx < 0 || idx >= pushed.size()) return;
         e.consume();
         overlay.setSelectedSeeds(List.of(pushed.get(idx)));
+        viewer.notePicked(false);
     }
 
     /**

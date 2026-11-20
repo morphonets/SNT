@@ -31,6 +31,7 @@ import net.imglib2.realtransform.AffineTransform3D;
 import org.scijava.command.CommandService;
 import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
+import sc.fiji.snt.gui.CalloutManager;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconActionableMenuItem;
@@ -206,7 +207,7 @@ public class SeedManager extends JPanel {
 
     private String panelHeading() {
         return """
-                Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
+                Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks, \
                 used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
                 (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
                 
@@ -498,6 +499,11 @@ public class SeedManager extends JPanel {
         menu.add(jmi);
         menu.add(getScaleConfidenceMenu());
         menu.add(getScaleRadiusMenu());
+        jmi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
+        jmi.setToolTipText("Histogram of nearest-neighbor distances of the selected seeds (all listed seeds if "
+                + "none is selected). Helps spot multiple hits on the same spot");
+        jmi.addActionListener(e -> showNNDistribution());
+        menu.add(jmi);
         menu.addSeparator();
         jmi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
@@ -688,6 +694,8 @@ public class SeedManager extends JPanel {
             label.setIcon(swatchIconFor(row));
             label.setHorizontalTextPosition(SwingConstants.RIGHT);
             label.setIconTextGap(6);
+            // Assigned directly to a column: bypasses installAlternatingRows(), so stripe here (if the table is)
+            GuiUtils.Tables.applyAlternatingRowColor(label, table, isSelected, row);
             return c;
         }
 
@@ -960,6 +968,19 @@ public class SeedManager extends JPanel {
         overlay.setSelectedSeeds(selected);
     }
 
+    private void showNNDistribution() {
+        final List<SeedPoint> pool = overlay.getSelectedSeeds().isEmpty() ? overlay.filtered()
+                : new ArrayList<>(overlay.getSelectedSeeds());
+        if (pool.size() < 2) {
+            sntui.error("At least two seeds are required.");
+            return;
+        }
+        final List<PointInImage> points = new ArrayList<>(pool.size());
+        for (final SeedPoint sp : pool) points.add(sp.toPointInImage());
+        new NodeStatistics<>(points).getHistogram(NodeStatistics.NEAREST_NEIGHBOR_DISTANCE)
+                .show("Seeds NN Distances (N=" + pool.size() + ")");
+    }
+
     private void pullOverlaySelectionToTable() {
         if (seedTable == null) return;
         final Set<SeedPoint> selected = overlay.getSelectedSeeds();
@@ -1017,17 +1038,19 @@ public class SeedManager extends JPanel {
     private void updateCountLabel() {
         final int total = overlay.size();
         final int shown = overlay.visibleSize();
-        final String baseText;
+        final String shownText;
         if (total == 0) {
-            baseText = "No seeds loaded";
+            shownText = "No seeds loaded";
             countLabel.setIcon(null);
         } else if (shown == total) {
-            baseText = String.format("All %,d seeds shown", total);
+            shownText = String.format("All %,d seeds shown", total);
             countLabel.setIcon(null);
         } else {
-            baseText = String.format("%,d of %,d shown", shown, total);
+            shownText = String.format("%,d of %,d shown", shown, total);
             countLabel.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
         }
+        final int selected = overlay.getSelectedSeeds().size();
+        final String baseText = (selected > 0) ? shownText + String.format(" | %,d selected", selected) : shownText;
         // Append a passive out-of-bounds indicator when applicable
         final int oob = countSeedsOutOfBounds();
         if (oob > 0) {
@@ -1077,7 +1100,7 @@ public class SeedManager extends JPanel {
         impButton.setToolTipText("Import seeds");
         final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export seeds");
-        final JButton createButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.PLUS, 1f, createMenu());
+        createButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.PLUS, 1f, createMenu());
         createButton.setToolTipText("Compute seeds from tracings or image features");
         final JButton traceButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ROBOT, 1f, seedTracingMenu());
         traceButton.setToolTipText("Run auto-tracers from listed seeds.");
@@ -1236,6 +1259,18 @@ public class SeedManager extends JPanel {
         return menu;
     }
 
+    private JButton createButton;
+
+    /**
+     * Shows a tip anchored to the "+" button, which lists the (probabilistic) seed detectors
+     */
+    public void showDiscoveryHint() {
+        if (createButton == null) return;
+        CalloutManager.showTip(createButton, "Probabilistic (seeded) detections of tips, tufts, swellings, maxima, "
+                + "roots and somas are available from the + button. Detected seeds are listed in the table above and can be "
+                + "filtered by confidence.", CalloutManager.AUTO, 15000);
+    }
+
     private JPopupMenu createMenu() {
         final JPopupMenu menu = new JPopupMenu();
 
@@ -1266,7 +1301,11 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Detects cell bodies in the current image, adding one seed per detected soma");
         menu.add(jmi);
         jmi.addActionListener(e -> detectSomas());
-
+        jmi = new JMenuItem("Detect Tips...", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
+        jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
+                + "parameters from training paths");
+        menu.add(jmi);
+        jmi.addActionListener(e -> detectTips());
         return menu;
     }
 
@@ -1593,6 +1632,15 @@ public class SeedManager extends JPanel {
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(PeripathDetectorCmd.class, true,
                 "paths", paths, "outputChoice", PeripathDetectorCmd.OUTPUT_SEEDS);
+    }
+
+    private void detectTips() {
+        if (!snt.accessToValidImageData()) {
+            sntui.error("No valid image data available.");
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(TipDetectionWizardCmd.class, true);
     }
 
     private void detectSomas() {

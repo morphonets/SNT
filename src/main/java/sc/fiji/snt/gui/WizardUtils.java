@@ -25,6 +25,13 @@ package sc.fiji.snt.gui;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.converter.Converter;
+import net.imglib2.converter.Converters;
+import net.imglib2.loops.LoopBuilder;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
@@ -54,9 +61,117 @@ import java.util.function.BiPredicate;
  *
  * @author Tiago Ferreira
  */
-final class WizardSupport {
+final class WizardUtils {
 
-    private WizardSupport() {}
+    private WizardUtils() {}
+
+    /**
+     * Grid coordinate of a world coordinate along one axis: {@code world / spacing + offset}
+     *
+     * @param world   the world (calibrated) coordinate
+     * @param spacing the voxel size
+     * @param offset  the offset, in voxels, between the world origin and the grid of the image
+     * @return the (fractional) voxel coordinate
+     */
+    static double gridCoord(final double world, final double spacing, final double offset) {
+        return world / Math.max(1e-9, spacing) + offset;
+    }
+
+    /**
+     * Places a wizard window next to its parent or, if there is none, over SNT's image window
+     *
+     * @param window the window
+     * @param parent the parent window. May be null
+     * @param snt    the SNT instance
+     */
+    static void place(final Window window, final Window parent, final SNT snt) {
+        if (parent != null)
+            window.setLocationRelativeTo(parent);
+        else
+            GuiUtils.Windows.center(window, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
+    }
+
+    /**
+     * Crops an image to a box, leaving its ROI as it was
+     *
+     * @param image  the image
+     * @param x      left edge (pixels)
+     * @param y      top edge (pixels)
+     * @param width  width (pixels)
+     * @param height height (pixels)
+     * @param zFirst first slice (1-based)
+     * @param zLast  last slice (1-based)
+     * @return the cropped image
+     */
+    static ij.ImagePlus cropImp(final ij.ImagePlus image, final int x, final int y, final int width,
+                                final int height, final int zFirst, final int zLast) {
+        final ij.gui.Roi existingRoi = image.getRoi();
+        image.setRoi(x, y, width, height);
+        final ij.ImagePlus cropped = image.crop(zFirst + "-" + zLast);
+        image.setRoi(existingRoi);
+        return cropped;
+    }
+
+    /**
+     * Message for data that lies outside of the image data currently loaded
+     *
+     * @param snt     the SNT instance
+     * @param subject the subject and verb, e.g., "The training paths lie"
+     * @param detail  details to be appended after the complement (e.g., " (12% of nodes)"). May be empty
+     * @return the message
+     */
+    static String outsideDataMessage(final SNT snt, final String subject, final String detail) {
+        return subject + " outside the image data currently loaded" + detail
+                + ((snt.isStreamMode()) ? " (is a crop active?)." : ".");
+    }
+
+    /**
+     * Table model of the preview tables of the wizards: a label column, the time column and one column per metric
+     *
+     * @param firstColumn name of the label column
+     * @param units       the spatial units (for the header of the metrics)
+     * @param ms          the metrics
+     * @param rows        number of rows
+     * @param label       the label of a row
+     * @param failed      whether a row has no result ("n/a" is shown for all but the label)
+     * @param time        the time column of a row
+     * @param metric      the text of a metric (row, index of the metric) of a row that did not fail
+     * @return the model
+     */
+    static AbstractTableModel metricsModel(final String firstColumn, final String units, final Metric[] ms,
+                                           final int rows, final java.util.function.IntFunction<String> label,
+                                           final java.util.function.IntPredicate failed,
+                                           final java.util.function.IntFunction<String> time,
+                                           final java.util.function.BiFunction<Integer, Integer, String> metric) {
+        return new AbstractTableModel() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public int getRowCount() {
+                return rows;
+            }
+
+            @Override
+            public int getColumnCount() {
+                return ms.length + 2; // label, time, metrics
+            }
+
+            @Override
+            public String getColumnName(final int col) {
+                if (col == 0) return firstColumn;
+                if (col == 1) return "Time (ms)";
+                return ms[col - 2].columnName(units);
+            }
+
+            @Override
+            public Object getValueAt(final int row, final int col) {
+                if (col == 0) return label.apply(row);
+                if (failed.test(row)) return "n/a";
+                if (col == 1) return time.apply(row);
+                return metric.apply(row, col - 2);
+            }
+        };
+    }
 
     /**
      * Outcome of a single A* run
@@ -312,5 +427,81 @@ final class WizardSupport {
             // use default
         }
         return Math.max(3, (int) Math.round(maxRadius / 2d));
+    }
+
+    /**
+     * A region of an image read into memory
+     *
+     * @param data the pixel values (zero-min, float)
+     * @param min  the position {x, y, z} of the first voxel of the region in the grid of the image it was read from
+     */
+    record Region(RandomAccessibleInterval<FloatType> data, long[] min) {
+    }
+
+    /**
+     * Pads a box and clamps it to the bounds of an image
+     *
+     * @param bounds     {min, max} of the box (voxels, inclusive)
+     * @param padVoxels  the padding {x, y, z} in voxels
+     * @param image      the image the box refers to
+     * @return {min, max} of the padded box
+     */
+    static long[][] padAndClamp(final long[][] bounds, final long[] padVoxels,
+                                final RandomAccessibleInterval<?> image) {
+        final long[] min = new long[3];
+        final long[] max = new long[3];
+        for (int d = 0; d < 3; d++) {
+            min[d] = Math.max(image.min(d), bounds[0][d] - padVoxels[d]);
+            max[d] = Math.min(image.max(d), bounds[1][d] + padVoxels[d]);
+        }
+        return new long[][]{min, max};
+    }
+
+    /**
+     * Checks that a box is small enough to be read into memory
+     *
+     * @param bounds          {min, max} of the box (voxels, inclusive)
+     * @param spacing         voxel size {x, y, z}, to report distances in calibrated units
+     * @param unit            the spatial unit
+     * @param maxVoxelsPerAxis the maximum extent along any axis
+     * @param maxVoxels       the maximum number of voxels
+     * @return a message describing the problem, or null if the box is acceptable
+     */
+    static String checkRegionSize(final long[][] bounds, final double[] spacing, final String unit,
+                                  final long maxVoxelsPerAxis, final long maxVoxels) {
+        long total = 1;
+        for (int d = 0; d < 3; d++) {
+            final long n = bounds[1][d] - bounds[0][d] + 1;
+            total *= n;
+            if (n > maxVoxelsPerAxis) {
+                return String.format("The region is too large to be previewed (%s: %s %s, but the limit is %s %s). "
+                                + "Select representative paths that span a smaller region.", "XYZ".charAt(d),
+                        SNTUtils.formatDouble(n * spacing[d], 1), unit,
+                        SNTUtils.formatDouble(maxVoxelsPerAxis * spacing[d], 1), unit);
+            }
+        }
+        if (total > maxVoxels)
+            return String.format("The region is too large to be previewed (%,d voxels, but the limit is %,d). "
+                    + "Select representative paths that span a smaller region.", total, maxVoxels);
+        return null;
+    }
+
+    /**
+     * Copies a box of an image into memory as float. Reading is done by all threads, but may still take a while if
+     * the image is lazy or remote: do not call this on the EDT
+     *
+     * @param image  the image (2D data is treated as a single plane)
+     * @param bounds {min, max} of the box (voxels, inclusive) in the grid of the image. Must be within its bounds
+     * @return the region
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static Region readRegion(final RandomAccessibleInterval<?> image, final long[][] bounds) {
+        final RandomAccessibleInterval view = Views.zeroMin(Views.interval((RandomAccessibleInterval) as3D(image),
+                bounds[0], bounds[1]));
+        final Converter<RealType, FloatType> toFloat = (in, out) -> out.setReal(in.getRealDouble());
+        final RandomAccessibleInterval<FloatType> converted = Converters.convert(view, toFloat, new FloatType());
+        final Img<FloatType> copy = new ArrayImgFactory<>(new FloatType()).create(converted);
+        LoopBuilder.setImages(converted, copy).multiThreaded().forEachPixel((in, out) -> out.set(in));
+        return new Region(copy, bounds[0].clone());
     }
 }

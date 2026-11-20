@@ -316,6 +316,15 @@ public class BookmarkManager {
         panel.add(tableScroll, tableScrollGbc);
         gbc.gridy++;
         gbc.weighty = 0.0;
+        countLabel = new javax.swing.JLabel();
+        countLabel.setFont(countLabel.getFont().deriveFont(countLabel.getFont().getSize2D() * 0.9f));
+        panel.add(countLabel, gbc);
+        model.addTableModelListener(e -> updateCountLabel());
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) updateCountLabel();
+        });
+        updateCountLabel();
+        gbc.gridy++;
         mainToolbar = assembleToolbar();
         panel.add(mainToolbar, gbc);
         // Initialize column widths after layout is complete
@@ -458,6 +467,7 @@ public class BookmarkManager {
                     if (viewRow < 0 || viewRow >= table.getRowCount()) return;
                     table.setRowSelectionInterval(viewRow, viewRow);
                     table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
+                    viewer.notePicked(true);
                 }
             });
         }
@@ -482,6 +492,17 @@ public class BookmarkManager {
         }
         GuiUtils.Tables.installAlternatingRows(table);
         return table;
+    }
+
+    private javax.swing.JLabel countLabel;
+
+    private void updateCountLabel() {
+        if (countLabel == null) return;
+        final String what = (viewer != null) ? "markers" : "bookmarks";
+        final int total = model.getRowCount();
+        final int selected = table.getSelectedRowCount();
+        countLabel.setText((total == 0) ? "No " + what
+                : String.format("%,d %s%s", total, what, (selected > 0) ? String.format(" | %,d selected", selected) : ""));
     }
 
     private void goToRow(final int tableRow) {
@@ -576,6 +597,10 @@ public class BookmarkManager {
         pMenu.add(getSizeMenu());
 
         pMenu.addSeparator();
+        mi = new JMenuItem("Send to Seed Manager...", IconFactory.menuIcon(IconFactory.GLYPH.SEEDLING));
+        mi.setToolTipText("Converts the selected entries (all if none is selected) into seeds");
+        mi.addActionListener(e -> sendToSeedManager());
+        pMenu.add(mi);
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
@@ -1148,6 +1173,72 @@ public class BookmarkManager {
             }
             imp.updateAndDraw();
         }
+    }
+
+    // Converts the selected entries (all if none is selected) into seeds
+    private void sendToSeedManager() {
+        if (noBookmarksError()) return;
+        final SNT snt = snt();
+        if (snt == null || snt.getSeedOverlay() == null) {
+            getGuiUtils().error("Seeds are only available in SNT-tethered sessions.");
+            return;
+        }
+        final javax.swing.JTextField typeField = new javax.swing.JTextField("tip", 12);
+        final javax.swing.JTextField radiusField = new javax.swing.JTextField("0", 6);
+        final javax.swing.JTextField confField = new javax.swing.JTextField("1", 6);
+        final javax.swing.JCheckBox remove = new javax.swing.JCheckBox("Remove from bookmarks", true);
+        final javax.swing.JPanel form = new javax.swing.JPanel(new GridLayout(0, 2, 6, 4));
+        form.add(new javax.swing.JLabel("Type:"));
+        form.add(typeField);
+        form.add(new javax.swing.JLabel("Radius (calibrated units):"));
+        form.add(radiusField);
+        form.add(new javax.swing.JLabel("Confidence (0-1):"));
+        form.add(confField);
+        form.add(remove);
+        final int[] modelRows = getSelectedModelRowsAllIfNone();
+        if (javax.swing.JOptionPane.showConfirmDialog(panel != null ? panel : table, form,
+                "Send " + modelRows.length + " Entries to Seed Manager", javax.swing.JOptionPane.OK_CANCEL_OPTION,
+                javax.swing.JOptionPane.PLAIN_MESSAGE) != javax.swing.JOptionPane.OK_OPTION) return;
+        final double radius;
+        final double confidence;
+        try {
+            radius = Math.max(0, Double.parseDouble(radiusField.getText().trim()));
+            confidence = Math.clamp(Double.parseDouble(confField.getText().trim()), 0d, 1d);
+        } catch (final NumberFormatException ex) {
+            getGuiUtils().error("Radius and confidence must be numbers.");
+            return;
+        }
+        final String type = typeField.getText().trim();
+        final List<sc.fiji.snt.seed.SeedPoint> seeds = new ArrayList<>(modelRows.length);
+        for (final int modelRow : modelRows) {
+            final Bookmark b = model.getDataList().get(modelRow);
+            // Viewer mode markers have no channel (always 1): use the current one
+            final int channel = (viewer != null) ? snt.getChannel() : b.c;
+            seeds.add(new sc.fiji.snt.seed.SeedPoint(b.x, b.y, b.z, confidence, radius, channel, b.t,
+                    type, "bookmark"));
+        }
+        snt.getSeedOverlay().addAll(seeds);
+        if (remove.isSelected()) {
+            final int[] descending = Arrays.stream(modelRows).boxed().sorted(Comparator.reverseOrder())
+                    .mapToInt(Integer::intValue).toArray();
+            for (final int modelRow : descending)
+                model.removeRow(modelRow);
+        }
+    }
+
+    /**
+     * Deletes the entries currently selected in the table (nothing is deleted if there is no selection)
+     *
+     * @return the number of entries deleted
+     */
+    public int deleteSelected() {
+        final int[] viewRows = table.getSelectedRows();
+        if (viewRows.length == 0) return 0;
+        final int[] modelRows = Arrays.stream(viewRows).map(table::convertRowIndexToModel).boxed()
+                .sorted(Comparator.reverseOrder()).mapToInt(Integer::intValue).toArray(); // Last first
+        for (final int modelRow : modelRows)
+            model.removeRow(modelRow);
+        return modelRows.length;
     }
 
     private JPopupMenu exportMenu() {

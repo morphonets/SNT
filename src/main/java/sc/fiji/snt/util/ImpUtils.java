@@ -1337,4 +1337,34 @@ public class ImpUtils {
         }
     }
 
+	/**
+	 * Renders the canvas of an image as currently displayed (zoom, overlays and
+	 * custom painting included) into a new RGB image.
+	 *
+	 * @param imp the displayed image
+	 * @return the snapshot, at the resolution of the screen, or {@code null} if
+	 *         the image has no visible canvas or it could not be rendered
+	 */
+	public static ImagePlus snapshot(final ImagePlus imp) {
+		final ImageCanvas canvas = (imp == null) ? null : imp.getCanvas();
+		if (canvas == null || canvas.getWidth() <= 0 || canvas.getHeight() <= 0)
+			return null;
+		try {
+			final GraphicsConfiguration gc = canvas.getGraphicsConfiguration();
+			final double scale = (gc == null) ? 1 : Math.max(1, gc.getDefaultTransform().getScaleX());
+			final BufferedImage bi = new BufferedImage((int) Math.round(canvas.getWidth() * scale),
+					(int) Math.round(canvas.getHeight() * scale), BufferedImage.TYPE_INT_RGB);
+			final Graphics2D g = bi.createGraphics();
+			try {
+				g.scale(scale, scale);
+				canvas.paint(g);
+			} finally {
+				g.dispose();
+			}
+			return new ImagePlus(imp.getTitle(), bi);
+		} catch (final RuntimeException ex) {
+			SNTUtils.error("Snapshot: the canvas could not be rendered", ex);
+			return null;
+		}
+	}
 }

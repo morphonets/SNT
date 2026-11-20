@@ -5026,6 +5026,26 @@ public class GuiUtils {
 			}
 		}
 
+		/** Client property of tables on which {@link #installAlternatingRows(JTable)} was called */
+		public static final String ALTERNATING_ROWS_PROPERTY = "snt.alternatingRows";
+		private static final double ALTERNATING_TINT_WEIGHT = 0.06; // small values (0.05-0.08) work best
+
+		/**
+		 * For renderers assigned directly to a column (which {@link #installAlternatingRows(JTable)} cannot wrap):
+		 * gives the cell the background it would have had, but only if the table is striped. Does nothing otherwise
+		 *
+		 * @param cell       the component returned by the renderer
+		 * @param table      the table
+		 * @param isSelected whether the cell is selected (selected cells are not changed)
+		 * @param row        the view row of the cell
+		 */
+		public static void applyAlternatingRowColor(final Component cell, final JTable table,
+				final boolean isSelected, final int row) {
+			if (isSelected || !Boolean.TRUE.equals(table.getClientProperty(ALTERNATING_ROWS_PROPERTY))) return;
+			final Color bg = table.getBackground();
+			cell.setBackground((row % 2 == 0) ? bg : SNTColor.mix(bg, table.getForeground(), ALTERNATING_TINT_WEIGHT));
+		}
+
 		/**
 		 * Applies a subtle alternating-row background tint to a table (zebra striping), without requiring a custom
 		 * {@code JTable} subclass. Wraps the default renderer registered for each of the table's column classes so
@@ -5039,7 +5059,8 @@ public class GuiUtils {
 		 * @param table the table to stripe
 		 */
 		public static void installAlternatingRows(final JTable table) {
-			final double tintWeight = 0.06; // small values (0.05-0.08) work best
+			table.putClientProperty(ALTERNATING_ROWS_PROPERTY, Boolean.TRUE);
+			final double tintWeight = ALTERNATING_TINT_WEIGHT;
 			final Set<Class<?>> columnClasses = new LinkedHashSet<>();
 			for (int i = 0; i < table.getColumnCount(); i++) {
 				columnClasses.add(table.getColumnClass(i));

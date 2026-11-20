@@ -132,6 +132,42 @@ public class BigDataUtils {
             imgPlus.setName(name);
             return imgPlus;
         }
+
+        /**
+         * Crops this channel to a box in world (calibrated) coordinates
+         *
+         * @param region {xMin, yMin, zMin, xMax, yMax, zMax} in world units (the corners can be in any order).
+         *               Null for no cropping. The box is clamped to the bounds of the image
+         * @return a channel (a view: no pixels are copied) whose origin is the world position of the first voxel
+         * of the box, so that world coordinates computed from it are those of the full image
+         * @throws IllegalArgumentException if the box is not 6-element, or does not intersect the image
+         */
+        public ChannelData crop(final double[] region) {
+            if (region == null) return this;
+            if (region.length != 6 || img.numDimensions() != 3)
+                throw new IllegalArgumentException("Expected a 3D image and a region {xMin, yMin, zMin, xMax, yMax, "
+                        + "zMax}");
+            final long[] min = new long[3];
+            final long[] max = new long[3];
+            final double[] newOrigin = new double[3];
+            for (int d = 0; d < 3; d++) {
+                final long a = Math.round((Math.min(region[d], region[d + 3]) - origin[d]) / spacing[d]);
+                final long b = Math.round((Math.max(region[d], region[d + 3]) - origin[d]) / spacing[d]);
+                min[d] = img.min(d) + Math.max(0L, a);
+                max[d] = Math.min(img.max(d), img.min(d) + b);
+                if (max[d] < min[d])
+                    throw new IllegalArgumentException("Region is outside the image along axis " + d
+                            + ": image spans " + origin[d] + " to " + (origin[d] + (img.dimension(d) - 1) * spacing[d])
+                            + " (calibrated units)");
+                newOrigin[d] = origin[d] + (min[d] - img.min(d)) * spacing[d];
+            }
+            return new ChannelData(zeroMinInterval(img, min, max), spacing, unit, name, nChannels, newOrigin);
+        }
+    }
+
+    private static <T> RandomAccessibleInterval<T> zeroMinInterval(final RandomAccessibleInterval<T> rai,
+                                                                   final long[] min, final long[] max) {
+        return Views.zeroMin(Views.interval(rai, min, max));
     }
 
     /**
@@ -178,7 +214,8 @@ public class BigDataUtils {
 
     /**
      * Opens one channel of a dataset at full resolution, whatever its format: BDV {@code .xml} or Imaris
-     * {@code .ims} files (opened in memory, no XML sidecar is written), or N5/OME-Zarr containers (local or remote).
+     * {@code .ims} files (opened in memory, no XML sidecar is written), N5/OME-Zarr containers (local or remote),
+     * or regular image files such as TIFF (see {@link ImgUtils#open(String)}).
      * Channels are in the order they are displayed by the viewers. Intended for scripts that operate on the full
      * volume (see {@code ChannelUnmixing.groovy}).
      *
@@ -245,10 +282,12 @@ public class BigDataUtils {
                         ? "channel" + channelIdx : setup.getName();
                 return new ChannelData(img, spacing, unit, name, setups.size());
             }
+            if (isPlainImageFile(path, lower))
+                return openImageFile(path, channelIdx, timepoint, level);
             final Object resolved = resolvePathToSource(path);
             if (!(resolved instanceof N5Sources n5))
-                throw new IllegalArgumentException("Unsupported dataset (expected an .xml, .ims, N5 or OME-Zarr "
-                        + "container): " + path);
+                throw new IllegalArgumentException("Unsupported dataset (expected an image file, .xml, .ims, N5 "
+                        + "or OME-Zarr container): " + path);
             if (channelIdx < 0 || channelIdx >= n5.sources().size())
                 throw new IllegalArgumentException("Channel " + channelIdx + " not found: dataset has "
                         + n5.sources().size() + " channel(s)");
@@ -267,6 +306,59 @@ public class BigDataUtils {
         } catch (final SpimDataException e) {
             throw new IOException("Could not open '" + path + "': " + e.getMessage(), e);
         }
+    }
+
+    /** Whether path is a local file that is not a (single file) big data container */
+    private static boolean isPlainImageFile(final String path, final String lowerCasePath) {
+        if (isRemoteUrl(path)) return false;
+        if (!new File(path).isFile()) return false;
+        return !(lowerCasePath.contains(".n5") || lowerCasePath.contains(".zarr") || lowerCasePath.endsWith(".h5")
+                || lowerCasePath.endsWith(".hdf5") || lowerCasePath.endsWith(".zip"));
+    }
+
+    /**
+     * Opens one channel of a regular image file (e.g., TIFF) through {@link ImgUtils#open(String)}. Such files
+     * have a single resolution level
+     */
+    private static ChannelData openImageFile(final String path, final int channelIdx, final int timepoint,
+                                             final int level) throws IOException {
+        if (level != 0)
+            throw new IllegalArgumentException("Level " + level + " not found: image file has a single level");
+        final ImgPlus<?> imgPlus = ImgUtils.open(path);
+        if (imgPlus == null) throw new IOException("Could not open '" + path + "'");
+        final int cDim = imgPlus.dimensionIndex(net.imagej.axis.Axes.CHANNEL);
+        final int tDim = imgPlus.dimensionIndex(net.imagej.axis.Axes.TIME);
+        final int nC = (cDim < 0) ? 1 : (int) imgPlus.dimension(cDim);
+        final int nT = (tDim < 0) ? 1 : (int) imgPlus.dimension(tDim);
+        if (channelIdx < 0 || channelIdx >= nC)
+            throw new IllegalArgumentException("Channel " + channelIdx + " not found: dataset has " + nC
+                    + " channel(s)");
+        if (timepoint < 0 || timepoint >= nT)
+            throw new IllegalArgumentException("Timepoint " + timepoint + " not found: dataset has " + nT
+                    + " timepoint(s)");
+        RandomAccessibleInterval<?> img = imgPlus;
+        // Slice the higher dimension first so that the lower index stays valid
+        final int hi = Math.max(cDim, tDim);
+        final int lo = Math.min(cDim, tDim);
+        if (hi >= 0) img = hyperSlice(img, hi, (hi == cDim) ? channelIdx : timepoint);
+        if (lo >= 0) img = hyperSlice(img, lo, (lo == cDim) ? channelIdx : timepoint);
+        if (img.numDimensions() == 2) img = Views.addDimension(Views.zeroMin(img), 0, 0);
+        if (img.numDimensions() != 3)
+            throw new IllegalArgumentException("Expected a 2D/3D channel, but found " + img.numDimensions() + "D");
+        final double[] spacing = {ImgUtils.getSpacing(imgPlus, net.imagej.axis.Axes.X),
+                ImgUtils.getSpacing(imgPlus, net.imagej.axis.Axes.Y),
+                ImgUtils.getSpacing(imgPlus, net.imagej.axis.Axes.Z)};
+        final int xDim = imgPlus.dimensionIndex(net.imagej.axis.Axes.X);
+        final String unit = (xDim < 0) ? null : imgPlus.axis(xDim).unit();
+        final String base = (imgPlus.getName() == null || imgPlus.getName().isBlank()) ? new File(path).getName()
+                : imgPlus.getName();
+        return new ChannelData(Views.zeroMin(img), spacing, unit, (nC > 1) ? base + " C" + (channelIdx + 1) : base,
+                nC);
+    }
+
+    private static <T> RandomAccessibleInterval<T> hyperSlice(final RandomAccessibleInterval<T> rai, final int d,
+                                                              final long pos) {
+        return Views.hyperSlice(rai, d, pos);
     }
 
     /**
@@ -313,14 +405,16 @@ public class BigDataUtils {
 
     /**
      * Describes a dataset without reading its pixels: channels, timepoints, chunking and the dimensions and
-     * voxel size of each resolution level. Supports N5/OME-Zarr containers (local or remote), and single-level
-     * images (reported as one level). BDV XML and IMS datasets are not supported.
+     * voxel size of each resolution level. Supports N5/OME-Zarr containers (local or remote), Imaris (.ims) and
+     * BDV XML datasets, and single-level images (reported as one level).
      *
      * @param path path or URL of the dataset
      * @return the dataset summary
      * @throws IllegalArgumentException if the dataset cannot be opened or its format is not supported
      */
     public static DatasetInfo describe(final String path) {
+        final String lowerPath = path.toLowerCase(Locale.ROOT);
+        if (lowerPath.endsWith(".ims") || lowerPath.endsWith(".xml")) return describeSpimData(path, lowerPath);
         final Object resolved = resolvePathToSource(path);
         if (resolved instanceof N5Sources(
                 List<SourceAndConverter<?>> sources, int numTimepoints, String name, int[] chunkShape, boolean remote
@@ -446,6 +540,40 @@ public class BigDataUtils {
             return head.contains("<SpimData");
         } catch (final java.io.IOException | RuntimeException ex) {
             return false;
+        }
+    }
+
+    // Same access as openChannel(): .ims files are opened in memory (no XML sidecar is written next to them)
+    private static DatasetInfo describeSpimData(final String path, final String lowerPath) {
+        try {
+            final AbstractSpimData<?> sd = lockImarisReads(
+                    lowerPath.endsWith(".ims") ? Imaris.openIms(path) : loadXml(path));
+            final var seq = sd.getSequenceDescription();
+            final var setups = seq.getViewSetupsOrdered();
+            if (setups.isEmpty()) throw new IllegalArgumentException("No channels found in: " + path);
+            final var timepoints = seq.getTimePoints().getTimePointsOrdered();
+            if (!(seq.getImgLoader() instanceof bdv.ViewerImgLoader loader))
+                throw new IllegalArgumentException("Unsupported image loader: " + seq.getImgLoader().getClass());
+            final var setup = setups.getFirst();
+            final var setupLoader = loader.getSetupImgLoader(setup.getId());
+            final double[] voxel = {1, 1, 1};
+            String unit = null;
+            if (setup.hasVoxelSize()) {
+                for (int d = 0; d < 3; d++) voxel[d] = setup.getVoxelSize().dimension(d);
+                unit = setup.getVoxelSize().unit();
+            }
+            final double[][] factors = setupLoader.getMipmapResolutions();
+            final List<LevelInfo> levels = new ArrayList<>();
+            for (int l = 0; l < setupLoader.numMipmapLevels(); l++) {
+                final long[] dims = setupLoader.getImage(timepoints.getFirst().getId(), l).dimensionsAsLongArray();
+                final double[] spacing = new double[3];
+                for (int d = 0; d < 3; d++) spacing[d] = voxel[d] * factors[l][d];
+                levels.add(new LevelInfo(l, Arrays.copyOf(dims, 3), spacing, new double[]{0, 0, 0}));
+            }
+            return new DatasetInfo(new File(path).getName(), setups.size(), timepoints.size(), unit, false, null,
+                    levels);
+        } catch (final IOException | SpimDataException e) {
+            throw new IllegalArgumentException("Could not open " + path + ": " + rootMessage(e), e);
         }
     }
 

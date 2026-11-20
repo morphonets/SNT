@@ -1459,6 +1459,7 @@ public class Bvv extends AbstractBigViewer {
             registerRecenterListener(currentBvv);
             if (snt != null) {
                 tracer = new Tracer(snt);
+                registerActiveSourceListener(currentBvv.getViewer().state());
                 installContextMenu();
                 // We'll re-assign the viewer to the GUI here because only at this point the viewer frame is
                 // available and this allows snt.getUI().setBvv() to inject the window listener that monitors
@@ -2054,7 +2055,7 @@ public class Bvv extends AbstractBigViewer {
      */
     @Override
     public void resyncCalibrationFromActiveSource() {
-        if (tracer != null) tracer.syncChannelFromActiveSource();
+        if (tracer != null) tracer.forceSyncFromActiveSource();
     }
 
     /**

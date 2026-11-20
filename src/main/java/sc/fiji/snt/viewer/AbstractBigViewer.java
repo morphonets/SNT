@@ -59,7 +59,6 @@ import java.io.File;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
 
 /**
  * Abstract base for SNT's BigDataViewer-family viewers ({@link Bvv}, {@link Bdv}, etc.).
@@ -85,6 +84,51 @@ public abstract class AbstractBigViewer {
 
     /** The SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     protected final SNT snt;
+    /** Seeds deleted with D/Backspace (most recent first), for undo */
+    private final java.util.Deque<SeedUndo> deletedSeeds = new java.util.ArrayDeque<>();
+    private static final int MAX_UNDO_DELETIONS = 100;
+
+    /** Seed edits that can be undone: seeds that were deleted (restored on undo) or added (removed on undo) */
+    private record SeedUndo(List<sc.fiji.snt.seed.SeedPoint> seeds, boolean deleted) {}
+
+    /** What the M key adds in the viewer when seeds are listed */
+    public enum MarkMode {
+        /** Prompt the user on first use */
+        ASK,
+        /** Bookmark markers */
+        MARKERS,
+        /** Seed points */
+        SEEDS
+    }
+
+    private static final String MARK_MODE_KEY = "viewer-m-mode";
+
+    /** Returns the (temporary) M key behavior stored in the preferences of {@code snt} */
+    public static MarkMode getMarkMode(final SNT snt) {
+        try {
+            return MarkMode.valueOf(snt.getPrefs().getTemp(MARK_MODE_KEY, MarkMode.ASK.name()));
+        } catch (final IllegalArgumentException ex) {
+            return MarkMode.ASK;
+        }
+    }
+
+    /** Stores the (temporary) M key behavior in the preferences of {@code snt} */
+    public static void setMarkMode(final SNT snt, final MarkMode mode) {
+        snt.getPrefs().setTemp(MARK_MODE_KEY, mode.name());
+    }
+
+    /** Whether the last item picked in the viewer by clicking was a bookmark marker (otherwise, a seed) */
+    private volatile boolean lastPickedBookmark;
+
+    /**
+     * Records the kind of item last picked by clicking on it in the viewer, so that the delete shortcut knows what
+     * to act on
+     *
+     * @param bookmark true if a bookmark marker was picked, false if a seed was
+     */
+    public void notePicked(final boolean bookmark) {
+        lastPickedBookmark = bookmark;
+    }
 
     protected boolean tracingEnabled;
 
@@ -830,6 +874,117 @@ public abstract class AbstractBigViewer {
      */
     public abstract void resyncCalibrationFromActiveSource();
 
+    /** Keeps SNT's channel/frame current as the active source/timepoint changes, see AbstractTracer#onActiveSourceChanged() */
+    protected void registerActiveSourceListener(final bdv.viewer.ViewerState state) {
+        state.changeListeners().add(change -> {
+            if (change == bdv.viewer.ViewerStateChange.CURRENT_SOURCE_CHANGED
+                    || change == bdv.viewer.ViewerStateChange.CURRENT_TIMEPOINT_CHANGED
+                    || change == bdv.viewer.ViewerStateChange.NUM_SOURCES_CHANGED) {
+                if (menuTracer != null) menuTracer.onActiveSourceChanged();
+            }
+        });
+    }
+
+    /**
+     * Stacks all the sources of the viewer (full resolution) into a single lazy image with axes X,Y,Z,C and, if
+     * requested, T. Channel order matches the source order in the viewer, i.e., the channel assigned to paths traced
+     * in it. Only voxels that are actually sampled are read
+     *
+     * @param includeTime if true, all timepoints are stacked along a T axis. If false, only the current timepoint is used
+     * @param spacing     the voxel spacing of the spatial axes (calibrated units)
+     * @param unit        the spatial unit
+     * @return the stacked image, or null if it cannot be built: no sources, a single source without time axis (nothing
+     * to stack), non-3D or non-RealType sources, or sources with mismatching pixel type or dimensions
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public net.imagej.ImgPlus<?> getSourcesAsImg(final boolean includeTime, final double[] spacing, final String unit) {
+        final var state = getViewerState();
+        if (state == null) return null;
+        final List<SourceAndConverter<?>> sacs = state.getSources();
+        final int nT = includeTime ? Math.max(1, state.getNumTimepoints()) : 1;
+        if (sacs.isEmpty() || (sacs.size() == 1 && nT == 1)) return null;
+        Class<?> refType = null;
+        long[] refDims = null;
+        final List<net.imglib2.RandomAccessibleInterval> perT = new ArrayList<>(nT);
+        for (int t = 0; t < nT; t++) {
+            final int tp = includeTime ? t : getCurrentTimepoint() - 1; // SNT is 1-based, BDV sources 0-based
+            final List<net.imglib2.RandomAccessibleInterval> perC = new ArrayList<>(sacs.size());
+            for (final SourceAndConverter<?> sac : sacs) {
+                final var src = sac.getSpimSource();
+                if (!src.isPresent(tp)) return null;
+                final net.imglib2.RandomAccessibleInterval rai = src.getSource(tp, 0);
+                if (rai == null || rai.numDimensions() != 3 || !(src.getType() instanceof net.imglib2.type.numeric.RealType))
+                    return null;
+                final long[] dims = rai.dimensionsAsLongArray();
+                if (refType == null) {
+                    refType = src.getType().getClass();
+                    refDims = dims;
+                } else if (refType != src.getType().getClass() || !java.util.Arrays.equals(refDims, dims)) {
+                    return null;
+                }
+                perC.add(net.imglib2.view.Views.zeroMin(rai));
+            }
+            perT.add(net.imglib2.view.Views.stack((List) perC));
+        }
+        final net.imglib2.RandomAccessibleInterval stacked = (nT > 1) ? net.imglib2.view.Views.stack((List) perT) : perT.getFirst();
+        return ImgUtils.wrapWithSpacing(stacked, spacing, unit);
+    }
+
+    /**
+     * @return the number of sources (channels) currently in the viewer
+     */
+    public int getSourceCount() {
+        final var state = getViewerState();
+        return (state == null) ? 0 : state.getSources().size();
+    }
+
+    /**
+     * Gets the (full resolution) data of a source at the current timepoint
+     *
+     * @param index the 0-based index of the source
+     * @return the zero-min 3D data, or null if unavailable
+     */
+    public net.imglib2.RandomAccessibleInterval<?> getSourceData(final int index) {
+        try {
+            final var rai = getSourceData(index, 0);
+            return (rai == null || rai.numDimensions() != 3) ? null : net.imglib2.view.Views.zeroMin(rai);
+        } catch (final IllegalStateException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Describes the resolution levels of a source at the current timepoint
+     *
+     * @param index the 0-based index of the source
+     * @return the levels (dimensions, voxel size and position of the first voxel, in world units), finest first.
+     * Empty if unavailable
+     */
+    public java.util.List<sc.fiji.snt.util.BigDataUtils.LevelInfo> getSourceLevels(final int index) {
+        final var state = getViewerState();
+        if (state == null || index < 0 || index >= state.getSources().size()) return java.util.List.of();
+        final var src = state.getSources().get(index).getSpimSource();
+        final int tp = getCurrentTimepoint() - 1;
+        if (!src.isPresent(tp)) return java.util.List.of();
+        final java.util.List<sc.fiji.snt.util.BigDataUtils.LevelInfo> levels = new ArrayList<>();
+        for (int l = 0; l < src.getNumMipmapLevels(); l++) {
+            final var rai = src.getSource(tp, l);
+            if (rai == null || rai.numDimensions() != 3) break;
+            levels.add(new sc.fiji.snt.util.BigDataUtils.LevelInfo(l, rai.dimensionsAsLongArray(),
+                    sc.fiji.snt.util.BigDataUtils.transformScale(src, tp, l),
+                    sc.fiji.snt.util.BigDataUtils.levelOrigin(src, tp, l)));
+        }
+        return levels;
+    }
+
+    /**
+     * Like {@link #resyncCalibrationFromActiveSource()} but a no-op if nothing changed since the last sync. For
+     * commands that read {@code snt}'s pixel data or channel/frame (e.g., GWDT tracing) and may run before any click
+     */
+    public void ensureActiveSourceSynced() {
+        if (menuTracer != null) menuTracer.ensureActiveSourceSynced();
+    }
+
     /** Scope for {@link #applyAutoBrightness(BrightnessScope)}: which source(s) to recompute. */
     protected enum BrightnessScope { CURRENT, ACTIVE, ALL }
 
@@ -1306,6 +1461,54 @@ public abstract class AbstractBigViewer {
     /** Script-ready lines of the keyframes captured with the K hotkey since the last reset */
     private final List<String> capturedKeyframes = new ArrayList<>();
 
+    // Whether M should add a seed instead of a marker. Only relevant if seeds are listed. Asks once (the choice
+    // can be changed in the Seeds tab). Canceling the prompt adds a marker this time
+    private boolean shouldAddSeed() {
+        if (snt == null || snt.getSeedOverlay() == null || snt.getSeedOverlay().isEmpty()) return false;
+        MarkMode mode = getMarkMode(snt);
+        if (mode == MarkMode.ASK) {
+            final Boolean seeds = getGuiUtils().getConfirmation2(
+                    "<HTML>Seeds are listed. What should the <b>M</b> key add?<br>"
+                            + "(This can be changed later from the <b>+</b> menu of the Seeds tab.)",
+                    "Add Seeds or Markers?", "Seeds", "Bookmark Markers");
+            if (seeds == null) return false;
+            mode = seeds ? MarkMode.SEEDS : MarkMode.MARKERS;
+            setMarkMode(snt, mode);
+        }
+        return mode == MarkMode.SEEDS;
+    }
+
+    // Adds a seed at the cursor. Type and radius are those of the last seed listed (the radius of the most recent
+    // seed of that type, if the last has none). Confidence is 1 (user-placed), and the source is "manual"
+    private void addSeedAtCursor() {
+        final double[] p = resolveCursorWorldPosition();
+        if (p == null) {
+            showViewerMessage("Could not resolve cursor position");
+            return;
+        }
+        final sc.fiji.snt.seed.SeedOverlay overlay = snt.getSeedOverlay();
+        final int last = overlay.size() - 1;
+        if (last < 0) return;
+        final String lastType = overlay.get(last).type;
+        final String type = (lastType == null || lastType.isEmpty()) ? "tip" : lastType;
+        double radius = 0;
+        for (int i = last; i >= 0; i--) { // Usually stops at once
+            final sc.fiji.snt.seed.SeedPoint sp = overlay.get(i);
+            if (type.equals(sp.type) && sp.radius > 0) {
+                radius = sp.radius;
+                break;
+            }
+        }
+        final sc.fiji.snt.seed.SeedPoint seed = new sc.fiji.snt.seed.SeedPoint(p[0], p[1], p[2], 1d, radius,
+                snt.getChannel(), snt.getFrame(), type, "manual");
+        overlay.add(seed);
+        synchronized (deletedSeeds) {
+            deletedSeeds.push(new SeedUndo(List.of(seed), false));
+            while (deletedSeeds.size() > MAX_UNDO_DELETIONS) deletedSeeds.removeLast();
+        }
+        showViewerMessage("Seed added (" + type + "). Undo: " + GuiUtils.ctrlKey() + "+Z");
+    }
+
     /**
      * Registers SNT's viewer keybindings shared by Bvv and Bdv: {@code M} (marker), {@code H}
      * (hold to hide annotations), {@code L} (secondary layer), {@code P} (pick sigma point) and,
@@ -1322,8 +1525,15 @@ public abstract class AbstractBigViewer {
      */
     protected void registerSntKeybindings(final InputMap sntIMap, final ActionMap sntAMap,
             final Actions actions, final Action addMarker, final AbstractTracer tracer) {
+        // M adds a bookmark marker or, if seeds are listed and the user chose so (asked once), a seed
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), "snt-add-marker");
-        sntAMap.put("snt-add-marker", addMarker);
+        sntAMap.put("snt-add-marker", new AbstractAction("Add Marker/Seed") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (shouldAddSeed()) addSeedAtCursor();
+                else addMarker.actionPerformed(e);
+            }
+        });
         // Same shortcut as in the classic canvas
         sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK),
                 "snt-sholl-nearest-node");
@@ -1348,6 +1558,58 @@ public abstract class AbstractBigViewer {
             @Override
             public void actionPerformed(final ActionEvent e) {
                 toggleEditMode();
+            }
+        });
+        // D/Backspace: deletes the last marker or seed(s) picked by clicking on it in the viewer. Speeds up the
+        // curation of false positives. Seed deletions can be undone with Ctrl/Cmd+Z (markers: press M to re-add)
+        final Action deleteSeeds = new AbstractAction("Delete Selected Marker/Seed(s)") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (snt == null) return;
+                if (lastPickedBookmark) {
+                    final sc.fiji.snt.BookmarkManager bm = (snt.getUI() == null) ? null : snt.getUI().getBookmarkManager();
+                    final int nb = (bm == null) ? 0 : bm.deleteSelected();
+                    if (nb > 0) showViewerMessage(nb + ((nb == 1) ? " marker deleted" : " markers deleted"));
+                    return;
+                }
+                if (snt.getSeedOverlay() == null) return;
+                final List<sc.fiji.snt.seed.SeedPoint> selected = new ArrayList<>(snt.getSeedOverlay().getSelectedSeeds());
+                final int n = snt.getSeedOverlay().removeSelected();
+                if (n <= 0) return;
+                synchronized (deletedSeeds) {
+                    deletedSeeds.push(new SeedUndo(selected, true));
+                    while (deletedSeeds.size() > MAX_UNDO_DELETIONS) deletedSeeds.removeLast();
+                }
+                showViewerMessage(n + ((n == 1) ? " seed deleted" : " seeds deleted") + " (undo: "
+                        + GuiUtils.ctrlKey() + "+Z)");
+            }
+        };
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_D, 0), "snt-delete-selected-seeds");
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0), "snt-delete-selected-seeds");
+        sntAMap.put("snt-delete-selected-seeds", deleteSeeds);
+        sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()),
+                "snt-undo-seed-deletion");
+        sntAMap.put("snt-undo-seed-deletion", new AbstractAction("Undo Seed Edit") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (snt == null || snt.getSeedOverlay() == null) return;
+                final SeedUndo last;
+                synchronized (deletedSeeds) {
+                    last = deletedSeeds.isEmpty() ? null : deletedSeeds.pop();
+                }
+                if (last == null) {
+                    showViewerMessage("Nothing to undo");
+                    return;
+                }
+                final int n = last.seeds().size();
+                if (last.deleted()) {
+                    snt.getSeedOverlay().addAll(last.seeds());
+                    snt.getSeedOverlay().setSelectedSeeds(last.seeds());
+                    showViewerMessage(n + ((n == 1) ? " seed restored" : " seeds restored"));
+                } else {
+                    snt.getSeedOverlay().removeAll(last.seeds());
+                    showViewerMessage(n + ((n == 1) ? " added seed removed" : " added seeds removed"));
+                }
             }
         });
         if (tracer == null) return;
@@ -3713,7 +3975,7 @@ public abstract class AbstractBigViewer {
                 // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
                 // the pixel data) for the whole path now, rather than re-checking on every segment, so a single
                 // path can't silently span two channels if the user switches the active source mid-trace
-                syncChannelFromActiveSource();
+                ensureActiveSourceSynced();
                 final double[] cc1 = resolveClickWorldPosition(e);
                 if (cc1 == null) return; // msg already displayed
 
@@ -3805,6 +4067,55 @@ public abstract class AbstractBigViewer {
          * had.
          */
         protected abstract void syncChannelFromActiveSource();
+
+        // Identity of what the last full sync was done against. Skips re-reading pixel data when nothing changed
+        private SourceAndConverter<?> syncedSource;
+        private int syncedFrame = -1;
+        private Object syncedData;
+        private boolean syncedCrop;
+
+        /** Full sync (pixel data, calibration, channel/frame) that also records what was synced against */
+        protected final void forceSyncFromActiveSource() {
+            syncChannelFromActiveSource();
+            syncedSource = getCurrentSource();
+            final int[] cf = peekActiveChannelFrame();
+            syncedFrame = (cf == null) ? -1 : cf[1];
+            syncedData = snt.getLoadedIterable();
+            syncedCrop = snt.isMaterializedCrop();
+        }
+
+        /**
+         * Runs the full sync only if the active source/timepoint, or the data held by SNT (e.g., a crop being
+         * materialized or closed), changed since the last one. Cheap otherwise
+         */
+        protected final void ensureActiveSourceSynced() {
+            if (snt == null) return;
+            // Never swap data under a path being traced, or under a batch re-trace running on another channel/frame
+            if (previousNode != null || computing) return;
+            final SourceAndConverter<?> current = getCurrentSource();
+            final int[] cf = peekActiveChannelFrame();
+            if (current == null || cf == null) return;
+            final int[] batchLock = snt.getBatchRetraceChannelFrame();
+            if (batchLock != null && (batchLock[0] != cf[0] || batchLock[1] != cf[1])) return;
+            if (current == syncedSource && cf[1] == syncedFrame && snt.getLoadedIterable() == syncedData
+                    && snt.isMaterializedCrop() == syncedCrop) return;
+            forceSyncFromActiveSource();
+        }
+
+        /**
+         * Called when the active source or timepoint of the viewer changes. Only updates channel/frame (no pixel
+         * access), so labels and path metadata are current. Pixel data is synced on demand, see
+         * {@link #ensureActiveSourceSynced()}. Ignored while a path is being traced, while a batch re-trace is
+         * locked to another channel/frame, or while a crop is materialized (its canvas owns channel/frame then)
+         */
+        protected final void onActiveSourceChanged() {
+            if (snt == null || previousNode != null || computing || snt.isMaterializedCrop()) return;
+            final int[] cf = peekActiveChannelFrame();
+            if (cf == null) return;
+            final int[] batchLock = snt.getBatchRetraceChannelFrame();
+            if (batchLock != null && (batchLock[0] != cf[0] || batchLock[1] != cf[1])) return;
+            snt.setChannelAndFrame(cf[0], cf[1]);
+        }
 
         /**
          * Resolves what {@link #syncChannelFromActiveSource()} would set channel/frame to, without
@@ -4552,7 +4863,7 @@ public abstract class AbstractBigViewer {
                     if (startNewPathBlocked()) return;
                     confirmedSegmentSizes.clear();
                     updateUndoButtonState();
-                    syncChannelFromActiveSource();
+                    ensureActiveSourceSynced();
                     beginFork(worldPos);
                 }
             };

@@ -283,8 +283,8 @@ public class SNT extends MultiDThreePanes implements
 	protected double y_spacing = 1;
 	protected double z_spacing = 1;
 	protected String spacing_units = SNTUtils.getSanitizedUnit(null);
-	protected int channel;
-	protected int frame;
+	protected volatile int channel;
+	protected volatile int frame;
 	/*
 	 * True once x_spacing/y_spacing/z_spacing have been set from a source that actually reported real voxel dimensions
 	 * (setImageMetadata(...) called with all three spacing args > 0), as opposed to staying at their hardwired default
@@ -343,6 +343,12 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	private final ImageStatistics streamedStats = new ImageStatistics();
 	private boolean streamedStatsComputed;
+	/*
+	 * Copy of stats taken right before a crop is installed (null if no crop was ever installed): stats are overwritten
+	 * by, or computed from, the crop's own data while it is open, so they are restored when it is closed.
+	 * See installMaterializedCropOnEDT()/dematerializeDisplayCanvas()
+	 */
+	private ImageStatistics preCropStats;
 
 	/* filter type */
 	protected FilterType filterType = FilterType.TUBENESS;
@@ -1014,6 +1020,8 @@ public class SNT extends MultiDThreePanes implements
 			height = (int) ctSlice3d.dimension(1);
 			depth = (int) ctSlice3d.dimension(2);
 		}
+		// Stats may now describe the crop only. Not nulled: a nested call (see above) must not consume the snapshot
+		if (preCropStats != null) copyStatsInto(preCropStats, stats);
 		syncActivePathCanvasState(defaultCanvasPixelOffset(), null);
 		nullifyCanvases(false);
 	}
@@ -1559,6 +1567,8 @@ public class SNT extends MultiDThreePanes implements
 		// channel/frame mismatch validation for Path Profiler/Node Profiler/Fit/detection commands
 		materializedCropChannel = crop.channel();
 		materializedCropFrame = crop.frame();
+		// Re-materializing while a crop is open keeps the snapshot taken before the first one
+		if (!isMaterializedCrop()) preCropStats = copyStats(stats);
 		// Replace this session's own XY canvas in place. The isMaterializedCrop tag makes setFieldsFromImage skip
 		// pathAndFillManager.assignSpatialSettings(...), which would otherwise reset every Path's canvasOffset to zero
 		// and overwrite their spacing. No new world origin offset is needed either
@@ -1893,9 +1903,10 @@ public class SNT extends MultiDThreePanes implements
 	 * disk/network, backed only by {@link #ctSlice3d}), a Dataset is instead built directly from {@link
 	 * #getLoadedDataAsImg(boolean)}, so Dataset-only commands. Null is returned if no image data exists at all.
 	 * <p>
-	 * NB: in the streamed-data fallback, the returned Dataset only ever contains a single channel/
-	 * frame (whichever is currently active): {@link #ctSlice3d} is a single C/T slice by construction. Commands that
-	 * need every channel or frame simultaneously will still require a resident {@link ImagePlus}.
+	 * NB: in Stream mode, the returned Dataset stacks every source of the active Bdv/Bvv as a (lazy) channel axis,
+	 * and, only if paths exist on other frames than the current one, a time axis. If the sources cannot be stacked
+	 * (e.g., mixed pixel types), it falls back to a single channel/frame (whichever is currently active):
+	 * {@link #ctSlice3d} is a single C/T slice by construction.
 	 * <p>
 	 * NB2: a materialized crop (see {@link #isMaterializedCrop()}) always has a resident {@link ImagePlus}
 	 * (the crop itself), so it never takes the streamed-data fallback above, returning the crop's own Dataset as-is,
@@ -1907,6 +1918,8 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = getImagePlus();
 		if (imp != null) return convertService.convert(imp, Dataset.class);
 		if (datasetService == null) return null;
+		final ImgPlus<?> allSources = getStreamedSourcesAsImg();
+		if (allSources != null) return datasetService.create((ImgPlus) allSources);
 		final ImgPlus<?> imgPlus = getLoadedDataAsImg(false);
 		return (imgPlus == null) ? null : datasetService.create((ImgPlus) imgPlus);
 	}
@@ -3252,9 +3265,12 @@ public class SNT extends MultiDThreePanes implements
 		// getStreamedOrLoadedStats(): stats gets overwritten with a materialized crop's own (smaller) statistics,
 		// which would miscalibrate a search over the full streamed source. Only matters when isUseSubVolumeStats is off
 		// below computes fresh sub-volume-local statistics from img itself either way, already correctly source-aware
+		// NB: getStreamedOrLoadedStats() may trigger a full pass over the source, so it is only evaluated if its result
+		// is actually used, i.e., not when local statistics replace it just below
+		final boolean subVolumeStats = isUseSubVolumeStats;
 		ImageStatistics imgStats = useSecondary ? statsSecondary
-				: (useStreamedSource ? getStreamedOrLoadedStats() : stats);
-		if (isUseSubVolumeStats)
+				: (useStreamedSource ? (subVolumeStats ? stats : getStreamedOrLoadedStats()) : stats);
+		if (subVolumeStats)
 		{
 			SNTUtils.log("Computing local statistics...");
 			// NB: compute into a fresh, local instance rather than mutating the shared stats/ statsSecondary fields
@@ -4679,6 +4695,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
 	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
+		syncWithActiveSource();
 		if (ctSlice3d == null)
 			return null;
 		final RandomAccessibleInterval<T> data = getLoadedData();
@@ -4754,6 +4771,40 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * @return the number of channels of the image data (Stream mode: number of sources of the active viewer)
+	 */
+	public int getChannelCount() {
+		if (isStreamMode()) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = (ui == null) ? null : ui.getActiveBigViewer();
+			if (viewer != null) return Math.max(1, viewer.getSourceCount());
+		}
+		return (xy == null) ? 1 : Math.max(1, xy.getNChannels());
+	}
+
+	/**
+	 * Crop-independent data of any channel, in the same grid as {@link #getFullSourceData()}, at the current frame
+	 *
+	 * @param channel the channel (1-based)
+	 * @return the data, or null if unavailable (or if its dimensions differ from the ones of the active channel)
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public RandomAccessibleInterval<?> getFullSourceData(final int channel) {
+		final RandomAccessibleInterval<?> active = getFullSourceData();
+		if (active == null || channel == getChannel()) return active;
+		RandomAccessibleInterval<?> data = null;
+		if (isStreamMode()) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = (ui == null) ? null : ui.getActiveBigViewer();
+			if (viewer != null) data = viewer.getSourceData(channel - 1);
+		} else if (xy != null && channel >= 1 && channel <= xy.getNChannels()) {
+			data = ImgUtils.getCtSlice3d(xy, channel, getFrame());
+		}
+		if (data == null) return null;
+		final RandomAccessibleInterval<?> flat = (RandomAccessibleInterval<?>) Views.dropSingletonDimensions((RandomAccessibleInterval) data);
+		final RandomAccessibleInterval<?> ref = (RandomAccessibleInterval<?>) Views.dropSingletonDimensions((RandomAccessibleInterval) active);
+		return java.util.Arrays.equals(flat.dimensionsAsLongArray(), ref.dimensionsAsLongArray()) ? data : null;
+	}
+
+	/**
 	 * The global image statistics a crop-independent (BDV/BVV) search should normalize its cost
 	 * function against, paired with {@link #getStreamedOrLoadedData()}. {@link #stats} itself gets
 	 * overwritten with a materialized crop's own (smaller) statistics every time {@code
@@ -4785,6 +4836,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public ImgPlus<?> getLoadedDataAsImg(final boolean secondaryLayer) {
+		syncWithActiveSource();
 		final RandomAccessibleInterval<?> loadedData = (secondaryLayer) ? getSecondaryData() : getLoadedData();
 		return (loadedData == null) ? null :
 				ImgUtils.wrapWithSpacing(loadedData,
@@ -4794,6 +4846,26 @@ public class SNT extends MultiDThreePanes implements
 	@SuppressWarnings("rawtypes")
 	public <T> IterableInterval getLoadedIterable() {
 		return ctSlice3d;
+	}
+
+	/*
+	 * Stream mode: all the sources of the active Bdv/Bvv as one lazy C(T) image, so that path channel/frame can be
+	 * resolved against it (e.g., by PathProfiler). The T axis is only included if a path exists on a frame other than
+	 * the viewer's current one. Null if unavailable (see AbstractBigViewer#getSourcesAsImg)
+	 */
+	private ImgPlus<?> getStreamedSourcesAsImg() {
+		if (!isStreamMode() || ui == null) return null;
+		final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
+		if (viewer == null) return null;
+		try {
+			syncWithActiveSource();
+			final int current = viewer.getCurrentTimepoint();
+			final boolean includeTime = pathAndFillManager.getPaths().stream().anyMatch(p -> p.getFrame() != current);
+			return viewer.getSourcesAsImg(includeTime, new double[]{x_spacing, y_spacing, z_spacing}, spacing_units);
+		} catch (final Exception ex) {
+			SNTUtils.log("Could not stack viewer sources (" + ex.getMessage() + "). Using active source only");
+			return null;
+		}
 	}
 
 	/**
@@ -6475,8 +6547,36 @@ public class SNT extends MultiDThreePanes implements
 	 * @param frame   the frame/timepoint (1-based index; coerced to 1 if &le;0)
 	 */
 	public void setChannelAndFrame(final int channel, final int frame) {
-		this.channel = Math.max(1, channel);
-		this.frame = Math.max(1, frame);
+		final int c = Math.max(1, channel);
+		final int f = Math.max(1, frame);
+		final boolean changed = c != this.channel || f != this.frame;
+		this.channel = c;
+		this.frame = f;
+		// While a crop is open, stats belong to the crop, not to the source being switched
+		if (changed && isStreamMode() && !isMaterializedCrop()) {
+			if (isUseSubVolumeStats) {
+				// Back to "unknown": searches compute local stats, and other consumers handle unknown stats
+				stats.min = 0;
+				stats.max = 0;
+				stats.mean = 0;
+				stats.stdDev = 0;
+			} else {
+				SNTUtils.log("Image statistics (computed once or set manually) were not updated for C" + c + "T" + f);
+			}
+		}
+	}
+
+	private static ImageStatistics copyStats(final ImageStatistics src) {
+		final ImageStatistics copy = new ImageStatistics();
+		copyStatsInto(src, copy);
+		return copy;
+	}
+
+	private static void copyStatsInto(final ImageStatistics src, final ImageStatistics dst) {
+		dst.min = src.min;
+		dst.max = src.max;
+		dst.mean = src.mean;
+		dst.stdDev = src.stdDev;
 	}
 
 	public double getPixelWidth() {
@@ -6493,6 +6593,17 @@ public class SNT extends MultiDThreePanes implements
 
 	public String getSpacingUnits() {
 		return spacing_units;
+	}
+
+	/**
+	 * In Stream mode, makes sure the channel/frame and pixel data held by this instance reflect the source currently
+	 * active in the Bdv/Bvv viewer. Cheap if nothing changed since the last sync. No-op in other modes or if no viewer
+	 * is active
+	 */
+	public void syncWithActiveSource() {
+		if (!isStreamMode() || ui == null) return;
+		final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
+		if (viewer != null) viewer.ensureActiveSourceSynced();
 	}
 
 	public int getChannel() {

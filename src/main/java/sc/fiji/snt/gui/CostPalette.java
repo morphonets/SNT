@@ -22,10 +22,8 @@
 
 package sc.fiji.snt.gui;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
-import ij.gui.Roi;
 import ij.gui.StackWindow;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
@@ -47,6 +45,12 @@ import javax.swing.Icon;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
@@ -65,7 +69,7 @@ import java.util.concurrent.ExecutionException;
  *
  * @author Tiago Ferreira
  */
-public class CostPalette extends Thread {
+public class CostPalette extends WizardPalette {
 
     /**
      * Voxel-space padding added around the probe path's bounding box.
@@ -129,7 +133,6 @@ public class CostPalette extends Thread {
     private int z_max;
     private int croppedWidth, croppedHeight, croppedDepth;
 
-    private final SNT snt;
     private final ImagePlus image;
     private final PointInImage startWorld;
     private final PointInImage endWorld;
@@ -144,28 +147,21 @@ public class CostPalette extends Thread {
     private volatile java.util.concurrent.ExecutorService metricsExecutor;
     private volatile java.util.concurrent.Future<?> metricsTask;
     private volatile javax.swing.Timer metricsTimeout;
-    private ImagePlus paletteImage;
     // In-memory copy of the region being searched (grid origin at the crop's corner). Reading it once, up front, spares
     // the searches and the metrics from hitting lazy/remote data, which is orders of magnitude slower
     private RandomAccessibleInterval<?> regionData;
     private WizardWindow paletteWindow;
-    private PaletteOptions paletteOptions;
     private MultiPathTracerCanvas canvas;
-    private Window parent;
     private CostType selectedType;
     // Search image type in effect when the probes were run (the live setting may change while the wizard is open)
     private SNT.SearchImageType searchImageType;
 
     public CostPalette(final SNT snt, final PointInImage startWorld, final PointInImage endWorld) {
-        this.snt = snt;
+        super(snt);
         this.image = snt.getLoadedDataAsImp();
         this.startWorld = startWorld;
         this.endWorld = endWorld;
         setParent(snt.getUI());
-    }
-
-    public void setParent(final Window parent) {
-        this.parent = parent;
     }
 
     public void addListener(final Listener l) {
@@ -197,9 +193,8 @@ public class CostPalette extends Thread {
                         Arrays.toString(data.minAsLongArray()) + "-" + Arrays.toString(data.maxAsLongArray()),
                         off.x, off.y, off.z, snt.isMaterializedCrop());
                 SNTUtils.log("Cost-function wizard: probe out of bounds: " + details);
-                return "The probe segment lies outside the image data currently loaded"
-                        + ((snt.isStreamMode()) ? " (is a crop active?)." : ".") + "<br><small>" + details
-                        + "</small>";
+                return WizardUtils.outsideDataMessage(snt, "The probe segment lies", "") + "<br><small>"
+                        + details + "</small>";
             }
             if (snt.isStreamMode() && Math.abs(s[d] - e[d]) > MAX_STREAM_PROBE_SPAN) {
                 // Report in calibrated units: the limit is in voxels, so it differs per axis if spacing is anisotropic
@@ -216,17 +211,13 @@ public class CostPalette extends Thread {
     }
 
     @Override
-    public void run() {
-        WizardSupport.busy(snt, this::build);
-    }
-
-    private void build() {
+    protected void build() {
         try {
             computeBounds();
             searchImageType = snt.getSearchImageType();
-            WizardSupport.status(snt, "Cost wizard: reading region...");
+            WizardUtils.status(snt, "Cost wizard: reading region...");
             if (readRegion()) {
-                WizardSupport.status(snt, "Cost wizard: tracing with " + CostType.values().length
+                WizardUtils.status(snt, "Cost wizard: tracing with " + CostType.values().length
                         + " cost functions...");
                 runProbes();
                 metricsSkipReason = shortSegmentReason();
@@ -251,10 +242,7 @@ public class CostPalette extends Thread {
     // Reads the probe's bounding box into memory. Returns false if the region is unusable
     @SuppressWarnings({"unchecked", "rawtypes"})
     private boolean readRegion() {
-        final Roi existingRoi = image.getRoi();
-        image.setRoi(x_min, y_min, croppedWidth, croppedHeight);
-        paletteImage = image.crop((z_min + 1) + "-" + (z_max + 1));
-        image.setRoi(existingRoi);
+        paletteImage = WizardUtils.cropImp(image, x_min, y_min, croppedWidth, croppedHeight, z_min + 1, z_max + 1);
         if (paletteImage == null || paletteImage.getWidth() < 2 || paletteImage.getHeight() < 2) return false;
         if (snt.isTracingOnSecondaryImageActive()) {
             // The wizard displays the primary image, but searches (and metrics) use the secondary one
@@ -332,8 +320,8 @@ public class CostPalette extends Thread {
         final Path[] paths = new Path[probes.length];
         // The local paths match the grid of the in-memory region
         for (int i = 0; i < probes.length; i++) paths[i] = (probes[i].ok()) ? probes[i].local : null;
-        final RandomAccessibleInterval<?> img = WizardSupport.as3D(regionData);
-        final int radius = WizardSupport.metricsRadius();
+        final RandomAccessibleInterval<?> img = WizardUtils.as3D(regionData);
+        final int radius = WizardUtils.metricsRadius();
         metricsExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
             final Thread t = new Thread(r, "SNT-CostPalette-metrics");
             t.setDaemon(true);
@@ -384,7 +372,7 @@ public class CostPalette extends Thread {
     private Probe probeOnce(final CostType type) {
         final int[] start = {voxelX(startWorld) - x_min, voxelY(startWorld) - y_min, voxelZ(startWorld) - z_min};
         final int[] end = {voxelX(endWorld) - x_min, voxelY(endWorld) - y_min, voxelZ(endWorld) - z_min};
-        final WizardSupport.TraceResult r = WizardSupport.trace(snt, WizardSupport.as3D(regionData),
+        final WizardUtils.TraceResult r = WizardUtils.trace(snt, WizardUtils.as3D(regionData),
                 snt.getCalibration(), type, start, end, 0);
         return new Probe(type, r.ok() ? toDataGrid(r.path()) : null, r.path(), r.elapsedMs(), r.explored(),
                 r.allocated(), r.error());
@@ -412,16 +400,15 @@ public class CostPalette extends Thread {
     // materialized, the raw streamed source's own voxel grid otherwise), same conversion as
     // SNT#createSearch(double...)/testPathTo()
     private int voxelX(final PointInImage p) {
-        return (int) Math.round(p.x / snt.getPixelWidth() + snt.getActiveCanvasPixelOffset().x);
+        return (int) Math.round(WizardUtils.gridCoord(p.x, snt.getPixelWidth(), snt.getActiveCanvasPixelOffset().x));
     }
 
     private int voxelY(final PointInImage p) {
-        return (int) Math.round(p.y / snt.getPixelHeight() + snt.getActiveCanvasPixelOffset().y);
+        return (int) Math.round(WizardUtils.gridCoord(p.y, snt.getPixelHeight(), snt.getActiveCanvasPixelOffset().y));
     }
 
     private int voxelZ(final PointInImage p) {
-        return (int) Math.round(p.z / Math.max(1e-9, snt.getPixelDepth())
-                + snt.getActiveCanvasPixelOffset().z);
+        return (int) Math.round(WizardUtils.gridCoord(p.z, snt.getPixelDepth(), snt.getActiveCanvasPixelOffset().z));
     }
 
     private void buildAndDisplay() {
@@ -429,7 +416,7 @@ public class CostPalette extends Thread {
         paletteImage.setTitle("Cost Function Sel. Wizard");
 
         // Shared LUT/MIP/snapshot/dismiss for the wizard window's "More »" button
-        paletteOptions = new PaletteOptions(paletteImage, image, "CostFunction_Snapshot", this::dismiss);
+        paletteOptions = new PaletteOptions(paletteImage, image, "CostFunction_Snapshot");
 
         // Shift each probe path into the cropped image's coordinate space by setting a canvasOffset matching the crop
         // origin. Path.drawPathAsPoints adds the canvasOffset when computing display coordinates, so the overlay aligns
@@ -553,14 +540,29 @@ public class CostPalette extends Thread {
         dismiss();
     }
 
-    public void dismiss() {
+    @Override
+    protected void beforeDismiss() {
         cancelMetrics();
+    }
+
+    @Override
+    protected void notifyDismissed() {
         new ArrayList<>(listeners).forEach(Listener::dismissed);
-        if (paletteWindow != null) paletteWindow.close();
-        if (paletteImage != null) paletteImage.flush();
-        regionData = null; // release (metrics were cancelled above)
+    }
+
+    @Override
+    protected StackWindow windowToClose() {
+        return paletteWindow;
+    }
+
+    @Override
+    protected void afterDismiss() {
+        regionData = null; // release (metrics were canceled before the window was closed)
+    }
+
+    @Override
+    protected void clearListeners() {
         listeners.clear();
-        if (snt.getUI() != null) snt.getUI().changeState(SNTUI.READY); // Runs on EDT
     }
 
     private static int clamp(final int v, final int lo, final int hi) {
@@ -587,17 +589,22 @@ public class CostPalette extends Thread {
     }
 
     // Window: cropped image (StackWindow) + AWT control panel
-    private class WizardWindow extends StackWindow {
+    private class WizardWindow extends PaletteWindow {
         private static final long serialVersionUID = 1L;
-        // All controls below are AWT, NOT Swing. ImageJ's StackWindow extends java.awt.Frame!
-        // Parenting Swing JComponents directly under it produces erratic repainting on resize, components
-        // disappearing under the heavyweight ImageCanvas, and z-order glitches (same w/ SigmaPalette)
-        private final Choice combo;
-        private final Label statsLabel;
+        // ImageJ's StackWindow extends java.awt.Frame: parenting Swing JComponents directly under it produces
+        // erratic repainting on resize, components disappearing under the heavyweight ImageCanvas, and z-order
+        // glitches. The (Swing) controls below live inside an AWT Panel, which paints them reliably
+        private final JComboBox<String> combo;
+        private final JLabel statsLabel;
+        private boolean syncing; // True while the combo is set by code
+        private final Panel rootPanel;
+        private CollapsiblePanel metricsPanel;
+        private JButton applyButton;
+        private JButton moreButton;
         private JTable metricsTable; // null if metrics are not available
 
         WizardWindow(final ImagePlus imp, final ImageCanvas ic) {
-            super(imp, ic);
+            super(imp, ic, CostPalette.this::dismiss);
             // Match the source SNT canvas zoom so the probe reads at the user's familiar scale, making sure the wizard
             // window doesn't render very small (when zoomed out on a huge stack) or very large (when zoomed-in on a
             // small image). HiDPI scale factor is the same as SigmaPalette's behavior: This is AWT not Swing
@@ -614,6 +621,8 @@ public class CostPalette extends Thread {
             }
 
             final Panel root = new Panel(new GridBagLayout());
+            rootPanel = root;
+            root.setBackground(getBackground()); // not the (light) system one: Swing controls sit on it
             final GridBagConstraints c = new GridBagConstraints();
             c.fill = GridBagConstraints.HORIZONTAL;
             c.weightx = 1.0;
@@ -622,17 +631,27 @@ public class CostPalette extends Thread {
             //c.insets = new Insets(2, 6, 2, 6);
 
             final CostType[] types = CostType.values();
-            combo = new Choice();
+            combo = new JComboBox<>();
             combo.setFocusable(false); // keyboard shortcuts (zoom, etc.) only work when image canvas has focus
             for (final CostType t : types)
-                combo.add(t.toString());
-            if (selectedType != null) {
-                final String sType = selectedType.toString();
-                combo.setForeground(getSelectionColor(types, sType));
-                combo.select(sType);
-            }
-            combo.addItemListener(e -> {
-                final String chosen = combo.getSelectedItem();
+                combo.addItem(t.toString());
+            // Entries use the color of their path
+            combo.setRenderer(new DefaultListCellRenderer() {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                public Component getListCellRendererComponent(final JList<?> list, final Object value,
+                                                              final int index, final boolean isSelected,
+                                                              final boolean cellHasFocus) {
+                    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                    if (!isSelected) setForeground(getSelectionColor(types, String.valueOf(value)));
+                    return this;
+                }
+            });
+            if (selectedType != null) combo.setSelectedItem(selectedType.toString());
+            combo.addActionListener(e -> {
+                if (syncing) return;
+                final String chosen = (String) combo.getSelectedItem();
                 for (final CostType t : types) {
                     if (t.toString().equals(chosen)) {
                         applySelection(t);
@@ -640,19 +659,26 @@ public class CostPalette extends Thread {
                     }
                 }
             });
-            statsLabel = new Label(" ");
+            statsLabel = new JLabel(" ");
+            tip(combo, "Cost function to inspect: its path is highlighted");
 
-            final Panel row1 = new Panel(new FlowLayout(FlowLayout.LEFT));
-            row1.add(new Label("ƒ(x):"));
+            final JPanel row1 = newPanel(new FlowLayout(FlowLayout.LEFT));
+            row1.add(new JLabel("ƒ(x):"));
             row1.add(combo);
             row1.add(statsLabel);
             c.gridy = 0;
             root.add(row1, c);
             c.gridy = 1;
             if (metricsSkipReason != null) {
-                root.add(new Label(metricsSkipReason), c);
+                final JPanel note = newPanel(new FlowLayout(FlowLayout.LEFT));
+                note.add(new JLabel(metricsSkipReason));
+                root.add(note, c);
             } else {
-                root.add(assembleMetricsTable(types), c);
+                metricsPanel = new CollapsiblePanel("Metrics", assembleMetricsTable(types), true);
+                metricsPanel.setHeaderFocusable(false); // keyboard shortcuts (zoom, etc.) need the canvas to have focus
+                metricsPanel.setTooltipText("Quality metrics of each path (best values highlighted). "
+                        + "Double-click a row to select that cost function");
+                root.add(section(null, metricsPanel), c);
             }
             c.gridy = 2;
             root.add(assembleButtonPanel(), c);
@@ -662,10 +688,7 @@ public class CostPalette extends Thread {
             updateStats();
             highlightSelected();
             requestFocusInWindow(); // required to trigger keylistener events
-            if (parent != null)
-                setLocationRelativeTo(parent);
-            else
-                GuiUtils.Windows.center(this, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
+            WizardUtils.place(this, parent, snt);
             new GuiUtils(this.getCanvas()).tempMsg(
                     "Scroll the stack to inspect each variant; pick from the dropdown then Apply.", 4000);
         }
@@ -674,9 +697,9 @@ public class CostPalette extends Thread {
         private void applySelection(final CostType t) {
             selectedType = t;
             final String name = t.toString();
-            combo.select(name);
-            // Recolor AFTER selectedType has been updated
-            combo.setForeground(getSelectionColor(CostType.values(), name));
+            syncing = true;
+            combo.setSelectedItem(name);
+            syncing = false;
             updateStats();
             highlightSelected();
             if (metricsTable != null) metricsTable.repaint();
@@ -704,7 +727,7 @@ public class CostPalette extends Thread {
                 }
             };
             final String selectTip = "Double-click a row to select that cost function";
-            final WizardSupport.MetricsTable mt = WizardSupport.metricsTable(getTableModel(types, Metric.values()),
+            final WizardUtils.MetricsTable mt = WizardUtils.metricsTable(getTableModel(types, Metric.values()),
                     nameRenderer, selectTip, selectTip,
                     "<html><div width=300>Compute time of each search. Variants are computed in parallel, so timings "
                             + "are indicative only. Speed is not a measure of path quality",
@@ -720,18 +743,60 @@ public class CostPalette extends Thread {
             return mt.pane();
         }
 
-        private Panel assembleButtonPanel() {
-            final Panel buttonPanel = new Panel(new FlowLayout(FlowLayout.LEFT));
-            final Button applyButton = new Button("Apply Choice");
+        private void startTour() {
+            runTour(this::registerCallouts);
+        }
+
+        // Only controls that are always visible are pointed at (the table is described by its header)
+        private void registerCallouts(final String group) {
+            int order = 0;
+            final Component canvas = getCanvas();
+            if (canvas.isShowing() && canvas.getWidth() > 0) {
+                CalloutManager.add(canvas, new Rectangle(canvas.getWidth() / 2, canvas.getHeight() / 2, 2, 2),
+                        CalloutManager.AUTO, "Preview of the region around the probe segment, with the path found by "
+                                + "each cost<br>function overlaid in its own color. "
+                                + "Scroll through the stack to inspect other slices.", group, order++);
+            }
+            CalloutManager.add(combo, CalloutManager.AUTO, "<b>Cost function</b><br>"
+                    + "The cost function to inspect: Its path is highlighted. Entries use the color of their "
+                    + "path.<br>Double-clicking a row of the metrics table selects it too.", group, order++);
+            CalloutManager.add(statsLabel, CalloutManager.AUTO, "<b>Search statistics</b><br>"
+                    + "Compute time, path length (nodes), points explored by the search (lower: more directed)<br>"
+                    + "and memory allocated by the selected variant.<br>Timings are indicative only: variants are "
+                    + "computed in parallel.", group, order++);
+            if (metricsPanel != null) {
+                CalloutManager.add(metricsPanel, CalloutManager.AUTO, "<b>Metrics</b><br>"
+                        + "Quality metrics of each path, with the best value of each column highlighted. They are "
+                        + "descriptive,<br> not a score: Intensity-based metrics favor intensity-based cost "
+                        + "functions.", group, order++);
+            }
+            CalloutManager.add(applyButton, CalloutManager.AUTO, "<b>Apply Choice</b><br>"
+                    + "Adopts the selected cost function. If the preview was generated from a Path Manager<br>"
+                    + "selection, the preview path is also replaced by the chosen variant.", group, order++);
+            CalloutManager.add(moreButton, CalloutManager.AUTO, "<b>Actions/Options</b><br>"
+                    + "Display options (LUT, MIP overlay, B&amp;C), snapshot, and help.", group, order);
+        }
+
+        // Stop gap for occasional painting glitches: painting is reliable with the metrics collapsed (startup state)
+        private void rebuildControls() {
+            if (metricsPanel != null) metricsPanel.setCollapsed(true);
+            refreshLayout(rootPanel);
+        }
+
+        private JPanel assembleButtonPanel() {
+            final JPanel buttonPanel = newButtonRow();
+            applyButton = new JButton("Apply Choice");
             applyButton.setFocusable(false);
+            tip(applyButton, "Adopts the selected cost function");
             applyButton.addActionListener(e -> commit());
-            final Button bcButton = new Button("B&C");
-            bcButton.setFocusable(false);
-            bcButton.addActionListener(e -> IJ.doCommand("Brightness/Contrast..."));
-            final Button more = paletteOptions.buildMoreButton(this, helpHtml(), null);
+            final JButton more = paletteOptions.getOptionsButton(pm -> {
+                paletteOptions.addRebuildItem(pm, this::rebuildControls);
+                paletteOptions.addHelpItem(pm, helpHtml(), this);
+                paletteOptions.addTourItem(pm, this::startTour);
+            });
             more.setFocusable(false);
+            moreButton = more;
             buttonPanel.add(applyButton);
-            buttonPanel.add(bcButton);
             buttonPanel.add(more);
             return buttonPanel;
         }
@@ -760,7 +825,7 @@ public class CostPalette extends Thread {
                 statsLabel.setText(String.format(
                         " %dms (%.2fms/node) | %d nodes | %,d points explored | %s allocated         ",
                         p.elapsedMs, p.elapsedMs / (double) Math.max(1, n), n, p.explored,
-                        WizardSupport.formatBytes(p.allocated)));
+                        WizardUtils.formatBytes(p.allocated)));
             }
         }
 
@@ -777,12 +842,6 @@ public class CostPalette extends Thread {
             // Lets users toggle depth-band rendering in SNTUI and have the wizard pick it up automatically
             super.windowActivated(e);
             syncEitherSideFromSourceCanvas();
-        }
-
-        @Override
-        public void windowClosing(final WindowEvent e) {
-            dismiss();
-            super.windowClosing(e);
         }
 
         private String helpHtml() {
@@ -813,38 +872,12 @@ public class CostPalette extends Thread {
     }
 
     private @NonNull AbstractTableModel getTableModel(CostType[] types, Metric[] ms) {
-        final String units = snt.getSpacingUnits();
-        final AbstractTableModel model = new AbstractTableModel() {
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public int getRowCount() {
-                return types.length;
-            }
-
-            @Override
-            public int getColumnCount() {
-                return ms.length + 2; // name, time, metrics
-            }
-
-            @Override
-            public String getColumnName(final int col) {
-                if (col == 0) return "Cost function";
-                if (col == 1) return "Time (ms)";
-                final Metric m = ms[col - 2];
-                return m.columnName(units);
-            }
-
-            @Override
-            public Object getValueAt(final int row, final int col) {
-                if (col == 0) return types[row].toString();
-                if (!probes[row].ok()) return "n/a";
-                if (col == 1) return String.valueOf(probes[row].elapsedMs); // available immediately
-                if (metricsState == MetricsState.FAILED) return "n/a";
-                if (metricsState == MetricsState.COMPUTING) return "...";
-                return ms[col - 2].format(metrics[row][col - 2]);
-            }
-        };
-        return model;
+        return WizardUtils.metricsModel("Cost function", snt.getSpacingUnits(), ms, types.length,
+                row -> types[row].toString(), row -> !probes[row].ok(),
+                row -> String.valueOf(probes[row].elapsedMs), (row, i) -> {
+                    if (metricsState == MetricsState.FAILED) return "n/a";
+                    if (metricsState == MetricsState.COMPUTING) return "...";
+                    return ms[i].format(metrics[row][i]);
+                });
     }
 }

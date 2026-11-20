@@ -51,13 +51,17 @@ import sc.fiji.snt.filter.Tubeness;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -73,7 +77,7 @@ import java.util.concurrent.Executors;
  * extends IJ1's StackWindow. It was ported from {@code features.SigmaPalette}
  * now deprecated.
  */
-public class SigmaPalette extends Thread {
+public class SigmaPalette extends WizardPalette {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -86,8 +90,6 @@ public class SigmaPalette extends Thread {
 
 	private double[] sigmaValues;
     private PaletteStackWindow paletteWindow;
-	private ImagePlus paletteImage;
-	private PaletteOptions paletteOptions;
 
 	private int selectedSigmaIndex = 0;
 	private int mouseMovedSigmaIndex = -1;
@@ -102,7 +104,6 @@ public class SigmaPalette extends Thread {
 	private int initial_z;
 
 	private final ImagePlus image;
-	private final SNT snt;
 	// NB: Voxel size comes from SNT, not from image: in Stream mode image can be a bare wrap that does not carry it
 	private final Calibration cal;
 	// Offset (in voxels) of the world origin in the grid of image: voxel = world / spacing + gridOffset
@@ -110,7 +111,6 @@ public class SigmaPalette extends Thread {
 	private final SNT.FilterType analysisType;
 	private List<Double> scaleSettings; // ordered: scales are addressed by position. Duplicates are rejected in setSettingsForSelectedScale()
 	private final List<SigmaPaletteListener> listeners;
-	private Window parent;
 
 	// Path metrics: the traced path next to the click (if any) is re-traced on every tile with the current cost
 	// function. The results are judged on the raw data, and listed in a table
@@ -124,7 +124,7 @@ public class SigmaPalette extends Thread {
 	private int seedX, seedY, seedZ; // in image's grid. seedZ is 1-based
 	private Segment segment;
 	private String metricsNote; // why path metrics are not available, if relevant
-	private WizardSupport.TraceResult[] traces; // one per sigma
+	private WizardUtils.TraceResult[] traces; // one per sigma
 	private double[][] metrics; // [sigma rows + 1 reference row][Metric ordinal]
 	private double[][] sigmaMetrics; // as above, without the reference row
 
@@ -142,18 +142,14 @@ public class SigmaPalette extends Thread {
 	 *                   seed and bounds passed to this palette must then be voxel indices of that data
 	 */
 	public SigmaPalette(final SNT snt, final boolean fullSource) {
+		super(snt);
 		snt.getContext().inject(this);
-		this.snt = snt;
 		analysisType = snt.getFilterType();
 		image = (fullSource) ? snt.getFullSourceDataAsImp() : snt.getLoadedDataAsImp();
 		final PointInCanvas offset = (fullSource) ? snt.getDefaultCanvasPixelOffset() : snt.getActiveCanvasPixelOffset();
 		gridOffset = new PointInCanvas(offset.x, offset.y, offset.z);
 		cal = snt.getCalibration();
 		listeners = new ArrayList<>();
-	}
-
-	public void setParent(final Window parent) {
-		this.parent = parent;
 	}
 
 	/**
@@ -178,14 +174,19 @@ public class SigmaPalette extends Thread {
         };
 	}
 
-	private class PaletteStackWindow extends StackWindow {
+	private class PaletteStackWindow extends PaletteWindow {
 
 		private static final long serialVersionUID = 1L;
-        private Button commitButton;
-		private Scrollbar maxValueScrollbar;
-		private Scrollbar scalesScrollbar;
-		private Label maxValueLabel;
-		private Label selectedScaleLabel;
+        // Controls are Swing, inside an AWT Panel (see assembleButtonPanel): the window is a java.awt.Frame
+        private JButton commitButton;
+		private JScrollBar maxValueScrollbar;
+		private JScrollBar scalesScrollbar;
+		private JLabel maxValueLabel;
+		private JLabel selectedScaleLabel;
+		private Panel rootPanel;
+		private CollapsiblePanel metricsPanel;
+		private JButton setButton;
+		private JButton moreButton;
 		private JTable metricsTable; // null if no metrics
 		private final double defaultMax;
 		private final GuiUtils guiUtils;
@@ -193,7 +194,7 @@ public class SigmaPalette extends Thread {
 		public PaletteStackWindow(final ImagePlus imp, final ImageCanvas ic,
 			final double defaultMax)
 		{
-			super(imp, ic);
+			super(imp, ic, SigmaPalette.this::dismiss);
 			this.defaultMax = defaultMax;
 			guiUtils = new GuiUtils(this);
 			ic.disablePopupMenu(true);
@@ -201,6 +202,8 @@ public class SigmaPalette extends Thread {
 			ic.setCursor(new Cursor(Cursor.HAND_CURSOR));
 			add(new Label("")); // spacer
 			final Panel panel = new Panel();
+			rootPanel = panel;
+			panel.setBackground(getBackground()); // not the (light) system one: Swing controls sit on it
 			panel.setLayout(new GridBagLayout());
 			final GridBagConstraints c = new GridBagConstraints();
 			c.ipadx = 0;
@@ -224,7 +227,6 @@ public class SigmaPalette extends Thread {
 
 			// final rendering
 			updateSliceSelector();
-			GUI.scale(panel);
 			// Leave room for sliders and buttons, but make sure the canvas is not narrower than the metrics table
 			GuiUtils.zoomToScreenFraction(ic, 0.55, 8,
 					(metricsTable == null) ? 0 : metricsTable.getPreferredSize().width);
@@ -261,9 +263,15 @@ public class SigmaPalette extends Thread {
 		private void assembleMetricsPanel(final Panel panel, final GridBagConstraints c) {
 			final Component content;
 			if (metrics != null) {
-				content = assembleMetricsTable();
+				metricsPanel = new CollapsiblePanel("Metrics", assembleMetricsTable(), true);
+				metricsPanel.setHeaderFocusable(false); // keyboard shortcuts (zoom, etc.) need the canvas to have focus
+				metricsPanel.setTooltipText("Quality metrics of the segment next to the clicked point, retraced on "
+						+ "each tile. Click a row to select its tile, double-click to set it");
+				content = section(null, metricsPanel);
 			} else if (metricsNote != null) {
-				content = new Label(metricsNote);
+				final JPanel note = newPanel(new FlowLayout(FlowLayout.LEFT));
+				note.add(new JLabel(metricsNote));
+				content = note;
 			} else {
 				return;
 			}
@@ -290,7 +298,7 @@ public class SigmaPalette extends Thread {
 					return this;
 				}
 			};
-			final WizardSupport.MetricsTable mt = WizardSupport.metricsTable(getTableModel(n, Metric.values()),
+			final WizardUtils.MetricsTable mt = WizardUtils.metricsTable(getTableModel(n, Metric.values()),
 					nameRenderer,
 					"Click a row to select its tile. Double-click to set it",
 					"<html><div width=300>Segment next to the clicked point, retraced on each filtered tile with the "
@@ -317,13 +325,11 @@ public class SigmaPalette extends Thread {
 		}
 
 		private void assembleButtonPanel(final Panel panel, final GridBagConstraints c) {
-			commitButton = new Button("Commit \u03C3 Values [16 Scale(s)]");
+			commitButton = new JButton("Commit \u03C3 Values [16 Scale(s)]");
+			commitButton.setFocusable(false); // keyboard shortcuts (zoom, etc.) only work when image canvas has focus
 			commitButton.addActionListener(e -> apply());
-			final Button cancelButton = new Button("B&C");
-			cancelButton.addActionListener(e -> IJ.doCommand("Brightness/Contrast..."));
-			final Panel buttonPanel = new Panel(new FlowLayout(FlowLayout.CENTER));
+			final JPanel buttonPanel = newButtonRow();
 			buttonPanel.add(commitButton);
-			buttonPanel.add(cancelButton);
 			buttonPanel.add(assembleOptionsButton());
 			c.gridy++;
 			c.gridx = 0;
@@ -332,12 +338,58 @@ public class SigmaPalette extends Thread {
 			panel.add(buttonPanel, c);
 		}
 
-		private Button assembleOptionsButton() {
-			// Standard items (help / LUT / MIP / snapshot / dismiss) come from
-			// PaletteOptions; the sigma-specific "Reset All Scales" item is
-			// inserted via the extras callback.
-			return paletteOptions.buildMoreButton(this, helpHtml(), pm -> {
-				final MenuItem reset = new MenuItem("Reset All Scales");
+		private void startTour() {
+			runTour(this::registerCallouts);
+		}
+
+		// Only controls that are always visible are pointed at (the table is described by its header)
+		private void registerCallouts(final String group) {
+			int order = 0;
+			final Component canvas = getCanvas();
+			if (canvas.isShowing() && canvas.getWidth() > 0) {
+				CalloutManager.add(canvas, new Rectangle(canvas.getWidth() / 2, canvas.getHeight() / 2, 2, 2),
+						CalloutManager.AUTO, "<b>Sigma grid</b><br>"
+								+ "Each tile previews the filter at a different &sigma;: an estimate of the radii "
+								+ "of the structures being traced.<br>Click a tile to select its &sigma;. For "
+								+ "multiple scales, double-click (or Shift+click) to add and Alt+click<br>"
+								+ "to remove a tile. In 3D images, use the main slider to navigate Z-planes.", group,
+						order++);
+			}
+			if (getMaxScales() > 1) {
+				CalloutManager.add(scalesScrollbar, CalloutManager.AUTO, "<b>Scale</b><br>"
+						+ "Filters such as Tubeness and Frangi accept multiple scales:<br>This slider chooses the "
+						+ "scale being set.", group, order++);
+				CalloutManager.add(setButton, CalloutManager.AUTO, "<b>Set</b><br>"
+						+ "Sets (or replaces) the scale being set to the &sigma; of the selected tile.", group,
+						order++);
+			}
+			if (metricsPanel != null) {
+				CalloutManager.add(metricsPanel, CalloutManager.AUTO, "<b>Metrics</b><br>"
+						+ "Quality metrics of the traced segment next to the clicked point, retraced on each tile "
+						+ "(<i>Traced</i> is the original).<br>The best value of each column is highlighted and "
+						+ "values worse than the original are shown in red.<br>Click a row to select its tile.",
+						group, order++);
+			}
+			CalloutManager.add(commitButton, CalloutManager.AUTO, "<b>Commit</b><br>"
+					+ "Adopts the selected &sigma; value(s). The label shows how many scales are set.", group,
+					order++);
+			CalloutManager.add(moreButton, CalloutManager.AUTO, "<b>Actions/Options</b><br>"
+					+ "Display options (LUT, MIP overlay, B&amp;C), snapshot, reset of all scales, and help.", group, order);
+		}
+
+		// Stop gap for occasional painting glitches: painting is reliable with the metrics collapsed (startup state)
+		private void rebuildControls() {
+			if (metricsPanel != null) metricsPanel.setCollapsed(true);
+			refreshLayout(rootPanel);
+		}
+
+		private JButton assembleOptionsButton() {
+			// Standard items (LUT / MIP / B&C / snapshot) come from PaletteOptions; the sigma-specific
+			// "Reset All Scales" item and help are added via the extras callback
+			final JButton more = paletteOptions.getOptionsButton(pm -> {
+				paletteOptions.addRebuildItem(pm, this::rebuildControls);
+				GuiUtils.MenuItems.addSeparator(pm, "Scales:");
+				final JMenuItem reset = new JMenuItem("Reset All Scales");
 				reset.setEnabled(getMaxScales() > 1);
 				reset.addActionListener(e -> {
 					if (scaleSettings != null && !scaleSettings.isEmpty()) {
@@ -348,7 +400,12 @@ public class SigmaPalette extends Thread {
 					}
 				});
 				pm.add(reset);
+				paletteOptions.addHelpItem(pm, helpHtml(), this);
+				paletteOptions.addTourItem(pm, this::startTour);
 			});
+			more.setFocusable(false);
+			moreButton = more;
+			return more;
 		}
 
 		private String helpHtml() {
@@ -381,16 +438,19 @@ public class SigmaPalette extends Thread {
 					+ "performed if the path is too short or too close to the edge of the preview."
 					+ "</p>"
 					+ "<p>"
-					+ "Use the B&amp;C button to adjust the Brightness/Contrast of the grid. Have a look at the "
-					+ "<i>More &raquo;</i> menu for further options."
+					+ "Use the <i>Actions/Options</i> menu to adjust the Brightness/Contrast of the grid, and for "
+					+ "further options (including a tour of the controls)."
 					+ "</p>";
 		}
 
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
 
 			scalesScrollbar = new RangeScrollbar(1, 1, getMaxScales() + 1);
-			selectedScaleLabel = new Label("1  ");
-            final Button setButton = new Button("Set");
+			selectedScaleLabel = new JLabel("1  ");
+			setButton = new JButton("Set");
+			setButton.setFocusable(false);
+			tip(setButton, "Sets (or replaces) the scale being set to the selected &sigma; value");
+			tip(scalesScrollbar, "Scale being set");
 			setButton.addActionListener(e -> setSettingsForSelectedScale());
 
 			scalesScrollbar.addAdjustmentListener(e -> selectedScaleChanged(scalesScrollbar.getValue()));
@@ -401,25 +461,34 @@ public class SigmaPalette extends Thread {
 				maxChanged(fraction * (image.getDisplayRangeMax() - image.getDisplayRangeMin() + 1)
 						+ image.getDisplayRangeMin());
 			});
-			maxValueLabel = new Label("###.##");
-			final Button resetMax = new Button("Auto");
+			maxValueLabel = new JLabel("###.##");
+			final JButton resetMax = new JButton("Auto");
 			resetMax.addActionListener(e -> {
 				maxValueScrollbar.setValue( (int)Math.round(defaultMax));
 				maxChanged(defaultMax);
 			});
 
 			if (getMaxScales() > 1) {
-				c.gridx =0;
-				c.weightx = 0;
-				panel.add(new Label("Scale"), c);
-				c.gridx++;
+				// Swing row (window background), as the rest of the controls
+				final JPanel row = newPanel(new GridBagLayout());
+				final GridBagConstraints rc = new GridBagConstraints();
+				rc.gridx = 0; // (default is RELATIVE: gridx++ below would then place the scrollbar in a new row)
+				rc.gridy = 0;
+				rc.fill = GridBagConstraints.HORIZONTAL;
+				rc.insets = new Insets(2, 4, 2, 4);
+				row.add(new JLabel("Scale"), rc);
+				rc.gridx++;
+				rc.weightx = 1;
+				row.add(scalesScrollbar, rc);
+				rc.gridx++;
+				rc.weightx = 0;
+				row.add(selectedScaleLabel, rc);
+				rc.gridx++;
+				row.add(setButton, rc);
+				c.gridx = 0;
 				c.weightx = 1;
-				panel.add(scalesScrollbar, c);
-				c.gridx++;
-				c.weightx = 0;
-				panel.add(selectedScaleLabel, c);
-				c.gridx++;
-				panel.add(setButton, c);
+				c.gridwidth = GridBagConstraints.REMAINDER;
+				panel.add(row, c);
 				c.gridy++;
 			}
 
@@ -452,9 +521,9 @@ public class SigmaPalette extends Thread {
 			maxValueLabel.setText(max);
 			final int nScales = (scaleSettings == null) ? 0 : scaleSettings.size();
 			if (getMaxScales() == 1)
-				commitButton.setLabel("Commit \u03C3 Value");
+				commitButton.setText("Commit \u03C3 Value");
 			else
-				commitButton.setLabel(String.format("Commit \u03C3 Values [%d Scale(s)]", nScales));
+				commitButton.setText(String.format("Commit \u03C3 Values [%d Scale(s)]", nScales));
 		}
 
 		private void selectedScaleChanged(final int newScaleIndex) {
@@ -477,12 +546,6 @@ public class SigmaPalette extends Thread {
 		}
 
 		@Override
-		public void windowClosing(final WindowEvent e) {
-			dismiss();
-			super.windowClosing(e);
-		}
-
-		@Override
 		public String createSubtitle() {
 			final StringBuilder sb = new StringBuilder(analysisType.toString());
 			sb.append(" Preview: Setting Scale ").append(selectedScale);
@@ -495,41 +558,16 @@ public class SigmaPalette extends Thread {
 	}
 
 	private @NonNull AbstractTableModel getTableModel(int n, Metric[] ms) {
-		final String units = snt.getSpacingUnits();
-        return new AbstractTableModel() {
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public int getRowCount() {
-                return n + 1; // sigmas + reference
-            }
-
-            @Override
-            public int getColumnCount() {
-                return ms.length + 2; // name, time, metrics
-            }
-
-            @Override
-            public String getColumnName(final int col) {
-                if (col == 0) return "\u03C3";
-                if (col == 1) return "Time (ms)";
-                return ms[col - 2].columnName(units);
-            }
-
-            @Override
-            public Object getValueAt(final int row, final int col) {
-                if (col == 0) return (row < n) ? SNTUtils.formatDouble(sigmaValues[row], 2) : "Traced";
-                if (row < n && (traces[row] == null || !traces[row].ok())) return "n/a";
-                if (col == 1) return (row < n) ? String.valueOf(traces[row].elapsedMs()) : "";
-                return ms[col - 2].format(metrics[row][col - 2]);
-            }
-        };
+		return WizardUtils.metricsModel("σ", snt.getSpacingUnits(), ms, n + 1, // sigmas + reference
+				row -> (row < n) ? SNTUtils.formatDouble(sigmaValues[row], 2) : "Traced",
+				row -> row < n && (traces[row] == null || !traces[row].ok()),
+				row -> (row < n) ? String.valueOf(traces[row].elapsedMs()) : "",
+				(row, i) -> ms[i].format(metrics[row][i]));
 	}
 
-	private class RangeScrollbar extends Scrollbar {
+	private class RangeScrollbar extends JScrollBar {
 
 		private static final long serialVersionUID = 1L;
-		private final ScrollbarWithLabel REF = new ScrollbarWithLabel(null, 1, 0, 1, 0, '\u0000');
 
 		public RangeScrollbar(final double value) {
 			this(value, (int) Math.round(image.getDisplayRangeMin()),
@@ -537,19 +575,9 @@ public class SigmaPalette extends Thread {
 		}
 
 		public RangeScrollbar(final double value, final int min, final int max) {
-			super(Scrollbar.HORIZONTAL, (int) (value), 1, min, max);
-			setFocusable(false); // prevents scroll bar from flickering on windows!?
-			GUI.fixScrollbar(this);
-		}
-
-		@Override
-		public Dimension getPreferredSize() {
-			return REF.getPreferredSize();
-		}
-
-		@Override
-		public Dimension getMinimumSize() {
-			return REF.getMinimumSize();
+			super(JScrollBar.HORIZONTAL, (int) (value), 1, min, max);
+			setFocusable(false); // keyboard shortcuts (zoom, etc.) only work when image canvas has focus
+			setBlockIncrement(1);
 		}
 	}
 
@@ -864,11 +892,25 @@ public class SigmaPalette extends Thread {
 		start();
 	}
 
-	public void dismiss() {
+	@Override
+	protected void notifyDismissed() {
 		new ArrayList<>(listeners).forEach(SigmaPaletteListener::paletteDismissed); // avoid ConcurrentModificationException
-		if (paletteWindow != null) paletteWindow.close();
-		if (paletteImage != null) paletteImage.flush();
+	}
+
+	@Override
+	protected StackWindow windowToClose() {
+		return paletteWindow;
+	}
+
+	@Override
+	protected void clearListeners() {
 		listeners.clear();
+	}
+
+	// The command that launched the palette stays open, and the sequences it drives are gated on the state of the UI
+	@Override
+	protected boolean resetsUiState() {
+		return false;
 	}
 
 	public List<Double> getMultiScaleSettings() {
@@ -979,7 +1021,7 @@ public class SigmaPalette extends Thread {
 		final int bestIdx = np.indexInPath;
 		// Crop bounds in the image's grid (z is 0-based here), kept away from the border when the crop allows it
 		// The sampling disks of the metrics must fit inside the crop too
-		final int insetXY = Math.max(MIN_INSET_XY, WizardSupport.metricsRadius() + 1);
+		final int insetXY = Math.max(MIN_INSET_XY, WizardUtils.metricsRadius() + 1);
 		final double x0 = x_min + ((x_max - x_min > 2 * insetXY) ? insetXY : 0);
 		final double x1 = x_max - ((x_max - x_min > 2 * insetXY) ? insetXY : 0);
 		final double y0 = y_min + ((y_max - y_min > 2 * insetXY) ? insetXY : 0);
@@ -1047,15 +1089,15 @@ public class SigmaPalette extends Thread {
 
 	// Voxel position of a path node in the grid of the data being previewed
 	private double gridX(final Path p, final int i, final PointInCanvas off) {
-		return p.getNode(i).x / cal.pixelWidth + off.x;
+		return WizardUtils.gridCoord(p.getNode(i).x, cal.pixelWidth, off.x);
 	}
 
 	private double gridY(final Path p, final int i, final PointInCanvas off) {
-		return p.getNode(i).y / cal.pixelHeight + off.y;
+		return WizardUtils.gridCoord(p.getNode(i).y, cal.pixelHeight, off.y);
 	}
 
 	private double gridZ(final Path p, final int i, final PointInCanvas off) {
-		return p.getNode(i).z / cal.pixelDepth + off.z;
+		return WizardUtils.gridCoord(p.getNode(i).z, cal.pixelDepth, off.z);
 	}
 
 	// Crop-local voxel of a path node, clamped to the crop
@@ -1085,7 +1127,7 @@ public class SigmaPalette extends Thread {
 			final Path[] paths = new Path[n + 1];
 			for (int i = 0; i < n; i++) paths[i] = (traces[i] != null && traces[i].ok()) ? traces[i].path() : null;
 			paths[n] = segment.reference();
-			metrics = CandidatePathMetrics.compute(paths, WizardSupport.as3D(raw), WizardSupport.metricsRadius(),
+			metrics = CandidatePathMetrics.compute(paths, WizardUtils.as3D(raw), WizardUtils.metricsRadius(),
 					() -> false);
 			sigmaMetrics = Arrays.copyOf(metrics, n); // the reference row does not compete for 'best'
 		} catch (final RuntimeException ex) {
@@ -1177,21 +1219,14 @@ public class SigmaPalette extends Thread {
 	}
 
 	@Override
-	public void run() {
-		WizardSupport.busy(snt, this::build);
-	}
-
-	private void build() {
-		WizardSupport.status(snt, "Sigma wizard: reading region...");
+	protected void build() {
+		WizardUtils.status(snt, "Sigma wizard: reading region...");
 
         final int croppedWidth = (x_max - x_min) + 1;
         final int croppedHeight = (y_max - y_min) + 1;
 		final int croppedDepth = (z_max - z_min) + 1;
 
-		final Roi existingRoi = image.getRoi();
-		image.setRoi(x_min, y_min, croppedWidth, croppedHeight);
-		final ImagePlus cropped = image.crop(z_min + "-" + z_max);
-		image.setRoi(existingRoi);
+		final ImagePlus cropped = WizardUtils.cropImp(image, x_min, y_min, croppedWidth, croppedHeight, z_min, z_max);
 
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
 		// Stream mode: avoid a whole-image stats pass by using the crop's own range
@@ -1225,13 +1260,13 @@ public class SigmaPalette extends Thread {
 		// Helper bundles LUT / MIP / snapshot / dismiss menu state. Created
 		// before the window so we can apply the "reset" LUT here and reuse
 		// the same instance from PaletteStackWindow's More » button later.
-		paletteOptions = new PaletteOptions(paletteImage, image, "Sigmas_Snapshot", this::dismiss);
+		paletteOptions = new PaletteOptions(paletteImage, image, "Sigmas_Snapshot");
 		paletteOptions.applyLut("reset");
 
 		// Tiles are independent: filter them concurrently, and copy each result into the palette (disjoint regions)
 		// as soon as it is available, so that only a few results are alive at any time. The input is converted once
 		final RandomAccessibleInterval<FloatType> input = ImageJFunctions.convertFloat(cropped);
-		WizardSupport.status(snt, "Sigma wizard: filtering " + sigmaValues.length + " scales"
+		WizardUtils.status(snt, "Sigma wizard: filtering " + sigmaValues.length + " scales"
 				+ ((seg != null) ? " and tracing..." : "..."));
 		final int nThreads = tileParallelism((long) croppedWidth * croppedHeight * croppedDepth);
 		final ExecutorService pool = Executors.newFixedThreadPool(nThreads);
@@ -1239,7 +1274,7 @@ public class SigmaPalette extends Thread {
 			final CompletionService<Integer> completion = new ExecutorCompletionService<>(pool);
 			final double[] tileMax = new double[sigmaValues.length];
 			final ImagePlus[] results = new ImagePlus[sigmaValues.length];
-			if (seg != null) traces = new WizardSupport.TraceResult[sigmaValues.length];
+			if (seg != null) traces = new WizardUtils.TraceResult[sigmaValues.length];
 			for (int sigmaIndex = 0; sigmaIndex < sigmaValues.length; ++sigmaIndex) {
 				final int idx = sigmaIndex;
 				completion.submit(() -> {
@@ -1250,8 +1285,8 @@ public class SigmaPalette extends Thread {
 					results[idx] = processed;
 					// Retrace the segment on this tile, while the filtered data is still around
 					// NB: 2D tiles have no singleton z, but the tracer works on 3D data
-					if (seg != null) traces[idx] = WizardSupport.trace(snt,
-							WizardSupport.as3D(result), cal, costType,
+					if (seg != null) traces[idx] = WizardUtils.trace(snt,
+							WizardUtils.as3D(result), cal, costType,
 							seg.start(), seg.end(), TRACE_TIMEOUT_SECONDS);
 					return idx;
 				});
@@ -1274,7 +1309,7 @@ public class SigmaPalette extends Thread {
 		}
 		setMax(suggestedMax); // once, instead of after every tile
 		if (seg != null) {
-			WizardSupport.status(snt, "Sigma wizard: computing metrics...");
+			WizardUtils.status(snt, "Sigma wizard: computing metrics...");
 			computeMetrics(input);
 		}
 		listeners.forEach(SigmaPaletteListener::paletteDisplayed);

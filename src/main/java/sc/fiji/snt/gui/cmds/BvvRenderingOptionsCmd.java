@@ -35,7 +35,7 @@ import sc.fiji.snt.viewer.Bvv;
  * @see BdvRenderingOptionsCmd
  * @see BigViewerRenderingOptionsCmd
  */
-@Plugin(type = Command.class, label = "Annotations: Rendering Options", initializer = "init")
+@Plugin(type = Command.class, label = "Annotation Options", initializer = "init")
 public class BvvRenderingOptionsCmd extends BigViewerRenderingOptionsCmd {
 
     @Parameter

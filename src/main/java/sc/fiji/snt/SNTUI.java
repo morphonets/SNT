@@ -151,6 +151,7 @@ public class SNTUI extends JDialog {
     private ActiveWorker activeWorker;
     // Worker registered by long-running CommonDynamicCmd subclasses, see registerActiveCmdWorker()
     private SwingWorker<?, ?> activeCmdWorker;
+    private volatile Runnable abortHook;
     private volatile int currentState = -1;
 
     private final PlausibilityMonitor plausibilityMonitor;
@@ -4061,6 +4062,15 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
         menu.add(jmiSoma);
+        final JMenuItem jmiSeeded = new JMenuItem("Probabilistic Detections...", IconFactory.menuIcon(GLYPH.MAGNIFIED_LOCATION));
+        jmiSeeded.setToolTipText("Probabilistic (seeded) detections of tips, tufts, swellings, etc. are available "
+                + "from the Seeds tab");
+        jmiSeeded.putClientProperty("cmdFinder-keywords", "counts,markers,bookmarks,big data");
+        jmiSeeded.addActionListener(e -> {
+            tabbedPane.setSelectedComponent(seedManager);
+            seedManager.showDiscoveryHint();
+        });
+        menu.add(jmiSeeded);
 
         // From File(s): file-based / batch processing
         GuiUtils.MenuItems.addSeparator(menu, "Batch Processing:");
@@ -6298,7 +6308,22 @@ public class SNTUI extends JDialog {
         this.activeCmdWorker = worker;
     }
 
+    /**
+     * Registers (or clears, if null) an action to be run once when the user aborts the current operation
+     * (Cancel/Esc), e.g., to stop a long-running computation that is not handled by a {@code SwingWorker}
+     *
+     * @param hook the action
+     */
+    public void setAbortHook(final Runnable hook) {
+        this.abortHook = hook;
+    }
+
     protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
+        if (abortHook != null) {
+            final Runnable hook = abortHook;
+            abortHook = null;
+            hook.run();
+        }
         if (commandFinder != null)
             commandFinder.setVisible(false);
         if (activeCmdWorker != null && !activeCmdWorker.isDone()) {
