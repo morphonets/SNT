@@ -606,6 +606,7 @@ public class SNTUI extends JDialog {
         addFileDrop(this, guiUtils);
         curationManager.registerCommands(commandFinder);
         bookmarkManager.registerCommands(commandFinder);
+        seedManager.registerCommands(commandFinder);
         pack();
         setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
         pack();
@@ -3520,6 +3521,7 @@ public class SNTUI extends JDialog {
                 IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
         mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
+        mi1.putClientProperty("cmdFinder-keywords", "filter, tubeness, frangi");
         mi1.addActionListener(e -> runSecondaryLayerWizard(true));
         final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
         mi2.addActionListener(e -> loadSecondaryImage(true));
@@ -4076,12 +4078,14 @@ public class SNTUI extends JDialog {
         GuiUtils.MenuItems.addSeparator(menu, "Batch Processing:");
         final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
         jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
+        jmiGrayFile.putClientProperty("cmdFinder-keywords", "wizard, learn parameters");
         jmiGrayFile.setToolTipText("Runs automated tracing on a large grayscale image file or\n" +
                 "directory of images with optional SWC export.");
         menu.add(jmiGrayFile);
 
         final JMenuItem jmiGrayMultiFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_MULTI);
         jmiGrayMultiFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
+        jmiGrayMultiFile.putClientProperty("cmdFinder-keywords", "wizard, learn parameters");
         jmiGrayMultiFile.setToolTipText("Runs automated tracing of multiple cells on a large grayscale\n" +
                 "image file or directory of images with optional SWC export.");
         menu.add(jmiGrayMultiFile);
@@ -4977,6 +4981,7 @@ public class SNTUI extends JDialog {
         // the best one visually (SigmaPalette-style)
         final JMenuItem tuneCost = new JMenuItem("Cost Function Selection Wizard...", IconFactory.menuIcon(GLYPH.WIZARD));
         tuneCost.setToolTipText("Compare cost-function variants on a probe segment to pick the most suitable one");
+        tuneCost.putClientProperty("cmdFinder-keywords", "learn parameters, preview, algorithm");
         tuneCost.addActionListener(e -> {
             final CommandService cs = plugin.getContext().getService(CommandService.class);
             if (cs != null) cs.run(CostFunctionSelectionCmd.class, true);

@@ -36,6 +36,7 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconActionableMenuItem;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.plugin.DetectTuftsCmd;
 import sc.fiji.snt.plugin.RootDetectorCmd;
@@ -1104,6 +1105,11 @@ public class SeedManager extends JPanel {
         createButton.setToolTipText("Compute seeds from tracings or image features");
         final JButton traceButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ROBOT, 1f, seedTracingMenu());
         traceButton.setToolTipText("Run auto-tracers from listed seeds.");
+        // Sub-menu labels in SNTCommandFinder, see registerCommands()
+        impButton.putClientProperty("cmdFinder", "Import Menu");
+        expButton.putClientProperty("cmdFinder", "Export Menu");
+        createButton.putClientProperty("cmdFinder", "Create Menu");
+        traceButton.putClientProperty("cmdFinder", "Auto-trace Menu");
 
         // Visiting-zoom spinner (BookmarkManager parity): applied when
         // double-clicking a row to fly to the seed's location. Disabled whenever
@@ -1139,7 +1145,20 @@ public class SeedManager extends JPanel {
         tb.add(zoomLabel);
         tb.add(zoomSpinner);
         tb.add(resetZoomButton);
+        bottomBar = tb;
         return tb;
+    }
+
+    /** Makes the menus of the bottom toolbar searchable in the Command Palette */
+    protected void registerCommands(final SNTCommandFinder cmdFinder) {
+        if (cmdFinder == null || bottomBar == null) return;
+        final String tab = "Seeds tab";
+        for (final java.awt.Component c : bottomBar.getComponents()) {
+            if (c instanceof GuiUtils.Buttons.OptionsButton ob) {
+                final String sub = (String) ob.getClientProperty("cmdFinder");
+                cmdFinder.register(ob.popupMenu, (sub == null) ? List.of(tab) : List.of(tab, sub));
+            }
+        }
     }
 
     /**
@@ -1260,6 +1279,7 @@ public class SeedManager extends JPanel {
     }
 
     private JButton createButton;
+    private JToolBar bottomBar;
 
     /**
      * Shows a tip anchored to the "+" button, which lists the (probabilistic) seed detectors
@@ -1304,6 +1324,7 @@ public class SeedManager extends JPanel {
         jmi = new JMenuItem("Detect Tips...", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
                 + "parameters from training paths");
+        jmi.putClientProperty("cmdFinder-keywords", "wizard, learn parameters, detector, tracing free");
         menu.add(jmi);
         jmi.addActionListener(e -> detectTips());
         return menu;
