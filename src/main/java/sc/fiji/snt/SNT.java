@@ -767,11 +767,41 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #rebuildDisplayCanvases()
 	 */
 	public void updateDisplayCanvases() {
-		if (!accessToValidImageData() && getImagePlus() == null) {
+		// Safeguard: a flag left off by an interrupted operation/key release would suppress all drawing.
+		// Checked on the EDT, after any queued Path Manager refresh (which toggles it temporarily) has run
+		if (!java.awt.GraphicsEnvironment.isHeadless())
+			javax.swing.SwingUtilities.invokeLater(this::restoreUIUpdatesIfLeftOff);
+		if (accessToValidImageData()) return;
+		final ImagePlus current = getImagePlus();
+		if (current == null || (ImpUtils.isDisplayCanvas(current) && !canvasContainsAllPaths())) {
 			SNTUtils.log("Rebuilding canvases...");
 			rebuildDisplayCanvasesInternal();
 		}
 	}
+
+	private void restoreUIUpdatesIfLeftOff() {
+		if (pathAndFillManager.enableUIupdates != annotationsVisible) {
+			SNTUtils.log("enableUIupdates was " + pathAndFillManager.enableUIupdates
+					+ " (expected " + annotationsVisible + "). Restoring");
+			pathAndFillManager.enableUIupdates = annotationsVisible;
+			repaintAllPanes();
+		}
+	}
+
+	private boolean canvasContainsAllPaths() {
+		if (pathAndFillManager.size() == 0 || activeCanvasPixelOffset == null) return true;
+		final BoundingBox box = pathAndFillManager.getBoundingBox(true);
+		final PointInImage min = box.unscaledOrigin();
+		final PointInImage max = box.unscaledOriginOpposite();
+		final PointInCanvas off = activeCanvasPixelOffset;
+		final boolean xyContained = min.x + off.x >= 0 && min.y + off.y >= 0
+				&& max.x + off.x < width && max.y + off.y < height;
+		if (singleSlice) return xyContained;
+		return xyContained && min.z + off.z >= 0 && max.z + off.z < depth;
+	}
+
+	// Whether overlays are meant to be drawn, see setAnnotationsVisible(boolean)
+	private volatile boolean annotationsVisible = !java.awt.GraphicsEnvironment.isHeadless();
 
 	private void rebuildDisplayCanvasesInternal() {
 		if (!pathAndFillManager.getBoundingBox(false).hasDimensions()) {
@@ -1076,8 +1106,8 @@ public class SNT extends MultiDThreePanes implements
 			setIsDisplayCanvas(xy);
 			return;
 		}
-		BoundingBox box = pathAndFillManager.getBoundingBox(false);
-		if (!box.hasDimensions()) box = pathAndFillManager.getBoundingBox(true);
+		// Always recompute: the cached box may not reflect paths added after it
+		final BoundingBox box = pathAndFillManager.getBoundingBox(true);
 
 		final double[] dims = box.getDimensions(false);
 		width = (int) Math.round(dims[0]);
@@ -3763,44 +3793,43 @@ public class SNT extends MultiDThreePanes implements
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
 		final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
-		pathAndFillManager.enableUIupdates = false;
-
-		// Ensure there are no incomplete tracings around and disable UI
-		if (ui != null && ui.getState() != SNTUI.READY) ui.abortCurrentOperation();
 		final SNTUI existingUI = getUI();
-		changeUIState(SNTUI.SEARCHING);
-		ui = null;
+		pathAndFillManager.enableUIupdates = false;
+		try {
+			// Ensure there are no incomplete tracings around and disable UI
+			if (ui != null && ui.getState() != SNTUI.READY) ui.abortCurrentOperation();
+			changeUIState(SNTUI.SEARCHING);
+			ui = null;
 
-		// Start path from first point in list
-		final SNTPoint start = pointList.getFirst();
-		startPath(start.getX(), start.getY(), start.getZ(), forkPoint);
+			// Start path from first point in list
+			final SNTPoint start = pointList.getFirst();
+			startPath(start.getX(), start.getY(), start.getZ(), forkPoint);
 
-		final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
-		final int nNodes = pointList.size();
+			final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
+			final int nNodes = pointList.size();
 
-		// Now keep appending nodes to temporary path
-		for (int i = secondNodeIdx; i < nNodes; i++) {
-			// Append node and wait for search to be finished
-			final SNTPoint node = pointList.get(i);
+			// Now keep appending nodes to temporary path
+			for (int i = secondNodeIdx; i < nNodes; i++) {
+				// Append node and wait for search to be finished
+				final SNTPoint node = pointList.get(i);
 
-			Future<?> result = testPathTo(node.getX(), node.getY(), node.getZ(), null);
-			try {
-				result.get();
-			} catch (InterruptedException | ExecutionException e) {
-				SNTUtils.error("Error during auto-trace", e);
+				Future<?> result = testPathTo(node.getX(), node.getY(), node.getZ(), null);
+				try {
+					result.get();
+				} catch (InterruptedException | ExecutionException e) {
+					SNTUtils.error("Error during auto-trace", e);
+				}
 			}
+
+			finishedPath();
+			showStatus(0, 0, "Tracing Complete");
+		} finally {
+			// restore UI state, even if tracing failed
+			pathAndFillManager.enableUIupdates = existingEnableUIupdates;
+			ui = existingUI;
+			if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
+			changeUIState(SNTUI.READY);
 		}
-
-		finishedPath();
-
-		// restore UI state
-		showStatus(0, 0, "Tracing Complete");
-
-		pathAndFillManager.enableUIupdates = existingEnableUIupdates;
-		ui = existingUI;
-		if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
-
-		changeUIState(SNTUI.READY);
 
 		return pathAndFillManager.getPath(pathAndFillManager.size() - 1);
 
@@ -6085,6 +6114,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public synchronized void setAnnotationsVisible(final boolean visible) {
 		// We are recycling the 'headless' flag. Most GUI-related updates will be suppressed
+		annotationsVisible = visible;
 		getPathAndFillManager().enableUIupdates = visible;
 		if (xy_canvas != null) xy_canvas.repaint();
 		if (xz_canvas != null) xz_canvas.repaint();

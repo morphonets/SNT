@@ -58,8 +58,29 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		label = "IDs (comma- or space- separated list)")
 	private String query;
 
+	@Parameter(required = false, persist = false, label = "Species",
+			description = "Comma-separated list. E.g., mouse, rat")
+	private String species;
+
+	@Parameter(required = false, persist = false, label = "Brain region",
+			description = "Comma-separated list. E.g., hippocampus, CA1")
+	private String brainRegion;
+
+	@Parameter(required = false, persist = false, label = "Cell type",
+			description = "Comma-separated list. E.g., pyramidal, interneuron")
+	private String cellType;
+
+	@Parameter(required = false, persist = false, label = "Archive",
+			description = "Comma-separated list. E.g., peng")
+	private String archive;
+
+	@Parameter(label = "Find IDs from filters", callback = "findIds",
+			description = "Fills the IDs field with the cells matching ALL filled "
+			+ "filters above (values within a filter are alternatives)")
+	private Button find;
+
 	@Parameter(required = false, persist = true, label = "Version",
-			choices= {"CNG", "Source"})
+			choices= {"CCF", "CNG", "Source"})
 	private String version;
 
 	@Parameter(required = false, label = "Colors", choices = {
@@ -90,6 +111,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 	private RemoteSWCLoader loader;
 
 
+	private static final int MAX_QUERY_RESULTS = 200;
     private String placeholderQuery;
 	private String database;
 
@@ -109,7 +131,9 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		}
 
 		if (loader instanceof NeuroMorphoLoader) {
-			((NeuroMorphoLoader)loader).enableSourceVersion(version != null && version.toLowerCase().contains("source"));
+			final String v = (version == null) ? "ccf" : version.toLowerCase();
+			((NeuroMorphoLoader) loader).setVersion(v.contains("source") ? NeuroMorphoLoader.Version.SOURCE
+					: v.contains("cng") ? NeuroMorphoLoader.Version.CNG : NeuroMorphoLoader.Version.CCF);
 		}
 		final LinkedHashMap<String, String> urlsMap = getURLmapFromQuery(query);
 		if (urlsMap == null || urlsMap.isEmpty()) {
@@ -140,7 +164,8 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		status("Retrieving cells. Please wait...", false);
 		SNTUtils.log(database + " import: Downloading from URL(s)...");
 		final int lastExistingPathIdx = pafm.size() - 1;
-		final List<Tree> rawResult = pafm.importSWCs(urlsMap, getColor());
+		final List<Tree> rawResult = pafm.importSWCs(urlsMap, getColor(),
+			(i, n, label) -> status(String.format("Retrieving %d/%d: %s", i, n, label), false));
 		final List<Tree> filteredResult = rawResult.stream().filter(tree -> tree != null && !tree
 			.isEmpty()).collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
@@ -239,10 +264,43 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			placeholderQuery = "VGlut-F-400787";
 			database = "FlyCircuit.tw";
 			resolveInput("version");
+			for (final String input : List.of("species", "brainRegion", "cellType", "archive", "find"))
+				resolveInput(input);
 		}
 		getInfo().setLabel("Import " + database + " Reconstructions");
 		final MutableModuleItem<String> queryInput = getInfo().getMutableInput("query", String.class);
 		queryInput.setDescription("Cell id(s). E.g., " + placeholderQuery);
+	}
+
+	@SuppressWarnings("unused")
+	private void findIds() {
+		if (!(loader instanceof NeuroMorphoLoader nm)) return;
+		final Map<String, List<String>> criteria = new LinkedHashMap<>();
+		addCriterion(criteria, "species", species);
+		addCriterion(criteria, "brain_region", brainRegion);
+		addCriterion(criteria, "cell_type", cellType);
+		addCriterion(criteria, "archive", archive);
+		if (criteria.isEmpty()) {
+			pingMsg = "Please specify at least one filter.";
+			return;
+		}
+		final List<String> ids = nm.getNeuronNames(criteria, MAX_QUERY_RESULTS);
+		if (ids.isEmpty()) {
+			pingMsg = "No matches (or database not reached). Values are case-sensitive.";
+			return;
+		}
+		query = String.join(", ", ids);
+		pingMsg = (ids.size() >= MAX_QUERY_RESULTS) ? "Query limited to the first " + ids.size()
+				+ " matches. Narrow the filters for a smaller set."
+				: ids.size() + " match(es) listed in IDs.";
+	}
+
+	private static void addCriterion(final Map<String, List<String>> map, final String field,
+			final String csv) {
+		if (csv == null || csv.isBlank()) return;
+		final List<String> values = Arrays.stream(csv.split(",")).map(String::trim)
+				.filter(v -> !v.isEmpty()).toList();
+		if (!values.isEmpty()) map.put(field, values);
 	}
 
 	@SuppressWarnings("unused")

@@ -134,7 +134,8 @@ public class PathAndFillManager extends DefaultHandler implements
     private int last_fill_node_id;
     private int last_fill_id;
     private HashSet<Integer> foundIDs;
-    protected boolean enableUIupdates = true;
+    // volatile: read by the EDT (canvases, Path Manager), toggled by worker threads
+    protected volatile boolean enableUIupdates = true;
     protected volatile boolean unsavedPaths = false;
 
 
@@ -294,32 +295,36 @@ public class PathAndFillManager extends DefaultHandler implements
             return;
         }
 
+        final boolean existingEnableUIupdates = enableUIupdates;
         enableUIupdates = false;
-        // Reset tree labels
-        allPaths.forEach( p -> p.setTreeLabel(null));
+        try {
+            // Reset tree labels
+            allPaths.forEach( p -> p.setTreeLabel(null));
 
-//		resetIDs();
-        maxUsedTreeID = 0;
-        for (Path p : primaryPaths) {
-            ++maxUsedTreeID;
-            p.setOrder(1);
-            Stack<Path> pathStack = new Stack<>();
-            pathStack.push(p);
-            while (!pathStack.isEmpty()) {
-                Path current = pathStack.pop();
-                current.setIDs(current.getID(), maxUsedTreeID);
-                current.rebuildConnectionsOfFittedVersion(); ////current.discardFit();
-                for (Path child : current.children) {
-                    child.setOrder(current.getOrder() +1);
-                    pathStack.push(child);
+    //		resetIDs();
+            maxUsedTreeID = 0;
+            for (Path p : primaryPaths) {
+                ++maxUsedTreeID;
+                p.setOrder(1);
+                Stack<Path> pathStack = new Stack<>();
+                pathStack.push(p);
+                while (!pathStack.isEmpty()) {
+                    Path current = pathStack.pop();
+                    current.setIDs(current.getID(), maxUsedTreeID);
+                    current.rebuildConnectionsOfFittedVersion(); ////current.discardFit();
+                    for (Path child : current.children) {
+                        child.setOrder(current.getOrder() +1);
+                        pathStack.push(child);
+                    }
                 }
+
             }
 
+            // Delete any rogue stand-alone paths that may still exist
+            allPaths.removeIf(Objects::isNull);
+        } finally {
+            enableUIupdates = existingEnableUIupdates;
         }
-
-        // Delete any rogue stand-alone paths that may still exist
-        allPaths.removeIf(Objects::isNull);
-        enableUIupdates = true;
         resetListenersAfterDataChangingOperation(null);
     }
 
@@ -1248,16 +1253,18 @@ public class PathAndFillManager extends DefaultHandler implements
     public synchronized boolean deletePaths(final Collection<Path> paths) {
         if (paths == null || paths.isEmpty()) return true;
 
+        final boolean existingEnableUIupdates = enableUIupdates;
         enableUIupdates = false;
         boolean allDeleted = true;
-
-        for (final Path path : paths) {
-            if (!deletePathInternal(path, false)) {
-                allDeleted = false;
+        try {
+            for (final Path path : paths) {
+                if (!deletePathInternal(path, false)) {
+                    allDeleted = false;
+                }
             }
+        } finally {
+            enableUIupdates = existingEnableUIupdates;
         }
-
-        enableUIupdates = true;
         resetListenersAfterDataChangingOperation(null);
         return allDeleted;
     }
@@ -2239,35 +2246,38 @@ public class PathAndFillManager extends DefaultHandler implements
     protected void importGraph(final DirectedWeightedGraph graph) {
         final boolean existingEnableUIupdates = enableUIupdates;
         this.enableUIupdates = false;
-        final SWCPoint root = graph.getRoot();
-        final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
-        Path currentPath = new Path(1d, 1d, 1d, "? units");
-        currentPath.setIsPrimary(true);
-        boolean addStartJoin = false;
-        while (depthFirstIterator.hasNext()) {
-            final SWCPoint point = depthFirstIterator.next();
-            if (addStartJoin) {
-                final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
-                currentPath.setBranchFrom(previousPoint.onPath, previousPoint.clone());
-                addStartJoin = false;
-            }
-            currentPath.addNode(point);
-            point.setPath(currentPath);
-            if (graph.outDegreeOf(point) == 0) {
-                currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-                currentPath.setColor(point.getColor());
-                addPath(currentPath);
-                final String tags = point.getTags();
-                if (tags != null && !tags.isEmpty()) {
-                    currentPath.setName(currentPath.getName() + " {" + tags + "}");
+        try {
+            final SWCPoint root = graph.getRoot();
+            final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
+            Path currentPath = new Path(1d, 1d, 1d, "? units");
+            currentPath.setIsPrimary(true);
+            boolean addStartJoin = false;
+            while (depthFirstIterator.hasNext()) {
+                final SWCPoint point = depthFirstIterator.next();
+                if (addStartJoin) {
+                    final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
+                    currentPath.setBranchFrom(previousPoint.onPath, previousPoint.clone());
+                    addStartJoin = false;
                 }
-                currentPath.setSWCType(point.type);
-                currentPath.setGuessedTangents(2);
-                currentPath = new Path(1d, 1d, 1d, "? units");
-                addStartJoin = true;
+                currentPath.addNode(point);
+                point.setPath(currentPath);
+                if (graph.outDegreeOf(point) == 0) {
+                    currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+                    currentPath.setColor(point.getColor());
+                    addPath(currentPath);
+                    final String tags = point.getTags();
+                    if (tags != null && !tags.isEmpty()) {
+                        currentPath.setName(currentPath.getName() + " {" + tags + "}");
+                    }
+                    currentPath.setSWCType(point.type);
+                    currentPath.setGuessedTangents(2);
+                    currentPath = new Path(1d, 1d, 1d, "? units");
+                    addStartJoin = true;
+                }
             }
+        } finally {
+            this.enableUIupdates = existingEnableUIupdates;
         }
-        this.enableUIupdates = existingEnableUIupdates;
         resetListeners(null, true);
 
         // Infer fields for when an image has not been specified. We'll assume
@@ -2284,53 +2294,66 @@ public class PathAndFillManager extends DefaultHandler implements
     protected void importGraphWithPathStructure(final DirectedWeightedGraph graph) {
         final boolean existingEnableUIupdates = enableUIupdates;
         this.enableUIupdates = false;
-        final SWCPoint root = graph.getRoot();
-        if (root.getPath() == null) {
-            throw new IllegalArgumentException("The root vertex does not have an associated Path. " +
-                    "Was this graph created from a Tree?");
-        }
-        Path currentPath = root.getPath().createPath();
-        currentPath.setName(root.getPath().getName());
-        final Deque<SWCPoint> stack = new ArrayDeque<>();
-        stack.push(root);
-        boolean addStartJoin = false;
-        while (!stack.isEmpty()) {
-            final SWCPoint point = stack.pop();
-            if (addStartJoin) {
-                final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
-                currentPath.setBranchFrom(previousPoint.onPath, previousPoint.clone());
-                addStartJoin = false;
+        try {
+            final SWCPoint root = graph.getRoot();
+            if (root.getPath() == null) {
+                throw new IllegalArgumentException("The root vertex does not have an associated Path. " +
+                        "Was this graph created from a Tree?");
             }
-            currentPath.addNode(point);
-            point.setPath(currentPath);
-            final Set<SWCPoint> children = graph.outgoingEdgesOf(point).stream()
-                    .map(SWCWeightedEdge::getTarget)
-                    .collect(Collectors.toSet());
-            if (children.size() == 1) {
-                final SWCPoint child = children.iterator().next();
-                stack.push(child);
-                if (child.getPath().getID() != currentPath.getID() ||
-                        child.getPath().getTreeID() != currentPath.getTreeID()) {
-                    currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-                    addPath(currentPath, false, true);
-                    currentPath.setGuessedTangents(2);
-                    currentPath = child.getPath().createPath();
-                    currentPath.setName(child.getPath().getName());
-                    addStartJoin = true;
+            Path currentPath = root.getPath().createPath();
+            currentPath.setName(root.getPath().getName());
+            final Deque<SWCPoint> stack = new ArrayDeque<>();
+            stack.push(root);
+            boolean addStartJoin = false;
+            while (!stack.isEmpty()) {
+                final SWCPoint point = stack.pop();
+                if (addStartJoin) {
+                    final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
+                    currentPath.setBranchFrom(previousPoint.onPath, previousPoint.clone());
+                    addStartJoin = false;
                 }
-
-            } else if (children.size() > 1) {
-                Set<SWCPoint> addLast = new HashSet<>();
-                for (final SWCPoint child : children) {
-                    if (child.getPath().getID() == currentPath.getID() &&
-                            child.getPath().getTreeID() == currentPath.getTreeID()) {
-                        addLast.add(child);
-                        continue;
-                    }
+                currentPath.addNode(point);
+                point.setPath(currentPath);
+                final Set<SWCPoint> children = graph.outgoingEdgesOf(point).stream()
+                        .map(SWCWeightedEdge::getTarget)
+                        .collect(Collectors.toSet());
+                if (children.size() == 1) {
+                    final SWCPoint child = children.iterator().next();
                     stack.push(child);
-                }
-                if (!addLast.isEmpty()) {
-                    addLast.forEach(stack::push);
+                    if (child.getPath().getID() != currentPath.getID() ||
+                            child.getPath().getTreeID() != currentPath.getTreeID()) {
+                        currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+                        addPath(currentPath, false, true);
+                        currentPath.setGuessedTangents(2);
+                        currentPath = child.getPath().createPath();
+                        currentPath.setName(child.getPath().getName());
+                        addStartJoin = true;
+                    }
+
+                } else if (children.size() > 1) {
+                    Set<SWCPoint> addLast = new HashSet<>();
+                    for (final SWCPoint child : children) {
+                        if (child.getPath().getID() == currentPath.getID() &&
+                                child.getPath().getTreeID() == currentPath.getTreeID()) {
+                            addLast.add(child);
+                            continue;
+                        }
+                        stack.push(child);
+                    }
+                    if (!addLast.isEmpty()) {
+                        addLast.forEach(stack::push);
+                    } else {
+                        currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+                        addPath(currentPath, false, true);
+                        currentPath.setGuessedTangents(2);
+                        final SWCPoint peeked = stack.peek();
+                        if (peeked != null) {
+                            currentPath = peeked.getPath().createPath();
+                            currentPath.setName(peeked.getPath().getName());
+                            addStartJoin = true;
+                        }
+                    }
+
                 } else {
                     currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
                     addPath(currentPath, false, true);
@@ -2342,20 +2365,10 @@ public class PathAndFillManager extends DefaultHandler implements
                         addStartJoin = true;
                     }
                 }
-
-            } else {
-                currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-                addPath(currentPath, false, true);
-                currentPath.setGuessedTangents(2);
-                final SWCPoint peeked = stack.peek();
-                if (peeked != null) {
-                    currentPath = peeked.getPath().createPath();
-                    currentPath.setName(peeked.getPath().getName());
-                    addStartJoin = true;
-                }
             }
+        } finally {
+            this.enableUIupdates = existingEnableUIupdates;
         }
-        this.enableUIupdates = existingEnableUIupdates;
         resetListeners(null, true);
 
         // Infer fields for when an image has not been specified. We'll assume
@@ -2529,6 +2542,34 @@ public class PathAndFillManager extends DefaultHandler implements
     public List<Tree> importSWCs(final Map<String, String> swcs,
                                  final ColorRGB color)
     {
+        return importSWCs(swcs, color, null);
+    }
+
+    /** Receives progress updates while a batch of files is being imported */
+    @FunctionalInterface
+    public interface ImportProgressListener {
+        /**
+         * @param index the 1-based index of the file about to be imported
+         * @param total the total number of files in the batch
+         * @param label the descriptor of the file about to be imported
+         */
+        void onProgress(int index, int total, String label);
+    }
+
+    /**
+     * Same as {@link #importSWCs(Map, ColorRGB)}, but reports progress. UI updates (Path Manager, bounding box)
+     * are suppressed while the batch is imported and applied once at the end.
+     *
+     * @param swcs     the file descriptors (keys) and absolute file paths or URLs (values)
+     * @param color    the color to be applied to imported Paths. If null, paths from each file are assigned
+     *                 unique colors
+     * @param progress the listener notified before each file is imported. Null allowed
+     * @return the List of imported {@link Tree}s, see {@link #importSWCs(Map, ColorRGB)}
+     */
+    public List<Tree> importSWCs(final Map<String, String> swcs,
+                                 final ColorRGB color,
+                                 final ImportProgressListener progress)
+    {
         final List<Tree> result = new ArrayList<>();
         final ColorRGB[] colors;
         if (color == null) {
@@ -2539,27 +2580,47 @@ public class PathAndFillManager extends DefaultHandler implements
             Arrays.fill(colors, color);
         }
         final boolean headlessState = headless;
+        final boolean existingEnableUIupdates = enableUIupdates;
+        SNTUtils.log("importSWCs: enableUIupdates=" + existingEnableUIupdates + " on entry");
         setHeadless(true);
+        // Suppress per-file Path Manager refreshes: they are expensive and interleave with
+        // the flag handling of the refresh itself. Applied once, below
+        enableUIupdates = false;
         final int[] colorIdx = { 0 };
-        swcs.forEach((treeDescription, filePath) -> {
-            SNTUtils.log("Loading " + treeDescription + ": " + filePath);
-            final Tree tree = new Tree();
-            tree.setLabel(treeDescription);
-            tree.setColor(colors[colorIdx[0]]);
-            result.add(tree);
-            final int firstImportedPathIdx = size();
-            if (!importSWC(treeDescription, filePath)) {
-                return; // here means 'continue;'
+        final int[] fileIdx = { 0 };
+        try {
+            swcs.forEach((treeDescription, filePath) -> {
+                if (progress != null) progress.onProgress(++fileIdx[0], swcs.size(), treeDescription);
+                SNTUtils.log("Loading " + treeDescription + ": " + filePath);
+                final Tree tree = new Tree();
+                tree.setLabel(treeDescription);
+                tree.setColor(colors[colorIdx[0]]);
+                result.add(tree);
+                final int firstImportedPathIdx = size();
+                if (!importSWC(treeDescription, filePath)) {
+                    return; // here means 'continue;'
+                }
+                for (int i = firstImportedPathIdx; i < size(); i++) {
+                    final Path p = getPath(i);
+                    //p.setTreeLabel(id);
+                    p.setColor(colors[colorIdx[0]]);
+                    tree.add(p);
+                }
+                colorIdx[0]++;
+            });
+        } finally {
+            enableUIupdates = existingEnableUIupdates;
+            setHeadless(headlessState);
+        }
+        // importSWC() skips these when UI updates are off
+        if (enableUIupdates && result.stream().anyMatch(t -> !t.isEmpty())) {
+            synchronized (this) {
+                updateBoundingBox();
+                checkForAppropriateImageDimensions();
             }
-            for (int i = firstImportedPathIdx; i < size(); i++) {
-                final Path p = getPath(i);
-                //p.setTreeLabel(id);
-                p.setColor(colors[colorIdx[0]]);
-                tree.add(p);
-            }
-            colorIdx[0]++;
-        });
-        setHeadless(headlessState);
+        }
+        resetListeners(null, true);
+        SNTUtils.log("importSWCs: enableUIupdates=" + enableUIupdates + " on exit");
         return result;
     }
 
@@ -2699,71 +2760,74 @@ public class PathAndFillManager extends DefaultHandler implements
         // FIXME: This is slow with large SWC files
         final boolean existingEnableUIupdates = enableUIupdates;
         this.enableUIupdates = false;
-        final HashMap<SWCPoint, Path> pointToPath = new HashMap<>();
-        final PriorityQueue<SWCPoint> backtrackTo = new PriorityQueue<>(
-                primaryPoints);
-        final HashMap<Path, SWCPoint> pathStartsOnSWCPoint = new HashMap<>();
-        final List<Path> pathList = new ArrayList<>();
+        // Always restore the flag: if it stays false, canvases never draw paths
+        try {
+            final HashMap<SWCPoint, Path> pointToPath = new HashMap<>();
+            final PriorityQueue<SWCPoint> backtrackTo = new PriorityQueue<>(
+                    primaryPoints);
+            final HashMap<Path, SWCPoint> pathStartsOnSWCPoint = new HashMap<>();
+            final List<Path> pathList = new ArrayList<>();
 
-        SWCPoint start;
-        Path currentPath;
-        while ((start = backtrackTo.poll()) != null) {
-            currentPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
-            final SWCPoint beforeStart = start.previous();
-            if (beforeStart != null) {
-                pathStartsOnSWCPoint.put(currentPath, beforeStart);
-            }
-
-            // Now we can start adding points to the path:
-            SWCPoint currentPoint = start;
-            while (currentPoint != null) {
-                currentPath.addNode(currentPoint);
-                pointToPath.put(currentPoint, currentPath);
-                if (!currentPoint.getNextPoints().isEmpty()) {
-                    final SWCPoint finalCurrentPoint = currentPoint;
-                    final SWCPoint childWithSameType = currentPoint.getNextPoints().stream()
-                            .filter(c -> c.type == finalCurrentPoint.type)
-                            .findFirst()
-                            .orElse(null);
-                    currentPoint.getNextPoints().remove(childWithSameType);
-                    backtrackTo.addAll(currentPoint.getNextPoints());
-                    if (childWithSameType == null)
-                        currentPath.setSWCType(currentPoint.type);
-                    currentPoint = childWithSameType;
-
-                } else {
-                    currentPath.setSWCType(currentPoint.type);
-                    currentPoint = null;
+            SWCPoint start;
+            Path currentPath;
+            while ((start = backtrackTo.poll()) != null) {
+                currentPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
+                final SWCPoint beforeStart = start.previous();
+                if (beforeStart != null) {
+                    pathStartsOnSWCPoint.put(currentPath, beforeStart);
                 }
+
+                // Now we can start adding points to the path:
+                SWCPoint currentPoint = start;
+                while (currentPoint != null) {
+                    currentPath.addNode(currentPoint);
+                    pointToPath.put(currentPoint, currentPath);
+                    if (!currentPoint.getNextPoints().isEmpty()) {
+                        final SWCPoint finalCurrentPoint = currentPoint;
+                        final SWCPoint childWithSameType = currentPoint.getNextPoints().stream()
+                                .filter(c -> c.type == finalCurrentPoint.type)
+                                .findFirst()
+                                .orElse(null);
+                        currentPoint.getNextPoints().remove(childWithSameType);
+                        backtrackTo.addAll(currentPoint.getNextPoints());
+                        if (childWithSameType == null)
+                            currentPath.setSWCType(currentPoint.type);
+                        currentPoint = childWithSameType;
+
+                    } else {
+                        currentPath.setSWCType(currentPoint.type);
+                        currentPoint = null;
+                    }
+                }
+                currentPath.setGuessedTangents(2);
+                currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+                pathList.add(currentPath);
+
             }
-            currentPath.setGuessedTangents(2);
-            currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-            pathList.add(currentPath);
 
-        }
-
-        // Set the start joins:
-        for (Path p : pathList) {
-            final SWCPoint swcPoint = pathStartsOnSWCPoint.get(p);
-            if (descriptor != null) {
-                p.setTreeLabel(descriptor);
-                p.setColor(color);
+            // Set the start joins:
+            for (Path p : pathList) {
+                final SWCPoint swcPoint = pathStartsOnSWCPoint.get(p);
+                if (descriptor != null) {
+                    p.setTreeLabel(descriptor);
+                    p.setColor(color);
+                }
+                if (swcPoint == null) {
+                    p.setIsPrimary(true);
+                    continue;
+                }
+                final Path previousPath = pointToPath.get(swcPoint);
+                final PointInImage pointInImage = pathStartsOnSWCPoint.get(p);
+                p.setBranchFrom(previousPath, pointInImage);
             }
-            if (swcPoint == null) {
-                p.setIsPrimary(true);
-                continue;
+
+            // Add paths after setting all joins to ensure treeIDs are computed correctly
+            for (Path p : pathList) {
+                addPath(p);
             }
-            final Path previousPath = pointToPath.get(swcPoint);
-            final PointInImage pointInImage = pathStartsOnSWCPoint.get(p);
-            p.setBranchFrom(previousPath, pointInImage);
+        } finally {
+            this.enableUIupdates = existingEnableUIupdates;
         }
-
-        // Add paths after setting all joins to ensure treeIDs are computed correctly
-        for (Path p : pathList) {
-            addPath(p);
-        }
-
-        this.enableUIupdates = existingEnableUIupdates;
         resetListeners(null, true);
 
         // Infer fields for when an image has not been specified. We'll assume
@@ -3044,36 +3108,36 @@ public class PathAndFillManager extends DefaultHandler implements
     public boolean load(final String filePath, final int... swcTypes) {
         final boolean existingEnableUiUpdates = enableUIupdates;
         enableUIupdates = false;
-        final IOUtils.ReconstructionFormat guessedType = guessTracesFileType(filePath);
-        if (guessedType == null) {
-            enableUIupdates = existingEnableUiUpdates;
-            return false;
-        }
         boolean result;
-        switch (guessedType) {
-            case COMPRESSED_XML:
-                result = loadCompressedXML(filePath);
-                break;
-            case UNCOMPRESSED_XML:
-                result = loadUncompressedXML(filePath);
-                break;
-            case ML_JSON:
-                result = loadJSON(filePath, swcTypes);
-                break;
-            case NDF:
-                result = loadNDF(filePath);
-                break;
-            case NEUROLUCIDA:
-                result = loadNeurolucida(filePath);
-                break;
-            case SWC:
-                result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, 1, true, swcTypes);
-                break;
-            default:
-                SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
-                return false;
+        try {
+            final IOUtils.ReconstructionFormat guessedType = guessTracesFileType(filePath);
+            if (guessedType == null) return false;
+            switch (guessedType) {
+                case COMPRESSED_XML:
+                    result = loadCompressedXML(filePath);
+                    break;
+                case UNCOMPRESSED_XML:
+                    result = loadUncompressedXML(filePath);
+                    break;
+                case ML_JSON:
+                    result = loadJSON(filePath, swcTypes);
+                    break;
+                case NDF:
+                    result = loadNDF(filePath);
+                    break;
+                case NEUROLUCIDA:
+                    result = loadNeurolucida(filePath);
+                    break;
+                case SWC:
+                    result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, 1, true, swcTypes);
+                    break;
+                default:
+                    SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
+                    return false;
+            }
+        } finally {
+            enableUIupdates = existingEnableUiUpdates;
         }
-        enableUIupdates = existingEnableUiUpdates;
         if (result) {
             final File file = new File(filePath);
             if (getPlugin() != null) getPlugin().getPrefs().setRecentDir(file);
@@ -3122,36 +3186,39 @@ public class PathAndFillManager extends DefaultHandler implements
         final boolean existingEnableUiUpdates = enableUIupdates;
         enableUIupdates = false;
         boolean result;
-        switch (guessedType) {
-            case COMPRESSED_XML:
-                SNTUtils.log("Loading gzipped file...");
-                result = load(new GZIPInputStream(bis));
-                break;
-            case UNCOMPRESSED_XML:
-                SNTUtils.log("Loading uncompressed file...");
-                result = load(bis);
-                break;
-            case ML_JSON:
-                final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
-                final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
-                result = outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
-                break;
-            case SWC:
-                final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
-                result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, replace);
-                break;
-            case NDF:
-                result = loadNDF(bis);
-                break;
-            case NEUROLUCIDA:
-                result = loadNeurolucida(bis);
-                break;
-            default:
-                SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
-                result = false;
-                break;
+        try {
+            switch (guessedType) {
+                case COMPRESSED_XML:
+                    SNTUtils.log("Loading gzipped file...");
+                    result = load(new GZIPInputStream(bis));
+                    break;
+                case UNCOMPRESSED_XML:
+                    SNTUtils.log("Loading uncompressed file...");
+                    result = load(bis);
+                    break;
+                case ML_JSON:
+                    final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
+                    final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
+                    result = outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+                    break;
+                case SWC:
+                    final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
+                    result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, replace);
+                    break;
+                case NDF:
+                    result = loadNDF(bis);
+                    break;
+                case NEUROLUCIDA:
+                    result = loadNeurolucida(bis);
+                    break;
+                default:
+                    SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
+                    result = false;
+                    break;
+            }
+        } finally {
+            enableUIupdates = existingEnableUiUpdates;
         }
-        enableUIupdates = existingEnableUiUpdates;
         resetListeners(null, true);
         return result;
     }

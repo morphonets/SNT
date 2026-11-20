@@ -2036,6 +2036,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
      *                          updated.
      */
     public void update(final boolean selectedPathsOnly) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            // JTree is not thread-safe, and a queued setPathList() may still be rebuilding its model.
+            // Queued events run in order, so this will run after it
+            SwingUtilities.invokeLater(() -> update(selectedPathsOnly));
+            return;
+        }
         if (selectedPathsOnly)
             tree.repaintSelectedNodes();
         else
