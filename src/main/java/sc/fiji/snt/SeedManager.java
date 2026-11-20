@@ -1306,40 +1306,6 @@ public class SeedManager extends JPanel {
                 + "parameters from training paths");
         menu.add(jmi);
         jmi.addActionListener(e -> detectTips());
-
-        GuiUtils.MenuItems.addSeparator(menu, "Pressing M in Bvv/Bdv adds:");
-        final javax.swing.ButtonGroup group = new javax.swing.ButtonGroup();
-        final String current = snt.getPrefs().getTemp(sc.fiji.snt.viewer.AbstractBigViewer.MARK_MODE_KEY,
-                sc.fiji.snt.viewer.AbstractBigViewer.MARK_ASK);
-        final String[][] options = {{"Ask when seeds are listed", sc.fiji.snt.viewer.AbstractBigViewer.MARK_ASK},
-                {"Bookmark markers", sc.fiji.snt.viewer.AbstractBigViewer.MARK_MARKERS},
-                {"Seeds (when seeds are listed)", sc.fiji.snt.viewer.AbstractBigViewer.MARK_SEEDS}};
-        final java.util.List<javax.swing.JRadioButtonMenuItem> radios = new java.util.ArrayList<>();
-        for (final String[] option : options) {
-            final javax.swing.JRadioButtonMenuItem rb = new javax.swing.JRadioButtonMenuItem(option[0],
-                    option[1].equals(current));
-            rb.addActionListener(e -> snt.getPrefs().setTemp(
-                    sc.fiji.snt.viewer.AbstractBigViewer.MARK_MODE_KEY, option[1]));
-            group.add(rb);
-            radios.add(rb);
-            menu.add(rb);
-        }
-        // The choice may have been made from the viewer's prompt since the menu was built
-        menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
-            @Override
-            public void popupMenuWillBecomeVisible(final javax.swing.event.PopupMenuEvent e) {
-                final String mode = snt.getPrefs().getTemp(sc.fiji.snt.viewer.AbstractBigViewer.MARK_MODE_KEY,
-                        sc.fiji.snt.viewer.AbstractBigViewer.MARK_ASK);
-                for (int i = 0; i < radios.size(); i++) radios.get(i).setSelected(options[i][1].equals(mode));
-            }
-
-            @Override
-            public void popupMenuWillBecomeInvisible(final javax.swing.event.PopupMenuEvent e) {}
-
-            @Override
-            public void popupMenuCanceled(final javax.swing.event.PopupMenuEvent e) {}
-        });
-
         return menu;
     }
 

@@ -91,11 +91,32 @@ public abstract class AbstractBigViewer {
     /** Seed edits that can be undone: seeds that were deleted (restored on undo) or added (removed on undo) */
     private record SeedUndo(List<sc.fiji.snt.seed.SeedPoint> seeds, boolean deleted) {}
 
-    /** Temporary preference: what M adds in the viewer when seeds are listed (see {@link #MARK_ASK}) */
-    public static final String MARK_MODE_KEY = "viewer-m-mode";
-    public static final String MARK_ASK = "ask";
-    public static final String MARK_MARKERS = "markers";
-    public static final String MARK_SEEDS = "seeds"; 
+    /** What the M key adds in the viewer when seeds are listed */
+    public enum MarkMode {
+        /** Prompt the user on first use */
+        ASK,
+        /** Bookmark markers */
+        MARKERS,
+        /** Seed points */
+        SEEDS
+    }
+
+    private static final String MARK_MODE_KEY = "viewer-m-mode";
+
+    /** Returns the (temporary) M key behavior stored in the preferences of {@code snt} */
+    public static MarkMode getMarkMode(final SNT snt) {
+        try {
+            return MarkMode.valueOf(snt.getPrefs().getTemp(MARK_MODE_KEY, MarkMode.ASK.name()));
+        } catch (final IllegalArgumentException ex) {
+            return MarkMode.ASK;
+        }
+    }
+
+    /** Stores the (temporary) M key behavior in the preferences of {@code snt} */
+    public static void setMarkMode(final SNT snt, final MarkMode mode) {
+        snt.getPrefs().setTemp(MARK_MODE_KEY, mode.name());
+    }
+
     /** Whether the last item picked in the viewer by clicking was a bookmark marker (otherwise, a seed) */
     private volatile boolean lastPickedBookmark;
 
@@ -1444,17 +1465,17 @@ public abstract class AbstractBigViewer {
     // can be changed in the Seeds tab). Canceling the prompt adds a marker this time
     private boolean shouldAddSeed() {
         if (snt == null || snt.getSeedOverlay() == null || snt.getSeedOverlay().isEmpty()) return false;
-        String mode = snt.getPrefs().getTemp(MARK_MODE_KEY, MARK_ASK);
-        if (MARK_ASK.equals(mode)) {
+        MarkMode mode = getMarkMode(snt);
+        if (mode == MarkMode.ASK) {
             final Boolean seeds = getGuiUtils().getConfirmation2(
                     "<HTML>Seeds are listed. What should the <b>M</b> key add?<br>"
                             + "(This can be changed later from the <b>+</b> menu of the Seeds tab.)",
                     "Add Seeds or Markers?", "Seeds", "Bookmark Markers");
             if (seeds == null) return false;
-            mode = seeds ? MARK_SEEDS : MARK_MARKERS;
-            snt.getPrefs().setTemp(MARK_MODE_KEY, mode);
+            mode = seeds ? MarkMode.SEEDS : MarkMode.MARKERS;
+            setMarkMode(snt, mode);
         }
-        return MARK_SEEDS.equals(mode);
+        return mode == MarkMode.SEEDS;
     }
 
     // Adds a seed at the cursor. Type and radius are those of the last seed listed (the radius of the most recent

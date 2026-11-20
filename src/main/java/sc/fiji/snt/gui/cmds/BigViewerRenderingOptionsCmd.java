@@ -22,11 +22,13 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import org.scijava.ItemVisibility;
 import org.scijava.command.DynamicCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.NumberWidget;
+import sc.fiji.snt.SNT;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 
 /**
@@ -41,6 +43,9 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
 
     protected static final String STYLE_LINE_SIMPLE = "Centerlines (uniform width)";
     protected static final String STYLE_LINE_RADII = "Centerlines (width from path radii)";
+    private static final String M_ASK = "Ask when seeds are listed";
+    private static final String M_MARKERS = "Add bookmark marker";
+    private static final String M_SEEDS = "Add seeds (when available)";
     protected static final String STYLE_RADII = "Frusta (tapered, from path radii)";
 
     @Parameter(label = "Path rendering style", choices = {STYLE_LINE_SIMPLE, STYLE_LINE_RADII, STYLE_RADII},
@@ -72,6 +77,12 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
             description = "Opacity of all path overlays.\n0% = fully opaque; 100% = fully transparent.")
     private double transparency;
 
+    @Parameter(label = "M key action", choices = {M_ASK, M_MARKERS, M_SEEDS},
+            style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, persist = false,
+            description = "<html>When tracing and the Seeds panel is available:<br>"
+                    + "Should M add seed locations or simple bookmarks?")
+    private String mPressBehavior;
+
     @Parameter(required = false, label = "Reset to Defaults", persist = false, callback = "reset")
     private Button reset;
 
@@ -88,6 +99,14 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
         minThickness = opts.getMinThickness();
         maxThickness = opts.getMaxThickness();
         transparency = (1.0 - opts.getTransparency()) * 100; // invert and scale: 0% = opaque, 100% = transparent
+        final SNT snt = getViewer().getSNT();
+        if (snt == null) {
+            // M cannot add seeds without a tracing session
+            getInfo().getMutableInput("mPressBehavior", String.class).setVisibility(ItemVisibility.INVISIBLE);
+            resolveInput("mPressBehavior");
+        } else {
+            mPressBehavior = toLabel(AbstractBigViewer.getMarkMode(snt));
+        }
     }
 
     private void reset() {
@@ -96,6 +115,7 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
         minThickness = 1.0f;
         maxThickness = 100.0f;
         transparency = 0; // inverted: 0% = opaque
+        mPressBehavior = M_ASK;
         getViewer().getRenderingOptions().clearSaved(getViewer().getClass());
         getViewer().getRenderingOptions().setStyle(toStyle(renderingStyle));
         updateOverlay(getViewer());
@@ -106,6 +126,22 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
             case LINE_SIMPLE -> STYLE_LINE_SIMPLE;
             case LINE_RADII -> STYLE_LINE_RADII;
             case FRUSTA -> STYLE_RADII;
+        };
+    }
+
+    private static String toLabel(final AbstractBigViewer.MarkMode mode) {
+        return switch (mode) {
+            case MARKERS -> M_MARKERS;
+            case SEEDS -> M_SEEDS;
+            case ASK -> M_ASK;
+        };
+    }
+
+    private static AbstractBigViewer.MarkMode toMarkMode(final String label) {
+        return switch (label) {
+            case M_MARKERS -> AbstractBigViewer.MarkMode.MARKERS;
+            case M_SEEDS -> AbstractBigViewer.MarkMode.SEEDS;
+            case null, default -> AbstractBigViewer.MarkMode.ASK;
         };
     }
 
@@ -126,6 +162,8 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
         opts.setStyle(toStyle(renderingStyle));
         opts.setTransparency((float) (100 - transparency) / 100);
         opts.save(viewer.getClass());
+        if (viewer.getSNT() != null)
+            AbstractBigViewer.setMarkMode(viewer.getSNT(), toMarkMode(mPressBehavior));
         updateOverlay(viewer);
     }
 
