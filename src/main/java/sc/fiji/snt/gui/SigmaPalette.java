@@ -227,16 +227,12 @@ public class SigmaPalette extends WizardPalette {
 
 			// final rendering
 			updateSliceSelector();
-			// Leave room for sliders and buttons, but make sure the canvas is not narrower than the metrics table
-			GuiUtils.zoomToScreenFraction(ic, 0.55, 8,
-					(metricsTable == null) ? 0 : metricsTable.getPreferredSize().width);
+			GuiUtils.zoomToScreenFraction(ic, 0.55, 8);
 			updateLabels();
+			fitCanvasToPanel(panel); // canvas not narrower than the controls
 			add(panel);
 			pack();
-			if (parent == null)
-				setLocationRelativeTo((snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow()); // after pack()
-			else
-				GuiUtils.Windows.center(this, parent);
+			WizardUtils.place(this, parent, snt); // after pack()
 			repaint(); // is this really needed?
 			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
 		}

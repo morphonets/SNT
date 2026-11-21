@@ -1646,9 +1646,10 @@ public class SNTCommandFinder {
 
         private Icon initIcon() {
             if (button != null) {
-                icon = button.getIcon();
-                if (icon == null && button.getClientProperty("cmdFinder-icon") instanceof Icon iconProp)
+                if (button.getClientProperty("cmdFinder-icon") instanceof Icon iconProp)
                     icon = iconProp;
+                if (icon == null)
+                    icon = button.getIcon();
             }
             if (icon == null && action != null && action.getValue(Action.SMALL_ICON) instanceof Icon iconAction)
                 icon = iconAction;

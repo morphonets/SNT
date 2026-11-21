@@ -683,9 +683,10 @@ public class CostPalette extends WizardPalette {
             c.gridy = 2;
             root.add(assembleButtonPanel(), c);
 
+            updateStats(); // before measuring: the label sets the width of the first row
+            fitCanvasToPanel(root);
             add(root);
             pack();
-            updateStats();
             highlightSelected();
             requestFocusInWindow(); // required to trigger keylistener events
             WizardUtils.place(this, parent, snt);

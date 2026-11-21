@@ -78,17 +78,36 @@ final class WizardUtils {
     }
 
     /**
-     * Places a wizard window next to its parent or, if there is none, over SNT's image window
+     * Places a wizard window beside its parent (to its right if there is room, otherwise to its left), top aligned
+     * and kept within the screen holding the parent. Without a (showing) parent, the window is centered over SNT's
+     * image window
      *
-     * @param window the window
+     * @param window the window (already packed)
      * @param parent the parent window. May be null
      * @param snt    the SNT instance
      */
     static void place(final Window window, final Window parent, final SNT snt) {
-        if (parent != null)
-            window.setLocationRelativeTo(parent);
-        else
+        if (parent == null || !parent.isShowing()) {
             GuiUtils.Windows.center(window, (snt.getImagePlus() == null) ? null : snt.getImagePlus().getWindow());
+            return;
+        }
+        final GraphicsConfiguration gc = parent.getGraphicsConfiguration();
+        final Rectangle screen = gc.getBounds();
+        final Insets in = Toolkit.getDefaultToolkit().getScreenInsets(gc); // taskbar, menu bar, etc.
+        screen.x += in.left;
+        screen.y += in.top;
+        screen.width -= in.left + in.right;
+        screen.height -= in.top + in.bottom;
+        final Rectangle p = parent.getBounds();
+        final Dimension size = window.getSize();
+        final int right = p.x + p.width;
+        final int left = p.x - size.width;
+        int x;
+        if (right + size.width <= screen.x + screen.width) x = right;
+        else if (left >= screen.x) x = left;
+        else x = screen.x + screen.width - size.width; // no room beside it: overlap as little as possible
+        window.setLocation(Math.max(screen.x, x),
+                Math.clamp(p.y, screen.y, Math.max(screen.y, screen.y + screen.height - size.height)));
     }
 
     /**

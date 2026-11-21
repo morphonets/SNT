@@ -952,6 +952,7 @@ public class TipPalette extends WizardPalette {
             southPanel = south;
             south.add(scroll, BorderLayout.CENTER);
             south.add(buttonPanel(), BorderLayout.SOUTH);
+            fitCanvasToPanel(south);
             add(south);
             pack();
             WizardUtils.place(this, parent, snt);

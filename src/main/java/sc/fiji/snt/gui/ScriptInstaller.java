@@ -265,7 +265,8 @@ public class ScriptInstaller {
 	}
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
 		final IconActionableMenuItem mItem = new IconActionableMenuItem(getScriptLabel(si, trimExtension),
-				IconFactory.menuIcon(GLYPH.EXTERNAL_LINK));
+				IconFactory.menuIcon(GLYPH.EXTERNAL_LINK, IconFactory.secondaryColor()));
+		mItem.setIconHoverIcon(IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
 		mItem.setToolTipText("Click to run script. Click the icon to open it");
 		mItem.putClientProperty("cmdFinder-icon", getCmdFinderIcon());
 		mItem.addActionListener(e -> runScript(si));
@@ -274,7 +275,7 @@ public class ScriptInstaller {
 	}
 
 	private Icon getCmdFinderIcon() {
-		if (cmdFinderIcon == null) cmdFinderIcon = IconFactory.menuIcon('\uf70e', true, IconFactory.secondaryColor());
+		if (cmdFinderIcon == null) cmdFinderIcon = IconFactory.menuIcon(GLYPH.CODE2, IconFactory.secondaryColor());
 		return cmdFinderIcon;
 	}
 

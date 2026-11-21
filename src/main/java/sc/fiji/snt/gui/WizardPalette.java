@@ -31,10 +31,15 @@ import sc.fiji.snt.SNTUtils;
 
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
+import javax.swing.UIManager;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.GraphicsEnvironment;
+import java.awt.Graphics;
 import java.awt.LayoutManager;
+import java.awt.Rectangle;
 import java.awt.Window;
 import java.awt.event.WindowEvent;
 
@@ -120,11 +125,48 @@ abstract class WizardPalette extends Thread {
     /** Window of a wizard: closing it dismisses the wizard */
     abstract static class PaletteWindow extends StackWindow {
         private static final long serialVersionUID = 1L;
+        /** Largest height of the canvas, as a fraction of the screen height, when widening it to fit the controls */
+        private static final double MAX_CANVAS_SCREEN_FRACTION = 0.5;
         private final transient Runnable onClosing;
+        private final transient Color infoColor;
 
         PaletteWindow(final ImagePlus imp, final ImageCanvas ic, final Runnable onClosing) {
             super(imp, ic);
             this.onClosing = onClosing;
+            // Swing controls sit on this window: use the look and feel colors (not the AWT/IJ ones). Done here
+            // so that panels copying getBackground() in subclasses pick it up
+            final Color bg = UIManager.getColor("Panel.background");
+            if (bg != null) setBackground(bg);
+            infoColor = UIManager.getColor("Label.foreground");
+        }
+
+        @Override
+        public void drawInfo(final Graphics g) {
+            if (g != null && infoColor != null) g.setColor(infoColor);
+            super.drawInfo(g);
+        }
+
+        /**
+         * Guarantees that the displayed image is not narrower than the panel below it, by zooming in (to any
+         * magnification, not just IJ zoom levels) if needed. Never zooms out. The canvas height is kept below
+         * {@value #MAX_CANVAS_SCREEN_FRACTION} of the screen height. Call once the controls are assembled, before
+         * {@code pack()}
+         *
+         * @param panel the (assembled) panel under the canvas
+         */
+        protected final void fitCanvasToPanel(final Component panel) {
+            final ImageCanvas ic = getCanvas();
+            final ImagePlus imp = getImagePlus();
+            if (ic == null || imp == null || panel == null) return;
+            final int minWidth = panel.getPreferredSize().width;
+            final double current = ic.getMagnification();
+            if (imp.getWidth() * current >= minWidth) return;
+            final Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+            final double ceiling = MAX_CANVAS_SCREEN_FRACTION * screen.height / imp.getHeight();
+            final double mag = Math.min((double) minWidth / imp.getWidth(), Math.max(ceiling, current));
+            if (mag <= current) return;
+            ic.setMagnification(mag);
+            ic.setSize((int) Math.ceil(imp.getWidth() * mag), (int) Math.ceil(imp.getHeight() * mag));
         }
 
         @Override
