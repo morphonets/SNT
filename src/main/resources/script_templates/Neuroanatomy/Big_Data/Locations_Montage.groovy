@@ -1,6 +1,6 @@
 #@File(required = false, label = "CSV file of X,Y,Z locations") csvFile
 #@boolean(label = "File lists locations in pixel coordinates") pixelPositions
-#@File(required = false, label = "Image file") imgFile
+#@File(required = false, label = "Image file, folder, or URL", style = "both", persist = false) imgFile
 #@int(label = "Window XY size (in pixels)", min = 4) windowXY
 #@int(label = "Window Z thickness (in pixels, 1=2D)", min = 1) windowZ
 #@int(label = "Channel (1-based index)", min = 1) channel
@@ -113,7 +113,7 @@ lastLog = 0d
 // Load data
 if (csvFile && imgFile) {
     println("Opening ${imgFile.name}...")
-    imgPlus = openImage(imgFile.getAbsolutePath())
+    imgPlus = openImage(BigDataUtils.toPathString(imgFile))
     points = populateFromFile(csvFile, labels)
     println("Loaded ${points?.size() ?: 0} locations")
 }
@@ -134,10 +134,13 @@ def doMIP = (windowZ > 1 && !asStacks) ? NodeCollector.Projection.MIP_Z : NodeCo
 collector.setProjection(doMIP)
 
 if (asStacks) {
-    // Save one stack per location in a folder next to the image. Crops are
-    // fetched one at a time to keep peak memory bounded to a single crop
+    // Save one stack per location in a folder next to the image (next to the CSV
+    // file if the image is remote). Crops are fetched one at a time to keep peak
+    // memory bounded to a single crop
     def baseName = imgFile.name.replaceFirst(/\.[^.]+$/, "")
-    def outDir = new File(imgFile.absoluteFile.parentFile, baseName + "_C${channel}_locations")
+    def outParent = BigDataUtils.isRemoteUrl(imgFile.getPath()) ? csvFile.absoluteFile.parentFile
+            : imgFile.absoluteFile.parentFile
+    def outDir = new File(outParent, baseName + "_C${channel}_locations")
     if (!outDir.exists() && !outDir.mkdirs()) {
         uiService.showDialog("Could not create ${outDir.absolutePath}")
         return

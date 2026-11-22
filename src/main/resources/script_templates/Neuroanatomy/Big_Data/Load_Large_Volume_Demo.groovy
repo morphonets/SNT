@@ -1,5 +1,5 @@
-#@File(label="Main file to render (required)", description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file1
-#@File(label="Secondary file to render (optional)", required=false, description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file2
+#@File(label="Main volume (file, folder, or URL)", style="both", persist=false, description="Imaris (.ims), BDV XML, N5/OME-Zarr (local or remote), or TIFF image. For remote URLs, copy their paths directly") file1
+#@File(label="Secondary volume (optional)", required=false, style="both", persist=false, description="Imaris (.ims), BDV XML, N5/OME-Zarr (local or remote), or TIFF image. For remote URLs, copy their paths directly") file2
 #@UIService ui
 
 /**
@@ -18,6 +18,9 @@
  *   Plugins > BigDataViewer > Create XML for Imaris file, then pass the .xml path.
  * - BDV XML/HDF5 (.xml): loaded directly using BVV's cache manager. This covers
  *   BDV HDF5, BDV N5, and OME-Zarr datasets that have an accompanying BDV XML.
+ * - N5 and OME-Zarr (.n5, .zarr, .ome.zarr): local folders or remote URLs
+ *   (e.g., https://...). Opened directly, with no XML sidecar, and streamed
+ *   with the same cache manager.
  * - Regular images (.tif, etc.): opened via ImgUtils and displayed as a flat
  *   volume. Note that BVV requires 3D images (Z > 1) and has a per-channel voxel
  *   limit of ~1 Gvox: flat volumes exceeding this will fail.
@@ -35,10 +38,11 @@
  * TF 20260224
  */
 
+import sc.fiji.snt.util.BigDataUtils
 import sc.fiji.snt.viewer.Bvv
 
 try {
-    def paths = [file1, file2].findAll { it != null }.collect { it.getAbsolutePath() }
+    def paths = [file1, file2].findAll { it != null }.collect { BigDataUtils.toPathString(it) }
     bvv = Bvv.open(paths as String[])
 } catch (Exception e) {
     ui.showDialog("An error occurred: " + e.getMessage(), "Error")

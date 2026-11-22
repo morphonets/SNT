@@ -328,19 +328,9 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
     }
 
-    /**
-     * Converts a (possibly user-typed) {@link File} parameter back to the string form
-     * {@link BigDataUtils#resolvePathToSource(String)} expects. {@code File#getAbsolutePath()} mangles
-     * remote URLs (e.g. {@code https://.../dataset.ome.zarr}) by prepending the current working
-     * directory, since a URL scheme isn't a recognized absolute-path prefix. Even {@code File#getPath()}
-     * isn't a clean escape hatch here: by the time the typed text becomes a {@code File} at all, its own
-     * constructor has already collapsed the URL's "://" down to ":/" (consecutive slashes are merged),
-     * so that has to be repaired too (see {@link BigDataUtils#restoreUrlScheme(String)}).
-     */
+    /** @see BigDataUtils#toPathString(File) */
     private static String toPathString(final File f) {
-        return BigDataUtils.isRemoteUrl(f.getPath())
-                ? BigDataUtils.restoreUrlScheme(f.getPath())
-                : f.getAbsolutePath();
+        return BigDataUtils.toPathString(f);
     }
 
     /**

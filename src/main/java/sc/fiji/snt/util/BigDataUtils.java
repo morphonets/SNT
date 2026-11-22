@@ -762,6 +762,25 @@ public class BigDataUtils {
         return url.replaceFirst("^([a-zA-Z][a-zA-Z0-9+.-]*):/(?!/)", "$1://");
     }
 
+    /**
+     * Converts a (possibly user-typed) {@link File} back to the string form expected by this class's
+     * methods (e.g., {@link #describe(String)}, {@link #openChannel(String, int, int)} and
+     * {@link #resolvePathToSource(String)}). Intended for SciJava {@code File} parameters (e.g.,
+     * {@code #@File(style="both", persist=false)}) that accept both local paths and remote URLs.
+     * {@code File#getAbsolutePath()} mangles remote URLs (e.g., {@code https://.../dataset.ome.zarr}) by
+     * prepending the current working directory, since a URL scheme is not a recognized absolute-path prefix.
+     * Even {@code File#getPath()} is not a clean escape hatch: by the time the typed text becomes a
+     * {@code File}, its constructor has already collapsed the "://" of the URL to ":/" (consecutive
+     * slashes are merged), which is repaired by {@link #restoreUrlScheme(String)}.
+     *
+     * @param f the file (local path or URL)
+     * @return the absolute path of a local file, or the (repaired) URL of a remote one. Null if {@code f} is null
+     */
+    public static String toPathString(final File f) {
+        if (f == null) return null;
+        return isRemoteUrl(f.getPath()) ? restoreUrlScheme(f.getPath()) : f.getAbsolutePath();
+    }
+
     /** Derives a display name from a URL's last path segment (ignoring a trailing slash, if any). */
     private static String displayNameFromUrl(final String url) {
         final String trimmed = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;

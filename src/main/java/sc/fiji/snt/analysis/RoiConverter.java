@@ -23,6 +23,8 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.FileInputStream;
@@ -34,11 +36,16 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import ij.ImagePlus;
+import ij.gui.Arrow;
+import ij.gui.ImageRoi;
+import ij.gui.Line;
+import ij.gui.OvalRoi;
 import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.gui.TextRoi;
 import ij.io.RoiDecoder;
 import ij.io.RoiEncoder;
 import ij.measure.Measurements;
@@ -53,6 +60,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.IOUtils;
 import sc.fiji.snt.util.PointInImage;
@@ -621,6 +629,88 @@ public class RoiConverter {
 		} catch (final NullPointerException ignored) {
 			return roi;
 		}
+	}
+
+	/**
+	 * Maps a 2D ROI from the pixel grid of one resolution level of a pyramidal
+	 * dataset to the pixel grid of another level. Pixel coordinates are related
+	 * through world space, so level spacing and origin (e.g., the half-voxel shift
+	 * of downsampled N5/OME-Zarr levels) are both taken into account:
+	 * {@code q = (p * spacing_from + origin_from - origin_to) / spacing_to}.
+	 * Only x and y are considered. The ROI position (C,Z,T), if assigned, is
+	 * copied as is. Coordinates are kept in double precision, and the type of the
+	 * ROI is preserved. Text, image and arrow ROIs are not supported.
+	 *
+	 * @param roi  the ROI, defined on the grid of {@code from}. Not modified
+	 * @param from the level the ROI is defined on
+	 * @param to   the level the ROI is mapped to
+	 * @return a new ROI on the grid of {@code to}, or null if {@code roi} is null
+	 * @throws IllegalArgumentException if the type of ROI is not supported, or a
+	 *                                  level has invalid spacing
+	 */
+	public static Roi scale(final Roi roi, final BigDataUtils.LevelInfo from, final BigDataUtils.LevelInfo to) {
+		if (roi == null)
+			return null;
+		if (roi instanceof TextRoi || roi instanceof ImageRoi || roi instanceof Arrow)
+			throw new IllegalArgumentException("Unsupported ROI type: " + roi.getClass().getSimpleName());
+		if (from.spacing()[0] <= 0 || from.spacing()[1] <= 0 || to.spacing()[0] <= 0 || to.spacing()[1] <= 0)
+			throw new IllegalArgumentException("Invalid level spacing");
+		final double sx = from.spacing()[0] / to.spacing()[0];
+		final double sy = from.spacing()[1] / to.spacing()[1];
+		final double dx = (from.origin()[0] - to.origin()[0]) / to.spacing()[0];
+		final double dy = (from.origin()[1] - to.origin()[1]) / to.spacing()[1];
+		if (sx == 1 && sy == 1 && dx == 0 && dy == 0)
+			return (Roi) roi.clone();
+
+		final Roi out;
+		if (roi instanceof final ShapeRoi sr) {
+			// Shape coordinates are relative to the bounds of the ROI
+			final Rectangle b = sr.getBounds();
+			final AffineTransform at = new AffineTransform(sx, 0, 0, sy, dx, dy);
+			at.translate(b.x, b.y);
+			out = new ShapeRoi(at.createTransformedShape(sr.getShape()));
+		} else {
+			switch (roi.getType()) {
+			case Roi.RECTANGLE, Roi.OVAL -> {
+				final Rectangle2D.Double b = roi.getFloatBounds();
+				final double x = b.x * sx + dx;
+				final double y = b.y * sy + dy;
+				final double w = b.width * sx;
+				final double h = b.height * sy;
+				out = (roi.getType() == Roi.OVAL) ? new OvalRoi(x, y, w, h) : new Roi(x, y, w, h);
+				if (roi.getType() == Roi.RECTANGLE)
+					out.setCornerDiameter((int) Math.round(roi.getCornerDiameter() * 0.5 * (sx + sy)));
+			}
+			case Roi.POINT, Roi.LINE, Roi.POLYGON, Roi.FREEROI, Roi.TRACED_ROI, Roi.POLYLINE, Roi.FREELINE,
+					Roi.ANGLE -> {
+				final FloatPolygon fp = roi.getFloatPolygon();
+				final float[] xs = new float[fp.npoints];
+				final float[] ys = new float[fp.npoints];
+				for (int i = 0; i < fp.npoints; i++) {
+					xs[i] = (float) (fp.xpoints[i] * sx + dx);
+					ys[i] = (float) (fp.ypoints[i] * sy + dy);
+				}
+				if (roi.getType() == Roi.POINT) {
+					out = new PointRoi(xs, ys, fp.npoints);
+					((PointRoi) out).setPointType(((PointRoi) roi).getPointType());
+					((PointRoi) out).setSize(((PointRoi) roi).getSize());
+				} else if (roi.getType() == Roi.LINE) {
+					out = new Line(xs[0], ys[0], xs[1], ys[1]);
+				} else {
+					// Scaled traced ROIs no longer lie on the pixel grid
+					final int type = (roi.getType() == Roi.TRACED_ROI) ? Roi.POLYGON : roi.getType();
+					out = new PolygonRoi(xs, ys, fp.npoints, type);
+				}
+			}
+			default -> throw new IllegalArgumentException("Unsupported ROI type: " + roi.getTypeAsString());
+			}
+		}
+		out.copyAttributes(roi);
+		if (roi.hasHyperStackPosition())
+			out.setPosition(roi.getCPosition(), roi.getZPosition(), roi.getTPosition());
+		else if (roi.getPosition() > 0)
+			out.setPosition(roi.getPosition());
+		return out;
 	}
 
 	public static Roi combine(final List<Roi> rois) {
