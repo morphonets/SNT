@@ -8,7 +8,7 @@
 #@UIService ui
 
 /**
- * file:    Slab_Projection.groovy
+ * file:    Slab_Projection_(Stream_Mode).groovy
  * author:  Tiago Ferreira
  * info:    Computes a max-intensity projection (MIP) of a Z-slab of the image loaded in SNT, optionally color-coding
  *          depth. Planes are read one at a time, so this works on large, lazy (N5/OME-Zarr/IMS/BDV-XML) sources
@@ -18,6 +18,7 @@
  * Usage:   Load a (big) image in SNT and run this script. To project what is currently visible in BVV, activate
  *          its slab view (XY orientation) and tick "Use current slab". Otherwise, specify the Z range manually.
  *
+ * @see     Slab_Projection_(From_File).groovy, to project a dataset specified by path or URL
  * @see     Crop_Around_Marker.groovy, to materialize a small region around a marker
  */
 
