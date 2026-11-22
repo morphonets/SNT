@@ -100,6 +100,7 @@ public class SomaPalette extends WizardPalette {
     }
 
     private final Params initial;
+    private final int level;
     private final int sliceHint;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicInteger generation = new AtomicInteger();
@@ -136,16 +137,20 @@ public class SomaPalette extends WizardPalette {
     private volatile String summary = " ";
     private volatile String planeLabel = "";
 
+
     /**
-     * @param snt     the SNT instance
-     * @param initial the parameters the wizard starts with
+     * @param snt       the SNT instance
+     * @param initial   the parameters the wizard starts with
      * @param sliceHint the 0-based slice (full resolution grid) shown if the initial parameters specify a max
      *                  projection. Negative for the middle slice
+     * @param level     Stream mode only: the resolution level (0: full resolution) the preview is read from.
+     *                  Negative for the finest one that can be previewed, see {@link #recommendedLevel(List)}
      */
-    public SomaPalette(final SNT snt, final Params initial, final int sliceHint) {
+    public SomaPalette(final SNT snt, final Params initial, final int sliceHint, final int level) {
         super(snt);
         this.initial = initial;
         this.sliceHint = sliceHint;
+        this.level = level;
         setParent(snt.getUI());
     }
 
@@ -199,7 +204,13 @@ public class SomaPalette extends WizardPalette {
             final List<BigDataUtils.LevelInfo> levels = viewer.getSourceLevels(srcIdx);
             if (levels.isEmpty()) return "The image data of the active viewer is not available.";
             // Any plane can be requested, including the max projection: the level must allow reading it all
-            final BigDataUtils.LevelInfo level = chooseLevel(levels);
+            final BigDataUtils.LevelInfo level = (this.level < 0) ? levels.get(recommendedLevel(levels))
+                    : levels.get(Math.min(this.level, levels.size() - 1));
+            final long[] d = level.dims();
+            if (d[0] * d[1] > MAX_PLANE_PIXELS || d[0] * d[1] * d[2] > MAX_PROJECTION_VOXELS)
+                return "Resolution level " + level.level() + " is too large for a live preview (" + d[0] + " x " + d[1]
+                        + " x " + d[2] + " voxels). Choose a coarser resolution level in the prompt, and run the "
+                        + "wizard again.";
             final RandomAccessibleInterval<?> raw = viewer.getSourceData(srcIdx, level.level());
             if (raw == null || raw.numDimensions() != 3) return "The image data of the active viewer is not 3D.";
             data = Views.zeroMin(raw);
@@ -224,8 +235,9 @@ public class SomaPalette extends WizardPalette {
             final Roi roi = (imp == null) ? null : imp.getRoi();
             final String size = data.dimension(0) + " x " + data.dimension(1);
             if (snt.isStreamMode() || roi == null || !roi.isArea()) {
-                return "The image plane is too large for a live preview (" + size + " px). Draw a rectangle ROI "
-                        + "around a representative region of the image, and run the wizard again.";
+                return "The image plane is too large for a live preview (" + size + " px). "
+                        + ((snt.isStreamMode()) ? "Choose a coarser resolution level in the prompt"
+                        : "Draw a rectangle ROI around a representative region of the image") + ", and run the wizard again.";
             }
             final Rectangle r = roi.getBounds()
                     .intersection(new Rectangle(0, 0, (int) data.dimension(0), (int) data.dimension(1)));
@@ -298,13 +310,18 @@ public class SomaPalette extends WizardPalette {
         return (z < 0) ? mip : Views.hyperSlice(volume, 2, z);
     }
 
-    // Finest level with a plane and a volume small enough to be read, or the coarsest one
-    private static BigDataUtils.LevelInfo chooseLevel(final List<BigDataUtils.LevelInfo> levels) {
-        for (final BigDataUtils.LevelInfo l : levels) {
-            final long[] d = l.dims();
-            if (d[0] * d[1] <= MAX_PLANE_PIXELS && d[0] * d[1] * d[2] <= MAX_PROJECTION_VOXELS) return l;
+    /**
+     * The finest resolution level with a plane and a volume small enough for the preview, or the coarsest one
+     *
+     * @param levels the levels of the data, finest first
+     * @return the index of the level
+     */
+    public static int recommendedLevel(final List<BigDataUtils.LevelInfo> levels) {
+        for (int i = 0; i < levels.size(); i++) {
+            final long[] d = levels.get(i).dims();
+            if (d[0] * d[1] <= MAX_PLANE_PIXELS && d[0] * d[1] * d[2] <= MAX_PROJECTION_VOXELS) return i;
         }
-        return levels.getLast();
+        return levels.size() - 1;
     }
 
     private void buildAndDisplay() {
@@ -451,21 +468,27 @@ public class SomaPalette extends WizardPalette {
             c.weightx = 1.0;
             c.gridx = 0;
             c.gridwidth = GridBagConstraints.REMAINDER;
+            // The note wraps at the width of the other rows (which are assembled first, to measure them)
+            final JPanel controls = section(null, assembleControls());
+            final JPanel status = newPanel(new FlowLayout(FlowLayout.LEFT));
+            status.add(statusLabel);
+            final JPanel buttons = assembleButtonPanel();
             int row = 0;
             if (planeNote != null) {
-                final JPanel note = newPanel(new FlowLayout(FlowLayout.LEFT));
-                note.add(new JLabel("<html><div width=380><i>" + planeNote + "</i></div></html>"));
+                final FlowLayout noteLayout = new FlowLayout(FlowLayout.LEFT);
+                final int width = Math.max(controls.getPreferredSize().width, buttons.getPreferredSize().width)
+                        - 2 * noteLayout.getHgap();
+                final JPanel note = newPanel(noteLayout);
+                note.add(new JLabel("<html><div width=" + width + "><i>" + planeNote + "</i></div></html>"));
                 c.gridy = row++;
                 root.add(note, c);
             }
             c.gridy = row++;
-            root.add(section(null, assembleControls()), c);
-            final JPanel status = newPanel(new FlowLayout(FlowLayout.LEFT));
-            status.add(statusLabel);
+            root.add(controls, c);
             c.gridy = row++;
             root.add(status, c);
             c.gridy = row;
-            root.add(assembleButtonPanel(), c);
+            root.add(buttons, c);
 
             // Starting point only: the command keeps 0 (no limit) as its own default
             final double defaultRadius = DEFAULT_MIN_RADIUS_PX * (spacing[0] + spacing[1]) / 2d;

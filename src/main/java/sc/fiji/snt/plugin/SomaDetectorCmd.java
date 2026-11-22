@@ -42,10 +42,13 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.SomaPalette;
+import sc.fiji.snt.gui.TipPalette;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.tracing.auto.SomaUtils;
+import sc.fiji.snt.util.BigDataUtils;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import net.imglib2.realtransform.AffineTransform3D;
@@ -129,6 +132,14 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
                     "Only applies to <b>" + SCOPE_ALL + "</b>: single soma detection uses the current slice")
     private String planeChoice = PLANE_MIP;
 
+    // Stream mode only. Choices are those of the data being streamed (see init())
+    @Parameter(label = "Resolution level", required = false, choices = {"Level 0"},
+            description = "<HTML>Resolution level (Stream mode) that is read, both by the preview and by detection.<br>" +
+                    "Somata rarely need full resolution: coarser levels are much faster to read<br>" +
+                    "and process, and the detections are placed in the full resolution space.<br>" +
+                    "Parameters are in calibrated units, and independent of the level")
+    private String levelChoice = "Level 0";
+
     /**
      * Becomes {@code true} the first time the user edits {@link #zPos} directly (see  {@link #zPosChanged()}).
      * Distinct from {@link #zPos}'s own value because a world Z-coordinate has no value that can double as "unset"
@@ -200,6 +211,12 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
     // Title of the prompt: must be unique for getPrompt() to work
     private String promptTitle;
     private SomaPalette wizard;
+    // Stream mode: levels of the data (labels as in the choices of levelChoice), and the level detection runs on
+    private List<BigDataUtils.LevelInfo> levels;
+    private List<String> levelLabels;
+    // Detection at a coarser level (null: full resolution): spacing of the level, and the shift of its grid
+    private double[] levelSpacing;
+    private double[] levelShift;
 
     @SuppressWarnings("unused")
     private void init() {
@@ -232,12 +249,40 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
             resolveInput("zPosChoice");
             resolveInput("zPos");
         }
+        initLevelChoice();
         // The plane only matters for 3D data, and Stream mode has its own depth options
         if (snt.isStreamMode() || img == null || img.numDimensions() < 3) resolveInput("planeChoice");
         promptTitle = String.format("Detect Soma(s) [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix());
         getInfo().setLabel(promptTitle);
         resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
         percentileClip = 10d;
+    }
+
+    // Offers the resolution levels of the streamed data (unless a materialized crop, which is full resolution, is active)
+    private void initLevelChoice() {
+        levels = null;
+        if (snt.isStreamMode() && !snt.isMaterializedCrop() && ui != null) {
+            final AbstractBigViewer viewer = ui.getActiveBigViewer();
+            final List<BigDataUtils.LevelInfo> all = (viewer == null) ? List.of()
+                    : viewer.getSourceLevels(snt.getChannel() - 1);
+            if (all.size() > 1) {
+                levels = all;
+                final int rec = SomaPalette.recommendedLevel(all);
+                levelLabels = new ArrayList<>();
+                for (int i = 0; i < all.size(); i++)
+                    levelLabels.add(TipPalette.describeLevel(all.get(i)) + ((i == rec) ? " (recommended)" : ""));
+                final MutableModuleItem<String> item = getInfo().getMutableInput("levelChoice", String.class);
+                item.setChoices(levelLabels);
+                if (levelChoice == null || !levelLabels.contains(levelChoice)) levelChoice = levelLabels.get(rec);
+                return;
+            }
+        }
+        resolveInput("levelChoice");
+    }
+
+    // The level (0: full resolution) chosen in the prompt, or -1 if there is no choice to make
+    private int selectedLevel() {
+        return (levels == null || levelLabels == null) ? -1 : Math.max(0, levelLabels.indexOf(levelChoice));
     }
 
     private String zLabelSuffix() {
@@ -346,7 +391,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
         }
         // The wizard starts on the plane of the prompt, and goes back to the displayed slice if MIP is unchecked
         final SomaPalette w = new SomaPalette(snt, new SomaPalette.Params(threshold, minRadius, minSomaDistance,
-                resolveZSlice()), (imp == null) ? -1 : imp.getZ() - 1);
+                resolveZSlice()), (imp == null) ? -1 : imp.getZ() - 1, selectedLevel());
         w.setParent(getPrompt());
         final SomaPalette.Params[] applied = new SomaPalette.Params[1];
         // The callback waits for the wizard so that, once it returns, SciJava refreshes the widgets of the prompt
@@ -435,17 +480,79 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
         return zSlice;
     }
 
+    // Largest level (voxels) that is read into memory before detection: smaller ones are processed much faster
+    private static final long MAX_LEVEL_VOXELS_IN_MEMORY = 64_000_000L;
+    private boolean levelInMemory;
+
+    // Stream mode: if a coarse level was chosen, detection runs on it (instead of the full resolution data)
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private boolean prepareLevel() {
+        levelSpacing = null;
+        levelShift = null;
+        levelInMemory = false;
+        final int chosen = selectedLevel();
+        if (chosen <= 0) return true;
+        final AbstractBigViewer viewer = (ui == null) ? null : ui.getActiveBigViewer();
+        if (viewer == null) {
+            error("No active BDV/BVV viewer to read the resolution level from.");
+            return false;
+        }
+        final BigDataUtils.LevelInfo info = levels.get(chosen);
+        net.imglib2.RandomAccessibleInterval rai = viewer.getSourceData(snt.getChannel() - 1, info.level());
+        if (rai == null || rai.numDimensions() != 3) {
+            error("The image data of the active viewer is not available at resolution level " + info.level());
+            return false;
+        }
+        rai = net.imglib2.view.Views.zeroMin(rai);
+        if (info.dims()[0] * info.dims()[1] * info.dims()[2] <= MAX_LEVEL_VOXELS_IN_MEMORY) {
+            setStatus("Reading resolution level " + info.level() + "...");
+            rai = ImgUtils.copyToMemory(rai);
+            levelInMemory = true;
+        }
+        img = ImgUtils.wrapWithSpacing(rai, info.spacing(), snt.getSpacingUnits());
+        levelSpacing = info.spacing();
+        final double[] origin0 = levels.getFirst().origin();
+        levelShift = new double[]{info.origin()[0] - origin0[0], info.origin()[1] - origin0[1],
+                info.origin()[2] - origin0[2]};
+        SNTUtils.log("Soma detection on resolution level " + info.level() + ": " + java.util.Arrays.toString(
+                info.dims()) + " voxels");
+        return true;
+    }
+
+    // Offset to be added to the (calibrated) position of detections to obtain their world position
+    private double[] outputOffset() {
+        final double[] offset = snt.getWorldOriginOffset();
+        if (levelShift == null) return offset;
+        return new double[]{offset[0] + levelShift[0], offset[1] + levelShift[1], offset[2] + levelShift[2]};
+    }
+
+    // Detections at a coarser level are on the grid of that level, which is shifted relative to the full resolution one
+    private void shiftToFullResolutionGrid(final Path path) {
+        if (levelShift == null) return;
+        final Path.PathNode node = path.getNode(0);
+        path.moveNode(0, node.x + levelShift[0], node.y + levelShift[1], node.z + levelShift[2]);
+    }
+
     private void runDetection() {
         if (imp == null && img == null || isCanceled()) {
             resetUI();
             return;
         }
-        final int zSlice = resolveZSlice();
+        int zSlice = resolveZSlice();
+        if (!prepareLevel()) {
+            resetUI();
+            return;
+        }
+        if (levelSpacing != null && zSlice >= 0) {
+            // Slice of the level that contains the slice of the full resolution grid
+            final double zRatio = levels.getFirst().spacing()[2] / levelSpacing[2];
+            zSlice = (int) Math.clamp(Math.round((zSlice + 0.5) * zRatio - 0.5), 0, img.dimension(2) - 1);
+        }
 
         // detectAllSomas() with zSlice < 0 on a 3D image computes a max-intensity projection across every
         // Z-plane: on a lazily-loaded Stream-mode volume that means touching the entire dataset. A
         // user-specified depth (zSlice >= 0) bypasses this, so the warning is only needed when none was given
-        if (SCOPE_ALL.equals(scopeChoice) && zSlice < 0 && snt.isStreamMode() && img != null
+        if (SCOPE_ALL.equals(scopeChoice) && zSlice < 0 && snt.isStreamMode() && !levelInMemory && img != null
                 && img.numDimensions() > 2 && !getConfirmationEdtSafe(
                         "Detecting all somata on a streamed volume requires computing a max-intensity "
                                 + "projection across the entire dataset. Depending on dataset size and "
@@ -454,7 +561,8 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
             resetUI();
             return;
         }
-        final double[] spacing = {snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
+        final double[] spacing = (levelSpacing != null) ? levelSpacing
+                : new double[]{snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
         if (SCOPE_ALL.equals(scopeChoice)) {
             runAllSomas(zSlice, spacing);
         } else {
@@ -476,6 +584,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
         switch (outputChoice) {
             case OUTPUT_PATH -> {
                 final Path path = result.toPath(spacing);
+                shiftToFullResolutionGrid(path);
                 snt.getPathAndFillManager().addPath(path);
                 status("Soma added to Manager", true);
             }
@@ -550,6 +659,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
             final List<Tree> somas = new ArrayList<>();
             for (final SomaUtils.SomaResult result : results) {
                 final Path path = result.toPath(spacing);
+                shiftToFullResolutionGrid(path);
                 path.setColor(colors[idx++]);
                 path.setName(String.format("Soma %02d", idx));
                 somas.add(new Tree(List.of(path)));
@@ -643,7 +753,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
         double y = centroid.y;
         double z = centroid.z;
         if (snt.isStreamMode()) {
-            final double[] offset = snt.getWorldOriginOffset(); // only set in stream mode
+            final double[] offset = outputOffset();
             x += offset[0];
             y += offset[1];
             z += offset[2];
@@ -676,7 +786,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
         final BookmarkManager mManager = snt.getUI().getBookmarkManager();
         final Path.PathNode centroid = result.toNode(spacing);
         if (stream) {
-            final double[] offset = snt.getWorldOriginOffset(); // only set in stream mode
+            final double[] offset = outputOffset();
             mManager.add("detected soma", centroid.x + offset[0], centroid.y + offset[1], centroid.z + offset[2],
                     color, (float) centroid.radius);
         } else {
