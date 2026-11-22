@@ -55,7 +55,9 @@ import java.awt.Polygon;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utilities for automatic soma detection and ROI generation.
@@ -473,6 +475,26 @@ public class SomaUtils {
             final double threshold,
             final double minRadius,
             final double minSomaDistance) {
+        return detectAllSomas(source, threshold, minRadius, minSomaDistance, () -> false);
+    }
+
+    /**
+     * Same as {@link #detectAllSomas(RandomAccessibleInterval, double, double, double)}, but can be interrupted
+     * (e.g., if the parameters changed while the detection is running)
+     *
+     * @param source          input image (2D)
+     * @param threshold       intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param minRadius       minimum soma radius in voxels to include
+     * @param minSomaDistance minimum distance (in voxels) between soma centers
+     * @param cancelled       polled between candidates. If it returns true, the somas found so far are returned
+     * @return list of SomaResult, sorted by radius (largest first); empty list if none found
+     */
+    public static List<SomaResult> detectAllSomas(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double minRadius,
+            final double minSomaDistance,
+            final java.util.function.BooleanSupplier cancelled) {
 
         final List<SomaResult> results = new ArrayList<>();
 
@@ -528,8 +550,10 @@ public class SomaUtils {
 
         // 5. Build SomaResult for each local maximum (flood fill per soma)
         SNTUtils.log("  Characterizing " + somaCenters.size() + " candidate somas...");
+        final Components components = new Components(width, height);
         for (final long[] center : somaCenters) {
-            final SomaResult result = buildSomaResult(source, center[0], center[1], effectiveThreshold);
+            if (cancelled.getAsBoolean()) return results;
+            final SomaResult result = buildSomaResult(source, center[0], center[1], effectiveThreshold, components);
             if (result != null && result.radius >= minRadius) {
                 results.add(result);
             }
@@ -1339,6 +1363,27 @@ public class SomaUtils {
     }
 
     /**
+     * Foreground components of a detection run. Seeds that lie in the same connected foreground share the
+     * (expensive) flood fill and pruning, which otherwise are repeated for every seed
+     */
+    private static final class Components {
+        final int width;
+        final int height;
+        final int[] ids; // component id of every pixel (0: unvisited)
+        final Map<Integer, Component> byId = new HashMap<>();
+
+        Components(final long width, final long height) {
+            this.width = (int) width;
+            this.height = (int) height;
+            ids = new int[this.width * this.height];
+        }
+    }
+
+    // A foreground component, after pruning: labels of the connected pieces (0: none) within its bounding box
+    private record Component(long x0, long y0, int boxWidth, int boxHeight, int[] labels) {
+    }
+
+    /**
      * Builds a SomaResult from a seed point by flood filling and extracting contour.
      */
     private static SomaResult buildSomaResult(
@@ -1346,36 +1391,140 @@ public class SomaUtils {
             final long seedX,
             final long seedY,
             final double threshold) {
+        return buildSomaResult(source, seedX, seedY, threshold,
+                new Components(source.dimension(0), source.dimension(1)));
+    }
 
-        // Flood fill from center
-        final Img<BitType> mask = floodFillSoma(source, seedX, seedY, threshold);
-        if (mask == null) return null;
+    private static SomaResult buildSomaResult(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final long seedX,
+            final long seedY,
+            final double threshold,
+            final Components components) {
 
-        // Prune narrow protrusions (neurites)
-        pruneNarrowRegions(mask, 0.05);
+        final long width = source.dimension(0);
+        final long height = source.dimension(1);
+        final RandomAccess<? extends RealType<?>> ra = source.randomAccess();
+        ra.setPosition(new long[]{seedX, seedY});
+        if (ra.get().getRealDouble() <= threshold) return null;
 
-        // After pruning, the mask may contain disconnected fragments.
-        // Keep only the connected component containing the seed point.
-        retainSeedComponent(mask, seedX, seedY);
+        final int seedIndex = (int) (seedY * width + seedX);
+        Component c = components.byId.get(components.ids[seedIndex]);
+        if (c == null) c = addComponent(source, seedX, seedY, threshold, components);
 
-        // Extract contour from pruned mask
-        final Polygon contour = extractContour(mask);
+        // Piece of the pruned component that contains the seed (all of it if the seed itself was pruned).
+        // Everything below involves the bounding box only, not the whole image
+        final int bw = c.boxWidth();
+        final int bh = c.boxHeight();
+        final int seedLabel = c.labels()[(int) (seedY - c.y0()) * bw + (int) (seedX - c.x0())];
+        final Img<BitType> box = ArrayImgs.bits(bw, bh);
+        final Cursor<BitType> boxCursor = box.cursor();
+        final RandomAccess<? extends RealType<?>> srcRA = source.randomAccess();
+        long count = 0;
+        long sumX = 0;
+        long sumY = 0;
+        double density = 0;
+        for (int i = 0; i < c.labels().length; i++) {
+            boxCursor.fwd();
+            final int label = c.labels()[i];
+            if (label == 0 || (seedLabel != 0 && label != seedLabel)) continue;
+            boxCursor.get().set(true);
+            final int x = i % bw;
+            final int y = i / bw;
+            count++;
+            sumX += c.x0() + x;
+            sumY += c.y0() + y;
+            srcRA.setPosition(new long[]{c.x0() + x, c.y0() + y});
+            density += srcRA.get().getRealDouble();
+        }
 
-        // Compute radius in voxels
-        final double areaVoxels = computeMaskArea(mask, null);
-        final double radiusVoxels = Math.sqrt(areaVoxels / Math.PI);
+        // Mask in the coordinates of the image
+        final Img<BitType> mask = ArrayImgs.bits(width, height);
+        copyFlat(Views.flatIterable(box), Views.flatIterable(Views.interval(mask,
+                new long[]{c.x0(), c.y0()}, new long[]{c.x0() + bw - 1, c.y0() + bh - 1})));
 
-        // Compute centroid in voxel coords
-        final double[] centroid = computeMaskCentroid(mask, null);
-
-        // Integrated density (sum of source intensity within the mask) - a relative
-        // signal-strength proxy for this soma, see SomaResult#integratedDensity
-        final double integratedDensity = computeIntegratedDensity(mask, source);
+        final Polygon contour = extractContour(box);
+        if (contour != null) contour.translate((int) c.x0(), (int) c.y0());
+        final double radiusVoxels = Math.sqrt(count / Math.PI);
+        final double[] centroid = (count == 0) ? null
+                : new double[]{(double) sumX / count, (double) sumY / count};
 
         return new SomaResult(
                 new long[]{seedX, seedY}, centroid, mask, contour,
-                radiusVoxels, threshold, -1, null, integratedDensity
+                radiusVoxels, threshold, -1, null, density
         );
+    }
+
+    // Flood fills the foreground component of a seed, prunes narrow protrusions (neurites) and labels the pieces
+    private static Component addComponent(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final long seedX,
+            final long seedY,
+            final double threshold,
+            final Components components) {
+
+        final long width = source.dimension(0);
+        final long height = source.dimension(1);
+        final Img<BitType> mask = ArrayImgs.bits(width, height);
+        final long[] bounds = new long[4];
+        floodFillThreshold(source, mask, seedX, seedY, threshold, bounds);
+
+        // One pixel margin of background, which the distance transform needs
+        final long x0 = Math.max(0, bounds[0] - 1);
+        final long y0 = Math.max(0, bounds[1] - 1);
+        final long x1 = Math.min(width - 1, bounds[2] + 1);
+        final long y1 = Math.min(height - 1, bounds[3] + 1);
+        final int bw = (int) (x1 - x0 + 1);
+        final int bh = (int) (y1 - y0 + 1);
+        final Img<BitType> box = ArrayImgs.bits(bw, bh);
+        copyFlat(Views.flatIterable(Views.interval(mask, new long[]{x0, y0}, new long[]{x1, y1})),
+                Views.flatIterable(box));
+        pruneNarrowRegions(box, 0.05);
+
+        // Label the (4-connected) pieces that remain
+        final int[] labels = new int[bw * bh];
+        final Cursor<BitType> cursor = box.cursor();
+        for (int i = 0; i < labels.length; i++) {
+            cursor.fwd();
+            labels[i] = cursor.get().get() ? -1 : 0; // -1: unlabeled foreground
+        }
+        int nLabels = 0;
+        final int[] stack = new int[labels.length];
+        for (int start = 0; start < labels.length; start++) {
+            if (labels[start] != -1) continue;
+            final int label = ++nLabels;
+            int top = 0;
+            stack[top++] = start;
+            labels[start] = label;
+            while (top > 0) {
+                final int i = stack[--top];
+                final int x = i % bw;
+                final int y = i / bw;
+                if (x + 1 < bw && labels[i + 1] == -1) { labels[i + 1] = label; stack[top++] = i + 1; }
+                if (x > 0 && labels[i - 1] == -1) { labels[i - 1] = label; stack[top++] = i - 1; }
+                if (y + 1 < bh && labels[i + bw] == -1) { labels[i + bw] = label; stack[top++] = i + bw; }
+                if (y > 0 && labels[i - bw] == -1) { labels[i - bw] = label; stack[top++] = i - bw; }
+            }
+        }
+
+        // The id is that of the whole (unpruned) foreground component, as seeds are looked up through it
+        final int id = components.byId.size() + 1;
+        final RandomAccess<BitType> maskRA = mask.randomAccess();
+        for (long y = y0; y <= y1; y++) {
+            for (long x = x0; x <= x1; x++) {
+                maskRA.setPosition(new long[]{x, y});
+                if (maskRA.get().get()) components.ids[(int) (y * width + x)] = id;
+            }
+        }
+        final Component c = new Component(x0, y0, bw, bh, labels);
+        components.byId.put(id, c);
+        return c;
+    }
+
+    // Copies bits (both iterables must have the same dimensions and iterate in the same order)
+    private static void copyFlat(final Iterable<BitType> from, final Iterable<BitType> to) {
+        final java.util.Iterator<BitType> in = from.iterator();
+        for (final BitType out : to) out.set(in.next().get());
     }
 
     /**
@@ -1445,7 +1594,7 @@ public class SomaUtils {
 
         // Create output mask and perform flood fill
         final Img<BitType> mask = ArrayImgs.bits(width, height);
-        floodFillThreshold(source, mask, seedX, seedY, threshold);
+        floodFillThreshold(source, mask, seedX, seedY, threshold, null);
 
         return mask;
     }
@@ -1458,13 +1607,18 @@ public class SomaUtils {
             final Img<BitType> output,
             final long seedX,
             final long seedY,
-            final double threshold) {
+            final double threshold,
+            final long[] bounds) {
 
         final long width = source.dimension(0);
         final long height = source.dimension(1);
 
         final RandomAccess<? extends RealType<?>> srcRA = source.randomAccess();
         final RandomAccess<BitType> outRA = output.randomAccess();
+        if (bounds != null) { // {minX, minY, maxX, maxY} of the filled pixels
+            bounds[0] = bounds[2] = seedX;
+            bounds[1] = bounds[3] = seedY;
+        }
 
         final List<long[]> stack = new ArrayList<>();
         stack.add(new long[]{seedX, seedY});
@@ -1487,6 +1641,12 @@ public class SomaUtils {
 
             // Mark as filled
             outRA.get().set(true);
+            if (bounds != null) {
+                if (x < bounds[0]) bounds[0] = x;
+                if (x > bounds[2]) bounds[2] = x;
+                if (y < bounds[1]) bounds[1] = y;
+                if (y > bounds[3]) bounds[3] = y;
+            }
 
             // Add 4-connected neighbors
             stack.add(new long[]{x + 1, y});

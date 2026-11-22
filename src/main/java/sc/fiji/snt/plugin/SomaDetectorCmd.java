@@ -30,14 +30,18 @@ import ij.plugin.frame.RoiManager;
 import net.imagej.ImgPlus;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.command.Interactive;
+import org.scijava.module.ModuleService;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.SomaPalette;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
@@ -50,6 +54,10 @@ import sc.fiji.snt.seed.SeedConfidence;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import javax.swing.JDialog;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 
 /**
  * Command to automatically detect the soma (cell body) in neuronal images.
@@ -61,7 +69,7 @@ import java.util.List;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, label = "Detect Soma(s)...", initializer = "init")
-public class SomaDetectorCmd extends CommonDynamicCmd {
+public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
 
     /** Traditional-mode outputs */
     private static final String OUTPUT_POINT_ROI = "Point ROI";
@@ -110,6 +118,17 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
     @Parameter(label = "<html>&nbsp;", callback = "zPosChanged", stepSize = "0.1", style = "format:#.00", required = false)
     private double zPos = 0;
 
+    /** Plane choices. Classic-mode-only: Stream mode uses the depth options above */
+    private static final String PLANE_MIP = "Max projection";
+    private static final String PLANE_CURRENT = "Current slice";
+
+    @Parameter(label = "Plane", choices = { PLANE_MIP, PLANE_CURRENT }, required = false,
+            description = "<HTML>Plane that detection runs on (3D images):<br>" +
+                    "<b>" + PLANE_MIP + "</b>: Detects somata at any depth<br>" +
+                    "<b>" + PLANE_CURRENT + "</b>: Detects on the displayed slice only<br>" +
+                    "Only applies to <b>" + SCOPE_ALL + "</b>: single soma detection uses the current slice")
+    private String planeChoice = PLANE_MIP;
+
     /**
      * Becomes {@code true} the first time the user edits {@link #zPos} directly (see  {@link #zPosChanged()}).
      * Distinct from {@link #zPos}'s own value because a world Z-coordinate has no value that can double as "unset"
@@ -157,6 +176,11 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
                     "0 = no count-based filtering (default)")
     private int nSomas = 0;
 
+    @Parameter(label = "Tune Visually...", callback = "tuneCallback",
+            description = "<HTML>Previews multi-soma detection on a single plane, to adjust<br>" +
+                    "<i>Threshold</i>, <i>Min. radius</i>, <i>Min. inter-soma distance</i> interactively")
+    private Button tuneButton;
+
     @Parameter(label = "Percentile clip (%)", min = "0", max = "45", required = false,
             description = "<HTML>Robustness clip for the per-soma confidence assigned when exporting as <b>" +
                     OUTPUT_SEEDS + "</b>.<br>" +
@@ -168,8 +192,14 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
                     "Only meaningful when detecting <b>" + SCOPE_ALL + "</b> with more than one soma<br>")
     private double percentileClip = 10.0;
 
+    @Parameter(label = "   Detect   ", callback = "detectCallback", description = "<HTML>Runs soma detection")
+    private Button detectButton;
+
     private ImagePlus imp;
     private ImgPlus<?> img;
+    // Title of the prompt: must be unique for getPrompt() to work
+    private String promptTitle;
+    private SomaPalette wizard;
 
     @SuppressWarnings("unused")
     private void init() {
@@ -202,7 +232,10 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             resolveInput("zPosChoice");
             resolveInput("zPos");
         }
-        getInfo().setLabel(String.format("Detect Soma(s) [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix()));
+        // The plane only matters for 3D data, and Stream mode has its own depth options
+        if (snt.isStreamMode() || img == null || img.numDimensions() < 3) resolveInput("planeChoice");
+        promptTitle = String.format("Detect Soma(s) [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix());
+        getInfo().setLabel(promptTitle);
         resolveInput("percentileClip"); // simplify prompt for now. Adopt P10 default
         percentileClip = 10d;
     }
@@ -256,14 +289,137 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         return world[2];
     }
 
+    private JDialog getPrompt() {
+        if (promptTitle == null) return null; // init() aborted
+        return getPromptWithCloseHandler(promptTitle, () -> {
+            if (wizard != null) wizard.dismiss();
+        });
+    }
+
     @Override
     public void run() {
-        if (imp == null && img == null || isCanceled()) {
+        // Called on widget changes: do nothing. Detection is triggered by detectCallback()
+        getPrompt(); // ensure the close handler is attached early
+    }
+
+    @SuppressWarnings("unused")
+    /* Callback for detectButton */
+    private void detectCallback() {
+        // The prompt is non-modal: the framework stores the inputs before the user edits them
+        try {
+            context().getService(ModuleService.class).saveInputs(this);
+        } catch (final RuntimeException ex) {
+            SNTUtils.log("SomaDetectorCmd: could not persist inputs: " + ex.getMessage());
+        }
+        if (wizard != null) wizard.dismiss();
+        final JDialog prompt = getPrompt();
+        if (prompt != null) prompt.dispose();
+        final SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                runDetection();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                // Unregister regardless of outcome, so that a stale reference is never canceled later
+                if (ui != null) ui.registerActiveCmdWorker(null);
+            }
+        };
+        // Registered so that SNTUI can cooperatively cancel the worker, even though the prompt has closed
+        if (ui != null) ui.registerActiveCmdWorker(worker);
+        worker.execute();
+    }
+
+    @SuppressWarnings("unused")
+    /* Callback for tuneButton */
+    private void tuneCallback() {
+        if (wizard != null) {
+            wizard.focus();
             return;
         }
+        if (!SCOPE_ALL.equals(scopeChoice)) {
+            msg("The wizard previews multi-soma detection. Set <i>Scope</i> to <i>" + SCOPE_ALL + "</i> first.",
+                    "Scope Not Applicable");
+            return;
+        }
+        // The wizard starts on the plane of the prompt, and goes back to the displayed slice if MIP is unchecked
+        final SomaPalette w = new SomaPalette(snt, new SomaPalette.Params(threshold, minRadius, minSomaDistance,
+                resolveZSlice()), (imp == null) ? -1 : imp.getZ() - 1);
+        w.setParent(getPrompt());
+        final SomaPalette.Params[] applied = new SomaPalette.Params[1];
+        // The callback waits for the wizard so that, once it returns, SciJava refreshes the widgets of the prompt
+        // with the values set below. On the EDT, events are still processed while waiting
+        final boolean onEdt = EventQueue.isDispatchThread();
+        final SecondaryLoop loop = (onEdt) ? Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop()
+                : null;
+        final CountDownLatch latch = new CountDownLatch(1);
+        w.addListener(new SomaPalette.Listener() {
+            @Override
+            public void applied(final SomaPalette.Params params) {
+                applied[0] = params;
+            }
+
+            @Override
+            public void dismissed() {
+                // Queued, so that it cannot run before the loop is entered (we are on the EDT until then)
+                if (loop != null) EventQueue.invokeLater(loop::exit);
+                else latch.countDown();
+            }
+        });
+        wizard = w;
+        w.show();
+        if (loop != null) {
+            loop.enter();
+        } else {
+            try {
+                latch.await();
+            } catch (final InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        wizard = null;
+        final SomaPalette.Params p = applied[0];
+        if (p != null) {
+            threshold = p.threshold();
+            minRadius = p.minRadius();
+            minSomaDistance = p.minDistance();
+            applyPlane(p.zSlice());
+        }
+    }
+
+    // Sets the plane of the prompt (z: 0-based slice of the full resolution grid, or -1 for a max projection)
+    private void applyPlane(final int z) {
+        if (snt.isStreamMode()) {
+            if (z < 0) {
+                zPosChoice = ZPOS_AUTO;
+            } else {
+                final double pixelDepth = (snt.getPixelDepth() > 0) ? snt.getPixelDepth() : 1;
+                zPosChoice = ZPOS_SPECIFIED;
+                zPosUserSet = true;
+                zPos = z * pixelDepth + snt.getWorldOriginOffset()[2];
+            }
+        } else if (img != null && img.numDimensions() > 2) {
+            if (z < 0) {
+                planeChoice = PLANE_MIP;
+            } else {
+                planeChoice = PLANE_CURRENT;
+                // The displayed slice is what "Current slice" means
+                if (imp != null && imp.getZ() != z + 1) SwingUtilities.invokeLater(() -> imp.setZ(z + 1));
+            }
+        }
+    }
+
+    /**
+     * Index (0-based) of the slice detection runs on, or -1 for the automatic option (see {@link SomaUtils})
+     */
+    private int resolveZSlice() {
         final int zSlice;
         if (imp != null) {
-            zSlice = imp.getZ() - 1;  // Convert to 0-indexed
+            final boolean mip = SCOPE_ALL.equals(scopeChoice) && PLANE_MIP.equals(planeChoice) && img != null
+                    && img.numDimensions() > 2;
+            zSlice = (mip) ? -1 : imp.getZ() - 1;  // Convert to 0-indexed
         } else if (!ZPOS_SPECIFIED.equals(zPosChoice)) {
             // No ImagePlus in Stream mode, so there is no "currently displayed slice" to read, and the
             // user hasn't specified a depth either: -1 defers to SomaUtils' own "automatic" fallback
@@ -276,12 +432,21 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             final double pixelDepth = (snt.getPixelDepth() > 0) ? snt.getPixelDepth() : 1;
             zSlice = (int) Math.round((zPos - snt.getWorldOriginOffset()[2]) / pixelDepth);
         }
+        return zSlice;
+    }
+
+    private void runDetection() {
+        if (imp == null && img == null || isCanceled()) {
+            resetUI();
+            return;
+        }
+        final int zSlice = resolveZSlice();
 
         // detectAllSomas() with zSlice < 0 on a 3D image computes a max-intensity projection across every
         // Z-plane: on a lazily-loaded Stream-mode volume that means touching the entire dataset. A
         // user-specified depth (zSlice >= 0) bypasses this, so the warning is only needed when none was given
-        if (SCOPE_ALL.equals(scopeChoice) && zSlice < 0 && img != null && img.numDimensions() > 2
-                && !getConfirmationEdtSafe(
+        if (SCOPE_ALL.equals(scopeChoice) && zSlice < 0 && snt.isStreamMode() && img != null
+                && img.numDimensions() > 2 && !getConfirmationEdtSafe(
                         "Detecting all somata on a streamed volume requires computing a max-intensity "
                                 + "projection across the entire dataset. Depending on dataset size and "
                                 + "network/disk speed, this can take a long time. Continue?",

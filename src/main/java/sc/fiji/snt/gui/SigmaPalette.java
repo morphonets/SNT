@@ -571,7 +571,10 @@ public class SigmaPalette extends WizardPalette {
 		}
 
 		public RangeScrollbar(final double value, final int min, final int max) {
-			super(JScrollBar.HORIZONTAL, (int) (value), 1, min, max);
+			// JScrollBar requires min <= value <= max - extent. The range can be empty or
+			// narrower than the value (e.g., flat data), so make it valid
+			super(JScrollBar.HORIZONTAL, (int) Math.max(min, Math.min(Math.round(value), Math.max(max, min + 1) - 1)),
+					1, min, Math.max(max, min + 1));
 			setFocusable(false); // keyboard shortcuts (zoom, etc.) only work when image canvas has focus
 			setBlockIncrement(1);
 		}

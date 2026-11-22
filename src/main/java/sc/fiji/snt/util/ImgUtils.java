@@ -700,6 +700,35 @@ public class ImgUtils {
     }
 
     /**
+     * Lazy view of a {@link RandomAccessibleInterval} as 32-bit floats (no pixels are copied)
+     *
+     * @param rai the source rai
+     * @return the float view
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static RandomAccessibleInterval<FloatType> toFloatView(
+            final RandomAccessibleInterval<? extends RealType<?>> rai) {
+        return net.imglib2.converter.Converters.convert((RandomAccessibleInterval) rai,
+                (net.imglib2.converter.Converter<RealType<?>, FloatType>) (a, b) -> b.setReal(a.getRealDouble()),
+                new FloatType());
+    }
+
+    /**
+     * Copies a {@link RandomAccessibleInterval} into memory (e.g., to detach it from a lazy or remote source)
+     *
+     * @param rai the source rai
+     * @param <T> the pixel type
+     * @return the in-memory copy, with the same dimensions (zero-min)
+     */
+    public static <T extends NativeType<T>> RandomAccessibleInterval<T> copyToMemory(
+            final RandomAccessibleInterval<T> rai) {
+        final net.imglib2.img.Img<T> copy = new net.imglib2.img.array.ArrayImgFactory<>(rai.getType().createVariable())
+                .create(rai);
+        LoopBuilder.setImages(rai, copy).multiThreaded().forEachPixel((in, out) -> out.set(in));
+        return copy;
+    }
+
+    /**
      * Convert a {@link RandomAccessibleInterval} to an {@link ImagePlus}. If the input has 3 dimensions,
      * the 3rd dimension is treated as depth.
      *

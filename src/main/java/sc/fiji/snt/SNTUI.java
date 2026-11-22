@@ -4051,10 +4051,12 @@ public class SNTUI extends JDialog {
         jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiBinaryImg);
-        GuiUtils.MenuItems.addSeparator(menu, "Detection:");
+        GuiUtils.MenuItems.addSeparator(menu, "Interactive Detection:");
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
-        jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.");
+        jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.\n"
+                + "Parameters can be tuned visually in a preview.");
+        jmiSoma.putClientProperty("cmdFinder-keywords", "wizard, preview, tune, interactive, parameters");
         jmiSoma.addActionListener(e -> {
             if (plugin.accessToValidImageData())
                 (new DynamicCmdRunner(SomaDetectorCmd.class, null, RUNNING_CMD)).run();

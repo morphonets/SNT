@@ -30,18 +30,24 @@ import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 
 import javax.swing.BorderFactory;
+import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.FlowLayout;
 import java.awt.GraphicsEnvironment;
 import java.awt.Graphics;
 import java.awt.LayoutManager;
 import java.awt.Rectangle;
 import java.awt.Window;
 import java.awt.event.WindowEvent;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * Lifecycle shared by the preview wizards ({@link CostPalette}, {@link SigmaPalette}, {@link TipPalette}): they
@@ -49,12 +55,14 @@ import java.awt.event.WindowEvent;
  *
  * @author Tiago Ferreira
  */
-abstract class WizardPalette extends Thread {
+abstract class WizardPalette implements Runnable {
 
     protected final SNT snt;
     protected Window parent;
     protected ImagePlus paletteImage;
     protected PaletteOptions paletteOptions;
+    private final AtomicBoolean started = new AtomicBoolean();
+    private final AtomicBoolean dismissed = new AtomicBoolean();
 
     protected WizardPalette(final SNT snt) {
         this.snt = snt;
@@ -64,9 +72,37 @@ abstract class WizardPalette extends Thread {
         this.parent = parent;
     }
 
+    /**
+     * Prepares the wizard in a background (daemon) thread. May only be called once
+     *
+     * @throws IllegalStateException if the wizard was already started
+     */
+    protected final void start() {
+        if (!started.compareAndSet(false, true))
+            throw new IllegalStateException(getClass().getSimpleName() + " was already started");
+        final Thread t = new Thread(this, "SNT-" + getClass().getSimpleName());
+        t.setDaemon(true); // a wizard that hangs must not keep the application from exiting
+        t.start();
+    }
+
+    /** @return true if {@link #dismiss()} was called. Long-running steps of {@link #build()} may poll it */
+    protected final boolean isDismissed() {
+        return dismissed.get();
+    }
+
     @Override
     public final void run() {
-        WizardUtils.busy(snt, this::build);
+        try {
+            if (!isDismissed()) WizardUtils.busy(snt, this::build);
+        } catch (final Throwable t) {
+            // Otherwise the thread would die silently, leaving SNT's UI in the state of the wizard
+            SNTUtils.error(getClass().getSimpleName() + " could not be built", t);
+            if (snt.getUI() != null) snt.getUI().error("The wizard could not be created: " + t.getMessage());
+            dismiss();
+        } finally {
+            // Dismissed while being built: the window (if it was created in the meantime) must not be left behind
+            if (isDismissed()) SwingUtilities.invokeLater(() -> closeWindow(windowToClose()));
+        }
     }
 
     /** Prepares and displays the wizard. Runs with the busy cursor on */
@@ -97,7 +133,9 @@ abstract class WizardPalette extends Thread {
         return true;
     }
 
+    /** Dismisses the wizard. Only the first call has an effect */
     public void dismiss() {
+        if (!dismissed.compareAndSet(false, true)) return;
         beforeDismiss();
         notifyDismissed();
         closeWindow(windowToClose());
@@ -125,10 +163,10 @@ abstract class WizardPalette extends Thread {
     /** Window of a wizard: closing it dismisses the wizard */
     abstract static class PaletteWindow extends StackWindow {
         private static final long serialVersionUID = 1L;
-        /** Largest height of the canvas, as a fraction of the screen height, when widening it to fit the controls */
+        // Largest height of the canvas, as a fraction of the screen height, when widening it to fit the controls
         private static final double MAX_CANVAS_SCREEN_FRACTION = 0.5;
         private final transient Runnable onClosing;
-        private final transient Color infoColor;
+        final transient Color infoColor;
 
         PaletteWindow(final ImagePlus imp, final ImageCanvas ic, final Runnable onClosing) {
             super(imp, ic);
@@ -148,9 +186,9 @@ abstract class WizardPalette extends Thread {
 
         /**
          * Guarantees that the displayed image is not narrower than the panel below it, by zooming in (to any
-         * magnification, not just IJ zoom levels) if needed. Never zooms out. The canvas height is kept below
-         * {@value #MAX_CANVAS_SCREEN_FRACTION} of the screen height. Call once the controls are assembled, before
-         * {@code pack()}
+         * magnification, not just IJ zoom levels) if needed. Never zooms out. The canvas height is kept below half
+         * of the screen height, so that tall images may remain narrower than the panel. Call once the controls
+         * are assembled, before {@code pack()}
          *
          * @param panel the (assembled) panel under the canvas
          */
@@ -177,7 +215,6 @@ abstract class WizardPalette extends Thread {
 
         protected final JPanel newPanel(final LayoutManager layout) {
             return new JPanel(layout);
-            // customizations could be put here like setting the same background as the awt root
         }
 
         /**
@@ -185,17 +222,17 @@ abstract class WizardPalette extends Thread {
          * look and feel (right, if it does not say)
          */
         protected final JPanel newButtonRow() {
-            final Object orientation = javax.swing.UIManager.get("OptionPane.buttonOrientation");
-            final int align = switch ((orientation instanceof Integer i) ? i : javax.swing.SwingConstants.RIGHT) {
-                case javax.swing.SwingConstants.LEFT -> java.awt.FlowLayout.LEFT;
-                case javax.swing.SwingConstants.CENTER -> java.awt.FlowLayout.CENTER;
-                default -> java.awt.FlowLayout.RIGHT;
+            final Object orientation = UIManager.get("OptionPane.buttonOrientation");
+            final int align = switch ((orientation instanceof Integer i) ? i : SwingConstants.RIGHT) {
+                case SwingConstants.LEFT -> FlowLayout.LEFT;
+                case SwingConstants.CENTER -> FlowLayout.CENTER;
+                default -> FlowLayout.RIGHT;
             };
-            return newPanel(new java.awt.FlowLayout(align));
+            return newPanel(new FlowLayout(align));
         }
 
         /** Adds a pointer to the tour of controls to the tooltip of a control */
-        protected final void tip(final javax.swing.JComponent comp, final String text) {
+        protected final void tip(final JComponent comp, final String text) {
             comp.setToolTipText("<html>" + text + "<br><i>More &gt; Tour of Controls... for details</i></html>");
         }
 
@@ -204,7 +241,7 @@ abstract class WizardPalette extends Thread {
          *
          * @param registrar registers the callouts of the tour (receives the group they belong to)
          */
-        protected final void runTour(final java.util.function.Consumer<String> registrar) {
+        protected final void runTour(final Consumer<String> registrar) {
             final String group = CalloutManager.groupFor(this);
             if (!CalloutManager.isActive(group)) {
                 // (re)registered every time: the window may have been resized or rebuilt since last time
@@ -230,7 +267,7 @@ abstract class WizardPalette extends Thread {
         }
 
         private static void repaintTree(final Component comp) {
-            if (comp instanceof javax.swing.JComponent jc) {
+            if (comp instanceof JComponent jc) {
                 jc.revalidate();
                 jc.repaint();
             }

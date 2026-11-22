@@ -126,7 +126,12 @@ final class WizardUtils {
                                 final int height, final int zFirst, final int zLast) {
         final ij.gui.Roi existingRoi = image.getRoi();
         image.setRoi(x, y, width, height);
-        final ij.ImagePlus cropped = image.crop(zFirst + "-" + zLast);
+        // For hyperstacks, crop(String) addresses the interleaved stack, mixing channels and frames:
+        // use the displayed channel and frame instead
+        final ij.ImagePlus cropped = (image.isHyperStack() || image.getNChannels() > 1 || image.getNFrames() > 1)
+                ? new ij.plugin.Duplicator().run(image, image.getC(), image.getC(), zFirst, zLast, image.getT(),
+                image.getT())
+                : image.crop(zFirst + "-" + zLast);
         image.setRoi(existingRoi);
         return cropped;
     }

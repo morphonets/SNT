@@ -48,8 +48,10 @@ import java.util.function.Consumer;
 public final class PaletteOptions {
 
     /** Name under which the MIP overlay is registered on the palette image. */
-    private static final String MIP_OVERLAY_NAME = "mip";
+    static final String MIP_OVERLAY_NAME = "mip";
 
+    private double mipOpacity = 0.2;
+    private boolean mipMenuItem = true;
     private final ImagePlus paletteImage;
     private final ImagePlus sourceImage;
     private final String snapshotTitle;
@@ -99,7 +101,7 @@ public final class PaletteOptions {
             else disposeMip(true);
         });
         showMip.setEnabled(paletteImage.getNSlices() > 1);
-        pm.add(showMip);
+        if (mipMenuItem) pm.add(showMip);
         final JMenuItem bc = new JMenuItem("Brightness & Contrast...", IconFactory.menuIcon(IconFactory.GLYPH.ADJUST));
         bc.addActionListener(e -> ij.IJ.doCommand("Brightness/Contrast..."));
         pm.add(bc);
@@ -194,6 +196,29 @@ public final class PaletteOptions {
         }
     }
 
+    /**
+     * Omits the "Overlay MIP" entry from the options menu, for wizards that manage the MIP overlay themselves
+     *
+     * @return this
+     */
+    public PaletteOptions withoutMipItem() {
+        mipMenuItem = false;
+        return this;
+    }
+
+    /**
+     * Shows or removes the MIP overlay
+     *
+     * @param show    whether the overlay is shown
+     * @param opacity the opacity of the overlay (0-1). Remembered, e.g., when the LUT changes
+     */
+    public void showMip(final boolean show, final double opacity) {
+        mipOpacity = opacity;
+        disposeMip(false);
+        if (show) createMip();
+        else if (paletteImage.getCanvas() != null) paletteImage.getCanvas().repaint();
+    }
+
     /** Creates / replaces a MIP overlay using the palette image's current LUT. */
     private void createMip() {
         final ImagePlus mip = ImpUtils.getMIP(paletteImage); // inherits the LUT
@@ -201,7 +226,7 @@ public final class PaletteOptions {
         mip.updateAndDraw();
         final ImageRoi roi = new ImageRoi(0, 0, mip.getProcessor());
         roi.setName(MIP_OVERLAY_NAME);
-        roi.setOpacity(0.2);
+        roi.setOpacity(mipOpacity);
         if (paletteImage.getOverlay() == null) paletteImage.setOverlay(new ij.gui.Overlay());
         paletteImage.getOverlay().add(roi);
         paletteImage.getCanvas().repaint();
