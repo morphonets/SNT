@@ -412,6 +412,10 @@ public class ScriptInstaller {
 		skillMI.putClientProperty("cmdFinder-keywords", aiKeywords + ",SKILL.md");
 		skillMI.addActionListener(e -> downloadAgentSkill());
 		agentMenu.add(skillMI);
+		agentMenu.addSeparator();
+		final JMenuItem jmi = GuiUtils.MenuItems.openHelpURL("Agentic Script Help",
+				"https://imagej.net/plugins/snt/scripting#agentic-scripting");
+		agentMenu.add(jmi);
 
 		GuiUtils.MenuItems.addSeparator(sMenu, "All Scripts:");
 		sMenu.add(listMenu[0]);
