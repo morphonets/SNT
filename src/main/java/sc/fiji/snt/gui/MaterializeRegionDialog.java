@@ -27,12 +27,14 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.AbstractBigViewer;
+import sc.fiji.snt.viewer.RegionSelector;
 
 import javax.swing.*;
 import java.awt.*;
@@ -115,6 +117,9 @@ public class MaterializeRegionDialog extends JDialog {
 
 	private final JComboBox<String> scopeCombo;
 	private final JComboBox<String> sizeCombo;
+	private final JButton pickButton;
+	// Set by pickButton: the dialog hides itself so that the viewer can take input
+	private boolean pickRequested;
 	private final XYZFieldsPanel sizeFields; // pixel units
 	private final JComboBox<String> centerCombo;
 	private final XYZFieldsPanel centerFields; // calibrated units
@@ -140,6 +145,12 @@ public class MaterializeRegionDialog extends JDialog {
 		sizeItems.addAll(SIZE_PRESETS.keySet());
 		sizeItems.add(SIZE_OTHER);
 		sizeCombo = new JComboBox<>(sizeItems.toArray(new String[0]));
+		pickButton = new JButton("Select in viewer...");
+		pickButton.setEnabled(RegionSelector.of(ui.getActiveBigViewer()) != null);
+		pickButton.setToolTipText(pickButton.isEnabled()
+				? "<HTML><div WIDTH=500>Draw the region as a box in the viewer. Dimensions and center are set "
+						+ "to the selected box and padding to 0"
+				: "<HTML><div WIDTH=500>Only available when the data is displayed in BDV");
 		sizeFields = new XYZFieldsPanel("X (px)", "Y (px)", "Z (px)");
 		centerCombo = new JComboBox<>(new String[] { CENTER_AUTO, CENTER_SCENE, CENTER_OTHER });
 		final String unit = plugin.getSpacingUnits();
@@ -179,6 +190,15 @@ public class MaterializeRegionDialog extends JDialog {
 
 		scopeCombo.addActionListener(e -> updateEstimate());
 		sizeCombo.addActionListener(e -> sizeChoiceChanged());
+		pickButton.addActionListener(e -> {
+			if (isPathInProgress()) {
+				new GuiUtils(this).error("A path is being traced. Finish or cancel it first: the box "
+						+ "selection shares mouse input with tracing.", "Path In Progress");
+				return;
+			}
+			pickRequested = true;
+			setVisible(false); // releases the modal wait below
+		});
 		centerCombo.addActionListener(e -> centerChoiceChanged());
 		sizeFields.addChangeListener(this::updateEstimate);
 		centerFields.addChangeListener(this::updateEstimate);
@@ -196,7 +216,13 @@ public class MaterializeRegionDialog extends JDialog {
 		setLocationRelativeTo(ui);
 		setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 		pack();
-		setVisible(true);
+		// A modal dialog would block the viewer: while picking, it is hidden and shown again afterwards
+		while (true) {
+			setVisible(true);
+			if (!pickRequested) break;
+			pickRequested = false;
+			pickRegionWhileHidden();
+		}
 	}
 
 	private PathAndFillManager pathAndFillManager() {
@@ -239,7 +265,10 @@ public class MaterializeRegionDialog extends JDialog {
 		c.fill = GridBagConstraints.HORIZONTAL;
 		c.weightx = 1;
 
-		add(section("Bounding Box Dimensions", sizeCombo, sizeFields), c);
+		final JPanel sizeRow = new JPanel(new BorderLayout(4, 0));
+		sizeRow.add(sizeCombo, BorderLayout.CENTER);
+		sizeRow.add(pickButton, BorderLayout.EAST);
+		add(section("Bounding Box Dimensions", sizeRow, sizeFields), c);
 		c.gridy++;
 		add(section("Bounding Box Center", centerCombo, centerFields), c);
 		c.gridy++;
@@ -274,18 +303,71 @@ public class MaterializeRegionDialog extends JDialog {
 				+ "<li>While a crop is open, tracing on its 2D canvas and commands that read the image data (e.g., "
 				+ "GWDT tracing) are restricted to the crop's bounds. Tracing in BDV/BVV still searches the full "
 				+ "volume. Close the crop's image window to restore the full volume for those commands.</li>"
+				+ "<li>Select in viewer (BDV only) sets the dimensions and center from a box drawn on the "
+				+ "data, and resets padding to 0. The box can be dragged by its corners and adjusted "
+				+ "numerically. Use it to materialize regions that have no paths.</li>"
 				+ "<li>Auto-bounds uses the bounding box of all paths or of the selected paths (as chosen) and "
 				+ "ignores the Bounding Box Center. Padding is added on top.</li>"
 				+ "</ul>";
 	}
 
-	private JPanel section(final String title, final JComboBox<String> combo, final XYZFieldsPanel fields) {
+	private JPanel section(final String title, final JComponent combo, final XYZFieldsPanel fields) {
 		final JPanel panel = new JPanel(new BorderLayout(0, 4));
 		panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(title),
 				BorderFactory.createEmptyBorder(2, 2, 2, 2)));
 		if (combo != null) panel.add(combo, BorderLayout.NORTH);
 		if (fields != null) panel.add(fields, BorderLayout.CENTER);
 		return panel;
+	}
+
+	private boolean isPathInProgress() {
+		final AbstractBigViewer viewer = ui.getActiveBigViewer();
+		return plugin.isPathInProgress() || (viewer != null && viewer.isPathInProgress());
+	}
+
+	// Runs while this dialog is hidden. The nested event loop keeps the EDT responsive until the selector
+	// reports back, which is what the modal wait did until now
+	private void pickRegionWhileHidden() {
+		final RegionSelector selector = RegionSelector.of(ui.getActiveBigViewer());
+		if (selector == null) return;
+		final BoundingBox current = resolveBoundingBox(new StringBuilder()); // null is fine: view-based default
+		final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
+		final BoundingBox[] picked = new BoundingBox[1];
+		final boolean[] done = { false };
+		try {
+			selector.select(current, box -> {
+				picked[0] = box;
+				done[0] = true;
+				loop.exit();
+			});
+			if (!done[0]) loop.enter(); // a selector may report back before returning
+		} catch (final RuntimeException ex) {
+			SNTUtils.error("Region selection failed", ex);
+			picked[0] = null;
+		}
+		if (picked[0] != null) applyPickedRegion(picked[0]);
+	}
+
+	private void applyPickedRegion(final BoundingBox box) {
+		final Calibration cal = plugin.getCalibration();
+		final PointInImage o = box.origin();
+		final PointInImage e = box.originOpposite();
+		updatingEstimate = true; // one estimate once all fields are set, see updateEstimate()
+		try {
+			sizeCombo.setSelectedItem(SIZE_OTHER);
+			centerCombo.setSelectedItem(CENTER_OTHER);
+			sizeFields.setValue(0, Math.abs(e.x - o.x) / cal.pixelWidth);
+			sizeFields.setValue(1, Math.abs(e.y - o.y) / cal.pixelHeight);
+			sizeFields.setValue(2, Math.abs(e.z - o.z) / cal.pixelDepth);
+			centerFields.setValue(0, (o.x + e.x) / 2);
+			centerFields.setValue(1, (o.y + e.y) / 2);
+			centerFields.setValue(2, (o.z + e.z) / 2);
+			for (int i = 0; i < 3; i++)
+				paddingFields.setValue(i, 0);
+		} finally {
+			updatingEstimate = false;
+		}
+		updateEstimate();
 	}
 
 	private void sizeChoiceChanged() {

@@ -431,6 +431,22 @@ public abstract class AbstractBigViewer {
         return menuTracer != null && menuTracer.isPathInProgress();
     }
 
+    /**
+     * Suspends tracing-by-click so that clicks reach other tools sharing the display (e.g., a region
+     * selection box), exactly as holding Space does: the mode buttons switch to "No tracing" without
+     * any prompting. Callers should not suspend while {@link #isPathInProgress()}.
+     *
+     * @return a task resuming the tracing mode that was active. It does nothing if tracing was off
+     *         when suspended, or if tracing has been turned back on since
+     */
+    public Runnable suspendTracing() {
+        if (menuTracer == null || !tracingEnabled) return () -> {};
+        menuTracer.setTracingActiveForHold(false);
+        return () -> {
+            if (!tracingEnabled) menuTracer.setTracingActiveForHold(true);
+        };
+    }
+
     // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
     // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a
     // stationary click, which silently suppresses mouseClicked entirely: no event is delivered at all, not
