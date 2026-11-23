@@ -53,10 +53,15 @@ public interface RegionSelector {
 	 *
 	 * @param viewer the viewer
 	 * @return a selector, or null if the viewer type does not support interactive
-	 *         region selection (currently only {@link Bdv} does)
+	 *         region selection (currently {@link Bdv} and {@link Bvv} do)
 	 */
 	static RegionSelector of(final AbstractBigViewer viewer) {
-		return (viewer instanceof Bdv bdv && bdv.isOpen()) ? new BdvRegionSelector(bdv) : null;
+		if (viewer == null || !viewer.isOpen()) return null;
+		return switch (viewer) {
+			case Bdv bdv -> new BdvRegionSelector(bdv);
+			case Bvv bvv -> new BvvRegionSelector(bvv);
+			default -> null;
+		};
 	}
 
 }

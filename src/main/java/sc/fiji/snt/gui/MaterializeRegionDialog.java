@@ -23,18 +23,13 @@
 package sc.fiji.snt.gui;
 
 import ij.measure.Calibration;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.RegionSelector;
+import sc.fiji.snt.viewer.ViewerMaterializer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -42,6 +37,7 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +48,8 @@ import java.util.Map;
  * {@link BoundingBox} for  {@link SNT#materializeDisplayCanvas(BoundingBox)}.
  */
 public class MaterializeRegionDialog extends JDialog {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final long serialVersionUID = 1L;
 
@@ -72,6 +70,9 @@ public class MaterializeRegionDialog extends JDialog {
 
 	private static final String SCOPE_MAIN = "Main image (CT position being traced)";
 	private static final String SCOPE_SECONDARY = "Secondary layer";
+	// Viewers that are not linked to an SNT session
+	private static final String SCOPE_CURRENT_SOURCE = "Current source";
+	private static final String SCOPE_ALL_SOURCES = "All sources (as channels)";
 
 	// To add a preset: Add one entry here
 	private static final Map<String, int[]> SIZE_PRESETS = new LinkedHashMap<>();
@@ -96,8 +97,7 @@ public class MaterializeRegionDialog extends JDialog {
 	// excluded: a thin/2D slab (e.g. depth 1) is a legitimate, intentional choice
 	private static final long MIN_USEFUL_XY_PX = 100;
 
-	private final SNTUI ui;
-	private final SNT plugin;
+	private final Backend backend;
 	private boolean succeeded;
 	private BoundingBox resolvedBox;
 	// The last successfully resolved estimate from updateEstimate(), i.e. exactly what will be read
@@ -130,30 +130,47 @@ public class MaterializeRegionDialog extends JDialog {
 	private final JButton cancelButton;
 
 	public MaterializeRegionDialog(final SNTUI ui, final SNT plugin) {
-		super(ui, "Materialize Region...", true);
-		this.ui = ui;
-		this.plugin = plugin;
+		this(new SntBackend(ui, plugin));
+	}
 
-		final List<String> scopeItems = new ArrayList<>(List.of(SCOPE_MAIN));
-		if (plugin.isSecondaryDataAvailable()) scopeItems.add(SCOPE_SECONDARY);
-		scopeCombo = new JComboBox<>(scopeItems.toArray(new String[0]));
+	/**
+	 * Dialog for a viewer that is not linked to an SNT session: there are no paths to define the region, and the
+	 * result is read with {@link ViewerMaterializer}
+	 *
+	 * @param viewer the viewer
+	 */
+	public MaterializeRegionDialog(final AbstractBigViewer viewer) {
+		this(new ViewerBackend(viewer));
+	}
+
+	private MaterializeRegionDialog(final Backend backend) {
+		super(backend.owner(), "Materialize Region...", Dialog.ModalityType.APPLICATION_MODAL);
+		this.backend = backend;
+		final boolean standalone = backend.isStandalone();
+
+		scopeCombo = new JComboBox<>(backend.scopes().toArray(new String[0]));
 		scopeCombo.setToolTipText("<HTML><div WIDTH=500>Which data source to crop pixel data from. " +
 				"To materialize a different channel, frame, or dataset, first make it the one being traced " +
 				"(i.e., switch the active source in BDV/BVV and start a path on it), then reopen this dialog.");
+		if (standalone) scopeCombo.setToolTipText("<HTML><div WIDTH=500>Which source(s) to read pixel data from. " +
+				"To materialize a different channel, first make it the current source in the viewer, then reopen " +
+				"this dialog. All sources are assumed to share the same voxel grid.");
 
-		final List<String> sizeItems = new ArrayList<>(List.of(SIZE_AUTO_ALL, SIZE_AUTO_SELECTED));
+		final List<String> sizeItems = new ArrayList<>();
+		if (!standalone) sizeItems.addAll(List.of(SIZE_AUTO_ALL, SIZE_AUTO_SELECTED));
 		sizeItems.addAll(SIZE_PRESETS.keySet());
 		sizeItems.add(SIZE_OTHER);
 		sizeCombo = new JComboBox<>(sizeItems.toArray(new String[0]));
 		pickButton = new JButton("Select in viewer...");
-		pickButton.setEnabled(RegionSelector.of(ui.getActiveBigViewer()) != null);
+		pickButton.setEnabled(RegionSelector.of(backend.viewer()) != null);
 		pickButton.setToolTipText(pickButton.isEnabled()
 				? "<HTML><div WIDTH=500>Draw the region as a box in the viewer. Dimensions and center are set "
 						+ "to the selected box and padding to 0"
-				: "<HTML><div WIDTH=500>Only available when the data is displayed in BDV");
+				: "<HTML><div WIDTH=500>Only available when the data is displayed in BDV or BVV");
 		sizeFields = new XYZFieldsPanel("X (px)", "Y (px)", "Z (px)");
-		centerCombo = new JComboBox<>(new String[] { CENTER_AUTO, CENTER_SCENE, CENTER_OTHER });
-		final String unit = plugin.getSpacingUnits();
+		centerCombo = new JComboBox<>(standalone ? new String[] { CENTER_SCENE, CENTER_OTHER }
+				: new String[] { CENTER_AUTO, CENTER_SCENE, CENTER_OTHER });
+		final String unit = backend.unit();
 		centerFields = new XYZFieldsPanel("X (" + unit + ")", "Y (" + unit + ")", "Z (" + unit + ")");
 		paddingFields = new XYZFieldsPanel("X (" + unit + ")", "Y (" + unit + ")", "Z (" + unit + ")");
 		statusLabel = new JLabel();
@@ -163,12 +180,12 @@ public class MaterializeRegionDialog extends JDialog {
 				"<br>" +
 				"Falls back to the slow copy automatically if the fast one fails for any reason. Uncheck if a " +
 				"materialized crop is ever suspected of being wrong.");
-		loadPrefs(ui.getPrefs());
+		loadPrefs();
 
-		if (pathAndFillManager().getSelectedPaths().isEmpty()) {
+		if (backend.selectedPaths().isEmpty()) {
 			sizeCombo.removeItem(SIZE_AUTO_SELECTED);
 		}
-		restoreChoices(ui.getPrefs());
+		restoreChoices();
 
 		okButton = new JButton("Materialize");
 		okButton.addActionListener(e -> {
@@ -179,7 +196,7 @@ public class MaterializeRegionDialog extends JDialog {
 				return;
 			}
 			succeeded = true;
-			savePrefs(ui.getPrefs());
+			savePrefs();
 			dispose();
 		});
 		cancelButton = new JButton("Cancel");
@@ -213,10 +230,10 @@ public class MaterializeRegionDialog extends JDialog {
 			}
 		});
 		sizeChoiceChanged(); // also triggers the first updateEstimate()
-		setLocationRelativeTo(ui);
+		setLocationRelativeTo(backend.owner());
 		setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 		pack();
-		// A modal dialog would block the viewer: while picking, it is hidden and shown again afterwards
+		// A modal dialog would block the viewer: while picking, it is hidden and shown again afterward
 		while (true) {
 			setVisible(true);
 			if (!pickRequested) break;
@@ -225,16 +242,12 @@ public class MaterializeRegionDialog extends JDialog {
 		}
 	}
 
-	private PathAndFillManager pathAndFillManager() {
-		return plugin.getPathAndFillManager();
-	}
-
 	/**
 	 * @return the bounding box of every loaded path, or {@code null} if there are none
 	 */
 	private BoundingBox allPathsBox() {
 		if (allPathsBox == null) {
-			final Collection<Path> paths = pathAndFillManager().getPaths();
+			final Collection<Path> paths = backend.allPaths();
 			if (!paths.isEmpty()) allPathsBox = new Tree(new ArrayList<>(paths)).getBoundingBox();
 		}
 		return allPathsBox;
@@ -245,7 +258,7 @@ public class MaterializeRegionDialog extends JDialog {
 	 */
 	private BoundingBox selectedPathsBox() {
 		if (selectedPathsBox == null) {
-			final Collection<Path> paths = pathAndFillManager().getSelectedPaths();
+			final Collection<Path> paths = backend.selectedPaths();
 			if (paths != null && !paths.isEmpty()) selectedPathsBox = new Tree(new ArrayList<>(paths)).getBoundingBox();
 		}
 		return selectedPathsBox;
@@ -272,8 +285,10 @@ public class MaterializeRegionDialog extends JDialog {
 		c.gridy++;
 		add(section("Bounding Box Center", centerCombo, centerFields), c);
 		c.gridy++;
-		add(section("Padding", null, paddingFields), c);
-		c.gridy++;
+		if (!backend.isStandalone()) {
+			add(section("Padding", null, paddingFields), c);
+			c.gridy++;
+		}
 		add(section("Scope", scopeCombo, null), c);
 		c.gridy++;
 		final JPanel optionsPanel = new JPanel(new BorderLayout());
@@ -293,6 +308,12 @@ public class MaterializeRegionDialog extends JDialog {
 	}
 
 	private String getHelpMsg() {
+		if (backend.isStandalone()) {
+			return "<HTML><div WIDTH=500><p>The region is read at full resolution into memory as a new image. "
+					+ "Select the region with Select in viewer, or define its dimensions and center "
+					+ "numerically. With several sources, all of them can be read as the channels of a single "
+					+ "image: they are assumed to share the same voxel grid.</p>";
+		}
 		return "<HTML><div WIDTH=500><p>"
 				+ "Only the channel (and time point) currently being traced is materialized. To crop <i>all</i> "
 				+ "channels of the same region into a multichannel image, run the <i>Big Data &gt; Materialize "
@@ -300,12 +321,12 @@ public class MaterializeRegionDialog extends JDialog {
 				+ "<ul>"
 				+ "<li>Pixel edits are local to the crop: only path geometry persists, nothing is written back to the "
 				+ "streamed source.</li>"
-				+ "<li>While a crop is open, tracing on its 2D canvas and commands that read the image data (e.g., "
+				+ "<li>While a crop is open, tracing operations on the crop and commands that read the image data (e.g., "
 				+ "GWDT tracing) are restricted to the crop's bounds. Tracing in BDV/BVV still searches the full "
 				+ "volume. Close the crop's image window to restore the full volume for those commands.</li>"
-				+ "<li>Select in viewer (BDV only) sets the dimensions and center from a box drawn on the "
-				+ "data, and resets padding to 0. The box can be dragged by its corners and adjusted "
-				+ "numerically. Use it to materialize regions that have no paths.</li>"
+				+ "<li>Select in viewer (BDV and BVV) sets the dimensions and center from a box drawn on the "
+				+ "data, and resets padding to 0. The box can be dragged by its corners or adjusted via the"
+				+ "sliders. Use it to materialize regions that have no paths.</li>"
 				+ "<li>Auto-bounds uses the bounding box of all paths or of the selected paths (as chosen) and "
 				+ "ignores the Bounding Box Center. Padding is added on top.</li>"
 				+ "</ul>";
@@ -321,14 +342,13 @@ public class MaterializeRegionDialog extends JDialog {
 	}
 
 	private boolean isPathInProgress() {
-		final AbstractBigViewer viewer = ui.getActiveBigViewer();
-		return plugin.isPathInProgress() || (viewer != null && viewer.isPathInProgress());
+		return backend.isPathInProgress();
 	}
 
 	// Runs while this dialog is hidden. The nested event loop keeps the EDT responsive until the selector
 	// reports back, which is what the modal wait did until now
 	private void pickRegionWhileHidden() {
-		final RegionSelector selector = RegionSelector.of(ui.getActiveBigViewer());
+		final RegionSelector selector = RegionSelector.of(backend.viewer());
 		if (selector == null) return;
 		final BoundingBox current = resolveBoundingBox(new StringBuilder()); // null is fine: view-based default
 		final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
@@ -349,7 +369,7 @@ public class MaterializeRegionDialog extends JDialog {
 	}
 
 	private void applyPickedRegion(final BoundingBox box) {
-		final Calibration cal = plugin.getCalibration();
+		final Calibration cal = backend.calibration();
 		final PointInImage o = box.origin();
 		final PointInImage e = box.originOpposite();
 		updatingEstimate = true; // one estimate once all fields are set, see updateEstimate()
@@ -417,10 +437,10 @@ public class MaterializeRegionDialog extends JDialog {
 			// the dialog could show/allow a region that either overstates the real result (partial
 			// overlap - the estimate here would show the full requested size, not the smaller actual
 			// one) or fails only after the user commits (no overlap at all)
-			final Calibration cal = plugin.getCalibration();
+			final Calibration cal = backend.calibration();
 			final SNT.VoxelBounds voxelBounds;
 			try {
-				voxelBounds = plugin.resolveVoxelBounds(box, cal, isSecondaryLayerScope());
+				voxelBounds = backend.resolveVoxelBounds(box, cal, (String) scopeCombo.getSelectedItem());
 			} catch (final IllegalStateException | IllegalArgumentException ex) {
 				setStatus(ex.getMessage(), GuiUtils.Notices.PendingNotice.ERROR);
 				okButton.setEnabled(false);
@@ -448,9 +468,9 @@ public class MaterializeRegionDialog extends JDialog {
 				centerFields.setValue(1, centroid.getY());
 				centerFields.setValue(2, centroid.getZ());
 			}
-			final long bytesNeeded = plugin.estimateMaterializationBytes(width, height, depth);
+			final long bytesNeeded = backend.estimateBytes(width, height, depth, (String) scopeCombo.getSelectedItem());
 			estimatedBytes = bytesNeeded;
-			final long bytesAvailable = plugin.getMaterializationMemoryBudget();
+			final long bytesAvailable = backend.memoryBudget();
 			// Neither condition below is an error, both describe a valid, resolvable crop the user may still genuinely
 			// want - so they only ever affect the message/color, never okButton.
 			// voxelBounds.clamped(): the requested region (size/center/padding combined) reaches past
@@ -517,7 +537,7 @@ public class MaterializeRegionDialog extends JDialog {
 	 * @return the resolved box, or {@code null} if the current configuration is invalid
 	 */
 	private BoundingBox resolveBoundingBox(final StringBuilder errorOut) {
-		final Calibration cal = plugin.getCalibration();
+		final Calibration cal = backend.calibration();
 		final String sizeChoice = (String) sizeCombo.getSelectedItem();
 		final BoundingBox box;
 		if (SIZE_AUTO_ALL.equals(sizeChoice) || SIZE_AUTO_SELECTED.equals(sizeChoice)) {
@@ -572,7 +592,7 @@ public class MaterializeRegionDialog extends JDialog {
 					centerFields.getValue(2, 0));
 		}
 		if (CENTER_SCENE.equals(choice)) {
-			final AbstractBigViewer viewer = ui.getActiveBigViewer();
+			final AbstractBigViewer viewer = backend.viewer();
 			final SNTPoint center = (viewer != null && viewer.isOpen()) ? viewer.getSceneCenter() : null;
 			if (center != null) return center;
 			// No viewer open (or its viewport isn't realized yet): fall through to the same
@@ -584,49 +604,50 @@ public class MaterializeRegionDialog extends JDialog {
 		// never re-traverses paths
 		final BoundingBox box = selectedPathsBox() != null ? selectedPathsBox() : allPathsBox();
 		if (box == null) {
-			errorOut.append("No paths exist to center the region on.");
+			errorOut.append(backend.isStandalone() ? "The viewer is not ready: its center is not available."
+					: "No paths exist to center the region on.");
 			return null;
 		}
 		return box.getCentroid();
 	}
 
-	private void loadPrefs(final SNTPrefs prefs) {
-		paddingFields.setValue(0, Double.parseDouble(prefs.get("mrd.xpad", "10")));
-		paddingFields.setValue(1, Double.parseDouble(prefs.get("mrd.ypad", "10")));
-		paddingFields.setValue(2, Double.parseDouble(prefs.get("mrd.zpad", "10")));
-		fastMaterializationCheckBox.setSelected(prefs.isFastCropMaterializationEnabled());
+	private void loadPrefs() {
+		paddingFields.setValue(0, backend.isStandalone() ? 0 : Double.parseDouble(backend.get("mrd.xpad", "10")));
+		paddingFields.setValue(1, backend.isStandalone() ? 0 : Double.parseDouble(backend.get("mrd.ypad", "10")));
+		paddingFields.setValue(2, backend.isStandalone() ? 0 : Double.parseDouble(backend.get("mrd.zpad", "10")));
+		fastMaterializationCheckBox.setSelected(backend.isFast());
 	}
 
 	// Done after the item removal in the constructor and before the listeners are attached: unknown items are
 	// ignored by setSelectedItem(), and sizeChoiceChanged() syncs the dependent state
-	private void restoreChoices(final SNTPrefs prefs) {
-		sizeCombo.setSelectedItem(prefs.get(PREF_SIZE_CHOICE, SIZE_AUTO_ALL));
+	private void restoreChoices() {
+		sizeCombo.setSelectedItem(backend.get(PREF_SIZE_CHOICE, backend.isStandalone() ? SIZE_OTHER : SIZE_AUTO_ALL));
 		if (SIZE_OTHER.equals(sizeCombo.getSelectedItem())) {
-			sizeFields.setValue(0, Double.parseDouble(prefs.get(PREF_SIZE_X, "512")));
-			sizeFields.setValue(1, Double.parseDouble(prefs.get(PREF_SIZE_Y, "512")));
-			sizeFields.setValue(2, Double.parseDouble(prefs.get(PREF_SIZE_Z, "256")));
+			sizeFields.setValue(0, Double.parseDouble(backend.get(PREF_SIZE_X, "512")));
+			sizeFields.setValue(1, Double.parseDouble(backend.get(PREF_SIZE_Y, "512")));
+			sizeFields.setValue(2, Double.parseDouble(backend.get(PREF_SIZE_Z, "256")));
 		}
 		// Center coordinates are dataset specific: only the Auto/Scene choices are restored
-		final String center = prefs.get(PREF_CENTER_CHOICE, CENTER_AUTO);
+		final String center = backend.get(PREF_CENTER_CHOICE, backend.isStandalone() ? CENTER_SCENE : CENTER_AUTO);
 		if (!CENTER_OTHER.equals(center)) centerCombo.setSelectedItem(center);
 		// Secondary layer may not be available next time: setSelectedItem() ignores it then
-		scopeCombo.setSelectedItem(prefs.getTemp(PREF_SCOPE_CHOICE, SCOPE_MAIN));
+		scopeCombo.setSelectedItem(backend.getTemp(PREF_SCOPE_CHOICE, SCOPE_MAIN));
 	}
 
-	private void savePrefs(final SNTPrefs prefs) {
-		prefs.set("mrd.xpad", "" + paddingFields.getValue(0, 10));
-		prefs.set("mrd.ypad", "" + paddingFields.getValue(1, 10));
-		prefs.set("mrd.zpad", "" + paddingFields.getValue(2, 10));
-		prefs.setFastCropMaterialization(fastMaterializationCheckBox.isSelected());
-		prefs.set(PREF_SIZE_CHOICE, (String) sizeCombo.getSelectedItem());
+	private void savePrefs() {
+		backend.set("mrd.xpad", "" + paddingFields.getValue(0, 10));
+		backend.set("mrd.ypad", "" + paddingFields.getValue(1, 10));
+		backend.set("mrd.zpad", "" + paddingFields.getValue(2, 10));
+		backend.setFast(fastMaterializationCheckBox.isSelected());
+		backend.set(PREF_SIZE_CHOICE, (String) sizeCombo.getSelectedItem());
 		if (SIZE_OTHER.equals(sizeCombo.getSelectedItem())) {
-			prefs.set(PREF_SIZE_X, "" + sizeFields.getValue(0, 512));
-			prefs.set(PREF_SIZE_Y, "" + sizeFields.getValue(1, 512));
-			prefs.set(PREF_SIZE_Z, "" + sizeFields.getValue(2, 256));
+			backend.set(PREF_SIZE_X, "" + sizeFields.getValue(0, 512));
+			backend.set(PREF_SIZE_Y, "" + sizeFields.getValue(1, 512));
+			backend.set(PREF_SIZE_Z, "" + sizeFields.getValue(2, 256));
 		}
 		// Auto-bounds forces the center to Auto: do not overwrite the user's own choice
-		if (centerCombo.isEnabled()) prefs.set(PREF_CENTER_CHOICE, (String) centerCombo.getSelectedItem());
-		prefs.setTemp(PREF_SCOPE_CHOICE, (String) scopeCombo.getSelectedItem());
+		if (centerCombo.isEnabled()) backend.set(PREF_CENTER_CHOICE, (String) centerCombo.getSelectedItem());
+		backend.setTemp(PREF_SCOPE_CHOICE, (String) scopeCombo.getSelectedItem());
 	}
 
 	/**
@@ -654,6 +675,19 @@ public class MaterializeRegionDialog extends JDialog {
 	}
 
 	/**
+	 * @return true if "Scope" is set to all sources of a viewer that is not linked to an SNT session, i.e., all of
+	 *         them are to be read as the channels of a single image
+	 */
+	public boolean isAllSourcesScope() {
+		return SCOPE_ALL_SOURCES.equals(scopeCombo.getSelectedItem());
+	}
+
+	/** @return whether "Fast materialization" is selected */
+	public boolean isFastMaterialization() {
+		return fastMaterializationCheckBox.isSelected();
+	}
+
+	/**
 	 * @return the estimated size, in bytes, of the region returned by {@link #getResolvedBoundingBox()}
 	 *         - i.e. exactly what {@link SNT#estimateMaterializationBytes(long, long, long)} reported
 	 *         for it the moment "Materialize" was pressed - or -1 if unavailable. Only valid if
@@ -662,5 +696,243 @@ public class MaterializeRegionDialog extends JDialog {
 	 */
 	public long getEstimatedBytes() {
 		return estimatedBytes;
+	}
+
+	// Everything this dialog needs from the context it is shown in: an SNT session or a viewer without one
+	private interface Backend {
+		boolean isStandalone();
+
+		Window owner();
+
+		/** @return the viewer the region is selected in. May be null */
+		AbstractBigViewer viewer();
+
+		List<String> scopes();
+
+		String unit();
+
+		Calibration calibration();
+
+		boolean isPathInProgress();
+
+		Collection<Path> allPaths();
+
+		Collection<Path> selectedPaths();
+
+		SNT.VoxelBounds resolveVoxelBounds(BoundingBox box, Calibration cal, String scope);
+
+		long estimateBytes(long width, long height, long depth, String scope);
+
+		long memoryBudget();
+
+		String get(String key, String defaultValue);
+
+		void set(String key, String value);
+
+		String getTemp(String key, String defaultValue);
+
+		void setTemp(String key, String value);
+
+		boolean isFast();
+
+		void setFast(boolean fast);
+	}
+
+	private record SntBackend(SNTUI ui, SNT plugin) implements Backend {
+
+		@Override
+			public boolean isStandalone() {
+				return false;
+			}
+
+			@Override
+			public Window owner() {
+				return ui;
+			}
+
+			@Override
+			public AbstractBigViewer viewer() {
+				return ui.getActiveBigViewer();
+			}
+
+			@Override
+			public List<String> scopes() {
+				final List<String> items = new ArrayList<>(List.of(SCOPE_MAIN));
+				if (plugin.isSecondaryDataAvailable()) items.add(SCOPE_SECONDARY);
+				return items;
+			}
+
+			@Override
+			public String unit() {
+				return plugin.getSpacingUnits();
+			}
+
+			@Override
+			public Calibration calibration() {
+				return plugin.getCalibration();
+			}
+
+			@Override
+			public boolean isPathInProgress() {
+				final AbstractBigViewer viewer = viewer();
+				return plugin.isPathInProgress() || (viewer != null && viewer.isPathInProgress());
+			}
+
+			@Override
+			public Collection<Path> allPaths() {
+				return plugin.getPathAndFillManager().getPaths();
+			}
+
+			@Override
+			public Collection<Path> selectedPaths() {
+				return plugin.getPathAndFillManager().getSelectedPaths();
+			}
+
+			@Override
+			public SNT.VoxelBounds resolveVoxelBounds(final BoundingBox box, final Calibration cal, final String scope) {
+				return plugin.resolveVoxelBounds(box, cal, SCOPE_SECONDARY.equals(scope));
+			}
+
+			@Override
+			public long estimateBytes(final long width, final long height, final long depth, final String scope) {
+				return plugin.estimateMaterializationBytes(width, height, depth);
+			}
+
+			@Override
+			public long memoryBudget() {
+				return plugin.getMaterializationMemoryBudget();
+			}
+
+			@Override
+			public String get(final String key, final String defaultValue) {
+				return ui.getPrefs().get(key, defaultValue);
+			}
+
+			@Override
+			public void set(final String key, final String value) {
+				ui.getPrefs().set(key, value);
+			}
+
+			@Override
+			public String getTemp(final String key, final String defaultValue) {
+				return ui.getPrefs().getTemp(key, defaultValue);
+			}
+
+			@Override
+			public void setTemp(final String key, final String value) {
+				ui.getPrefs().setTemp(key, value);
+			}
+
+			@Override
+			public boolean isFast() {
+				return ui.getPrefs().isFastCropMaterializationEnabled();
+			}
+
+			@Override
+			public void setFast(final boolean fast) {
+				ui.getPrefs().setFastCropMaterialization(fast);
+			}
+		}
+
+	private static final class ViewerBackend implements Backend {
+		// Not persisted: only for the remainder of the session
+		private static final Map<String, String> TEMP = new HashMap<>();
+		private final AbstractBigViewer viewer;
+
+		ViewerBackend(final AbstractBigViewer viewer) {
+			this.viewer = viewer;
+		}
+
+		@Override
+		public boolean isStandalone() {
+			return true;
+		}
+
+		@Override
+		public Window owner() {
+			return viewer.getViewerFrame();
+		}
+
+		@Override
+		public AbstractBigViewer viewer() {
+			return viewer;
+		}
+
+		@Override
+		public List<String> scopes() {
+			final List<String> items = new ArrayList<>(List.of(SCOPE_CURRENT_SOURCE));
+			if (ViewerMaterializer.sourceCount(viewer) > 1) items.add(SCOPE_ALL_SOURCES);
+			return items;
+		}
+
+		@Override
+		public String unit() {
+			return calibration().getUnit();
+		}
+
+		@Override
+		public Calibration calibration() {
+			return ViewerMaterializer.calibration(viewer);
+		}
+
+		@Override
+		public boolean isPathInProgress() {
+			return viewer.isPathInProgress();
+		}
+
+		@Override
+		public Collection<Path> allPaths() {
+			return List.of();
+		}
+
+		@Override
+		public Collection<Path> selectedPaths() {
+			return List.of();
+		}
+
+		@Override
+		public SNT.VoxelBounds resolveVoxelBounds(final BoundingBox box, final Calibration cal, final String scope) {
+			return ViewerMaterializer.resolveVoxelBounds(viewer, box, SCOPE_ALL_SOURCES.equals(scope));
+		}
+
+		@Override
+		public long estimateBytes(final long width, final long height, final long depth, final String scope) {
+			return ViewerMaterializer.estimateBytes(viewer, width, height, depth, SCOPE_ALL_SOURCES.equals(scope));
+		}
+
+		@Override
+		public long memoryBudget() {
+			return ViewerMaterializer.memoryBudget();
+		}
+
+		@Override
+		public String get(final String key, final String defaultValue) {
+			return SNTPrefs.get(MaterializeRegionDialog.class, key, defaultValue);
+		}
+
+		@Override
+		public void set(final String key, final String value) {
+			SNTPrefs.put(MaterializeRegionDialog.class, key, value);
+		}
+
+		@Override
+		public String getTemp(final String key, final String defaultValue) {
+			return TEMP.getOrDefault(key, defaultValue);
+		}
+
+		@Override
+		public void setTemp(final String key, final String value) {
+			TEMP.put(key, value);
+		}
+
+		@Override
+		public boolean isFast() {
+			return SNTPrefs.getBoolean(MaterializeRegionDialog.class, "fast", true);
+		}
+
+		@Override
+		public void setFast(final boolean fast) {
+			SNTPrefs.put(MaterializeRegionDialog.class, "fast", fast);
+		}
 	}
 }

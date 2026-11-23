@@ -38,6 +38,7 @@ import ij.ImagePlus;
 import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.MaterializeRegionDialog;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.BoundingBox;
@@ -2706,6 +2707,15 @@ public abstract class AbstractBigViewer {
             return a;
         }
 
+        Action materializeRegionAction() {
+            return new AbstractAction("Materialize Region...", IconFactory.menuIcon(IconFactory.GLYPH.CROP)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    materializeRegion();
+                }
+            };
+        }
+
         Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
                 @Override
@@ -3237,6 +3247,37 @@ public abstract class AbstractBigViewer {
         }
     }
 
+    // Reads a region of the displayed sources into a new image (viewers without SNT)
+    private void materializeRegion() {
+        if (isPathInProgress()) {
+            getGuiUtils().error("Please finish or cancel the current path first.", "Path In Progress");
+            return;
+        }
+        final MaterializeRegionDialog dialog = new MaterializeRegionDialog(this);
+        if (!dialog.succeeded()) return;
+        final BoundingBox box = dialog.getResolvedBoundingBox();
+        final boolean all = dialog.isAllSourcesScope();
+        final boolean fast = dialog.isFastMaterialization();
+        updateStatus("Materializing region...", 0, -1);
+        new SwingWorker<ImagePlus, Void>() {
+            @Override
+            protected ImagePlus doInBackground() {
+                return ViewerMaterializer.crop(AbstractBigViewer.this, box, all, fast);
+            }
+
+            @Override
+            protected void done() {
+                updateStatus(null, 0, 0);
+                try {
+                    get().show();
+                } catch (final Exception ex) {
+                    final Throwable cause = (ex.getCause() == null) ? ex : ex.getCause();
+                    getGuiUtils().error("Region could not be materialized: " + cause.getMessage());
+                }
+            }
+        }.execute();
+    }
+
     /**
      * Adds the entries common to the scene-control "Options" menu of Bvv/Bdv: navigation, restore view
      * (display settings) and help. Viewer-specific entries should be added to the menu beforehand
@@ -3244,6 +3285,10 @@ public abstract class AbstractBigViewer {
     protected void addSharedSceneOptions(final JPopupMenu menu, final Actions actions) {
         GuiUtils.MenuItems.addSeparator(menu, "Navigation:");
         menu.add(new JMenuItem(actions.goToAction()));
+        if (snt == null) { // SNT-linked viewers have this in SNT's UI
+            GuiUtils.MenuItems.addSeparator(menu, "Extract Subvolume:");
+            menu.add(new JMenuItem(actions.materializeRegionAction()));
+        }
         GuiUtils.MenuItems.addSeparator(menu, "Restore View:");
         menu.add(new JMenuItem(actions.loadSettingsAction()));
         menu.add(new JMenuItem(actions.saveSettingsAction()));

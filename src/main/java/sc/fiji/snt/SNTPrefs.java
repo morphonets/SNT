@@ -130,7 +130,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private volatile static HashSet<String> tempKeys;
 
 	private final SNT snt;
-	private final PrefService prefService;
+	private static PrefService prefService;
 	private int currentBooleans;
 	private boolean ij1ReverseSliderOrder;
 	private boolean ij1PointerCursor;
@@ -971,6 +971,59 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	public static void setDeselectedPathColor(final Color color) {
 		deselectedColor = (color == null) ? DEFAULT_DESELECTED_COLOR : color;
+	}
+
+	/**
+	 * Saves a key/value pair in persistent storage.
+	 *
+	 * @param c     The class with which the key/value pair is associated.
+	 * @param key   The key where the value should be stored.
+	 * @param value The value to store.
+	 * @see #get(Class, String, String)
+	 */
+	public static void put(final Class<?> c, final String key, final String value) {
+		service().put(c, key, value);
+	}
+
+	/**
+	 * Gets a persisted key as a {@link String}.
+	 *
+	 * @param c            The class with which the key is associated.
+	 * @param key          The key to retrieve.
+	 * @param defaultValue The value to return if the key is not present.
+	 * @return The value of the key as a {@link String}.
+	 */
+	public static String get(final Class<?> c, final String key, final String defaultValue) {
+		return service().get(c, key, defaultValue);
+	}
+
+	/**
+	 * Saves a key/value pair in persistent storage.
+	 *
+	 * @param c     The class with which the key/value pair is associated.
+	 * @param key   The key where the value should be stored.
+	 * @param value The value to store.
+	 * @see #getBoolean(Class, String, boolean)
+	 */
+	public static void put(final Class<?> c, final String key, final boolean value) {
+		service().put(c, key, value);
+	}
+
+	/**
+	 * Gets a persisted key as a {@code boolean}.
+	 *
+	 * @param c            The class with which the key is associated.
+	 * @param key          The key to retrieve.
+	 * @param defaultValue The value to return if the key is not present.
+	 * @return The value of the key as a {@code boolean}.
+	 */
+	public static boolean getBoolean(final Class<?> c, final String key, final boolean defaultValue) {
+		return service().getBoolean(c, key, defaultValue);
+	}
+
+	private static PrefService service() {
+		if (prefService == null) prefService = SNTUtils.getContext().getService(PrefService.class);
+		return prefService;
 	}
 
 }
