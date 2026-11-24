@@ -34,6 +34,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.tracing.auto.ImageProbe;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.tracing.TracerThread;
@@ -194,6 +195,7 @@ public final class SNTDoctor {
                 new NamedCheck("Network", SNTDoctor::checkNetwork),
                 new NamedCheck("Updates", () -> checkUpdates(networkOk(results))),
                 new NamedCheck("Integrations", SNTDoctor::checkIntegrations),
+                new NamedCheck("Image", SNTDoctor::checkImage),
                 new NamedCheck("Sanity test", SNTDoctor::checkSanityTest));
         for (final NamedCheck check : checks) {
             Result r;
@@ -202,6 +204,7 @@ public final class SNTDoctor {
             } catch (final Throwable t) {
                 r = new Result(check.name(), Status.UNKNOWN, "Could not be completed (" + t + ")", "");
             }
+            if (r == null) continue; // check not applicable
             results.add(r);
             if (progress != null) progress.accept(r);
         }
@@ -545,6 +548,47 @@ public final class SNTDoctor {
         tip.setLength(tip.length() - 2);
         // Optional software: its absence is not a limitation of this machine
         return new Result("Integrations", Status.OK, sb.toString(), tip.toString());
+    }
+
+    /**
+     * Characterizes the image loaded in the running SNT session, if any. Only data in memory is probed: a streamed
+     * source is not read. No file names or paths are reported, as reports are often shared publicly
+     *
+     * @return the result, or null if there is no image to probe
+     */
+    static Result checkImage() {
+        final SNT plugin = SNTUtils.getInstance();
+        if (plugin == null || !plugin.accessToValidImageData()) return null;
+        return probeLoadedData(plugin);
+    }
+
+    private static <T extends net.imglib2.type.numeric.RealType<T>> Result probeLoadedData(final SNT plugin) {
+        final net.imglib2.RandomAccessibleInterval<T> data = plugin.getLoadedData();
+        if (data == null || data.numDimensions() < 2 || data.numDimensions() > 3) return null;
+        final var cal = plugin.getCalibration();
+        return imageResult(ImageProbe.probe(data, new double[] { cal.pixelWidth, cal.pixelHeight, cal.pixelDepth }));
+    }
+
+    /**
+     * Converts an image probe into a report entry
+     *
+     * @param p the probe result
+     * @return the entry: LIMITED if the probe has warnings
+     */
+    public static Result imageResult(final ImageProbe.Result p) {
+        final String dims = java.util.Arrays.stream(p.dimensions()).mapToObj(Long::toString)
+                .collect(java.util.stream.Collectors.joining("x"));
+        final StringBuilder sb = new StringBuilder(p.pixelType() + ", " + dims + " voxels");
+        if (p.binary()) {
+            sb.append(", binary");
+        } else {
+            sb.append(String.format(Locale.US, ", SNR %.1f, foreground %.2f%%", p.snr(), 100 * p.foregroundFraction()));
+            if (!Double.isNaN(p.radius())) sb.append(String.format(Locale.US, ", approx. radius %.3g", p.radius()));
+        }
+        final List<String> tips = new ArrayList<>(p.warnings());
+        tips.addAll(p.recommendations());
+        return new Result("Image", p.warnings().isEmpty() ? Status.OK : Status.LIMITED, sb.toString(),
+                String.join(" ", tips));
     }
 
     /** Exercises the core pipeline: demo tree loading, metrics and A* tracing on a synthetic image */

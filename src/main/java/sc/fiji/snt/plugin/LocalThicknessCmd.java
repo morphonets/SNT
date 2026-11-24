@@ -34,8 +34,12 @@ import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import net.imagej.ImageJ;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.tracing.auto.ImageProbe;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.SNTUtils;
 
@@ -64,7 +68,8 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = "Dimmest intensity (approx.)",
 			description = "<HTML>Pixel values below this value are treated as background when<br>"
 					+ "computing the distance map. Use -1 to adopt the default cutoff<br>"
-					+ "value (half of image max)")
+					+ "value (estimated from the background and signal levels of the<br>"
+					+ "image, or half of image max if those cannot be estimated)")
 	private double thres;
 
 	@Parameter(required = false, label = "Defaults", callback="applyDefaults")
@@ -162,11 +167,20 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 		if (imgChoice != null && imgChoice.toLowerCase().contains("secondary"))
 			imp = snt.getSecondaryDataAsImp();
 		final Calibration cal = imp.getCalibration();
+		ImageProbe.Result probe;
 		if (imp.getNSlices() > 1) {
 			minZ = Math.max(1, minZ);
 			maxZ = Math.min(imp.getNSlices(), maxZ);
 			imp = imp.crop("" + minZ + "-" + maxZ);
+			probe = probe(imp); // before the projection, to also account for depth
 			imp = ImpUtils.getMIP(imp);
+		} else {
+			probe = probe(imp);
+		}
+		// Seed the cutoff (in original intensity units, rescaled below if image is converted)
+		if (thres <= 0 && probe != null && !probe.binary() && probe.backgroundThreshold() > 0) {
+			thres = probe.backgroundThreshold();
+			if (ui != null) ui.showStatus("Intensity cutoff estimated from image", true);
 		}
 		if (imp.getType() != ImagePlus.GRAY8) {
 			final double originalMax = imp.getStatistics(ImageStatistics.MIN_MAX).max;
@@ -185,7 +199,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			imp.getProcessor().multiply( 0.5 * (cal.pixelWidth + cal.pixelHeight) / 2); // half of spatially calibrated diameters
 			imp.setTitle("Estimated-Radii");
 			imp.setCalibration(cal);
-			displayHistogram(imp);
+			crossCheck(probe, displayHistogram(imp));
 		} catch (final RuntimeException ex) {
 			error("An exception occurred while calling the Local Thickness plugin. " + GuiUtils.consoleHint());
 			SNTUtils.error(ex);
@@ -194,7 +208,37 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 		}
 	}
 
-	private void displayHistogram(final ImagePlus imp) { // it is assumed imp is always 32-bit
+	private static ImageProbe.Result probe(final ImagePlus source) {
+		try {
+			return probeImp(source);
+		} catch (final RuntimeException ex) {
+			SNTUtils.log("Image probe failed: " + ex.getMessage());
+			return null;
+		}
+	}
+
+	private static <T extends RealType<T>> ImageProbe.Result probeImp(final ImagePlus source) {
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice3d(source, Math.max(1, source.getChannel()),
+				Math.max(1, source.getFrame()));
+		final Calibration c = source.getCalibration();
+		return ImageProbe.probe(rai, new double[] { c.pixelWidth, c.pixelHeight, c.pixelDepth });
+	}
+
+	// Compares the radius of the probe with the distribution of local thickness radii
+	private void crossCheck(final ImageProbe.Result probe, final double[] quartiles) {
+		if (probe == null || quartiles == null || Double.isNaN(probe.radius())) return;
+		final double median = quartiles[1];
+		final String msg = String.format(java.util.Locale.US,
+				"Radii: median %.3g (IQR %.3g-%.3g). Image probe: approx. %.3g", median, quartiles[0],
+				quartiles[2], probe.radius());
+		final double ratio = probe.radius() / median;
+		SNTUtils.log(msg);
+		if (ui != null) ui.showStatus(msg + ((ratio > 2 || ratio < 0.5)
+				? ". Values disagree: check the intensity cutoff and Z range" : ""), true);
+	}
+
+	// It is assumed imp is always 32-bit. Returns the 25th, 50th and 75th percentiles of the radii (or null)
+	private double[] displayHistogram(final ImagePlus imp) {
 		final float[] pixels = (float[]) imp.getProcessor().getPixels();
 		final DescriptiveStatistics da = new DescriptiveStatistics(pixels.length);
         for (final float value : pixels) {
@@ -202,9 +246,9 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
         }
 
 		final long n = da.getN();
-		if (n == 0) return;
+		if (n == 0) return null;
 
-		// Freedman–Diaconis rule
+		// Freedman-Diaconis rule
 		final double iqr = da.getPercentile(75) - da.getPercentile(25);
 		final double binWidth = 2 * iqr / Math.cbrt(n);
 		final double min = da.getMin();
@@ -217,6 +261,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 		}
 		imp.setDisplayRange(min, max);
 		ij.IJ.run(imp, "Histogram", "bins=" + nBins + " x_min=" + min + " x_max=" + max + " y_max=Auto");
+		return new double[] { da.getPercentile(25), da.getPercentile(50), da.getPercentile(75) };
 
 		// Now assign an ROI in case user wants to activate the Histogram live mode
 //		final int size = Math.min(imp.getWidth(), imp.getHeight()) / 8;
