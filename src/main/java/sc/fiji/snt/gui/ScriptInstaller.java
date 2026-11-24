@@ -323,7 +323,7 @@ public class ScriptInstaller {
 
 	private JMenu getScriptsMenu(final Pattern excludePattern, final boolean learnGroup, final String... directories) {
 		final JMenu sMenu = new JMenu("Scripts");
-		GuiUtils.MenuItems.addSeparator(sMenu, "Templates:");
+		GuiUtils.MenuItems.addSeparator(sMenu, "Templates:", "https://imagej.net/plugins/snt/scripting#bundled-templates");
 		for (final String dir : directories) {
 			final JMenu menu = getMenu(dir, excludePattern, true);
 			if (menu.getMenuComponents().length > 0)

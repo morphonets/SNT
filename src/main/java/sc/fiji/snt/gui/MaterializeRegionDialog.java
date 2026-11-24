@@ -334,11 +334,9 @@ public class MaterializeRegionDialog extends JDialog {
 
 	private JPanel section(final String title, final JComponent combo, final XYZFieldsPanel fields) {
 		final JPanel panel = new JPanel(new BorderLayout(0, 4));
-		panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(title),
-				BorderFactory.createEmptyBorder(2, 2, 2, 2)));
 		if (combo != null) panel.add(combo, BorderLayout.NORTH);
 		if (fields != null) panel.add(fields, BorderLayout.CENTER);
-		return panel;
+		return GuiUtils.Panels.section(title, panel);
 	}
 
 	private boolean isPathInProgress() {
@@ -834,105 +832,96 @@ public class MaterializeRegionDialog extends JDialog {
 			}
 		}
 
-	private static final class ViewerBackend implements Backend {
-		// Not persisted: only for the remainder of the session
-		private static final Map<String, String> TEMP = new HashMap<>();
-		private final AbstractBigViewer viewer;
-
-		ViewerBackend(final AbstractBigViewer viewer) {
-			this.viewer = viewer;
-		}
+	private record ViewerBackend(AbstractBigViewer viewer) implements Backend {
+			// Not persisted: only for the remainder of the session
+			private static final Map<String, String> TEMP = new HashMap<>();
 
 		@Override
-		public boolean isStandalone() {
-			return true;
-		}
+			public boolean isStandalone() {
+				return true;
+			}
+
+			@Override
+			public Window owner() {
+				return viewer.getViewerFrame();
+			}
+
 
 		@Override
-		public Window owner() {
-			return viewer.getViewerFrame();
-		}
+			public List<String> scopes() {
+				final List<String> items = new ArrayList<>(List.of(SCOPE_CURRENT_SOURCE));
+				if (ViewerMaterializer.sourceCount(viewer) > 1) items.add(SCOPE_ALL_SOURCES);
+				return items;
+			}
 
-		@Override
-		public AbstractBigViewer viewer() {
-			return viewer;
-		}
+			@Override
+			public String unit() {
+				return calibration().getUnit();
+			}
 
-		@Override
-		public List<String> scopes() {
-			final List<String> items = new ArrayList<>(List.of(SCOPE_CURRENT_SOURCE));
-			if (ViewerMaterializer.sourceCount(viewer) > 1) items.add(SCOPE_ALL_SOURCES);
-			return items;
-		}
+			@Override
+			public Calibration calibration() {
+				return ViewerMaterializer.calibration(viewer);
+			}
 
-		@Override
-		public String unit() {
-			return calibration().getUnit();
-		}
+			@Override
+			public boolean isPathInProgress() {
+				return viewer.isPathInProgress();
+			}
 
-		@Override
-		public Calibration calibration() {
-			return ViewerMaterializer.calibration(viewer);
-		}
+			@Override
+			public Collection<Path> allPaths() {
+				return List.of();
+			}
 
-		@Override
-		public boolean isPathInProgress() {
-			return viewer.isPathInProgress();
-		}
+			@Override
+			public Collection<Path> selectedPaths() {
+				return List.of();
+			}
 
-		@Override
-		public Collection<Path> allPaths() {
-			return List.of();
-		}
+			@Override
+			public SNT.VoxelBounds resolveVoxelBounds(final BoundingBox box, final Calibration cal, final String scope) {
+				return ViewerMaterializer.resolveVoxelBounds(viewer, box, SCOPE_ALL_SOURCES.equals(scope));
+			}
 
-		@Override
-		public Collection<Path> selectedPaths() {
-			return List.of();
-		}
+			@Override
+			public long estimateBytes(final long width, final long height, final long depth, final String scope) {
+				return ViewerMaterializer.estimateBytes(viewer, width, height, depth, SCOPE_ALL_SOURCES.equals(scope));
+			}
 
-		@Override
-		public SNT.VoxelBounds resolveVoxelBounds(final BoundingBox box, final Calibration cal, final String scope) {
-			return ViewerMaterializer.resolveVoxelBounds(viewer, box, SCOPE_ALL_SOURCES.equals(scope));
-		}
+			@Override
+			public long memoryBudget() {
+				return ViewerMaterializer.memoryBudget();
+			}
 
-		@Override
-		public long estimateBytes(final long width, final long height, final long depth, final String scope) {
-			return ViewerMaterializer.estimateBytes(viewer, width, height, depth, SCOPE_ALL_SOURCES.equals(scope));
-		}
+			@Override
+			public String get(final String key, final String defaultValue) {
+				return SNTPrefs.get(MaterializeRegionDialog.class, key, defaultValue);
+			}
 
-		@Override
-		public long memoryBudget() {
-			return ViewerMaterializer.memoryBudget();
-		}
+			@Override
+			public void set(final String key, final String value) {
+				SNTPrefs.put(MaterializeRegionDialog.class, key, value);
+			}
 
-		@Override
-		public String get(final String key, final String defaultValue) {
-			return SNTPrefs.get(MaterializeRegionDialog.class, key, defaultValue);
-		}
+			@Override
+			public String getTemp(final String key, final String defaultValue) {
+				return TEMP.getOrDefault(key, defaultValue);
+			}
 
-		@Override
-		public void set(final String key, final String value) {
-			SNTPrefs.put(MaterializeRegionDialog.class, key, value);
-		}
+			@Override
+			public void setTemp(final String key, final String value) {
+				TEMP.put(key, value);
+			}
 
-		@Override
-		public String getTemp(final String key, final String defaultValue) {
-			return TEMP.getOrDefault(key, defaultValue);
-		}
+			@Override
+			public boolean isFast() {
+				return SNTPrefs.getBoolean(MaterializeRegionDialog.class, "fast", true);
+			}
 
-		@Override
-		public void setTemp(final String key, final String value) {
-			TEMP.put(key, value);
+			@Override
+			public void setFast(final boolean fast) {
+				SNTPrefs.put(MaterializeRegionDialog.class, "fast", fast);
+			}
 		}
-
-		@Override
-		public boolean isFast() {
-			return SNTPrefs.getBoolean(MaterializeRegionDialog.class, "fast", true);
-		}
-
-		@Override
-		public void setFast(final boolean fast) {
-			SNTPrefs.put(MaterializeRegionDialog.class, "fast", fast);
-		}
-	}
 }

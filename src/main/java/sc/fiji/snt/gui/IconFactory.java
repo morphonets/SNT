@@ -414,6 +414,19 @@ public class IconFactory {
         return new DropdownIcon(leftIcon, rightIcon, iconGap);
     }
 
+    /**
+     * Places two arbitrary icons side by side (vertically centered). Unlike
+     * {@link #doubleIcon(GLYPH, GLYPH, float, Color, int)}, the icons need not share color or size
+     *
+     * @param left  the left icon
+     * @param right the right icon
+     * @param gap   the horizontal space between the icons, in pixels
+     * @return the composite icon
+     */
+    public static Icon compositeIcon(final Icon left, final Icon right, final int gap) {
+        return new DropdownIcon(left, right, gap);
+    }
+
     /** Invisible {@link Icon} of a given size; used by {@link #doubleIcon} to reserve space for an absent glyph. */
     private record BlankIcon(int width, int height) implements Icon {
         @Override

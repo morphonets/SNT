@@ -202,8 +202,7 @@ abstract class BoxRegionSelector implements RegionSelector {
 		final JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 3, 3));
 		buttons.add(cancel);
 		buttons.add(ok);
-		final JPanel content = new JPanel(new BorderLayout(0, 4));
-		content.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+		final JPanel content = new JPanel(new BorderLayout(0, 0));
 		content.add(boxPanel, BorderLayout.NORTH);
 		final JPanel options = new JPanel(new BorderLayout(0, 2));
 		options.add(new BoxDisplayModePanel(editor.boxDisplayMode()), BorderLayout.NORTH);

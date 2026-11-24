@@ -164,45 +164,45 @@ public class MeasureUI extends JFrame {
 				UIManager.getLookAndFeel().provideErrorFeedback(this);
 				return;
 			}
-			dropImport = new SwingWorker<List<Tree>, Void>() {
+			dropImport = new SwingWorker<>() {
 
-				private boolean noFiles;
+                private boolean noFiles;
 
-				@Override
-				protected List<Tree> doInBackground() {
-					// Folders are searched here: they may be huge, or on slow drives
-					final List<File> recs = IOUtils.listReconstructionSources(files);
-					noFiles = recs.isEmpty();
-					final List<Tree> loaded = new ArrayList<>();
-					for (final File f : recs) {
-						try {
-							final Collection<Tree> inFile = Tree.listFromFile(f.getAbsolutePath());
-							if (inFile != null) loaded.addAll(inFile);
-						} catch (final RuntimeException ex) {
-							SNTUtils.log("Could not load " + f.getName() + ": " + ex.getMessage());
-						}
-					}
-					return loaded;
-				}
+                @Override
+                protected List<Tree> doInBackground() {
+                    // Folders are searched here: they may be huge, or on slow drives
+                    final List<File> recs = IOUtils.listReconstructionSources(files);
+                    noFiles = recs.isEmpty();
+                    final List<Tree> loaded = new ArrayList<>();
+                    for (final File f : recs) {
+                        try {
+                            final Collection<Tree> inFile = Tree.listFromFile(f.getAbsolutePath());
+                            if (inFile != null) loaded.addAll(inFile);
+                        } catch (final RuntimeException ex) {
+                            SNTUtils.log("Could not load " + f.getName() + ": " + ex.getMessage());
+                        }
+                    }
+                    return loaded;
+                }
 
-				@Override
-				protected void done() {
-					try {
-						final List<Tree> loaded = get();
-						if (noFiles) {
-							guiUtils.error("None of the dropped item(s) are reconstruction files.");
-							return;
-						}
-						if (loaded.isEmpty()) {
-							guiUtils.error("Dropped file(s) do not contain valid data.");
-							return;
-						}
-						addTrees(loaded);
-					} catch (final InterruptedException | java.util.concurrent.ExecutionException ex) {
-						SNTUtils.error("Import failed", ex);
-					}
-				}
-			};
+                @Override
+                protected void done() {
+                    try {
+                        final List<Tree> loaded = get();
+                        if (noFiles) {
+                            guiUtils.error("None of the dropped item(s) are reconstruction files.");
+                            return;
+                        }
+                        if (loaded.isEmpty()) {
+                            guiUtils.error("Dropped file(s) do not contain valid data.");
+                            return;
+                        }
+                        addTrees(loaded);
+                    } catch (final InterruptedException | java.util.concurrent.ExecutionException ex) {
+                        SNTUtils.error("Import failed", ex);
+                    }
+                }
+            };
 			dropImport.execute();
 		});
 	}

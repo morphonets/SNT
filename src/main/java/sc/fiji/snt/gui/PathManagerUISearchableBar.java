@@ -425,7 +425,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	private JButton createMorphoFilteringButton() {
 		final JPopupMenu popup = new JPopupMenu();
-		GuiUtils.MenuItems.addSeparator(popup, "Morphometric Traits:");
+		GuiUtils.MenuItems.addSeparator(popup, "Morphometric Traits:", "https://imagej.net/plugins/snt/manual#morphology-filters-");
 		for (final Component component : getMorphoFilterMenu().getMenuComponents()) {
 			popup.add(component);
 		}

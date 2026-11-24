@@ -884,7 +884,7 @@ public class TipPalette extends WizardPalette {
             c.gridy = row++;
             final CollapsiblePanel detectionPanel = new CollapsiblePanel("Detection", detection, false);
             detectionPanel.setTooltipText("Tubeness score and analysis radius, number of detections and warnings");
-            root.add(section(null, detectionPanel), c);
+            root.add(GuiUtils.Panels.section(null, detectionPanel), c);
 
             // Expert settings, collapsed by default
             final JPanel advanced = advancedGrid();
@@ -892,13 +892,13 @@ public class TipPalette extends WizardPalette {
             advancedPanel.setTooltipText("Extra filters (min. length and connected fraction), neurite radii, and the "
                     + "background channel (subtraction and maximum). The maximum background is off (n/a) at 0");
             c.gridy = row++;
-            root.add(section(null, advancedPanel), c);
+            root.add(GuiUtils.Panels.section(null, advancedPanel), c);
 
             CollapsiblePanel performance = null;
             if (levels.size() > 1) {
                 performance = performancePanel();
                 c.gridy = row++;
-                root.add(section(null, performance), c);
+                root.add(GuiUtils.Panels.section(null, performance), c);
             }
 
             learnedModel = new DefaultTableModel(new String[]{"Learned from paths", "Value"}, 0) {
@@ -915,7 +915,7 @@ public class TipPalette extends WizardPalette {
             final CollapsiblePanel detailsPanel = new CollapsiblePanel("Details", details, true);
             detailsPanel.setTooltipText("Parameters learned from the training paths, and the response of each scale");
             c.gridy = row++;
-            root.add(section(null, detailsPanel), c);
+            root.add(GuiUtils.Panels.section(null, detailsPanel), c);
 
             detectionCollapsible = detectionPanel;
             advancedCollapsible = advancedPanel;

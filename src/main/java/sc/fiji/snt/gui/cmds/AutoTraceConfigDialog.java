@@ -23,8 +23,7 @@
 package sc.fiji.snt.gui.cmds;
 
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.gui.FileDrop;
-import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.*;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
 import sc.fiji.snt.util.IOUtils;
 
@@ -108,10 +107,12 @@ public class AutoTraceConfigDialog extends JDialog {
     private final boolean hasCurrent;
     private final Learner learner;
     private Consumer<AutoTraceConfig> applyCallback;
-    private final JPanel statsHolder = new JPanel(new BorderLayout());
-    private final JPanel notesHolder = new JPanel(new BorderLayout());
+    // Outer margin of the boxed sections is the holders' business, not Panels#section's
+    private final JPanel statsHolder = marginHolder();
+    private final JPanel notesHolder = marginHolder();
     private final JLabel statusLabel = new JLabel(" ");
     private JButton applyButton;
+    private AbstractButton loadButton, chooseButton; // for the tour
     private JTable paramTable;
     private JScrollPane paramScroll;
     private boolean learning;
@@ -154,7 +155,7 @@ public class AutoTraceConfigDialog extends JDialog {
      */
     public AutoTraceConfigDialog(final Window owner, final AutoTraceConfig config,
                                  final Map<String, String> currentValues, final Learner learner) {
-        super(owner, "Auto-Trace Configuration (Learned)", ModalityType.MODELESS);
+        super(owner, "Auto-Trace Configuration Wizard", ModalityType.MODELESS);
         this.config = config;
         this.currentValues = currentValues;
         this.hasCurrent = currentValues != null;
@@ -260,10 +261,9 @@ public class AutoTraceConfigDialog extends JDialog {
 
     private void refreshHolders() {
         statsHolder.removeAll();
-        if (config != null) statsHolder.add(createStatsPanel(), BorderLayout.CENTER);
+        statsHolder.add(createStatsPanel(), BorderLayout.CENTER);
         notesHolder.removeAll();
-        final JComponent notes = createNotesPanel();
-        if (notes != null) notesHolder.add(notes, BorderLayout.CENTER);
+        notesHolder.add(createNotesPanel(), BorderLayout.CENTER);
         autoSizeColumns();
         pack();
     }
@@ -297,14 +297,12 @@ public class AutoTraceConfigDialog extends JDialog {
     private void initGUI() {
         final JPanel content = new JPanel(new BorderLayout());
 
-        // Source statistics (read-only)
-        content.add(statsHolder, BorderLayout.NORTH);
         statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
 
         // Parameters table. Tooltips explain how each value was derived
         paramTable = GuiUtils.Tables.tableWithPlaceholder(tableModel,
                 () -> (learner == null) ? "No parameters" : "Drop reconstruction files here",
-                () -> (learner == null) ? null : "or use the buttons below");
+                () -> (learner == null) ? null : "or use the Learn From Existing Data button below");
         paramTable.setFillsViewportHeight(true); // so that the placeholder is painted when empty
         paramTable.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
             @Override
@@ -391,13 +389,17 @@ public class AutoTraceConfigDialog extends JDialog {
         final JScrollPane scrollPane = GuiUtils.Tables.scrollPane(paramTable);
         paramScroll = scrollPane;
         autoSizeColumns();
-        content.add(scrollPane, BorderLayout.CENTER);
+        final JPanel tableHolder = marginHolder(); // same margin as the boxed sections above and below
+        tableHolder.add(scrollPane, BorderLayout.CENTER);
+        content.add(tableHolder, BorderLayout.CENTER);
 
         // Buttons
         final JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
+        toolbar.setLayout(new GridLayout(1, (learner == null) ? 2 : 3));
 
-        final JButton apply = new JButton("Apply & Close");
+        final JButton apply = new JButton("Apply & Close", IconFactory.buttonIcon('\uf2f6', true, null));
+        apply.setDisabledIcon(IconFactory.buttonIcon('\uf2f6', true, IconFactory.disabledColor()));
         apply.setEnabled(config != null);
         applyButton = apply;
         apply.addActionListener(e -> {
@@ -406,30 +408,80 @@ public class AutoTraceConfigDialog extends JDialog {
         });
 
         if (learner != null) {
-            toolbar.add(loadOptionsButton());
-            toolbar.addSeparator();
+            loadButton = loadOptionsButton();
+            toolbar.add(loadButton);
         }
-        toolbar.add(selectOptionsButton());
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
-        toolbar.addSeparator();
+        chooseButton = selectOptionsButton();
+        toolbar.add(chooseButton);
         toolbar.add(apply);
+        final JButton help = GuiUtils.Buttons.help(null);
+        help.setToolTipText("Tour of controls");
+        help.addActionListener(e -> startTour());
+        final JPanel helpHolder = new JPanel(new GridBagLayout()); // keeps the button vertically centered
+        helpHolder.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 6));
+        helpHolder.add(help);
+        final JPanel buttonRow = new JPanel(new BorderLayout());
+        buttonRow.add(toolbar, BorderLayout.CENTER);
+        buttonRow.add(helpHolder, BorderLayout.EAST);
         final JPanel south = new JPanel(new BorderLayout());
-        south.add(toolbar, BorderLayout.NORTH);
+        south.add(buttonRow, BorderLayout.NORTH);
         south.add(statusLabel, BorderLayout.CENTER); // message line, right below the toolbar
-        south.add(notesHolder, BorderLayout.SOUTH);
+        // Collapsible sections (source statistics, then notes), right below the message line
+        final JPanel sections = new JPanel();
+        sections.setLayout(new BoxLayout(sections, BoxLayout.Y_AXIS));
+        sections.add(statsHolder);
+        sections.add(notesHolder);
+        south.add(sections, BorderLayout.SOUTH);
         content.add(south, BorderLayout.SOUTH);
         setContentPane(content);
-        if (config != null) {
-            statsHolder.add(createStatsPanel(), BorderLayout.CENTER);
-            final JComponent notes = createNotesPanel();
-            if (notes != null) notesHolder.add(notes, BorderLayout.CENTER);
-        }
+        statsHolder.add(createStatsPanel(), BorderLayout.CENTER);
+        notesHolder.add(createNotesPanel(), BorderLayout.CENTER);
         pack();
         setLocationRelativeTo(getOwner());
         // Installed last, so that all components are covered. NB: components added later do not define drop targets
         if (learner != null)
             new FileDrop(content, files -> SwingUtilities.invokeLater(() -> learnFromFiles(Arrays.asList(files))));
+    }
+
+    // Starts the tour of controls, or moves to its next callout if it is already running
+    private void startTour() {
+        final String group = CalloutManager.groupFor(this);
+        if (!CalloutManager.isActive(group)) {
+            // (re)registered every time: the window may have been resized or rebuilt since last time
+            CalloutManager.clearRegistrations(group);
+            registerCallouts(group);
+        }
+        CalloutManager.showAllOrAdvance(group);
+    }
+
+    private void registerCallouts(final String group) {
+        int order = 0;
+        CalloutManager.add(paramScroll, CalloutManager.AUTO, "<b>Parameters</b><br>"
+                + "Tracing settings, with the learned values. Hover a row to see how its parameter<br>was derived. "
+                + ((learner == null) ? "" : "Reconstruction files can be dropped anywhere onto this window."),
+                group, order++);
+        if (hasCurrent) {
+            final int col = paramTable.convertColumnIndexToView(ParamTableModel.COL_USE);
+            final javax.swing.table.JTableHeader header = paramTable.getTableHeader();
+            if (col >= 0 && header.isShowing()) {
+                CalloutManager.add(header, header.getHeaderRect(col), CalloutManager.AUTO, "<b>Use</b><br>"
+                        + "Chooses between the <i>Current</i> and <i>Learned</i> value of a parameter. Pressed "
+                        + "buttons<br>mark the values that will be adopted.", group, order++);
+            }
+        }
+        if (loadButton != null) {
+            CalloutManager.add(loadButton, CalloutManager.AUTO, "<b>Learn From Existing Data</b><br>"
+                    + "Learns from the paths selected in Path Manager, all of its paths, the image itself,<br>"
+                    + "or imported reconstruction files.<br>Such actions replace the current examples.", group, order++);
+        }
+        CalloutManager.add(chooseButton, CalloutManager.AUTO, "<b>Choose</b><br>"
+                + "Selects which parameters will be adopted: all, only the defaults, or none.", group, order++);
+        CalloutManager.add(statsHolder, CalloutManager.AUTO, "<b>Source Statistics</b><br>"
+                + "Summary of the examples the values were learned from.", group, order++);
+        CalloutManager.add(notesHolder, CalloutManager.AUTO, "<b>Recommendations &amp; Notes</b><br>"
+                + "Warnings and advice that are not part of the learned values.", group, order++);
+        CalloutManager.add(applyButton, CalloutManager.AUTO, "<b>Apply &amp; Close</b><br>"
+                + "Transfers the chosen values to the command prompt and closes this window.", group, order); // last in the sequence
     }
 
     // Renders the choice of a row as a toggle button (pressed: the learned value is adopted). Clicks are handled by
@@ -440,10 +492,9 @@ public class AutoTraceConfigDialog extends JDialog {
 
         ChoiceRenderer() {
             button.setFocusable(false);
-            button.setMargin(new Insets(1, 4, 1, 4));
-            button.putClientProperty("JButton.buttonType", "roundRect");
+            GuiUtils.Buttons.makeRoundRect(button);
             panel.add(button, BorderLayout.CENTER);
-            panel.setBorder(BorderFactory.createEmptyBorder(1, 3, 1, 3));
+            panel.setBorder(BorderFactory.createEmptyBorder(1, 4, 1, 4));
         }
 
         @Override
@@ -481,7 +532,7 @@ public class AutoTraceConfigDialog extends JDialog {
     }
 
     private AbstractButton loadOptionsButton() {
-        final JMenuItem load = new JMenuItem("Learn From File...");
+        final JMenuItem load = new JMenuItem("Learn From Reconstruction File(s)...");
         load.setToolTipText("<html>Learn from a reconstruction file (SWC, TRACES, JSON, etc.).<br>"
                 + "Files can also be dropped onto this window. Replaces the current examples");
         load.addActionListener(e -> {
@@ -506,14 +557,14 @@ public class AutoTraceConfigDialog extends JDialog {
                 + "Replaces the current examples");
         fromImage.addActionListener(e -> learnFromImage());
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.MenuItems.addSeparator(menu, "No Example Paths:");
+        GuiUtils.MenuItems.addSeparator(menu, "Estimation W/o Paths (Experimental):");
         menu.add(fromImage);
-        GuiUtils.MenuItems.addSeparator(menu, "External:");
+        GuiUtils.MenuItems.addSeparator(menu, "External Traces:");
         menu.add(load);
-        GuiUtils.MenuItems.addSeparator(menu, "Loaded in Path Manager:");
+        GuiUtils.MenuItems.addSeparator(menu, "Paths Loaded in Path Manager:");
         menu.add(fromAll);
         menu.add(fromSelection);
-        return GuiUtils.Buttons.OptionsButton("Learn From Existing Traces", menu, true);
+        return GuiUtils.Buttons.OptionsButton("Learn From Existing Data", IconFactory.GLYPH.PERSON_CHALKBOARD, null, 1f, menu);
     }
 
     private AbstractButton selectOptionsButton() {
@@ -546,7 +597,7 @@ public class AutoTraceConfigDialog extends JDialog {
         menu.add(selectDefaults);
         menu.addSeparator();
         menu.add(selectNone);
-        return GuiUtils.Buttons.OptionsButton("Choose", menu, true);
+        return GuiUtils.Buttons.OptionsButton("Choose", IconFactory.GLYPH.CHECK_DOUBLE, null, 1f, menu);
     }
 
     private boolean isValidTable() {
@@ -558,7 +609,8 @@ public class AutoTraceConfigDialog extends JDialog {
     // Collapsible "Recommendations & Notes" section: advice that is not part of the learned values. Expanded only if
     // there is something to warn about
     private JComponent createNotesPanel() {
-        if (config == null) return null;
+        if (config == null) return placeholderSection("Recommendations & Notes",
+                "Recommendations will be listed once parameters are learned.");
         final List<String> recs = new ArrayList<>(config.getRecommendations());
         final String tipExt = currentValue("reconnectMaxBridgeDist");
         if (tipExt != null && tipExt.startsWith("0 ") && !Double.isNaN(config.getReconnectMaxBridgeDist())) {
@@ -566,7 +618,8 @@ public class AutoTraceConfigDialog extends JDialog {
                     + "tip extension distance.");
         }
         final List<String> warns = config.getWarnings();
-        if (recs.isEmpty() && warns.isEmpty()) return null;
+        if (recs.isEmpty() && warns.isEmpty())
+            return placeholderSection("Recommendations & Notes", "Nothing to report.");
         final boolean headingsNeeded = !warns.isEmpty() && !recs.isEmpty();
         final StringBuilder sb = new StringBuilder("<html><body>");
         sb.append("<i>These are suggestions based on the image and the example paths, not learned values. ")
@@ -575,13 +628,28 @@ public class AutoTraceConfigDialog extends JDialog {
         appendList(sb, "Recommendations", recs, headingsNeeded);
         sb.append("</body></html>");
         // NB: a JLabel would not wrap its HTML to the width of the dialog
-        final WrappingHtmlPane pane = new WrappingHtmlPane(sb.toString(),
+        final JEditorPane pane = GuiUtils.Panels.WrappingHtmlPane(sb.toString(),
                 () -> (paramScroll == null) ? 400 : paramScroll.getPreferredSize().width);
         pane.setBorder(BorderFactory.createEmptyBorder(2, 8, 8, 8));
         // Text components have their own drop target, which would reject files dropped onto the notes
         pane.setTransferHandler(null);
         pane.setDropTarget(null);
-        return GuiUtils.Panels.collapsibleSection("Recommendations & Notes", pane, !warns.isEmpty(), this::pack);
+        return  GuiUtils.Panels.section(null,
+                GuiUtils.Panels.collapsibleSection("Recommendations & Notes", pane, !warns.isEmpty()));
+    }
+
+    // Collapsed section with a placeholder message, so that sections are always present (and part of the tour)
+    private static JComponent placeholderSection(final String title, final String text) {
+        final JLabel label = new JLabel(text);
+        label.setEnabled(false);
+        label.setBorder(BorderFactory.createEmptyBorder(2, 8, 8, 8));
+        return GuiUtils.Panels.section(null, GuiUtils.Panels.collapsibleSection(title, label, false));
+    }
+
+    private static JPanel marginHolder() {
+        final JPanel holder = new JPanel(new BorderLayout());
+        holder.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        return holder;
     }
 
     private static void appendList(final StringBuilder sb, final String heading, final List<String> items,
@@ -593,30 +661,6 @@ public class AutoTraceConfigDialog extends JDialog {
         sb.append("</ul>");
     }
 
-    // Read-only HTML text that wraps to the width of its container. Before it has been laid out, the width is given by
-    // the supplier (e.g., the width the dialog will have). Its height follows the width as the dialog is resized
-    private static class WrappingHtmlPane extends JEditorPane {
-        private static final long serialVersionUID = 1L;
-        private final transient java.util.function.IntSupplier initialWidth;
-
-        WrappingHtmlPane(final String html, final java.util.function.IntSupplier initialWidth) {
-            super("text/html", html);
-            this.initialWidth = initialWidth;
-            setEditable(false);
-            setOpaque(false);
-            setFocusable(false);
-            putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE); // use the font of the LAF
-        }
-
-        @Override
-        public Dimension getPreferredSize() {
-            final Container parent = getParent();
-            final int w = (parent != null && parent.getWidth() > 0) ? parent.getWidth() : initialWidth.getAsInt();
-            if (getWidth() != w) setSize(w, Short.MAX_VALUE);
-            return new Dimension(w, super.getPreferredSize().height);
-        }
-    }
-
     private String currentValue(final String key) {
         for (final ParamRow row : tableModel.rows) {
             if (key.equals(row.key)) return row.currentValue;
@@ -624,9 +668,11 @@ public class AutoTraceConfigDialog extends JDialog {
         return null;
     }
 
-    private JPanel createStatsPanel() {
+    // Collapsible "Source Statistics" section (read-only). Collapsed by default: it is reference information
+    private JComponent createStatsPanel() {
+        if (config == null) return placeholderSection("Source Statistics",
+                "Statistics of the examples will be listed once parameters are learned.");
         final JPanel panel = new JPanel(new GridLayout(0, 2, 8, 2));
-        panel.setBorder(BorderFactory.createTitledBorder("Source Statistics"));
         addStatRow(panel, "Paths analyzed", String.valueOf(config.getPathCount()));
         addStatRow(panel, "Total nodes", String.valueOf(config.getNodeCount()));
         if (!Double.isNaN(config.getMeanRadius()))
@@ -635,8 +681,7 @@ public class AutoTraceConfigDialog extends JDialog {
             addStatRow(panel, "Mean intensity", fmt(config.getMeanIntensity()));
         if (!Double.isNaN(config.getMeanContraction()))
             addStatRow(panel, "Mean contraction", fmt(config.getMeanContraction()));
-
-        return panel;
+        return GuiUtils.Panels.section(null, GuiUtils.Panels.collapsibleSection("Source Statistics", panel, false));
     }
 
     private void addStatRow(final JPanel panel, final String label, final String value) {
@@ -656,15 +701,15 @@ public class AutoTraceConfigDialog extends JDialog {
         // III. Thresholding
         if (!Double.isNaN(config.getBackgroundThreshold()))
             rows.add(new ParamRow("backgroundThreshold", "Background threshold",
-                    fmt(config.getBackgroundThreshold()), true, current, config.isFromProbe()
-                    ? "Background level of the image plus the larger of 3 noise deviations and 10% of the "
-                            + "contrast (sampled voxels): Pixels below it are unlikely to be signal."
+                    fmt(config.getBackgroundThreshold()), !config.isFromProbe(), current, config.isFromProbe()
+                    ? "Background level of the image plus the larger of 3 noise deviations and 25% of the "
+                            + "contrast (sampled voxels): A conservative cutoff, as with example paths."
                     : "25% of the mean intensity along the example paths: Paths run through signal, so the "
                             + "background should be well below it."));
         // IV. Branch Filtering and Scoring
         if (config.getScoreMapScales() != null && config.getScoreMapScales().length > 0)
             rows.add(new ParamRow("scoreMapEnabled", "Score map filter",
-                    "Enabled (scales: " + formatArray(config.getScoreMapScales()) + ")", true, current,
+                    "Enabled (scales: " + formatArray(config.getScoreMapScales()) + ")", !config.isFromProbe(), current,
                     (config.isFromProbe() ? "Scales around the approximate radius of the structures, estimated "
                             + "from the image. " : "Scales spanning the radii of the example paths. ")
                             + "Only the filter type is applied: scales are handled by the tracer."));

@@ -234,7 +234,6 @@ public class SigmaPalette extends WizardPalette {
 			pack();
 			WizardUtils.place(this, parent, snt); // after pack()
 			repaint(); // is this really needed?
-			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
 		}
 
 		// IJ's key listener is removed above, so zoom and help shortcuts are handled here
@@ -248,8 +247,6 @@ public class SigmaPalette extends WizardPalette {
 			} else if (c == '-' || c == '_' || code == KeyEvent.VK_SUBTRACT) {
 				final Point p = ic.getMousePosition();
 				ic.zoomOut((p != null) ? p.x : ic.getWidth() / 2, (p != null) ? p.y : ic.getHeight() / 2);
-			} else if (code == KeyEvent.VK_H || code == KeyEvent.VK_F1) {
-				paletteOptions.showHelp(helpHtml(), this);
 			} else {
 				return;
 			}
@@ -263,7 +260,7 @@ public class SigmaPalette extends WizardPalette {
 				metricsPanel.setHeaderFocusable(false); // keyboard shortcuts (zoom, etc.) need the canvas to have focus
 				metricsPanel.setTooltipText("Quality metrics of the segment next to the clicked point, retraced on "
 						+ "each tile. Click a row to select its tile, double-click to set it");
-				content = section(null, metricsPanel);
+				content = GuiUtils.Panels.section(null, metricsPanel);
 			} else if (metricsNote != null) {
 				final JPanel note = newPanel(new FlowLayout(FlowLayout.LEFT));
 				note.add(new JLabel(metricsNote));
@@ -405,7 +402,7 @@ public class SigmaPalette extends WizardPalette {
 		}
 
 		private String helpHtml() {
-			return "<p>"
+			return "<HTML><div WIDTH=500><p>"
 					+ "Each tile in the grid previews the effect of the <i>Sigma parameter</i> (&sigma;) &ndash; an "
 					+ "estimate of the radii of the structures being traced &ndash; on the the image processing filter:"
 					+ "</p>"
@@ -435,7 +432,7 @@ public class SigmaPalette extends WizardPalette {
 					+ "</p>"
 					+ "<p>"
 					+ "Use the <i>Actions/Options</i> menu to adjust the Brightness/Contrast of the grid, and for "
-					+ "further options (including a tour of the controls)."
+					+ "further actions (including a tour of the controls)."
 					+ "</p>";
 		}
 

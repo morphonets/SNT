@@ -2956,6 +2956,46 @@ public class GuiUtils {
 		return label;
 	}
 
+	/**
+	 * Turns a label into a discrete help button: prepends a dimmed help icon that is highlighted (with a hand
+	 * cursor) while the label is hovered, and opens {@code uri} when the label is clicked. The text itself is not
+	 * restyled
+	 *
+	 * @param label     the label, whose text is shown to the right of the icon(s)
+	 * @param uri       the URL to be opened on click
+	 * @param secondary an optional icon shown between the help icon and the text (e.g., a badge). May be null
+	 */
+	public static void prependHelpIcon(final JLabel label, final String uri, final Icon secondary) {
+		final float size = label.getFont().getSize() * .75f;
+		final Icon dim = helpHeaderIcon(size, IconFactory.disabledColor(), secondary);
+		final Icon lit = helpHeaderIcon(size, Colors.LINK_COLOR, secondary);
+		label.setHorizontalTextPosition(SwingConstants.RIGHT);
+		label.setIcon(dim);
+		label.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseEntered(final MouseEvent e) {
+				label.setIcon(lit);
+				label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			}
+
+			@Override
+			public void mouseExited(final MouseEvent e) {
+				label.setIcon(dim);
+				label.setCursor(Cursor.getDefaultCursor());
+			}
+
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				if (label.isEnabled()) openURL(uri);
+			}
+		});
+	}
+
+	private static Icon helpHeaderIcon(final float size, final Color color, final Icon secondary) {
+		final Icon help = IconFactory.get(GLYPH.QUESTION_CIRCLE, size, color);
+		return (secondary == null) ? help : IconFactory.compositeIcon(help, secondary, 3);
+	}
+
 	public void searchForum(final String query) {
 		String url;
 		try {
@@ -4201,28 +4241,143 @@ public class GuiUtils {
 			menu.add(label);
 		}
 
-		public static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
-			addSeparator(menu, glyph, header, null);
-		}
-
-		public static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header, final String tooltip) {
+		public static void addSeparator(final JPopupMenu menu, final String header, final String helpUrl) {
 			if (menu.getComponentCount() > 0) menu.addSeparator();
-			menu.add(getMenuItemSeparator(glyph, header, tooltip));
+			menu.add(getMenuItemSeparator(header, null, helpUrl));
 		}
 
 		public static void addSeparator(final JMenu menu, final IconFactory.GLYPH glyph, final String header) {
 			if (menu.getMenuComponents().length > 1) menu.addSeparator();
-			menu.add(getMenuItemSeparator(glyph, header, null));
-		}
-
-		private static JMenuItem getMenuItemSeparator(final IconFactory.GLYPH glyph, final String header, final String tooltip) {
 			final JMenuItem sep = new JMenuItem(header);
 			sep.putClientProperty("cmdFinder-ignore", true);
 			sep.setEnabled(false);
 			sep.setIcon(IconFactory.menuIcon(glyph, IconFactory.disabledColor()));
 			sep.setDisabledIcon(IconFactory.menuIcon(glyph, IconFactory.disabledColor()));
+			menu.add(sep);
+		}
+
+		/**
+		 * Adds a (disabled) header-like separator that reveals a help icon on the right while hovered. Clicking the icon
+		 * opens {@code helpUrl}
+		 */
+		public static void addSeparator(final JPopupMenu menu, final String header, final String tooltip, final String helpUrl) {
+			if (menu.getComponentCount() > 0) menu.addSeparator();
+			menu.add(getMenuItemSeparator(header, tooltip, helpUrl));
+		}
+
+		/** @see #addSeparator(JPopupMenu, String, String, String) */
+		public static void addSeparator(final JMenu menu, final String header, final String helpUrl) {
+			if (menu.getMenuComponents().length > 1) menu.addSeparator();
+			menu.add(getMenuItemSeparator(header, null, helpUrl));
+		}
+
+		private static JComponent getMenuItemSeparator(final String header,
+															  final String tooltip, final String helpUrl) {
+			final JComponent sep = (helpUrl == null) ? new JMenuItem(header) : new HelpHeadingLabel(header, helpUrl);
+			sep.putClientProperty("cmdFinder-ignore", true);
+			sep.setEnabled(false);
 			if (tooltip != null) sep.setToolTipText(tooltip);
 			return sep;
+		}
+
+		/**
+		 * A disabled heading label (laid out exactly as in {@link #headingLabel(String)}, so its text stays
+		 * flush with the menu's left edge) that paints a help icon on its right edge while hovered. Disabled
+		 * components still receive mouse events, so no extra machinery is needed
+		 */
+		private static class HelpHeadingLabel extends JLabel {
+
+			private static final int MARGIN = 6;
+			// built on first hover, and rebuilt on LaF changes, so they always match the current theme
+			private Icon idle, active;
+			private boolean hovered, overIcon;
+
+			HelpHeadingLabel(final String header, final String url) {
+				super(header);
+				setHorizontalAlignment(SwingConstants.LEFT);
+				setAlignmentX(Component.CENTER_ALIGNMENT); // same as headingLabel()
+				setMaximumSize(new Dimension(Integer.MAX_VALUE, super.getPreferredSize().height));
+				final MouseAdapter ma = new MouseAdapter() {
+					@Override
+					public void mouseEntered(final MouseEvent e) {
+						update(true, e);
+					}
+					@Override
+					public void mouseMoved(final MouseEvent e) {
+						update(true, e);
+					}
+					@Override
+					public void mouseDragged(final MouseEvent e) { // button held: no mouseMoved events
+						update(true, e);
+					}
+					@Override
+					public void mousePressed(final MouseEvent e) {
+						update(true, e);
+					}
+					@Override
+					public void mouseExited(final MouseEvent e) {
+						update(false, e);
+					}
+					@Override
+					public void mouseReleased(final MouseEvent e) {
+						if (iconRect().contains(e.getPoint())) {
+							MenuSelectionManager.defaultManager().clearSelectedPath();
+							GuiUtils.openURL(url);
+						}
+					}
+				};
+				addMouseListener(ma);
+				addMouseMotionListener(ma);
+			}
+
+			private void ensureIcons() {
+				if (idle != null) return;
+				idle = IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE, IconFactory.disabledColor());
+				active = IconFactory.menuIcon(GLYPH.QUESTION_CIRCLE, IconFactory.defaultColor());
+			}
+
+			@Override
+			public void updateUI() {
+				super.updateUI();
+				idle = active = null;
+			}
+
+			private Rectangle iconRect() {
+				ensureIcons();
+				return new Rectangle(getWidth() - idle.getIconWidth() - MARGIN, (getHeight() - idle.getIconHeight()) / 2,
+						idle.getIconWidth(), idle.getIconHeight());
+			}
+
+			private void update(final boolean in, final MouseEvent e) {
+				final boolean over = in && iconRect().contains(e.getPoint());
+				if (in == hovered && over == overIcon) return;
+				hovered = in;
+				overIcon = over;
+				// Cursors of lightweight components are not honored inside a popup: set it on
+				// the popup and its window, which are what the pointer is actually over
+				final Cursor cursor = Cursor.getPredefinedCursor(over ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR);
+				setCursor(cursor);
+				if (getParent() != null) getParent().setCursor(cursor);
+				final Window w = SwingUtilities.getWindowAncestor(this);
+				if (w != null) w.setCursor(cursor);
+				repaint();
+			}
+
+			@Override
+			public Dimension getPreferredSize() {
+				final Dimension d = super.getPreferredSize();
+				ensureIcons();
+				d.width += idle.getIconWidth() + 2 * MARGIN; // room for the icon so it never overlaps the text
+				return d;
+			}
+
+			@Override
+			protected void paintComponent(final Graphics g) {
+				super.paintComponent(g);
+				if (!hovered) return;
+				final Rectangle r = iconRect(); // also builds the icons if needed
+				(overIcon ? active : idle).paintIcon(this, g, r.x, r.y);
+			}
 		}
 
 		private MenuItems() {}
@@ -5942,6 +6097,10 @@ public class GuiUtils {
 			return new OptionsButton(text, menu, dropdownIndicator);
 		}
 
+		public static JButton OptionsButton(final String text, IconFactory.GLYPH glyph, final Color color, final float scalingFactor, final JPopupMenu menu) {
+			return new OptionsButtonWithText(text, glyph, (color == null) ? IconFactory.defaultColor() : color, scalingFactor, menu);
+		}
+
 		 /** A {@link JButton} that shows an attached {@link JPopupMenu} of options when clicked. */
 		 public static class OptionsButton extends JButton {
 			 public final JPopupMenu popupMenu;
@@ -5973,6 +6132,55 @@ public class GuiUtils {
 				 addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
 			 }
 		 }
+
+		private static class OptionsButtonWithText extends JButton {
+
+			private final JLabel leftIcon, centerText, rightIcon;
+
+			private OptionsButtonWithText(final String text, final IconFactory.GLYPH glyph, final Color color,
+										  final float scalingFactor, final JPopupMenu popupMenu) {
+				super();
+				leftIcon = new JLabel(IconFactory.buttonIcon(glyph, color, scalingFactor));
+				leftIcon.setDisabledIcon(IconFactory.buttonIcon(glyph, IconFactory.disabledColor(), scalingFactor));
+				centerText = new JLabel(text);
+				final Icon dropDownIcon = UIManager.getIcon("Tree.expandedIcon");
+				rightIcon = new JLabel(dropDownIcon);
+				rightIcon.setDisabledIcon(dropDownIcon);
+				// Fixed-size group, centered in the button: the labels never wrap or shrink
+				// when the container is resized, as with a regular JButton
+				final JPanel content = new JPanel() {
+					@Override
+					public Dimension getMinimumSize() {
+						return getPreferredSize();
+					}
+					@Override
+					public Dimension getMaximumSize() {
+						return getPreferredSize();
+					}
+				};
+				content.setOpaque(false);
+				content.setLayout(new BoxLayout(content, BoxLayout.X_AXIS));
+				final int gap = Math.max(4, getIconTextGap());
+				content.add(leftIcon);
+				content.add(Box.createHorizontalStrut(gap));
+				content.add(centerText);
+				content.add(Box.createHorizontalStrut(gap));
+				content.add(rightIcon);
+				setLayout(new GridBagLayout());
+				add(content); // default constraints: centered, not resized
+				popupMenu.putClientProperty("owner", this);
+				addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
+			}
+
+			@Override
+			public void setEnabled(final boolean b) {
+				super.setEnabled(b);
+				leftIcon.setEnabled(b);
+				centerText.setEnabled(b);
+				rightIcon.setEnabled(b);
+			}
+
+		}
 
 		public static JButton help(final String url) {
 			final JButton button = new JButton();
@@ -6483,42 +6691,115 @@ public class GuiUtils {
 
 		/**
 		 * Creates a section with a header that collapses/expands its content when clicked.
+		 * The parent window is re-packed on every toggle (see {@link CollapsiblePanel})
 		 *
 		 * @param title    the header text
 		 * @param content  the component to show/hide
 		 * @param expanded whether the section is initially expanded
-		 * @param onToggle optional action run after each toggle (e.g., to re-pack the parent window). May be null
 		 * @return the section panel, to be added to a container
 		 */
-		public static JPanel collapsibleSection(final String title, final JComponent content, final boolean expanded,
-												final Runnable onToggle) {
-			final JButton header = new JButton(title);
-			GuiUtils.Buttons.makeBorderless(header);
-			header.setFocusable(false);
-			// Buttons have a sizeable left margin by default: flush the icon with the left edge of the container
-			header.setMargin(new Insets(2, 0, 2, 4));
-			header.setIconTextGap(4);
-			header.setHorizontalAlignment(SwingConstants.LEFT);
-			header.setFont(header.getFont().deriveFont(Font.BOLD));
-			header.setToolTipText("Collapse/expand section");
-			final Color arrowColor = UIManager.getColor("Spinner.buttonArrowColor");
-			final boolean[] state = {expanded};
-			final Runnable applyState = () -> {
-				IconFactory.assignIcon(header, state[0] ? GLYPH.ANGLE_DOWN : GLYPH.ANGLE_RIGHT, arrowColor, 0.8f);
-				content.setVisible(state[0]);
-			};
-			applyState.run();
-			final JPanel section = new JPanel(new BorderLayout());
-			section.add(header, BorderLayout.NORTH);
-			section.add(content, BorderLayout.CENTER);
-			header.addActionListener(e -> {
-				state[0] = !state[0];
-				applyState.run();
-				section.revalidate();
-				section.repaint();
-				if (onToggle != null) onToggle.run();
-			});
-			return section;
+		public static CollapsiblePanel collapsibleSection(final String title, final JComponent content,
+																	final boolean expanded) {
+			return new CollapsiblePanel(title, content, !expanded);
+		}
+
+		/**
+		 * Returns a "Boxed section" panel: its content enclosed by a thin, rounded outline in the theme's border color,
+		 * with an optional title in the outline.
+		 *
+		 * @param title   the border title (none if null)
+		 * @param content the contents of the panel
+		 * @return the section panel
+		 */
+		public static JPanel section(final String title, final Component content) {
+			final JPanel panel = new SectionPanel(title);
+			panel.add(content, BorderLayout.CENTER);
+			return panel;
+		}
+
+		/** Panel whose outline is rebuilt on LaF changes, so it always matches the theme's border color. */
+		private static class SectionPanel extends JPanel {
+
+			private static final long serialVersionUID = 1L;
+			private final String title;
+			private boolean ready; // updateUI() is called by the super constructor, before fields are set
+
+			SectionPanel(final String title) {
+				super(new BorderLayout());
+				this.title = title;
+				ready = true;
+				updateBorder();
+			}
+
+			@Override
+			public void updateUI() {
+				super.updateUI();
+				if (ready) updateBorder();
+			}
+
+			private void updateBorder() {
+				final javax.swing.border.Border line = new FlatLineBorder(new Insets(4, 6, 4, 6),
+						UIManager.getColor("Component.borderColor"), 1f, 8);
+				setBorder((title == null) ? line : BorderFactory.createTitledBorder(line, title));
+			}
+		}
+
+		/**
+		 * Assembles a read-only HTML text panel that wraps to the width of its container.
+		 * @param html the HTML contents
+		 * @param initialWidth the initial pane width before it has been laid out
+		 * @return the HTML text panel
+		 */
+		public static JEditorPane WrappingHtmlPane(final String html, final java.util.function.IntSupplier initialWidth) {
+			return new WrappingHtmlPane(html, initialWidth);
+		}
+
+		private static class WrappingHtmlPane extends JEditorPane {
+			private static final long serialVersionUID = 1L;
+			private final transient java.util.function.IntSupplier initialWidth;
+
+			WrappingHtmlPane(final String html, final java.util.function.IntSupplier initialWidth) {
+				super("text/html", html);
+				this.initialWidth = initialWidth;
+				setEditable(false);
+				setOpaque(false);
+				setFocusable(false);
+				putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE); // use the font of the LAF
+				// The height we reported was computed for an earlier width: once the real width is known, re-pack the
+				// window if the text now needs a different height (otherwise empty space is left below the text)
+				addComponentListener(new ComponentAdapter() {
+					private int lastWidth = -1;
+
+					@Override
+					public void componentResized(final ComponentEvent e) {
+						if (getWidth() == lastWidth) return;
+						lastWidth = getWidth();
+						SwingUtilities.invokeLater(() -> {
+							final Window w = SwingUtilities.getWindowAncestor(WrappingHtmlPane.this);
+							if (w == null || !isShowing()) return;
+							if (Math.abs(getPreferredSize().height - getHeight()) > 2) {
+								revalidate();
+								w.pack();
+							}
+						});
+					}
+				});
+			}
+
+			@Override
+			public Dimension getPreferredSize() {
+				final Container parent = getParent();
+				int w = initialWidth.getAsInt();
+				if (parent != null && parent.getWidth() > 0) {
+					// Width actually available: the parent's, minus its other children (e.g., the indent of a
+					// CollapsiblePanel)
+					w = parent.getWidth();
+					for (final Component c : parent.getComponents())
+						if (c != this) w -= c.getPreferredSize().width;
+				}
+				if (getWidth() != w) setSize(w, Short.MAX_VALUE);
+				return new Dimension(w, super.getPreferredSize().height);
+			}
 		}
 	}
 
@@ -7071,9 +7352,11 @@ public class GuiUtils {
 		 * @param html   the notification's HTML-formatted message
 		 * @param url    an optional URL to be opened if the message is clicked, or null
 		 * @param action an optional in-app action to be run if the message is clicked, or null
+		 * @return the queued notice, e.g., to {@link #dismissPendingNotice(PendingNotice) withdraw} it once it is no
+		 *         longer relevant (notices carry no expiry)
 		 */
-		public static void queueNotice(final String html, final String url, final Runnable action) {
-			queueNotice(html, url, action, LogLevel.INFO);
+		public static PendingNotice queueNotice(final String html, final String url, final Runnable action) {
+			return queueNotice(html, url, action, LogLevel.INFO);
 		}
 
 		/**
@@ -7081,7 +7364,7 @@ public class GuiUtils {
 		 *
 		 * @param logLevel the notice's severity as defined by {@link LogLevel}, used to pick an accent icon for it
 		 */
-		public static void queueNotice(final String html, final String url, final Runnable action,
+		public static PendingNotice queueNotice(final String html, final String url, final Runnable action,
 									   final int logLevel) {
 			while (pendingNotices.size() >= MAX_PENDING_NOTICES) {
 				try {
@@ -7090,8 +7373,10 @@ public class GuiUtils {
 					break; // another thread already drained it
 				}
 			}
-			pendingNotices.add(new PendingNotice(html, url, action, logLevel));
+			final PendingNotice notice = new PendingNotice(html, url, action, logLevel);
+			pendingNotices.add(notice);
 			fireNotificationsChanged();
+			return notice;
 		}
 
 		/**

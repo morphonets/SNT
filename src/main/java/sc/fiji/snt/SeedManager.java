@@ -1340,7 +1340,7 @@ public class SeedManager extends JPanel {
         final JPopupMenu menu = new JPopupMenu();
 
         GuiUtils.MenuItems.addSeparator(menu, "Seeds as Roots/Somata:");
-        JMenuItem jmi = new JMenuItem("Grayscale Image (One Tree per Seed)...");
+        JMenuItem jmi = new JMenuItem("Intensity Image (One Tree per Seed)...");
         jmi.addActionListener(e -> traceFromSeeds());
         jmi.setToolTipText("<HTML>Runs GWDT auto-tracing with <b>each seed as a tree root</b>.<br>" +
                 "Each filtered seed becomes the root of its own tree (the soma<br>" +
@@ -1358,7 +1358,7 @@ public class SeedManager extends JPanel {
         menu.add(jmi);
 
         GuiUtils.MenuItems.addSeparator(menu, "Seeds as Endpoints/Tips:");
-        jmi = new JMenuItem("Grayscale Image (Single Cell)...");
+        jmi = new JMenuItem("Intensity Image (Single Cell)...");
         jmi.addActionListener(e -> traceToSeeds());
         jmi.setToolTipText("<HTML>Runs GWDT single-cell auto-tracing <b>toward seeded endpoints</b>.<br>" +
                 "The soma ROI on the canvas (or its auto-detection) is the root;<br>" +
@@ -1376,7 +1376,7 @@ public class SeedManager extends JPanel {
         menu.add(jmi);
 
         GuiUtils.MenuItems.addSeparator(menu, "Seeds as Waypoints / Path Attractors:");
-        jmi = new JMenuItem("Grayscale Image (Single Cell, Constrained)...");
+        jmi = new JMenuItem("Intensity Image (Single Cell, Constrained)...");
         jmi.addActionListener(e -> traceThroughSeeds());
         jmi.setToolTipText("<HTML>Runs GWDT single-cell auto-tracing with <b>seeds as soft<br>" +
                 "path attractors</b>. The soma ROI on the canvas (or its auto-<br>" +

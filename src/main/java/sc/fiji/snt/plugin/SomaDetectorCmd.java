@@ -187,7 +187,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
                     "0 = no count-based filtering (default)")
     private int nSomas = 0;
 
-    @Parameter(label = "Tune Visually...", callback = "tuneCallback",
+    @Parameter(label = "Learn Parameters...", callback = "tuneCallback",
             description = "<HTML>Previews multi-soma detection on a single plane, to adjust<br>" +
                     "<i>Threshold</i>, <i>Min. radius</i>, <i>Min. inter-soma distance</i> interactively")
     private Button tuneButton;
@@ -203,7 +203,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd implements Interactive {
                     "Only meaningful when detecting <b>" + SCOPE_ALL + "</b> with more than one soma<br>")
     private double percentileClip = 10.0;
 
-    @Parameter(label = "   Detect   ", callback = "detectCallback", description = "<HTML>Runs soma detection")
+    @Parameter(label = "     Run     ", callback = "detectCallback", description = "<HTML>Runs soma detection")
     private Button detectButton;
 
     private ImagePlus imp;

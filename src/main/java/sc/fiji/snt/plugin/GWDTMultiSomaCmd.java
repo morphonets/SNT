@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.plugin;
 
-import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
 import org.scijava.plugin.Parameter;
@@ -48,12 +47,6 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
 
     @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
     private Button applyDefaultsBtn;
-
-    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
-    private Button learnFromSelectedPathsBtn;
-
-    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String learnFromExampleMsg = " ";
 
     @Parameter(label = "   Run   ", callback = "runTrace", description = "<HTML>Run multi-soma autotracing")
     private Button run;
@@ -124,10 +117,5 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
     @SuppressWarnings("unused")
     private void applyDefaultsCallback() {
         applyDefaults();
-    }
-
-    @SuppressWarnings("unused")
-    private void learnParametersCallback() {
-        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
     }
 }

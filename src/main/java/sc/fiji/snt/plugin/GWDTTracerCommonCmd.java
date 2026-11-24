@@ -32,6 +32,7 @@ import org.scijava.ItemVisibility;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
+import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
@@ -52,6 +53,7 @@ import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInCanvas;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -109,16 +111,23 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER1 = "<HTML><b>Input Image";
 
-    @Parameter(label = "Grayscale image", required = false,
-            description = "<HTML>The grayscale image to trace. Should have bright foreground<br>" +
-                    "structures on a dark background.",
+    @Parameter(label = "Intensity image", required = false,
+            description = "<HTML>The (non-segmented) image to trace: the active channel is used.<br>" +
+                    "Should have bright foreground structures on a dark background.",
             style = ChoiceWidget.LIST_BOX_STYLE)
     protected String imgChoice;
 
     @Parameter(label = "Path to image(s)", required = false,
-            description = "<HTML>Path to a grayscale image file or a directory of images",
+            description = "<HTML>Path to an image file or a directory of images",
             style = FileWidget.OPEN_STYLE)
     protected File imgFileChoice;
+
+    // NB: Declared up here (widgets follow declaration order, base class first) so that it is seen without scrolling
+    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
+    private Button learnFromSelectedPathsBtn;
+
+    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+    private String learnFromExampleMsg = " ";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER2 = "<HTML>&nbsp;<b>Soma/Root Detection";
@@ -350,6 +359,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         }
         debugMode = SNTUtils.isDebugMode();
         readPreferences();
+        suggestLearningIfPathsExist();
     }
 
     protected void initForFile() {
@@ -360,6 +370,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         resolveInput("somaStrategyChoice"); // No active ROI in file mode: always auto-detect
         resolveInput("roiPlaneOnly");
         resolveInput("debugMode"); // debug mode is always enabled to report progress to console
+        resolveInput("learnFromSelectedPathsBtn"); // not offered in file mode (as before)
+        resolveInput("learnFromExampleMsg");
         debugMode = SNTUtils.isDebugMode();
         readPreferences();
     }
@@ -657,6 +669,32 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             + "dropped onto the window that opens. Radii, intensity, and branch<br>"
             + "geometry are sampled to auto-fill settings above.";
 
+    private static boolean learnHintQueued; // only nudge once per session
+
+    @SuppressWarnings("unused")
+    private void learnParametersCallback() {
+        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
+    }
+
+    // If there are paths to learn from, nudge the user (once per session) via the notification center
+    private void suggestLearningIfPathsExist() {
+        if (learnHintQueued || snt == null) return;
+        final int n = snt.getPathAndFillManager().size();
+        if (n == 0) return;
+        learnHintQueued = true;
+        GuiUtils.Notices.queueNotice(
+                "<HTML>Auto-tracing settings can be learned from your existing paths.<br>"
+                        + "Click here (or use <i>" + LEARN_LABEL + "</i> in the prompt).",
+                null, () -> {
+                    if (findPrompt() != null) {
+                        learnParametersCallback();
+                    } else {
+                        msg(String.format("The %s prompt has meanwhile been closed. Reopen the command and use the <i>%s</i> button.",
+                                getInfo().getLabel(), LEARN_LABEL), "Prompt Closed");
+                    }
+                });
+    }
+
     private AutoTraceConfigDialog configDialog;
     private Consumer<String> learnMessage; // updates the message widget of the "learn" button
 
@@ -877,7 +915,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             protected void done() {
                 try {
                     final AutoTraceConfig config = get();
-                    message.accept("<HTML><font color='green'>Learned from " + nPaths + " path(s)"
+                    message.accept("<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor()) + "'>Learned from " + nPaths + " path(s)"
                             + (fromFiles ? " in the file(s). " : ". ")
                             + "Choose which values to adopt in the 'Auto-Trace Configuration' window.</font>");
                     status("Learned parameters from " + nPaths + " path(s)", true);
@@ -933,8 +971,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             protected void done() {
                 try {
                     final AutoTraceConfig config = get();
-                    message.accept("<HTML><font color='green'>Estimated from the image. Choose which values to adopt "
-                            + "in the 'Auto-Trace Configuration' window.</font>");
+                    message.accept("<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor()) +"'>Estimated from image. " +
+                            "Choose which values to adopt in the 'Auto-Trace Configuration' window.</font>");
                     status("Estimated parameters from the image", true);
                     SNTUtils.log("AutoTraceConfig estimated:\n" + config.getSummary());
                     onDone.accept(config);
@@ -951,7 +989,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     }
 
     private void learnFailed(final String msg, final Consumer<String> message, final Consumer<String> onError) {
-        message.accept("<HTML><font color='red'>" + msg + "</font>");
+        message.accept("<HTML><font color='"+ SNTColor.colorToString(GuiUtils.Colors.errorColor()) +"'>" + msg + "</font>");
         SNTUtils.log("AutoTraceConfig error: " + msg);
         onError.accept(msg);
     }
@@ -980,7 +1018,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         if (dialog.isSelected("resampleStep") && !Double.isNaN(config.getResampleStep())) {
             resampleStep = config.getResampleStep();
         }
-        message.accept("<HTML><font color='green'>Applied selected parameters.</font>");
+        message.accept("<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor()) + "'>Applied selected parameters.</font>");
         SNTUtils.log("AutoTraceConfig: applied selected parameters to dialog");
     }
 
@@ -1049,7 +1087,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     private boolean binaryImgError(final ImgPlus<?> img) {
         if (ImgUtils.isBinary(img)) {
-            error("Image is not grayscale. Binary (thresholded) images can be " +
+            error("Image is not an intensity image. Binary (thresholded) images can be " +
                     "parsed using the 'Auto-trace Segmented Image...' command.");
             return true;
         }

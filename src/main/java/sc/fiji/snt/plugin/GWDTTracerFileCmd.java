@@ -50,7 +50,7 @@ import java.util.List;
  * @see GWDTTracerCommonCmd
  * @see GWDTTracerCmd
  */
-@Plugin(type = Command.class, initializer = "init", label="Autotracing Grayscale Data (GWDT)...")
+@Plugin(type = Command.class, initializer = "init", label="Autotracing Intensity Image (GWDT)...")
 public class GWDTTracerFileCmd extends GWDTTracerCommonCmd {
 
     @Parameter(label = "Export directory", style = "directory",

@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.plugin;
 
-import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
 import org.scijava.plugin.Parameter;
@@ -45,16 +44,10 @@ import java.awt.*;
 @Plugin(type = Command.class, initializer = "init")
 public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
 
-    private static final String PROMPT_TITLE = "Autotracing Grayscale Data (GWDT)... "; // MUST BE UNIQUE for getPrompt() to work
+    private static final String PROMPT_TITLE = "Autotracing Intensity Image (GWDT)... "; // MUST BE UNIQUE for getPrompt() to work
 
     @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
     private Button applyDefaultsBtn;
-
-    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
-    private Button learnFromSelectedPathsBtn;
-
-    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String learnFromExampleMsg = " ";
 
     @Parameter(label = "   Run   ", callback = "runTrace", description = "<HTML>Run autotracing")
     private Button run;
@@ -129,10 +122,5 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
     @SuppressWarnings("unused")
     private void applyDefaultsCallback() {
         applyDefaults();
-    }
-
-    @SuppressWarnings("unused")
-    private void learnParametersCallback() {
-        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
     }
 }

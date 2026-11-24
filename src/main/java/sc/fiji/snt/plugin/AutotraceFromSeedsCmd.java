@@ -93,12 +93,6 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
     @Parameter(label = APPLY_DEFAULTS_LABEL, callback = "applyDefaultsCallback", description = APPLY_DEFAULTS_DESCRIPTION)
     private Button applyDefaultsBtn;
 
-    @Parameter(label = LEARN_LABEL, callback = "learnParametersCallback", description = LEARN_DESCRIPTION)
-    private Button learnFromSelectedPathsBtn;
-
-    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String learnFromExampleMsg = " ";
-
 
     /**
      * Snapshot of the overlay taken at {@link #runCommand} start; subsequent edits to the overlay don't affect this run.
@@ -138,11 +132,6 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
     @SuppressWarnings("unused")
     private void applyDefaultsCallback() {
         applyDefaults();
-    }
-
-    @SuppressWarnings("unused")
-    private void learnParametersCallback() {
-        learnFromSelectedPaths(msg -> learnFromExampleMsg = msg);
     }
 
     @Override

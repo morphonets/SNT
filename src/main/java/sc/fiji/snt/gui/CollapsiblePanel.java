@@ -117,6 +117,14 @@ public class CollapsiblePanel extends JPanel {
 		checkbox.setFocusable(focusable);
 	}
 
+	/**
+	 * Applies a font style to the panel header
+	 * @param fontStyle the style (e.g., Font.BOLD)
+	 */
+	public void setHeaderFontStyle(final int fontStyle) {
+		checkbox.setFont(checkbox.getFont().deriveFont(fontStyle));
+	}
+
 	public void setTooltipText(final String text) {
 		checkbox.setToolTipText(text);
 	}

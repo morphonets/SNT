@@ -175,7 +175,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(getDuplicateMenuItem(singlePathListener));
         editMenu.add(getRenameMenuItem(singlePathListener));
 
-        GuiUtils.MenuItems.addSeparator(editMenu, "Connectivity:");
+        GuiUtils.MenuItems.addSeparator(editMenu, "Connectivity:", "https://imagej.net/plugins/snt/manual#auto-connect");
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.MAGIC));
         jmi.setToolTipText("<HTML>Connects 2 paths (parent-child) at an inferred fork point.<br>" +
                 "Suggests parent based on path properties.");
@@ -205,7 +205,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setToolTipText("Reverses orientation of primary path(s), with option to update child connections");
         jmi.addActionListener(multiPathListener);
 
-        GuiUtils.MenuItems.addSeparator(editMenu, "Attributes:");
+        GuiUtils.MenuItems.addSeparator(editMenu, "Attributes:", "https://imagej.net/plugins/snt/manual#specify-channelframe");
         jmi = new JMenuItem(MultiPathActionListener.SPECIFY_CT_POSITION_CMD);
         jmi.setToolTipText("Changes CT position of selected path(s)");
         IconFactory.assignDoubleLetterIcon(jmi, 'C', 'T', true);
@@ -222,7 +222,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
 
-        GuiUtils.MenuItems.addSeparator(editMenu, "Geometry:");
+        GuiUtils.MenuItems.addSeparator(editMenu, "Geometry:", "https://imagej.net/plugins/snt/manual#correct-z-shrinkage");
         jmi = new JMenuItem(MultiPathActionListener.Z_CORRECTION_CMD, IconFactory.menuIcon('\ue4b8', true));
         jmi.setToolTipText("Corrects Z-axis shrinkage from tissue processing (e.g., cut/mounted thickness ratio)");
         jmi.addActionListener(multiPathListener);
@@ -232,7 +232,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
 
-        GuiUtils.MenuItems.addSeparator(editMenu, "Repair:");
+        GuiUtils.MenuItems.addSeparator(editMenu, "Repair:", "https://imagej.net/plugins/snt/manual#rebuild");
         jmi = new JMenuItem(MultiPathActionListener.REBUILD_CMD);
         jmi.setToolTipText("<HTML>Analyzes and re-computes all hierarchical connections in the list.<br>"
                 + "Applies to all paths, regardless of selection");
@@ -312,7 +312,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu fitMenu = new JMenu("Refine");
         menuBar.add(fitMenu);
-        GuiUtils.MenuItems.addSeparator(fitMenu, "Fitting:");
+        GuiUtils.MenuItems.addSeparator(fitMenu, "Fitting:", "https://imagej.net/plugins/snt/manual#refinefit-");
         jmi = new JMenuItem(MultiPathActionListener.FIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CROSSHAIR));
         jmi.setToolTipText("<HTML>Fits selected path(s) to the signal (refined radii and node positions).<br>"
                 + "Existing fits are re-used unless you choose to recompute them");
@@ -355,7 +355,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
 
-        GuiUtils.MenuItems.addSeparator(fitMenu, "Re-tracing:");
+        GuiUtils.MenuItems.addSeparator(fitMenu, "Re-tracing:", "https://imagej.net/plugins/snt/manual#re-trace-with-a");
         jmi = new JMenuItem(MultiPathActionListener.A_STAR_REFINE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ROUTE));
         jmi.setToolTipText("<HTML>Re-traces selected path(s) with A*, using their existing nodes as waypoints."
                 + "<br>Intended for paths traced manually (e.g. against data streamed from disk/network),"
@@ -385,7 +385,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         final JMenu process = new JMenu("Process");
         menuBar.add(process);
-        GuiUtils.MenuItems.addSeparator(process, "Convert & Export:");
+        GuiUtils.MenuItems.addSeparator(process, "Convert & Export:", "https://imagej.net/plugins/snt/manual#convert-to-rois");
         jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD, IconFactory.menuIcon(IconFactory.GLYPH.BEZIER_CURVE));
         jmi.setToolTipText("Converts selected path(s) into ROIs (polylines and points)");
         jmi.addActionListener(multiPathListener);
@@ -403,7 +403,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
         jmi.addActionListener(multiPathListener);
         process.add(jmi);
-        GuiUtils.MenuItems.addSeparator(process, "Semantic Segmentation:");
+        GuiUtils.MenuItems.addSeparator(process, "Semantic Segmentation:", "https://imagej.net/plugins/snt/manual#load-labkit-with-selected-paths");
         jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
         jmi.setToolTipText("Starts a Labkit session loaded with labels from selected paths");
         jmi.addActionListener(multiPathListener);
@@ -461,7 +461,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Measure Path(s)...\")");
         measureMenu.add(jmi);
 
-        GuiUtils.MenuItems.addSeparator(advanced, "Statistics & Plots:");
+        GuiUtils.MenuItems.addSeparator(advanced, "Statistics & Plots:", "https://imagej.net/plugins/snt/manual#measurements-");
         advanced.add(measureMenu);
         advanced.add(distributionMenu);
         jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
@@ -469,9 +469,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Multimetric Plot...\")");
         advanced.add(jmi);
-        GuiUtils.MenuItems.addSeparator(advanced, "Visualization:");
+        GuiUtils.MenuItems.addSeparator(advanced, "Visualization:", "https://imagej.net/plugins/snt/manual#color-mapping-");
         advanced.add(colorMapMenu);
-        GuiUtils.MenuItems.addSeparator(advanced, "Intensity Profilers:");
+        GuiUtils.MenuItems.addSeparator(advanced, "Intensity Profilers:", "https://imagej.net/plugins/snt/manual#node-profiler");
         jmi = new JMenuItem(SinglePathActionListener.NODE_PROFILER, IconFactory.menuIcon(IconFactory.GLYPH.CHART_MAGNIFIED));
         jmi.setToolTipText("Cross-section profiles of single paths");
         jmi.addActionListener(singlePathListener);
@@ -482,7 +482,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Path Profiler...\")");
         advanced.add(jmi);
-        GuiUtils.MenuItems.addSeparator(advanced, "Specialized:");
+        GuiUtils.MenuItems.addSeparator(advanced, "Specialized:", "https://imagej.net/plugins/snt/manual#spinevaricositieslabels-");
         advanced.add(getSpineUtilsMenu(multiPathListener));
         advanced.add(getTimeSequenceMenu(multiPathListener));
         advanced.addSeparator();

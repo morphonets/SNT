@@ -469,7 +469,7 @@ public class SomaPalette extends WizardPalette {
             c.gridx = 0;
             c.gridwidth = GridBagConstraints.REMAINDER;
             // The note wraps at the width of the other rows (which are assembled first, to measure them)
-            final JPanel controls = section(null, assembleControls());
+            final JPanel controls = GuiUtils.Panels.section(null, assembleControls());
             final JPanel status = newPanel(new FlowLayout(FlowLayout.LEFT));
             status.add(statusLabel);
             final JPanel buttons = assembleButtonPanel();

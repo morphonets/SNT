@@ -679,7 +679,7 @@ public class CostPalette extends WizardPalette {
                 metricsPanel.setHeaderFocusable(false); // keyboard shortcuts (zoom, etc.) need the canvas to have focus
                 metricsPanel.setTooltipText("Quality metrics of each path (best values highlighted). "
                         + "Double-click a row to select that cost function");
-                root.add(section(null, metricsPanel), c);
+                root.add(GuiUtils.Panels.section(null, metricsPanel), c);
             }
             c.gridy = 2;
             root.add(assembleButtonPanel(), c);
@@ -691,8 +691,6 @@ public class CostPalette extends WizardPalette {
             highlightSelected();
             requestFocusInWindow(); // required to trigger keylistener events
             WizardUtils.place(this, parent, snt);
-            new GuiUtils(this.getCanvas()).tempMsg(
-                    "Scroll the stack to inspect each variant; pick from the dropdown then Apply.", 4000);
         }
 
         // Single place through which the selected cost function changes (drop-down or table double-click)
@@ -868,8 +866,7 @@ public class CostPalette extends WizardPalette {
                     + "<li>Click <i>Apply Choice</i> to adopt the selected cost function; if the preview is being "
                     + "generated from a Path Manager selection, the wizard will also replace the preview path with the "
                     + "chosen variant.</li>"
-                    + "</ul>"
-                    + "<p>Use the <i>More &raquo;</i> menu for LUT, MIP overlay, and other options.</p>";
+                    + "</ul>";
         }
     }
 

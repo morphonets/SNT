@@ -390,7 +390,7 @@ public class DemoRunner {
 				ui.changeState(SNTUI.RUNNING_CMD);
 				setNotes("""
 						The microglia cells autotrace demo
-						runs _Auto-trace → Grayscale Image (Multiple Cells)..._
+						runs _Auto-trace → Intensity Image (Multiple Cells)..._
 						with these parameters:
 
 						```

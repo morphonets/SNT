@@ -275,16 +275,5 @@ abstract class WizardPalette implements Runnable {
                 for (final Component child : ct.getComponents()) repaintTree(child);
             }
         }
-
-        /** Boxed section: titled border (as in MaterializeRegionDialog) or, if the title is null, an etched one */
-        protected final JPanel section(final String title, final Component content) {
-            final JPanel panel = new JPanel(new BorderLayout());
-            panel.setBorder(BorderFactory.createCompoundBorder((title == null)
-                            ? BorderFactory.createEtchedBorder()
-                            : BorderFactory.createTitledBorder(title),
-                    BorderFactory.createEmptyBorder(2, 2, 2, 2)));
-            panel.add(content, BorderLayout.CENTER);
-            return panel;
-        }
     }
 }

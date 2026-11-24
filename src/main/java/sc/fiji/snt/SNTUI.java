@@ -3830,7 +3830,7 @@ public class SNTUI extends JDialog {
         final JMenuItem fromClipboard = getImportActionMenuItem(ImportAction.IMAGE_CLIPBOARD);
         fromClipboard.setIcon(IconFactory.menuIcon(GLYPH.CLIPBOARD));
         changeImpMenu.add(fromClipboard);
-        GuiUtils.MenuItems.addSeparator(fileMenu, "Load:");
+        GuiUtils.MenuItems.addSeparator(fileMenu, "Load:", "https://imagej.net/plugins/snt/manual#-choose-tracing-image");
         fileMenu.add(changeImpMenu);
 
         // Load
@@ -3851,7 +3851,7 @@ public class SNTUI extends JDialog {
         fileMenu.add(loadLabelsMenuItem);
 
         // Save
-        GuiUtils.MenuItems.addSeparator(fileMenu, "Save & Export:");
+        GuiUtils.MenuItems.addSeparator(fileMenu, "Save & Export:", "https://imagej.net/plugins/snt/manual#save-tracings");
         final JMenuItem saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.SAVE));
         saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file.\n"
                 + "This file may be gzip compressed as per options in the Preferences dialog.");
@@ -3890,7 +3890,7 @@ public class SNTUI extends JDialog {
         fileMenu.add(saveTable);
 
         // Backup
-        GuiUtils.MenuItems.addSeparator(fileMenu, "Backups & Sessions:");
+        GuiUtils.MenuItems.addSeparator(fileMenu, "Backups & Sessions:", "https://imagej.net/plugins/snt/manual#backup-tracings");
         final JMenuItem saveCopyMenuItem = new JMenuItem("Backup Tracings",
                 IconFactory.menuIcon('\uf1cd', false));
         saveCopyMenuItem.setToolTipText("Saves paths to a timestamped backup file in the workspace directory");
@@ -3919,7 +3919,7 @@ public class SNTUI extends JDialog {
         fileMenu.add(restoreSession);
 
         // External
-        GuiUtils.MenuItems.addSeparator(fileMenu, "External:");
+        GuiUtils.MenuItems.addSeparator(fileMenu, "External:", "https://imagej.net/plugins/snt/manual#reveal-directory");
         fileMenu.add(showFolderMenu(installer));
         final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2",
                 IconFactory.menuIcon('T', false));
@@ -4031,17 +4031,19 @@ public class SNTUI extends JDialog {
         final JMenu menu = new JMenu("Auto-trace");
 
         // Interactive: operates on images already loaded in SNT
-        GuiUtils.MenuItems.addSeparator(menu, "Interactive Tracing:");
-        final JMenuItem jmiGray = new JMenuItem("Grayscale Image...");
+        GuiUtils.MenuItems.addSeparator(menu, "Interactive Tracing:", "https://imagej.net/plugins/snt/manual#intensity-image");
+        final JMenuItem jmiGray = new JMenuItem("Intensity Image...");
         jmiGray.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-        jmiGray.setToolTipText("Runs automated tracing on a grayscale image already open");
+        jmiGray.setToolTipText("Runs automated tracing on an image already open (a channel of it, or a secondary image layer)");
+        jmiGray.putClientProperty("cmdFinder-keywords", "grayscale, raw, gwdt");
         jmiGray.addActionListener(e -> runAutotracingOnImage(GWDTTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiGray);
 
-        final JMenuItem jmiGrayMulti = new JMenuItem("Grayscale Image (Multiple Cells)...");
+        final JMenuItem jmiGrayMulti = new JMenuItem("Intensity Image (Multiple Cells)...");
         jmiGrayMulti.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-        jmiGrayMulti.setToolTipText("Runs automated tracing on a grayscale image with multiple cells");
+        jmiGrayMulti.setToolTipText("Runs automated tracing on an image with multiple cells");
+        jmiGrayMulti.putClientProperty("cmdFinder-keywords", "grayscale, raw, gwdt");
         jmiGrayMulti.addActionListener(e -> runAutotracingOnImage(GWDTMultiSomaCmd.class));
         menu.add(jmiGrayMulti);
 
@@ -4051,7 +4053,7 @@ public class SNTUI extends JDialog {
         jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiBinaryImg);
-        GuiUtils.MenuItems.addSeparator(menu, "Interactive Detection:");
+        GuiUtils.MenuItems.addSeparator(menu, "Interactive Detection:", "https://imagej.net/plugins/snt/manual#detect-somas");
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
         jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.\n"
@@ -4076,19 +4078,19 @@ public class SNTUI extends JDialog {
         menu.add(jmiSeeded);
 
         // From File(s): file-based / batch processing
-        GuiUtils.MenuItems.addSeparator(menu, "Batch Processing:");
+        GuiUtils.MenuItems.addSeparator(menu, "Batch Processing:", "https://imagej.net/plugins/snt/manual#intensity-image-files");
         final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
         jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-        jmiGrayFile.putClientProperty("cmdFinder-keywords", "wizard, learn parameters");
-        jmiGrayFile.setToolTipText("Runs automated tracing on a large grayscale image file or\n" +
+        jmiGrayFile.putClientProperty("cmdFinder-keywords", "grayscale, raw, wizard, learn parameters");
+        jmiGrayFile.setToolTipText("Runs automated tracing on a large image file or\n" +
                 "directory of images with optional SWC export.\n" +
                 "Parameters are entered manually (see Interactive Tracing to learn them).");
         menu.add(jmiGrayFile);
 
         final JMenuItem jmiGrayMultiFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_MULTI);
         jmiGrayMultiFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-        jmiGrayMultiFile.putClientProperty("cmdFinder-keywords", "wizard, learn parameters");
-        jmiGrayMultiFile.setToolTipText("Runs automated tracing of multiple cells on a large grayscale\n" +
+        jmiGrayMultiFile.putClientProperty("cmdFinder-keywords", "grayscale, raw, wizard, learn parameters");
+        jmiGrayMultiFile.setToolTipText("Runs automated tracing of multiple cells on a large\n" +
                 "image file or directory of images with optional SWC export.\n" +
                 "Parameters are entered manually (see Interactive Tracing to learn them).");
         menu.add(jmiGrayMultiFile);
@@ -4107,7 +4109,7 @@ public class SNTUI extends JDialog {
 
     private JMenu analysisMenu() {
         final JMenu analysisMenu = new JMenu("Analysis");
-        GuiUtils.MenuItems.addSeparator(analysisMenu, "Measurements:");
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Measurements:", "https://imagej.net/plugins/snt/manual#measure");
         // Measuring options : All Paths
         final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
         measureWithPrompt.addActionListener(e -> {
@@ -4136,7 +4138,7 @@ public class SNTUI extends JDialog {
             }
         });
         analysisMenu.add(measureMenuItem);
-        GuiUtils.MenuItems.addSeparator(analysisMenu, "Morphometry:");
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Morphometry:", "https://imagej.net/plugins/snt/manual#sholl-analysissholl-analysis-by-focal-point");
         final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
         shollMenuItem.addActionListener(e -> {
             if (noPathsShollError()) return;
@@ -4196,14 +4198,14 @@ public class SNTUI extends JDialog {
         analysisMenu.add(convexHullMenuItem);
         analysisMenu.add(compareReconstructionsMenuItem());
         analysisMenu.add(getPathAnalysisMenu());
-        GuiUtils.MenuItems.addSeparator(analysisMenu, "Frequency Analysis:");
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Frequency Analysis:", "https://imagej.net/plugins/snt/manual#cell-based-distributions");
         analysisMenu.add(pathManagerMirror("Cell-based Distributions...", GLYPH.CHART,
                 "Computes frequency histograms for measurements of complete arbors"));
         analysisMenu.add(pathManagerMirror("Two-Dimensional Histograms...", GLYPH.CHART_AREA,
                 "Computes distributions of 2-dimensional data (3D histograms)"));
         GuiUtils.MenuItems.addSeparator(analysisMenu, "Atlas Annotations:");
         addAtlasItems(analysisMenu);
-        GuiUtils.MenuItems.addSeparator(analysisMenu, "Visualization:");
+        GuiUtils.MenuItems.addSeparator(analysisMenu, "Visualization:", "https://imagej.net/plugins/snt/manual#cell-based-color-mapping");
         analysisMenu.add(pathManagerMirror("Cell-based Color Mapping...", GLYPH.COLOR2,
                 "Color codes complete arbors using connectivity-dependent metrics"));
         addFigureItems(analysisMenu);
@@ -4338,7 +4340,7 @@ public class SNTUI extends JDialog {
             else
                 arrangeBigViewerOnly(layout); // canvas is handled by arrangeCanvases(): just the viewer
         });
-        GuiUtils.MenuItems.addSeparator(viewMenu, "Windows:");
+        GuiUtils.MenuItems.addSeparator(viewMenu, "Windows:", "https://imagej.net/plugins/snt/manual#view");
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
         arrangeWindowsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
@@ -4384,7 +4386,7 @@ public class SNTUI extends JDialog {
         hideViewsMenu.add(getTracerVisibilityMenuItem("BVV"));
         hideViewsMenu.add(getTracerVisibilityMenuItem("Legacy 3D Viewer"));
         hideViewsMenu.setEnabled(!plugin.isStreamMode());
-        GuiUtils.MenuItems.addSeparator(viewMenu, "Views:");
+        GuiUtils.MenuItems.addSeparator(viewMenu, "Views:", "https://imagej.net/plugins/snt/manual#view");
         viewMenu.add(hideViewsMenu);
         final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
         showImpMenuItem.setEnabled(!plugin.isStreamMode());
@@ -7107,8 +7109,8 @@ public class SNTUI extends JDialog {
         static String getImportActionName(final int type) {
             return switch (type) {
                 case ImportAction.AUTO_TRACE_BINARY_IMAGE -> "Segmented Image File(s)...";
-                case ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE -> "Grayscale Image File(s)...";
-                case ImportAction.AUTO_TRACE_GRAYSCALE_MULTI -> "Grayscale Image File(s) (Multiple Cells)...";
+                case ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE -> "Intensity Image File(s)...";
+                case ImportAction.AUTO_TRACE_GRAYSCALE_MULTI -> "Intensity Image File(s) (Multiple Cells)...";
                 case ImportAction.SWC_DIR -> "Directory or Zip of SWCs...";
                 case ImportAction.SWC -> "SWC...";
                 case ImportAction.IMAGE -> "From File...";
@@ -7126,8 +7128,8 @@ public class SNTUI extends JDialog {
 
         static int getImportActionType(final String name) {
             return switch (name) {
-                case "Grayscale Image File(s)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE;
-                case "Grayscale Image File(s) (Multiple Cells)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_MULTI;
+                case "Intensity Image File(s)...", "Grayscale Image File(s)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE; // 2nd form: backwards compatibility
+                case "Intensity Image File(s) (Multiple Cells)...", "Grayscale Image File(s) (Multiple Cells)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_MULTI;
                 case "Segmented Image File(s)..." -> ImportAction.AUTO_TRACE_BINARY_IMAGE;
                 case "Directory or Zip of SWCs...", "Directory of SWCs..." -> ImportAction.SWC_DIR; // 2nd form: backwards compatibility
                 case "e(SWC)...", "SWC..." -> ImportAction.SWC;
@@ -7215,10 +7217,17 @@ public class SNTUI extends JDialog {
                                         final boolean vgap, final GridBagConstraints c, final boolean cropIcon) {
             final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
             final String uri = baseUrl + "#" + anchor;
-            final JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
-            if (cropIcon) {
+            final JLabel jLabel = GuiUtils.leftAlignedLabel(label, true); // help icon handles the link
+            final Icon crop = (cropIcon)
+                    ? IconFactory.get(GLYPH.CROP, jLabel.getFont().getSize() * .75f, jLabel.getForeground())
+                    : null;
+            if (Desktop.isDesktopSupported()) { // otherwise the label is not clickable
+                GuiUtils.prependHelpIcon(jLabel, uri, crop);
+            } else if (crop != null) {
                 jLabel.setHorizontalTextPosition(SwingConstants.RIGHT);
-                jLabel.setIcon(IconFactory.get(GLYPH.CROP, jLabel.getFont().getSize() * .75f, jLabel.getForeground()));
+                jLabel.setIcon(crop);
+            }
+            if (cropIcon) {
                 jLabel.setToolTipText("These options apply only to a materialized crop, not the live Bdv/Bvv scene");
             }
             GuiUtils.addSeparator(component, jLabel, vgap, c);
