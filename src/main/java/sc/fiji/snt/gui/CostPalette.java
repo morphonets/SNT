@@ -466,13 +466,14 @@ public class CostPalette extends WizardPalette {
      */
     private void refreshCanvasEntries() {
         if (canvas == null) return;
-        canvas.clearEntries();
         final CostType[] types = CostType.values();
+        final java.util.List<MultiPathTracerCanvas.Entry> list = new java.util.ArrayList<>();
         for (int i = 0; i < types.length; i++) {
             final Probe p = probes[i];
             if (!p.ok()) continue;
-            canvas.addEntry(p.path, COLORS[i], types[i] == selectedType);
+            list.add(new MultiPathTracerCanvas.Entry(p.path, COLORS[i], types[i] == selectedType));
         }
+        canvas.setEntries(list); // atomic swap
         if (paletteImage != null && paletteImage.getCanvas() != null) {
             paletteImage.getCanvas().repaint();
         }

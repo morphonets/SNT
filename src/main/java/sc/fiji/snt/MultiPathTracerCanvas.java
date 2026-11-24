@@ -51,7 +51,8 @@ public class MultiPathTracerCanvas extends TracerCanvas {
     public record Entry(Path path, Color color, boolean highlighted) {
     }
 
-    private final List<Entry> entries = new ArrayList<>();
+    // Immutable snapshot, swapped atomically: entries may be (re)set off the EDT while the EDT is painting
+    private volatile List<Entry> entries = List.of();
 
     /**
      * Per-entry transparencies (percent).
@@ -82,8 +83,7 @@ public class MultiPathTracerCanvas extends TracerCanvas {
      * Replaces the current set of painted entries with the supplied list.
      */
     public void setEntries(final List<Entry> list) {
-        entries.clear();
-        if (list != null) entries.addAll(list);
+        entries = (list == null) ? List.of() : java.util.Collections.unmodifiableList(new ArrayList<>(list));
         repaint();
     }
 
@@ -91,7 +91,7 @@ public class MultiPathTracerCanvas extends TracerCanvas {
      * Clears all entries
      */
     public void clearEntries() {
-        entries.clear();
+        entries = List.of();
         repaint();
     }
 
@@ -99,7 +99,11 @@ public class MultiPathTracerCanvas extends TracerCanvas {
      * Appends a single entry without repainting
      */
     public void addEntry(final Path path, final Color color, final boolean highlighted) {
-        entries.add(new Entry(path, color, highlighted));
+        synchronized (this) {
+            final List<Entry> copy = new ArrayList<>(entries);
+            copy.add(new Entry(path, color, highlighted));
+            entries = java.util.Collections.unmodifiableList(copy);
+        }
     }
 
     /**
@@ -134,14 +138,15 @@ public class MultiPathTracerCanvas extends TracerCanvas {
      */
     @Override
     protected void drawOverlay(final Graphics2D g) {
-        if (entries.isEmpty()) return;
+        final List<Entry> snapshot = entries;
+        if (snapshot.isEmpty()) return;
         final int current_z = imp.getZ() - 1;
         final Stroke originalStroke = g.getStroke();
         // Two passes so the highlighted entry is always painted LAST (i.e. on top of all dimmed entries),
         // regardless of insertion order. pass==0 -> dimmed entries; pass==1 -> highlighted entries
         for (int pass = 0; pass < 2; pass++) {
             final boolean drawHighlighted = (pass == 1);
-            for (final Entry e : entries) {
+            for (final Entry e : snapshot) {
                 if (e == null || e.path == null) continue;
                 if (e.highlighted != drawHighlighted) continue;
                 // Per-entry transparency: highlighted entry is more opaque to pop against the others
