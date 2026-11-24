@@ -46,6 +46,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.gui.cmds.AutoTraceConfigDialog;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
+import sc.fiji.snt.tracing.auto.ImageProbe;
 import sc.fiji.snt.tracing.auto.GWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.tracing.auto.SomaUtils;
@@ -749,6 +750,11 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 }
                 learn(new ArrayList<>(all), null, message, onDone, onError);
             }
+
+            @Override
+            public void learnFromImage(final Consumer<AutoTraceConfig> onDone, final Consumer<String> onError) {
+                probeImage(message, onDone, onError);
+            }
         };
         message.accept(" ");
         configDialog = new AutoTraceConfigDialog(findPrompt(), null, currentLearnableValues(), learner);
@@ -886,6 +892,59 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     learnFailed("Parameters could not be learned: " + cause.getMessage(), message, onError);
                 } finally {
                     if (prompt != null) prompt.setCursor(previousCursor);
+                }
+            }
+        }.execute();
+    }
+
+    /** Estimates a configuration from the image alone (see {@link ImageProbe}), reporting back on the EDT */
+    private void probeImage(final Consumer<String> message, final Consumer<AutoTraceConfig> onDone,
+                            final Consumer<String> onError) {
+        if (!isFileMode() && snt != null && snt.isStreamMode() && !snt.isMaterializedCrop()) {
+            learnFailed("The image is streamed: materialize a region (Materialize Region...) to probe it.", message,
+                    onError);
+            return;
+        }
+        final ImgPlus<?> chosenImp;
+        try {
+            chosenImp = learnImage();
+        } catch (final Exception ex) {
+            learnFailed("Image could not be loaded: " + ex.getMessage(), message, onError);
+            return;
+        }
+        if (chosenImp == null) {
+            learnFailed("No valid image available.", message, onError);
+            return;
+        }
+        @SuppressWarnings("unchecked") final RandomAccessibleInterval<? extends RealType<?>> source =
+                (RandomAccessibleInterval<? extends RealType<?>>) chosenImp;
+        final double[] spacing = ImgUtils.getSpacing(chosenImp);
+        message.accept(" ");
+        status("Probing image...", false);
+        new SwingWorker<AutoTraceConfig, Void>() {
+            @Override
+            protected AutoTraceConfig doInBackground() {
+                final ImageProbe.Result probe = ImageProbe.probe(source, spacing);
+                SNTUtils.log("ImageProbe:\n" + probe.summary());
+                return AutoTraceConfig.fromProbe(probe);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    final AutoTraceConfig config = get();
+                    message.accept("<HTML><font color='green'>Estimated from the image. Choose which values to adopt "
+                            + "in the 'Auto-Trace Configuration' window.</font>");
+                    status("Estimated parameters from the image", true);
+                    SNTUtils.log("AutoTraceConfig estimated:\n" + config.getSummary());
+                    onDone.accept(config);
+                } catch (final InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    onError.accept("Interrupted.");
+                } catch (final Exception ex) {
+                    final Throwable cause = (ex.getCause() != null) ? ex.getCause() : ex;
+                    status(null, true);
+                    learnFailed("Image could not be probed: " + cause.getMessage(), message, onError);
                 }
             }
         }.execute();

@@ -64,7 +64,7 @@ public final class ImageProbe {
 	// Upper limit of the window (in voxels) used to estimate the structure scale
 	private static final long[] MAX_WINDOW = { 192, 192, 48 };
 	// Scales (sigma, in XY voxels) tested to find the width of the structures
-	private static final double[] SIGMAS = { 0.7, 1, 1.4, 2, 2.8, 4, 5.6, 8 };
+	private static final double[] SIGMAS = { 0.5, 0.7, 1, 1.4, 2, 2.8, 4, 5.6, 8 };
 	private static final double DOG_RATIO = 1.6;
 	private static final double MAD_TO_SIGMA = 1.4826;
 	// Percentile defining the signal level
@@ -178,7 +178,8 @@ public final class ImageProbe {
 		final double fgLevel = background + Math.max(3 * noise, 0.05 * contrast);
 		final double foreground = fractionAbove(sorted, fgLevel);
 		final double saturated = saturatedFraction(source.firstElement(), sorted);
-		final double threshold = background + Math.max(3 * noise, 0.1 * contrast);
+		// Conservative, as in AutoTraceConfig#fromPaths (25% of the signal): not merely where signal starts
+		final double threshold = background + Math.max(3 * noise, 0.25 * contrast);
 
 		// Pass 2: structure scale around the brightest samples
 		final double radius = estimateRadius(source, samples, sp, signal, background);

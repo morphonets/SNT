@@ -271,6 +271,9 @@ public class AutoTraceConfig {
                     + " nodes): the learned values may be poorly supported. Select more representative paths.");
     }
 
+    /** @return true if this configuration was estimated from the image alone ({@link #fromProbe}) */
+    public boolean isFromProbe() { return probed; }
+
     /**
      * Adds a warning to be reported along with this configuration.
      *
