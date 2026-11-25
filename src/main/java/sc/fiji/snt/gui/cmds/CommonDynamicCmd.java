@@ -292,7 +292,7 @@ public class CommonDynamicCmd extends DynamicCommand {
 	 * {@code snt} has been set by {@link #init(boolean)}.
 	 */
 	protected void warnIfMaterializedCropActive() {
-		if (snt != null && snt.isMaterializedCrop()) {
+		if (snt != null && snt.isMaterializedCrop() && !snt.consumeMaterializedCropNoticeSuppression(getClass())) {
 			msg("<HTML>This command will run on the materialized crop only.<br>"
 					+ "To run it on the full dataset, close the crop's window and re-run.",
 					"Materialized Crop Active");

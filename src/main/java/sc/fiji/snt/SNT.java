@@ -1194,6 +1194,58 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * Checks that a region can be materialized: that it overlaps the loaded data, and that its (trimmed) size fits in
+	 * the memory available
+	 *
+	 * @param worldBox       the region, in calibrated coordinates
+	 * @param secondaryLayer whether the region is read from the secondary layer
+	 * @return the estimated number of bytes the region occupies, or -1 if unknown
+	 * @throws IllegalStateException    if there is no data to materialize from
+	 * @throws IllegalArgumentException if the region does not overlap the data, or does not fit in memory
+	 * @see #estimateMaterializationBytes(long, long, long)
+	 * @see #getMaterializationMemoryBudget()
+	 */
+	public long requireMaterializationFits(final BoundingBox worldBox, final boolean secondaryLayer) {
+		final VoxelBounds vb = resolveVoxelBounds(worldBox, getCalibration(), secondaryLayer);
+		final long needed = estimateMaterializationBytes(vb.max()[0] - vb.min()[0] + 1, vb.max()[1] - vb.min()[1] + 1,
+				vb.max()[2] - vb.min()[2] + 1);
+		final long available = getMaterializationMemoryBudget();
+		if (needed > available) {
+			throw new IllegalArgumentException(String.format("The region (~%.2f GB) exceeds the %.2f GB of memory "
+					+ "available. Please select a smaller region.", needed / 1e9, available / 1e9));
+		}
+		return needed;
+	}
+
+	private volatile long cropNoticeSuppressedUntil;
+	private volatile Class<?> cropNoticeSuppressedFor;
+
+	/**
+	 * Suppresses, once and for a few seconds, the notice that a command runs on the materialized crop only (see
+	 * {@link #consumeMaterializedCropNoticeSuppression(Class)}), for workflows that materialize a crop for the very
+	 * command they launch next, for which the notice would only confuse. Other commands are not affected
+	 *
+	 * @param command the command that is about to run
+	 */
+	public void suppressMaterializedCropNotice(final Class<?> command) {
+		cropNoticeSuppressedFor = command;
+		cropNoticeSuppressedUntil = System.currentTimeMillis() + 15_000L;
+	}
+
+	/**
+	 * @param command the command that is checking
+	 * @return true if the notice is currently suppressed for the command, in which case it will not be anymore
+	 * @see #suppressMaterializedCropNotice(Class)
+	 */
+	public boolean consumeMaterializedCropNoticeSuppression(final Class<?> command) {
+		final Class<?> target = cropNoticeSuppressedFor;
+		if (target == null || !target.isAssignableFrom(command) || System.currentTimeMillis() > cropNoticeSuppressedUntil)
+			return false;
+		cropNoticeSuppressedFor = null;
+		return true;
+	}
+
+	/**
 	 * @return this session's current spatial calibration (pixel width/height/depth and unit), for
 	 *         converting between pixel and world/calibrated coordinates without affecting world origin: see
 	 *         {@link #setWorldOriginOffset(double, double, double)} for the separate mechanism that handles a

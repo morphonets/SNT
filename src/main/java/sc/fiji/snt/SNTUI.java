@@ -57,6 +57,7 @@ import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.seed.SeedOverlayBigViewerHandler;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
+import sc.fiji.snt.viewer.RegionSelector;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -948,8 +949,12 @@ public class SNTUI extends JDialog {
      * @see GWDTTracerCmd
      */
     public void runAutotracingWizard() {
+        SwingUtilities.invokeLater(() -> runAutotracingOnImage(autotracingCmdForImage()));
+    }
+
+    private Class<? extends CommonDynamicCmd> autotracingCmdForImage() {
         final boolean isBinary = ImpUtils.isBinary(plugin.getImagePlus()) || ImgUtils.isBinary(plugin.getLoadedData());
-        SwingUtilities.invokeLater(() -> runAutotracingOnImage((isBinary) ? BinaryTracerCmd.class : GWDTTracerCmd.class));
+        return (isBinary) ? BinaryTracerCmd.class : GWDTTracerCmd.class;
     }
 
     /**
@@ -1333,6 +1338,38 @@ public class SNTUI extends JDialog {
     }
 
     /**
+     * Selects a region in the active BDV/BVV viewer, materializes it, and opens the prompt for automated tracing of
+     * the resulting image (Stream mode only)
+     */
+    public void traceRegionInViewer() {
+        if (!plugin.isStreamMode()) {
+            guiError("This option is only available when data is streamed into BDV or BVV.", "Stream Mode Required");
+            return;
+        }
+        final AbstractBigViewer viewer = getActiveBigViewer();
+        if (viewer == null || RegionSelector.of(viewer) == null) {
+            guiError("Please display the data in BDV or BVV first.", "No Viewer");
+            return;
+        }
+        if (plugin.isPathInProgress() || viewer.isPathInProgress()) {
+            guiError("Please finish or cancel the current path first.", "Path In Progress");
+            return;
+        }
+        viewer.resyncCalibrationFromActiveSource();
+        RegionSelector.of(viewer).select(null, box -> {
+            if (box == null) return; // canceled
+            final long bytes;
+            try {
+                bytes = plugin.requireMaterializationFits(box, false);
+            } catch (final IllegalStateException | IllegalArgumentException ex) {
+                guiError(ex.getMessage(), "Cannot Materialize Region");
+                return;
+            }
+            materializeRegion(box, false, bytes, true);
+        });
+    }
+
+    /**
      * Materializes a real, pixel-backed crop of the streamed source in place as this session's own
      * Display Canvas (Stream mode only), per {@link SNT#materializeDisplayCanvas(BoundingBox)}.
      * Scoped to the current path selection if one exists ({@link PathAndFillManager#getSelectedPaths()}),
@@ -1350,13 +1387,26 @@ public class SNTUI extends JDialog {
         final MaterializeRegionDialog dialog = new MaterializeRegionDialog(this, plugin);
         if (!dialog.succeeded()) return;
         final BoundingBox box = dialog.getResolvedBoundingBox();
-        final boolean useSecondary = dialog.isSecondaryLayerScope();
+        // Reuses the dialog's own last estimate (exactly what is about to be read) rather than  recomputing it here,
+        // so this can never disagree with what the dialog's status line just  showed the user
+        materializeRegion(box, dialog.isSecondaryLayerScope(), dialog.getEstimatedBytes(), false);
+    }
+
+    /**
+     * Reads a region of the streamed source into memory, in place, per
+     * {@link SNT#materializeDisplayCanvas(BoundingBox)}. Warns about unverified calibrations and long reads
+     *
+     * @param box            the region
+     * @param useSecondary   whether to read from the secondary layer
+     * @param estimatedBytes the estimated size of the region
+     * @param thenAutotrace  whether to open the automated tracing prompt once the region is available
+     */
+    private void materializeRegion(final BoundingBox box, final boolean useSecondary, final long estimatedBytes,
+                                   final boolean thenAutotrace) {
         if (!plugin.isSpacingKnownFromSource()) {
             warnIfCalibrationUnverified();
         }
-        // Reuses the dialog's own last estimate (exactly what is about to be read) rather than  recomputing it here,
-        // so this can never disagree with what the dialog's status line just  showed the user
-        if (dialog.getEstimatedBytes() >= MaterializeRegionDialog.LARGE_MATERIALIZATION_WARN_BYTES) {
+        if (estimatedBytes >= MaterializeRegionDialog.LARGE_MATERIALIZATION_WARN_BYTES) {
             warnOnLargeMaterialization();
         }
 
@@ -1385,6 +1435,11 @@ public class SNTUI extends JDialog {
                     arrangeCanvases(false);
                     updateMaterializationDependentControls();
                     showStatus("Region materialized...", true);
+                    if (thenAutotrace) {
+                        // The crop was made for this very command: its notice would only confuse
+                        plugin.suppressMaterializedCropNotice(autotracingCmdForImage());
+                        runAutotracingWizard();
+                    }
                 } catch (final Throwable ex) {
                     // get() wraps whatever doInBackground() threw in an ExecutionException; unwrap so
                     // the message matches what the synchronous call used to show.
@@ -4039,6 +4094,15 @@ public class SNTUI extends JDialog {
         jmiGray.addActionListener(e -> runAutotracingOnImage(GWDTTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiGray);
+
+        final JMenuItem jmiRegion = new JMenuItem("Region (Select in Viewer)...");
+        jmiRegion.setIcon(IconFactory.menuIcon((plugin.isStreamMode()) ? GLYPH.CROP : GLYPH.STREAM));
+        jmiRegion.setEnabled(plugin.isStreamMode());
+        jmiRegion.setToolTipText("<HTML>Draws a region on the data displayed in BDV/BVV, loads it into memory, and<br>"
+                + "opens the automated tracing prompt for it (Stream mode only)");
+        jmiRegion.putClientProperty("cmdFinder-keywords", "crop, materialize, box, roi, stream, gwdt");
+        jmiRegion.addActionListener(e -> traceRegionInViewer());
+        menu.add(jmiRegion);
 
         final JMenuItem jmiGrayMulti = new JMenuItem("Intensity Image (Multiple Cells)...");
         jmiGrayMulti.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));

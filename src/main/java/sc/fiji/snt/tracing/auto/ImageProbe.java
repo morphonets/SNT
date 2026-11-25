@@ -22,10 +22,7 @@
 
 package sc.fiji.snt.tracing.auto;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
@@ -33,6 +30,7 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.util.Intervals;
+import sc.fiji.snt.util.ImgUtils;
 
 /**
  * Characterizes an image before it is traced: intensity statistics, noise,
@@ -290,8 +288,7 @@ public final class ImageProbe {
 	public static Result probe(final ij.ImagePlus imp) {
 		final var rai = ImgUtils.getCtSlice3d(imp, imp.getChannel() - 1, imp.getFrame() - 1);
 		final var cal = imp.getCalibration();
-		return probe(Collections.unmodifiableList(List.of(rai)).getFirst(),
-				new double[] { cal.pixelWidth, cal.pixelHeight, cal.pixelDepth });
+		return probe(List.of(rai).getFirst(), new double[] { cal.pixelWidth, cal.pixelHeight, cal.pixelDepth });
 	}
 
 }
