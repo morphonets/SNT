@@ -142,8 +142,10 @@ public final class ImageProbe {
 		// A flat background (e.g., preprocessed or thresholded data) has no measurable noise: use the
 		// quantization step (integer types) so that the SNR remains finite and comparable
 		final boolean flat = noise <= 0;
-		if (flat) noise = (source.firstElement() instanceof net.imglib2.type.numeric.IntegerType) ? 1d
-				: 1e-3 * contrast;
+		final boolean integer = source.firstElement() instanceof net.imglib2.type.numeric.IntegerType;
+		if (flat) noise = integer ? 1d : 1e-3 * contrast;
+		// Integer data cannot resolve noise below one gray level: this also bounds the SNR by the dynamic range
+		else if (integer && noise < 1d) noise = 1d;
 		if (flat) recs.add("The background is flat (no measurable noise): the image seems preprocessed. The estimated "
 				+ "SNR is relative to the quantization step and tells little about noise");
 		final double snr = contrast / noise;
@@ -159,24 +161,22 @@ public final class ImageProbe {
 			final double anisotropy, final double snr, final double contrast, final double foreground,
 			final double saturated, final String typeName) {
 		if (snr < 3) warns.add(String.format("The estimated signal-to-noise ratio is very low (%.1f): tracing may "
-				+ "follow noise. Denoise the image or trace a cleaner region", snr));
+				+ "follow noise. Denoising the image may help", snr));
 		else if (snr < 6) recs.add(String.format("The estimated signal-to-noise ratio is low (%.1f): keep the score map filter "
 				+ "enabled, and consider raising the background threshold", snr));
 		if (saturated > 0.01) warns.add(String.format("An estimated %.1f%% of the voxels are saturated: thin branches next "
 				+ "to bright structures may be lost, and radii overestimated", 100 * saturated));
 		if (foreground < 0.001) warns.add("Almost no foreground was found in the sampled voxels: the structures "
-				+ "may be too sparse or too faint to be represented, so the estimates here are unreliable. "
-				+ "Probing a region that contains them gives better estimates");
+				+ "may be too sparse or too faint to be represented, so the estimates here are unreliable");
 		else if (foreground > 0.3) warns.add(String.format("An estimated %.0f%% of the voxels are foreground: the "
-				+ "background estimate may be unreliable. Probe a region with more background", 100 * foreground));
+				+ "background estimate may be unreliable", 100 * foreground));
 		if ("UnsignedByteType".equals(typeName) && contrast < 40)
 			recs.add("The dynamic range in use is small (8-bit): contrast stretching before tracing may help");
 		if (anisotropy >= 2) recs.add(String.format("Voxels are anisotropic (%.1fx): the score map accounts for "
 				+ "physical units, but thin branches along the coarse axis may be fragmented", anisotropy));
 		long voxels = 1;
 		for (final long d : dims) voxels *= d;
-		if (voxels > 200_000_000L) recs.add("The image is very large: trace a region of interest instead of the "
-				+ "whole image");
+		if (voxels > 200_000_000L) recs.add("The image is very large: tracing it may be slow and memory-intensive");
 	}
 
 	// Samples a jittered regular lattice
@@ -236,8 +236,8 @@ public final class ImageProbe {
 		return dev[dev.length / 2];
 	}
 
-	// Backgrounds that are mostly constant have a MAD of 0: use the lower half of the distribution and,
-	// failing that, the standard deviation of the samples below the 90th percentile
+	// Backgrounds that are mostly constant have a MAD (median absolute deviation) of 0: use the lower half of
+	// the distribution and, failing that, the standard deviation of the samples below the 90th percentile
 	private static double lowerSpread(final double[] sorted, final double median) {
 		final double spread = (median - percentile(sorted, 5)) / 1.645;
 		if (spread > 0) return spread;

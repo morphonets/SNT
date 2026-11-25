@@ -58,6 +58,11 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
         initMultiSoma();
     }
 
+    /** Closes the prompt of this command, if open */
+    public static void closeIfOpen() {
+        closePrompt(PROMPT_TITLE);
+    }
+
     /**
      * Returns whether an instance of this dialog is currently visible.
      *

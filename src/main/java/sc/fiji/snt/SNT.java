@@ -2985,15 +2985,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* Start a search thread looking for the goal in the arguments: */
 	synchronized Future<?> testPathTo(final double world_x, final double world_y,
-									  final double world_z, final PointInImage joinPoint) {
-		return testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
-	}
-
-	private synchronized Future<?> testPathTo(final double world_x,
-											  final double world_y,
-											  final double world_z,
-											  final PointInImage joinPoint,
-											  final int minPathSize)
+									  final double world_z, final PointInImage joinPoint)
 	{
 
 		if (!lastStartPointSet) {

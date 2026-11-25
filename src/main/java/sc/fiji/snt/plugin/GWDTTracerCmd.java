@@ -58,6 +58,11 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
         initForImage();
     }
 
+    /** Closes the prompt of this command, if open */
+    public static void closeIfOpen() {
+        closePrompt(PROMPT_TITLE);
+    }
+
     /**
      * Returns whether an instance of this dialog is currently visible.
      * Used by SNTUI to enforce singleton behavior.

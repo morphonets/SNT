@@ -55,6 +55,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.*;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.seed.SeedOverlayBigViewerHandler;
+import sc.fiji.snt.tracing.auto.AutoTraceConfig;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.RegionSelector;
@@ -949,7 +950,66 @@ public class SNTUI extends JDialog {
      * @see GWDTTracerCmd
      */
     public void runAutotracingWizard() {
+        runAutotracingWizard(false);
+    }
+
+    /**
+     * Same as {@link #runAutotracingWizard()}
+     *
+     * @param newCrop whether the image is a crop that was just materialized for this command, for which its notice
+     *                that commands run on the crop only is omitted
+     */
+    public void runAutotracingWizard(final boolean newCrop) {
+        if (newCrop) plugin.suppressMaterializedCropNotice(autotracingCmdForImage());
         SwingUtilities.invokeLater(() -> runAutotracingOnImage(autotracingCmdForImage()));
+    }
+
+    /**
+     * Opens the prompt of the (intensity) auto-tracer pre-populated with a learned configuration, replacing any
+     * such prompt that is already open
+     *
+     * @param multiCell whether the multi-cell tracer is to be used instead of the single-cell one
+     * @param learned   the configuration (see {@link sc.fiji.snt.tracing.auto.AutoTraceTrainer})
+     * @param newCrop   see {@link #runAutotracingWizard(boolean)}
+     */
+    public void runAutotracingWithConfig(final boolean multiCell, final AutoTraceConfig learned, final boolean newCrop) {
+        final Class<? extends CommonDynamicCmd> clazz = multiCell ? GWDTMultiSomaCmd.class : GWDTTracerCmd.class;
+        SwingUtilities.invokeLater(() -> {
+            if (!plugin.accessToValidImageData()) {
+                noValidImageDataErrorExtended();
+                return;
+            }
+            // isOpen() also brings an open prompt to front: if kept, there is nothing else to do
+            if ((GWDTTracerCmd.isOpen() || GWDTMultiSomaCmd.isOpen()) && !guiUtils.getConfirmation(
+                    "A tracing prompt is already open. Replace it with one pre-filled with the learned values? "
+                            + "Settings changed in the current prompt will be lost.", "Replace Prompt?", "Replace",
+                    "Keep Open")) {
+                return;
+            }
+            if (newCrop) plugin.suppressMaterializedCropNotice(clazz);
+            final Runnable launch = () -> {
+                final HashMap<String, Object> inputs = new HashMap<>();
+                if (learned != null) inputs.put("learnedConfig", learned);
+                (new DynamicCmdRunner(clazz, inputs)).run();
+            };
+            if (!GWDTTracerCmd.isOpen() && !GWDTMultiSomaCmd.isOpen()) {
+                launch.run();
+                return;
+            }
+            // Only one prompt at a time. Closing is asynchronous, and prompts share their titles: wait until the
+            // old one is gone, so that the new one is not skipped as a singleton or confused with it
+            GWDTTracerCmd.closeIfOpen();
+            GWDTMultiSomaCmd.closeIfOpen();
+            final int[] polls = { 0 };
+            final javax.swing.Timer timer = new javax.swing.Timer(50, null);
+            timer.addActionListener(e -> {
+                if ((!GWDTTracerCmd.isOpen() && !GWDTMultiSomaCmd.isOpen()) || ++polls[0] > 40) { // 2 s max
+                    timer.stop();
+                    launch.run();
+                }
+            });
+            timer.start();
+        });
     }
 
     private Class<? extends CommonDynamicCmd> autotracingCmdForImage() {
@@ -1210,7 +1270,7 @@ public class SNTUI extends JDialog {
         return CalloutManager.groupFor(plugin);
     }
 
-    private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {
+    private void setEnableAutoTracingComponents(final boolean enableAstar) {
         GuiUtils.enableComponents(aStarPanel, enableAstar);
         updateSettingsString();
         updateSecLayerWidgets();
@@ -1220,7 +1280,7 @@ public class SNTUI extends JDialog {
         assert SwingUtilities.isEventDispatchThread();
         fmUI.setEnabledNone();
         GuiUtils.enableComponents(sourcePanel, false);
-        setEnableAutoTracingComponents(false, false);
+        setEnableAutoTracingComponents(false);
     }
 
     private void disableEverything() {
@@ -1342,30 +1402,61 @@ public class SNTUI extends JDialog {
      * the resulting image (Stream mode only)
      */
     public void traceRegionInViewer() {
+        materializeRegionInViewer(() -> runAutotracingWizard(true));
+    }
+
+    /**
+     * Selects a region in the active BDV/BVV viewer and materializes it (Stream mode only), without further prompts
+     * other than for a region that is too large
+     *
+     * @param onMaterialized called (on the EDT) once the region is available. Not called if the selection is canceled
+     *                       or fails. May be null
+     */
+    public void materializeRegionInViewer(final Runnable onMaterialized) {
+        materializeRegionInViewer(onMaterialized, null);
+    }
+
+    /**
+     * Same as {@link #materializeRegionInViewer(Runnable)}
+     *
+     * @param onMaterialized called (on the EDT) once the region is available. May be null
+     * @param onEnded        called (on the EDT) once the attempt is over, whatever its outcome (region available,
+     *                       selection canceled, or failure), and after {@code onMaterialized}. May be null
+     */
+    public void materializeRegionInViewer(final Runnable onMaterialized, final Runnable onEnded) {
+        final Runnable ended = (onEnded == null) ? () -> {
+        } : onEnded;
         if (!plugin.isStreamMode()) {
             guiError("This option is only available when data is streamed into BDV or BVV.", "Stream Mode Required");
+            ended.run();
             return;
         }
         final AbstractBigViewer viewer = getActiveBigViewer();
         if (viewer == null || RegionSelector.of(viewer) == null) {
             guiError("Please display the data in BDV or BVV first.", "No Viewer");
+            ended.run();
             return;
         }
         if (plugin.isPathInProgress() || viewer.isPathInProgress()) {
             guiError("Please finish or cancel the current path first.", "Path In Progress");
+            ended.run();
             return;
         }
         viewer.resyncCalibrationFromActiveSource();
         RegionSelector.of(viewer).select(null, box -> {
-            if (box == null) return; // canceled
+            if (box == null) { // canceled
+                ended.run();
+                return;
+            }
             final long bytes;
             try {
                 bytes = plugin.requireMaterializationFits(box, false);
             } catch (final IllegalStateException | IllegalArgumentException ex) {
                 guiError(ex.getMessage(), "Cannot Materialize Region");
+                ended.run();
                 return;
             }
-            materializeRegion(box, false, bytes, true);
+            materializeRegion(box, false, bytes, onMaterialized, ended);
         });
     }
 
@@ -1389,7 +1480,7 @@ public class SNTUI extends JDialog {
         final BoundingBox box = dialog.getResolvedBoundingBox();
         // Reuses the dialog's own last estimate (exactly what is about to be read) rather than  recomputing it here,
         // so this can never disagree with what the dialog's status line just  showed the user
-        materializeRegion(box, dialog.isSecondaryLayerScope(), dialog.getEstimatedBytes(), false);
+        materializeRegion(box, dialog.isSecondaryLayerScope(), dialog.getEstimatedBytes(), null, null);
     }
 
     /**
@@ -1399,10 +1490,11 @@ public class SNTUI extends JDialog {
      * @param box            the region
      * @param useSecondary   whether to read from the secondary layer
      * @param estimatedBytes the estimated size of the region
-     * @param thenAutotrace  whether to open the automated tracing prompt once the region is available
+     * @param afterInstall   run (on the EDT) once the region is available (may be null)
+     * @param onEnded        run (on the EDT) once done, whatever the outcome, after {@code afterInstall} (may be null)
      */
     private void materializeRegion(final BoundingBox box, final boolean useSecondary, final long estimatedBytes,
-                                   final boolean thenAutotrace) {
+                                   final Runnable afterInstall, final Runnable onEnded) {
         if (!plugin.isSpacingKnownFromSource()) {
             warnIfCalibrationUnverified();
         }
@@ -1430,16 +1522,13 @@ public class SNTUI extends JDialog {
             @Override
             protected void done() {
                 if (viewer != null) viewer.updateStatus("", 0, 0); // 0 nSteps hides the bar
+                boolean installed = false;
                 try {
                     plugin.installMaterializedCrop(get());
                     arrangeCanvases(false);
                     updateMaterializationDependentControls();
                     showStatus("Region materialized...", true);
-                    if (thenAutotrace) {
-                        // The crop was made for this very command: its notice would only confuse
-                        plugin.suppressMaterializedCropNotice(autotracingCmdForImage());
-                        runAutotracingWizard();
-                    }
+                    installed = true;
                 } catch (final Throwable ex) {
                     // get() wraps whatever doInBackground() threw in an ExecutionException; unwrap so
                     // the message matches what the synchronous call used to show.
@@ -1449,6 +1538,9 @@ public class SNTUI extends JDialog {
                     rebuildCanvasButton.setEnabled(true);
                     resetState();
                 }
+                // Outside the try block: a failure of the callback is not a failure to materialize
+                if (installed && afterInstall != null) afterInstall.run();
+                if (onEnded != null) onEnded.run();
             }
         }.execute();
     }
@@ -1706,7 +1798,7 @@ public class SNTUI extends JDialog {
             completePath.setEnabled(false);
             GuiUtils.enableComponents(sourcePanel, true);
             partsNearbyCSpinner.setEnabled(isStackAvailable());
-            setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
+            setEnableAutoTracingComponents(true);
             fmUI.setEnabledWhileNotFilling();
             quitMenuItem.setEnabled(true);
             showPathsSelected.setEnabled(true);
@@ -1729,7 +1821,7 @@ public class SNTUI extends JDialog {
             completePath.setEnabled(false);
             pmUI.valueChanged(null); // Fake a selection change in the path tree
             partsNearbyCSpinner.setEnabled(isStackAvailable());
-            setEnableAutoTracingComponents(false, false);
+            setEnableAutoTracingComponents(false);
             plugin.discardFill();
             fmUI.setEnabledWhileNotFilling();
             quitMenuItem.setEnabled(true);
@@ -1753,7 +1845,7 @@ public class SNTUI extends JDialog {
             junkSegment.setEnabled(false);
             completePath.setEnabled(true);
             partsNearbyCSpinner.setEnabled(isStackAvailable());
-            setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
+            setEnableAutoTracingComponents(true);
             quitMenuItem.setEnabled(false);
         }
 
@@ -1820,7 +1912,7 @@ public class SNTUI extends JDialog {
             updateStatusText("Stream Mode (Experimental)");
             showStatus("In-core image not available...", false);
             disableImageDependentComponents(); // Bvv is not currently aware of these
-            setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
+            setEnableAutoTracingComponents(true); // A* controls are not in Bvv Panel
             applyBvvControlRestrictions();
             updateMaterializationDependentControls();
             quitMenuItem.setEnabled(true);
@@ -1949,7 +2041,7 @@ public class SNTUI extends JDialog {
             junkSegment.setEnabled(false);
             completePath.setEnabled(false);
             partsNearbyCSpinner.setEnabled(isStackAvailable());
-            setEnableAutoTracingComponents(false, false);
+            setEnableAutoTracingComponents(false);
             getFillManager().setVisible(false);
             showOrHideFillList.setEnabled(false);
         }
@@ -1969,7 +2061,7 @@ public class SNTUI extends JDialog {
             junkSegment.setEnabled(false);
             completePath.setEnabled(false);
             partsNearbyCSpinner.setEnabled(isStackAvailable());
-            setEnableAutoTracingComponents(false, false);
+            setEnableAutoTracingComponents(false);
             getFillManager().setVisible(false);
             showOrHideFillList.setEnabled(false);
         }
@@ -3117,7 +3209,6 @@ public class SNTUI extends JDialog {
         c.gridy++;
         c.gridx = 0;
         c.anchor = GridBagConstraints.WEST;
-        c.fill = GridBagConstraints.NONE;
         p.add(GuiUtils.leftAlignedLabel("Mode: ", true), c);
         c.gridx++;
         c.fill = GridBagConstraints.HORIZONTAL;
@@ -4085,6 +4176,14 @@ public class SNTUI extends JDialog {
     private JMenu autoTracingMenu(final JTabbedPane tabbedPane) {
         final JMenu menu = new JMenu("Auto-trace");
 
+        GuiUtils.MenuItems.addSeparator(menu, "Guided:");
+        final JMenuItem jmiGuided = new JMenuItem("Guided Auto-trace...");
+        jmiGuided.setIcon(IconFactory.menuIcon(GLYPH.WIZARD));
+        jmiGuided.setToolTipText("Walks through the steps of automated tracing: data check, example paths, training, region, and tracing");
+        jmiGuided.putClientProperty("cmdFinder-keywords", "wizard, guide, assistant, start, help, steps");
+        jmiGuided.addActionListener(e -> AutoTraceWizard.show(this, plugin));
+        menu.add(jmiGuided);
+
         // Interactive: operates on images already loaded in SNT
         GuiUtils.MenuItems.addSeparator(menu, "Interactive Tracing:", "https://imagej.net/plugins/snt/manual#intensity-image");
         final JMenuItem jmiGray = new JMenuItem("Intensity Image...");
@@ -4096,7 +4195,7 @@ public class SNTUI extends JDialog {
         menu.add(jmiGray);
 
         final JMenuItem jmiRegion = new JMenuItem("Region (Select in Viewer)...");
-        jmiRegion.setIcon(IconFactory.menuIcon((plugin.isStreamMode()) ? GLYPH.CROP : GLYPH.STREAM));
+        IconFactory.assignIcon(jmiRegion, (plugin.isStreamMode()) ? GLYPH.CROP : GLYPH.STREAM);
         jmiRegion.setEnabled(plugin.isStreamMode());
         jmiRegion.setToolTipText("<HTML>Draws a region on the data displayed in BDV/BVV, loads it into memory, and<br>"
                 + "opens the automated tracing prompt for it (Stream mode only)");
@@ -4146,24 +4245,27 @@ public class SNTUI extends JDialog {
         final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
         jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGrayFile.putClientProperty("cmdFinder-keywords", "grayscale, raw, wizard, learn parameters");
-        jmiGrayFile.setToolTipText("Runs automated tracing on a large image file or\n" +
-                "directory of images with optional SWC export.\n" +
-                "Parameters are entered manually (see Interactive Tracing to learn them).");
+        jmiGrayFile.setToolTipText("""
+                Runs automated tracing on a large image file or
+                directory of images with optional SWC export.
+                Parameters are entered manually (see Interactive Tracing to learn them).""");
         menu.add(jmiGrayFile);
 
         final JMenuItem jmiGrayMultiFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_MULTI);
         jmiGrayMultiFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGrayMultiFile.putClientProperty("cmdFinder-keywords", "grayscale, raw, wizard, learn parameters");
-        jmiGrayMultiFile.setToolTipText("Runs automated tracing of multiple cells on a large\n" +
-                "image file or directory of images with optional SWC export.\n" +
-                "Parameters are entered manually (see Interactive Tracing to learn them).");
+        jmiGrayMultiFile.setToolTipText("""
+                Runs automated tracing of multiple cells on a large
+                image file or directory of images with optional SWC export.
+                Parameters are entered manually (see Interactive Tracing to learn them).""");
         menu.add(jmiGrayMultiFile);
 
         final JMenuItem jmiBinaryFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_BINARY_IMAGE);
         jmiBinaryFile.setIcon(IconFactory.menuIcon('\ue69b', true));
-        jmiBinaryFile.setToolTipText("Runs automated tracing on a segmented image file or\n" +
-                "directory of images with optional SWC export.\n" +
-                "Parameters are entered manually (see Interactive Tracing to learn them).");
+        jmiBinaryFile.setToolTipText("""
+                Runs automated tracing on a segmented image file or
+                directory of images with optional SWC export.
+                Parameters are entered manually (see Interactive Tracing to learn them).""");
         menu.add(jmiBinaryFile);
         CalloutManager.add(menu, CalloutManager.AUTO,
                 String.format("Use the <i>%s</i> menu for fully-automated<br>reconstruction tasks.", menu.getText()),
@@ -6098,32 +6200,31 @@ public class SNTUI extends JDialog {
                 final String modKey = "Alt+Shift";
                 final String url1 = ShollUtils.URL + "#analysis-of-traced-cells";
                 final String url2 = "https://imagej.net/plugins/snt/analysis#sholl-analysis";
-                final StringBuilder sb = new StringBuilder();
-                sb.append("<html>");
-                sb.append("<div WIDTH=500>");
-                sb.append("To initiate <a href='").append(ShollUtils.URL).append("'>Sholl Analysis</a>, ");
-                sb.append("you must select a focal point. You can do it coarsely by ");
-                sb.append("right-clicking near a node and choosing <i>Sholl Analysis at Nearest ");
-                sb.append("Node</i> from the contextual menu (Shortcut: \"").append(modKey).append("+A\").");
-                sb.append("<p><b>Important:</b> If one or more paths are currently selected in the Path ");
-                sb.append("Manager, the search for the nearest node is restricted to those paths only, ");
-                sb.append("even if a closer node exists elsewhere. If the node you clicked near does not ");
-                sb.append("seem to be picked up, clear the selection in the Path Manager first (use its ");
-                sb.append("right-click <i>Deselect / Select All</i> command) so that all paths become eligible, ");
-                sb.append("or make sure the path holding the node of interest is part of the selection.</p>");
-                sb.append("<p>The node that will actually be used as the center of analysis will be highlighted ");
-                sb.append("on the canvas once resolved.</p>");
-                sb.append("<p>Alternatively, for precise positioning of the center of analysis:</p>");
-                sb.append("<ol>");
-                sb.append("<li>Mouse over the path of interest. Press \"G\" to activate it</li>");
-                sb.append("<li>Press \"").append(modKey).append("\" to select a node along the path</li>");
-                sb.append("<li>Press \"").append(modKey).append("+A\" to start analysis</li>");
-                sb.append("</ol>");
-                sb.append("A walk-through of this procedure is <a href='").append(url2)
-                        .append("'>available online</a>. ");
-                sb.append("For batch processing, run <a href='").append(url1)
-                        .append("'>Analyze>Sholl>Sholl Analysis (From Tracings)...</a>. ");
-                GuiUtils.showHTMLDialog(sb.toString(), "Sholl Analysis How-to");
+                final String sb = "<html>" +
+                        "<div WIDTH=500>" +
+                        "To initiate <a href='" + ShollUtils.URL + "'>Sholl Analysis</a>, " +
+                        "you must select a focal point. You can do it coarsely by " +
+                        "right-clicking near a node and choosing <i>Sholl Analysis at Nearest " +
+                        "Node</i> from the contextual menu (Shortcut: \"" + modKey + "+A\")." +
+                        "<p><b>Important:</b> If one or more paths are currently selected in the Path " +
+                        "Manager, the search for the nearest node is restricted to those paths only, " +
+                        "even if a closer node exists elsewhere. If the node you clicked near does not " +
+                        "seem to be picked up, clear the selection in the Path Manager first (use its " +
+                        "right-click <i>Deselect / Select All</i> command) so that all paths become eligible, " +
+                        "or make sure the path holding the node of interest is part of the selection.</p>" +
+                        "<p>The node that will actually be used as the center of analysis will be highlighted " +
+                        "on the canvas once resolved.</p>" +
+                        "<p>Alternatively, for precise positioning of the center of analysis:</p>" +
+                        "<ol>" +
+                        "<li>Mouse over the path of interest. Press \"G\" to activate it</li>" +
+                        "<li>Press \"" + modKey + "\" to select a node along the path</li>" +
+                        "<li>Press \"" + modKey + "+A\" to start analysis</li>" +
+                        "</ol>" +
+                        "A walk-through of this procedure is <a href='" + url2 +
+                        "'>available online</a>. " +
+                        "For batch processing, run <a href='" + url1 +
+                        "'>Analyze>Sholl>Sholl Analysis (From Tracings)...</a>. ";
+                GuiUtils.showHTMLDialog(sb, "Sholl Analysis How-to");
             });
             newThread.start();
         });
@@ -6672,7 +6773,7 @@ public class SNTUI extends JDialog {
     protected void enableAStarGUI(final boolean enable) {
         SwingUtilities.invokeLater(() -> {
             aStarCheckBox.setSelected(enable);
-            setEnableAutoTracingComponents(enable, true);
+            setEnableAutoTracingComponents(true);
             showStatus("A* " + ((enable) ? "enabled" : "disabled"), true);
         });
     }

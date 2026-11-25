@@ -47,6 +47,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.gui.cmds.AutoTraceConfigDialog;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.AutoTraceConfig;
+import sc.fiji.snt.tracing.auto.AutoTraceTrainer;
 import sc.fiji.snt.tracing.auto.GWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.tracing.auto.SomaUtils;
@@ -66,7 +67,9 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Base command providing shared parameters and logic for GWDT autotracing.
@@ -106,6 +109,11 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     @Parameter
     protected PrefService prefService;
+
+    // Optional, set by callers that learn parameters beforehand (e.g., the guided auto-trace). Hidden: assigned
+    // through the inputs map, and adopted in init()
+    @Parameter(required = false, persist = false, visibility = ItemVisibility.INVISIBLE)
+    private AutoTraceConfig learnedConfig;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER1 = "<HTML><b>Input Image";
@@ -358,7 +366,15 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         }
         debugMode = SNTUtils.isDebugMode();
         readPreferences();
-        suggestLearningIfPathsExist();
+        if (learnedConfig != null) {
+            applyConfig(learnedConfig, RECOMMENDED_ROWS::contains);
+            learnFromExampleMsg = "<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor())
+                    + "'>Parameters were learned from example paths. Press <i>Run</i> to trace.<br>"
+                    + "If results are not satisfactory, adjust the example paths, press<br>"
+                    + "<i>Learn Parameters...</i>, and trace again.</font>";
+        } else {
+            suggestLearningIfPathsExist();
+        }
     }
 
     protected void initForFile() {
@@ -734,6 +750,33 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         return null;
     }
 
+    /**
+     * Closes the prompt with the given title, if open, as if the user had canceled it, so that the command does not
+     * linger as pending
+     *
+     * @param title the title of the prompt
+     */
+    protected static void closePrompt(final String title) {
+        for (final Window w : Window.getWindows()) {
+            if (w instanceof JDialog d && d.isVisible() && title.equals(d.getTitle())) {
+                final javax.swing.AbstractButton cancel = findButton(d.getContentPane(), "Cancel");
+                if (cancel != null) cancel.doClick();
+                else d.dispose();
+            }
+        }
+    }
+
+    private static javax.swing.AbstractButton findButton(final java.awt.Container c, final String text) {
+        for (final java.awt.Component child : c.getComponents()) {
+            if (child instanceof javax.swing.AbstractButton b && text.equals(b.getText())) return b;
+            if (child instanceof java.awt.Container cc) {
+                final javax.swing.AbstractButton b = findButton(cc, text);
+                if (b != null) return b;
+            }
+        }
+        return null;
+    }
+
     // The visible prompt of this command, or null (NB: Window titles are not unique in general, but are for prompts)
     private JDialog findPrompt() {
         final String title = getInfo().getLabel();
@@ -796,11 +839,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         if (selected != null && !selected.isEmpty()) configDialog.learnFromSelection();
     }
 
-    // Examples beyond this number (longest first) are ignored: fitting radii to many paths is slow, and even
-    // more so if the image is a lazily loaded stream
-    private static final int MAX_EXAMPLE_PATHS = 200;
-    private static final int MAX_EXAMPLE_PATHS_STREAMED = 30;
-
     // Image of file-based commands, kept while the learning window is open: loading it can be slow
     private ImgPlus<?> learnImg;
     private File learnImgFile;
@@ -817,14 +855,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             return learnImg;
         }
         return getImgFromImgChoice();
-    }
-
-    private static List<Path> loadPaths(final List<File> files) {
-        final List<Path> paths = new ArrayList<>();
-        for (final File f : files) {
-            for (final Tree tree : Tree.listFromFile(f.getAbsolutePath())) paths.addAll(tree.list());
-        }
-        return paths;
     }
 
     /**
@@ -850,22 +880,9 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 (RandomAccessibleInterval<? extends RealType<?>>) chosenImp;
         final double[] spacing = ImgUtils.getSpacing(chosenImp);
         final boolean fromFiles = examples == null;
-
-        // Paths are in true-world coordinates, but the image is not necessarily anchored at world origin: it may be
-        // a materialized crop, or a stream with a world origin offset (same convention as in CostPalette)
-        final double[] voxelOffset = new double[3];
-        boolean streamedSource = false;
-        if (!isFileMode() && snt != null) {
-            final PointInCanvas o = snt.getActiveCanvasPixelOffset();
-            if (o != null) {
-                voxelOffset[0] = o.x;
-                voxelOffset[1] = o.y;
-                voxelOffset[2] = o.z;
-            }
-            streamedSource = snt.isStreamMode() && !snt.isMaterializedCrop();
-        }
-        final boolean streamed = streamedSource;
-        final int maxPaths = streamed ? MAX_EXAMPLE_PATHS_STREAMED : MAX_EXAMPLE_PATHS;
+        final boolean live = !isFileMode() && snt != null;
+        final double[] voxelOffset = live ? AutoTraceTrainer.voxelOffset(snt) : new double[3];
+        final boolean streamed = live && AutoTraceTrainer.isStreamedSource(snt);
 
         // Loading, fitting radii and sampling intensities can take a while (many paths, lazy data): do it off the
         // EDT, so that the prompt does not freeze, and show progress
@@ -874,43 +891,20 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         if (prompt != null) prompt.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
         message.accept(" ");
         status("Learning parameters from example paths...", false);
-        new SwingWorker<AutoTraceConfig, Void>() {
-            private int nPaths;
-
+        new SwingWorker<AutoTraceTrainer.Result, Void>() {
             @Override
-            protected AutoTraceConfig doInBackground() {
-                List<Path> paths = fromFiles ? loadPaths(files) : examples;
-                if (paths.isEmpty()) throw new IllegalArgumentException("No paths could be read from the file(s).");
-                final double inside = AutoTraceConfig.fractionInBounds(paths, source, spacing, voxelOffset);
-                if (fromFiles && (Double.isNaN(inside) || inside < 0.5)) {
-                    throw new IllegalArgumentException(String.format("Only %.0f%% of the nodes fall within the image: "
-                            + "the reconstruction(s) do not seem to match it.", 100 * (Double.isNaN(inside) ? 0 : inside)));
-                }
-                final int total = paths.size();
-                if (total > maxPaths) {
-                    paths = new ArrayList<>(paths);
-                    paths.sort((p1, p2) -> Double.compare(p2.getLength(), p1.getLength()));
-                    paths = paths.subList(0, maxPaths);
-                }
-                nPaths = paths.size();
-                final AutoTraceConfig config = AutoTraceConfig.fromPaths(paths, source, spacing, voxelOffset, streamed);
-                if (!Double.isNaN(inside) && inside < 0.95) {
-                    config.addWarning(String.format("Only %.0f%% of the example nodes fall within the image: values "
-                            + "sampled from it may be unreliable.", 100 * inside));
-                }
-                if (total > nPaths) {
-                    config.addWarning("Using the " + nPaths + " longest of " + total + " example paths"
-                            + (streamed ? " (the image is streamed: reading it is slow)." : "."));
-                }
-                return config;
+            protected AutoTraceTrainer.Result doInBackground() {
+                return AutoTraceTrainer.train(source, spacing, voxelOffset, streamed, examples, files);
             }
 
             @Override
             protected void done() {
                 try {
-                    final AutoTraceConfig config = get();
+                    final AutoTraceTrainer.Result result = get();
+                    final AutoTraceConfig config = result.config();
+                    final int nPaths = result.nPaths();
                     message.accept("<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor()) + "'>Learned from " + nPaths + " path(s)"
-                            + (fromFiles ? " in the file(s). " : ". ")
+                            + (fromFiles ? " in the file(s). " : ".<br>")
                             + "Choose which values to adopt in the 'Auto-Trace Configuration' window.</font>");
                     status("Learned parameters from " + nPaths + " path(s)", true);
                     SNTUtils.log("AutoTraceConfig derived:\n" + config.getSummary());
@@ -935,32 +929,41 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         onError.accept(msg);
     }
 
+    // Rows adopted when parameters are learned without user review. Confident ones only: the others
+    // (overlap tolerance, reconnection) are heuristics that the user should opt into
+    private static final Set<String> RECOMMENDED_ROWS = Set.of("backgroundThreshold", "scoreMapEnabled",
+            "lengthThreshold", "branchTuneMaxAngle", "resampleStep");
+
     private void applySelectedConfig(final AutoTraceConfigDialog dialog, final AutoTraceConfig config,
                                      final Consumer<String> message) {
-        if (dialog.isSelected("backgroundThreshold") && !Double.isNaN(config.getBackgroundThreshold())) {
+        applyConfig(config, dialog::isSelected);
+        message.accept("<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor()) + "'>Applied selected parameters.</font>");
+        SNTUtils.log("AutoTraceConfig: applied selected parameters to dialog");
+    }
+
+    private void applyConfig(final AutoTraceConfig config, final Predicate<String> selected) {
+        if (selected.test("backgroundThreshold") && !Double.isNaN(config.getBackgroundThreshold())) {
             backgroundThreshold = config.getBackgroundThreshold();
         }
-        if (dialog.isSelected("lengthThreshold") && !Double.isNaN(config.getMinBranchIntensityLength())) {
+        if (selected.test("lengthThreshold") && !Double.isNaN(config.getMinBranchIntensityLength())) {
             lengthThreshold = config.getMinBranchIntensityLength();
         }
-        if (dialog.isSelected("branchTuneMaxAngle") && !Double.isNaN(config.getBranchTuneMaxAngle())) {
+        if (selected.test("branchTuneMaxAngle") && !Double.isNaN(config.getBranchTuneMaxAngle())) {
             branchTuneMaxAngle = config.getBranchTuneMaxAngle();
         }
-        if (dialog.isSelected("scoreMapEnabled") && config.getScoreMapScales() != null) {
+        if (selected.test("scoreMapEnabled") && config.getScoreMapScales() != null) {
             // Only enable the filter if it is off: do not replace the type (or secondary layer) already in use
             if (SCORE_MAP_NONE.equals(scoreMapFilter)) scoreMapFilter = SCORE_MAP_TUBENESS;
         }
-        if (dialog.isSelected("reconnectMaxBridgeDist") && !Double.isNaN(config.getReconnectMaxBridgeDist())) {
+        if (selected.test("reconnectMaxBridgeDist") && !Double.isNaN(config.getReconnectMaxBridgeDist())) {
             tipExtensionDistance = config.getReconnectMaxBridgeDist();
         }
-        if (dialog.isSelected("sphereOverlapThreshold") && !Double.isNaN(config.getSphereOverlapThreshold())) {
+        if (selected.test("sphereOverlapThreshold") && !Double.isNaN(config.getSphereOverlapThreshold())) {
             sphereOverlapThreshold = config.getSphereOverlapThreshold();
         }
-        if (dialog.isSelected("resampleStep") && !Double.isNaN(config.getResampleStep())) {
+        if (selected.test("resampleStep") && !Double.isNaN(config.getResampleStep())) {
             resampleStep = config.getResampleStep();
         }
-        message.accept("<HTML><font color='" + SNTColor.colorToString(GuiUtils.Colors.infoColor()) + "'>Applied selected parameters.</font>");
-        SNTUtils.log("AutoTraceConfig: applied selected parameters to dialog");
     }
 
     // Current value of the parameters that a learned configuration can set, formatted as in the dialog
