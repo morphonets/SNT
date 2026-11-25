@@ -24,35 +24,25 @@ package sc.fiji.snt.tracing.auto;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import net.imglib2.Cursor;
-import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.algorithm.gauss3.Gauss3;
-import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.img.basictypeaccess.array.FloatArray;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.util.Intervals;
-import net.imglib2.view.Views;
-
-import sc.fiji.snt.util.ImgUtils;
 
 /**
  * Characterizes an image before it is traced: intensity statistics, noise,
- * signal-to-noise ratio, foreground sparsity and the approximate width of the
- * bright structures, from which coarse auto-tracing defaults are suggested.
- * Unlike {@link AutoTraceConfig#fromPaths}, no example paths are needed, so the
- * result is a starting point to be refined once paths are available.
+ * signal-to-noise ratio, foreground sparsity and saturation, with advice on
+ * issues that are likely to compromise tracing. It is a diagnostic only: it does
+ * not suggest tracing parameters, which are better derived from example paths
+ * ({@link AutoTraceConfig#fromPaths}) or by the tracer itself.
  * <p>
- * The image is only sampled (a coarse lattice for the statistics, and a small
- * window around the brightest samples for the structure scale), so probing is
- * cheap even for large or lazily loaded images
+ * The image is only sampled on a coarse lattice, so probing is cheap even for
+ * large or lazily loaded images
  * </p>
  *
  * @author Tiago Ferreira
@@ -61,20 +51,16 @@ public final class ImageProbe {
 
 	// Statistics are computed from at most this many lattice samples
 	private static final int MAX_SAMPLES = 200_000;
-	// Upper limit of the window (in voxels) used to estimate the structure scale
-	private static final long[] MAX_WINDOW = { 192, 192, 48 };
-	// Scales (sigma, in XY voxels) tested to find the width of the structures
-	private static final double[] SIGMAS = { 0.5, 0.7, 1, 1.4, 2, 2.8, 4, 5.6, 8 };
-	private static final double DOG_RATIO = 1.6;
 	private static final double MAD_TO_SIGMA = 1.4826;
-	// Percentile defining the signal level
-	private static final double SIGNAL_PERCENTILE = 99.5;
+	// Percentile defining the signal level. High, as the foreground of neuronal images is sparse
+	private static final double SIGNAL_PERCENTILE = 99.9;
 
 	private ImageProbe() {
 	}
 
 	/**
-	 * The outcome of a probe. NaN is used for values that could not be determined
+	 * The outcome of a probe. All values are rough estimates from a sample of voxels, and are less reliable
+	 * for images with sparse foreground
 	 *
 	 * @param dimensions         image dimensions in voxels
 	 * @param spacing            voxel size [x, y, z] in physical units
@@ -91,18 +77,12 @@ public final class ImageProbe {
 	 *                           pixel type (integer types only)
 	 * @param foregroundFraction fraction of samples clearly above the background
 	 * @param anisotropy         ratio between largest and smallest voxel size
-	 * @param radius             approximate radius of the structures, in physical
-	 *                           units
-	 * @param scoreMapScales     suggested scales (physical units) for the score
-	 *                           map filter. Empty if the radius is unknown
-	 * @param backgroundThreshold suggested background threshold (intensity)
 	 * @param recommendations    advice on how to trace the image
 	 * @param warnings           issues that are likely to compromise tracing
 	 */
 	public record Result(long[] dimensions, double[] spacing, String pixelType, boolean binary, double background,
 			double noise, double signal, double snr, double saturatedFraction, double foregroundFraction,
-			double anisotropy, double radius, double[] scoreMapScales, double backgroundThreshold,
-			List<String> recommendations, List<String> warnings) {
+			double anisotropy, List<String> recommendations, List<String> warnings) {
 
 		/** @return a multi-line, human-readable summary */
 		public String summary() {
@@ -110,11 +90,8 @@ public final class ImageProbe {
 			sb.append(String.format("%s image, %s voxels%n", pixelType, Arrays.toString(dimensions)));
 			if (binary) return sb.append("  Binary image\n").toString();
 			sb.append(String.format("  Background: %.4g (noise %.4g), signal: %.4g%n", background, noise, signal));
-			sb.append(String.format("  SNR: %.1f, foreground: %.2f%%, saturated: %.2f%%%n", snr,
+			sb.append(String.format("  Est. SNR: %.1f, est. foreground: %.2f%%, est. saturated: %.2f%%%n", snr,
 					100 * foregroundFraction, 100 * saturatedFraction));
-			if (!Double.isNaN(radius)) sb.append(String.format("  Approx. radius: %.3g%n", radius));
-			if (!Double.isNaN(backgroundThreshold))
-				sb.append(String.format("  Suggested background threshold: %.4g%n", backgroundThreshold));
 			return sb.toString();
 		}
 
@@ -145,20 +122,17 @@ public final class ImageProbe {
 		final double anisotropy = Math.max(sp[0], Math.max(sp[1], sp[2])) / Math.min(sp[0], Math.min(sp[1], sp[2]));
 
 		// Pass 1: lattice sampling
-		final Samples samples = sample(source);
-		final double[] sorted = samples.values;
+		final double[] sorted = sample(source);
 		Arrays.sort(sorted);
 		if (sorted[0] == sorted[sorted.length - 1]) {
 			warns.add("The image is uniform: there is nothing to trace");
-			return new Result(dims, sp, typeName, false, sorted[0], 0, sorted[0], 0, 0, 0, anisotropy, Double.NaN,
-					new double[0], Double.NaN, recs, warns);
+			return new Result(dims, sp, typeName, false, sorted[0], 0, sorted[0], 0, 0, 0, anisotropy, recs, warns);
 		}
 		if (isBinary(sorted)) {
 			recs.add("The image is binary: trace it directly with the binary (skeletonization) tracer. "
 					+ "Intensity-based settings do not apply");
 			return new Result(dims, sp, typeName, true, sorted[0], 0, sorted[sorted.length - 1], Double.POSITIVE_INFINITY,
-					0, fractionAbove(sorted, sorted[0]), anisotropy, Double.NaN, new double[0], Double.NaN, recs,
-					warns);
+					0, fractionAbove(sorted, sorted[0]), anisotropy, recs, warns);
 		}
 
 		final double background = percentile(sorted, 50);
@@ -172,86 +146,59 @@ public final class ImageProbe {
 		final boolean flat = noise <= 0;
 		if (flat) noise = (source.firstElement() instanceof net.imglib2.type.numeric.IntegerType) ? 1d
 				: 1e-3 * contrast;
-		if (flat) recs.add("The background is flat (no measurable noise): the image seems preprocessed. The SNR "
-				+ "is relative to the quantization step and tells little about noise");
+		if (flat) recs.add("The background is flat (no measurable noise): the image seems preprocessed. The estimated "
+				+ "SNR is relative to the quantization step and tells little about noise");
 		final double snr = contrast / noise;
 		final double fgLevel = background + Math.max(3 * noise, 0.05 * contrast);
 		final double foreground = fractionAbove(sorted, fgLevel);
 		final double saturated = saturatedFraction(source.firstElement(), sorted);
-		// Conservative, as in AutoTraceConfig#fromPaths (25% of the signal): not merely where signal starts
-		final double threshold = background + Math.max(3 * noise, 0.25 * contrast);
-
-		// Pass 2: structure scale around the brightest samples
-		final double radius = estimateRadius(source, samples, sp, signal, background);
-		final double[] scales = Double.isNaN(radius) ? new double[0]
-				: new double[] { 0.7 * radius, radius, 1.4 * radius };
-
-		advise(recs, warns, dims, sp, anisotropy, snr, contrast, foreground, saturated, radius, typeName);
+		advise(recs, warns, dims, anisotropy, snr, contrast, foreground, saturated, typeName);
 		return new Result(dims, sp, typeName, false, background, noise, signal, snr, saturated, foreground, anisotropy,
-				radius, scales, threshold, recs, warns);
+				recs, warns);
 	}
 
 	private static void advise(final List<String> recs, final List<String> warns, final long[] dims,
-			final double[] sp, final double anisotropy, final double snr, final double contrast,
-			final double foreground, final double saturated, final double radius, final String typeName) {
-		if (snr < 3) warns.add(String.format("Very low signal-to-noise ratio (%.1f): tracing is likely to "
+			final double anisotropy, final double snr, final double contrast, final double foreground,
+			final double saturated, final String typeName) {
+		if (snr < 3) warns.add(String.format("The estimated signal-to-noise ratio is very low (%.1f): tracing may "
 				+ "follow noise. Denoise the image or trace a cleaner region", snr));
-		else if (snr < 6) recs.add(String.format("Low signal-to-noise ratio (%.1f): keep the score map filter "
+		else if (snr < 6) recs.add(String.format("The estimated signal-to-noise ratio is low (%.1f): keep the score map filter "
 				+ "enabled, and consider raising the background threshold", snr));
-		if (saturated > 0.01) warns.add(String.format("%.1f%% of the samples are saturated: thin branches next "
+		if (saturated > 0.01) warns.add(String.format("An estimated %.1f%% of the voxels are saturated: thin branches next "
 				+ "to bright structures may be lost, and radii overestimated", 100 * saturated));
 		if (foreground < 0.001) warns.add("Almost no foreground was found in the sampled voxels: the structures "
-				+ "may be too sparse or too faint to be represented. Probing a region that contains them "
-				+ "gives more reliable values");
-		else if (foreground > 0.3) warns.add(String.format("%.0f%% of the samples are foreground: the "
+				+ "may be too sparse or too faint to be represented, so the estimates here are unreliable. "
+				+ "Probing a region that contains them gives better estimates");
+		else if (foreground > 0.3) warns.add(String.format("An estimated %.0f%% of the voxels are foreground: the "
 				+ "background estimate may be unreliable. Probe a region with more background", 100 * foreground));
 		if ("UnsignedByteType".equals(typeName) && contrast < 40)
 			recs.add("The dynamic range in use is small (8-bit): contrast stretching before tracing may help");
 		if (anisotropy >= 2) recs.add(String.format("Voxels are anisotropic (%.1fx): the score map accounts for "
 				+ "physical units, but thin branches along the coarse axis may be fragmented", anisotropy));
-		if (Double.isNaN(radius)) {
-			recs.add("The width of the structures could not be estimated: use example paths instead");
-		} else {
-			final double avg = (sp[0] + sp[1]) / 2;
-			if (radius / avg < 1.0) recs.add("The structures are about 1 voxel wide or thinner: 'High' "
-					+ "connectivity better preserves them, at the cost of speed");
-			else if (radius / avg > 0.9 * SIGMAS[SIGMAS.length - 1] * Math.sqrt(2)) warns.add("The structures "
-					+ "are at the upper limit of the scales probed: they may not be tubular (e.g., somata)");
-		}
 		long voxels = 1;
 		for (final long d : dims) voxels *= d;
 		if (voxels > 200_000_000L) recs.add("The image is very large: trace a region of interest instead of the "
 				+ "whole image");
 	}
 
-	private record Samples(double[] values, long[][] bright, double brightLevel) {
-	}
-
-	// Samples a regular lattice, keeping the position of the brightest samples
-	private static Samples sample(final RandomAccessibleInterval<? extends RealType<?>> source) {
+	// Samples a jittered regular lattice
+	private static double[] sample(final RandomAccessibleInterval<? extends RealType<?>> source) {
 		final int n = source.numDimensions();
 		final long total = Intervals.numElements(source);
 		final long step = Math.max(1, Math.round(Math.pow((double) total / MAX_SAMPLES, 1d / n)));
 		final long[] min = source.minAsLongArray();
 		final long[] max = source.maxAsLongArray();
-		final List<double[]> positions = new ArrayList<>();
 		final List<Double> values = new ArrayList<>();
 		final RandomAccess<? extends RealType<?>> ra = source.randomAccess();
 		final long[] pos = min.clone();
+		final long[] p = new long[n];
 		// Jitter avoids aliasing with regular structures
 		final Random rnd = new Random(42);
 		while (true) {
-			final long[] p = pos.clone();
-			for (int d = 0; d < n; d++) p[d] = Math.min(max[d], p[d] + (step > 1 ? rnd.nextInt((int) step) : 0));
+			for (int d = 0; d < n; d++) p[d] = Math.min(max[d], pos[d] + (step > 1 ? rnd.nextInt((int) step) : 0));
 			ra.setPosition(p);
 			final double v = ra.get().getRealDouble();
-			if (!Double.isNaN(v) && !Double.isInfinite(v)) {
-				values.add(v);
-				final double[] vp = new double[n + 1];
-				for (int d = 0; d < n; d++) vp[d] = p[d];
-				vp[n] = v;
-				positions.add(vp);
-			}
+			if (!Double.isNaN(v) && !Double.isInfinite(v)) values.add(v);
 			int d = 0;
 			while (d < n) {
 				pos[d] += step;
@@ -261,97 +208,8 @@ public final class ImageProbe {
 			}
 			if (d == n) break;
 		}
-		final double[] arr = values.stream().mapToDouble(Double::doubleValue).toArray();
-		if (arr.length == 0) throw new IllegalArgumentException("Image has no finite values");
-		final double[] copy = arr.clone();
-		Arrays.sort(copy);
-		final double level = percentile(copy, 99);
-		final List<long[]> bright = new ArrayList<>();
-		for (final double[] vp : positions) {
-			if (vp[n] >= level) {
-				final long[] p = new long[n];
-				for (int d = 0; d < n; d++) p[d] = (long) vp[d];
-				bright.add(p);
-			}
-		}
-		return new Samples(arr, bright.toArray(new long[0][]), level);
-	}
-
-	// Window around the median position of the brightest samples
-	private static FinalInterval window(final RandomAccessibleInterval<?> source, final long[][] bright) {
-		final int n = source.numDimensions();
-		final long[] min = new long[n];
-		final long[] max = new long[n];
-		for (int d = 0; d < n; d++) {
-			final long[] coords = new long[bright.length];
-			for (int i = 0; i < bright.length; i++) coords[i] = bright[i][d];
-			Arrays.sort(coords);
-			final long center = (coords.length == 0) ? (source.min(d) + source.max(d)) / 2
-					: coords[coords.length / 2];
-			final long size = Math.min(source.dimension(d), MAX_WINDOW[d]);
-			long lo = center - size / 2;
-			lo = Math.max(source.min(d), Math.min(lo, source.max(d) - size + 1));
-			min[d] = lo;
-			max[d] = lo + size - 1;
-		}
-		return new FinalInterval(min, max);
-	}
-
-	// Scale at which a multi-scale DoG responds most at the brightest voxels
-	private static double estimateRadius(final RandomAccessibleInterval<? extends RealType<?>> source,
-			final Samples samples, final double[] sp, final double signal, final double background) {
-		final int n = source.numDimensions();
-		final FinalInterval box = window(source, samples.bright);
-		final long[] dims = Intervals.dimensionsAsLongArray(box);
-		final int len = (int) Intervals.numElements(box);
-		final float[] data = new float[len];
-		final Cursor<? extends RealType<?>> c = Views.flatIterable(Views.interval(source, box)).cursor();
-		for (int i = 0; c.hasNext(); i++) data[i] = (float) c.next().getRealDouble();
-		final var img = ArrayImgs.floats(data, dims);
-
-		// Voxels of the window with the highest intensities
-		final float[] copy = data.clone();
-		Arrays.sort(copy);
-		final float level = copy[(int) Math.min(len - 1, Math.round(0.99 * (len - 1)))];
-		final int[] idx = new int[len];
-		int nIdx = 0;
-		for (int i = 0; i < len; i++) if (data[i] >= level && data[i] > background) idx[nIdx++] = i;
-		if (nIdx < 10) return Double.NaN;
-
-		final double sxy = (sp[0] + sp[1]) / 2;
-		final double[] response = new double[SIGMAS.length];
-		for (int s = 0; s < SIGMAS.length; s++) {
-			final double[] sigma = new double[n];
-			for (int d = 0; d < n; d++) {
-				final double phys = SIGMAS[s] * sxy;
-				// Thin stacks are filtered in plane only
-				sigma[d] = (d == 2 && dims[2] < 5) ? 0.2 : phys / sp[d];
-			}
-			final float[] g1 = new float[len];
-			final float[] g2 = new float[len];
-			final double[] sigma2 = Arrays.stream(sigma).map(v -> v * DOG_RATIO).toArray();
-			Gauss3.gauss(sigma, Views.extendBorder(img), ArrayImgs.floats(g1, dims));
-			Gauss3.gauss(sigma2, Views.extendBorder(img), ArrayImgs.floats(g2, dims));
-			double sum = 0;
-			for (int k = 0; k < nIdx; k++) sum += g1[idx[k]] - g2[idx[k]];
-			response[s] = sum / nIdx;
-		}
-		int best = 0;
-		for (int s = 1; s < response.length; s++) if (response[s] > response[best]) best = s;
-		if (response[best] <= 0) return Double.NaN;
-		double logSigma = Math.log(SIGMAS[best]);
-		if (best > 0 && best < response.length - 1) {
-			final double a = response[best - 1];
-			final double b = response[best];
-			final double cc = response[best + 1];
-			final double denom = a - 2 * b + cc;
-			if (denom < 0) {
-				final double offset = Math.max(-0.5, Math.min(0.5, 0.5 * (a - cc) / denom));
-				logSigma += offset * (Math.log(SIGMAS[best + 1]) - Math.log(SIGMAS[best]));
-			}
-		}
-		// A bright tube of radius r responds most at sigma of about r / sqrt(2)
-		return Math.exp(logSigma) * Math.sqrt(2) * sxy;
+		if (values.isEmpty()) throw new IllegalArgumentException("Image has no finite values");
+		return values.stream().mapToDouble(Double::doubleValue).toArray();
 	}
 
 	private static double[] normalizedSpacing(final double[] spacing) {

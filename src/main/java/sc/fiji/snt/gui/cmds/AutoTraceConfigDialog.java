@@ -89,16 +89,6 @@ public class AutoTraceConfigDialog extends JDialog {
          * @param onError receives a message describing why a configuration could not be derived
          */
         void learnFromAll(Consumer<AutoTraceConfig> onDone, Consumer<String> onError);
-
-        /**
-         * Estimates a configuration from the image alone, i.e., without example paths
-         *
-         * @param onDone receives the estimated configuration
-         * @param onError receives a message describing why a configuration could not be estimated
-         */
-        default void learnFromImage(Consumer<AutoTraceConfig> onDone, Consumer<String> onError) {
-            onError.accept("Not supported by this command.");
-        }
     }
 
     private AutoTraceConfig config; // null until a configuration is available
@@ -192,12 +182,6 @@ public class AutoTraceConfigDialog extends JDialog {
         if (learner == null || learning) return;
         setLearning(true);
         learner.learnFromAll(this::learned, this::learnFailed);
-    }
-
-    private void learnFromImage() {
-        if (learner == null || learning) return;
-        setLearning(true);
-        learner.learnFromImage(this::learned, this::learnFailed);
     }
 
     private void learnFromFiles(final List<File> files) {
@@ -551,14 +535,7 @@ public class AutoTraceConfigDialog extends JDialog {
         fromAll.setToolTipText("<html>Learn from all the paths listed in Path Manager.<br>"
                 + "Replaces the current examples. Only recommended if all of them are representative");
         fromAll.addActionListener(e -> learnFromAll());
-        final JMenuItem fromImage = new JMenuItem("Estimate From Image");
-        fromImage.setToolTipText("<html>Estimate the background threshold and scales from the image alone,<br>"
-                + "for when there are no example paths. Coarser than learning from paths.<br>"
-                + "Replaces the current examples");
-        fromImage.addActionListener(e -> learnFromImage());
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.MenuItems.addSeparator(menu, "Estimation W/o Paths (Experimental):");
-        menu.add(fromImage);
         GuiUtils.MenuItems.addSeparator(menu, "External Traces:");
         menu.add(load);
         GuiUtils.MenuItems.addSeparator(menu, "Paths Loaded in Path Manager:");
@@ -701,23 +678,19 @@ public class AutoTraceConfigDialog extends JDialog {
         // III. Thresholding
         if (!Double.isNaN(config.getBackgroundThreshold()))
             rows.add(new ParamRow("backgroundThreshold", "Background threshold",
-                    fmt(config.getBackgroundThreshold()), !config.isFromProbe(), current, config.isFromProbe()
-                    ? "Background level of the image plus the larger of 3 noise deviations and 25% of the "
-                            + "contrast (sampled voxels): A conservative cutoff, as with example paths."
-                    : "25% of the mean intensity along the example paths: Paths run through signal, so the "
+                    fmt(config.getBackgroundThreshold()), true, current,
+                    "25% of the mean intensity along the example paths: Paths run through signal, so the "
                             + "background should be well below it."));
         // IV. Branch Filtering and Scoring
         if (config.getScoreMapScales() != null && config.getScoreMapScales().length > 0)
             rows.add(new ParamRow("scoreMapEnabled", "Score map filter",
-                    "Enabled (scales: " + formatArray(config.getScoreMapScales()) + ")", !config.isFromProbe(), current,
-                    (config.isFromProbe() ? "Scales around the approximate radius of the structures, estimated "
-                            + "from the image. " : "Scales spanning the radii of the example paths. ")
-                            + "Only the filter type is applied: scales are handled by the tracer."));
+                    "Enabled (scales: " + formatArray(config.getScoreMapScales()) + ")", true, current,
+                    "Scales spanning the radii of the example paths. Only the filter type is applied: scales are "
+                            + "handled by the tracer."));
         if (!Double.isNaN(config.getMinBranchIntensityLength()))
             rows.add(new ParamRow("lengthThreshold", "Min. branch score",
-                    fmt(config.getMinBranchIntensityLength()), !config.isFromProbe(), current,
-                    (config.isFromProbe() ? "70% of the approximate radius of the structures, in voxels (at least 3): "
-                            : "Radius of the thinnest example structures (10th percentile, in voxels and at least 3): ")
+                    fmt(config.getMinBranchIntensityLength()), true, current,
+                    "Radius of the thinnest example structures (10th percentile, in voxels and at least 3): "
                             + "Shorter branches are likely noise."));
         if (!Double.isNaN(config.getSphereOverlapThreshold()))
             rows.add(new ParamRow("sphereOverlapThreshold", "Overlap tolerance",
@@ -737,9 +710,8 @@ public class AutoTraceConfigDialog extends JDialog {
         if (!Double.isNaN(config.getReconnectMaxBridgeDist()))
             rows.add(new ParamRow("reconnectMaxBridgeDist", "Tip extension distance",
                     fmt(config.getReconnectMaxBridgeDist()) + " voxels", false, current,
-                    (config.isFromProbe() ? "Four times 1.4x the approximate radius of the structures, in voxels "
-                            + "(at least 10): " : "Four times the largest radius of the example paths, in voxels "
-                            + "(at least 10): ") + "The largest gap expected between segments. Sets the tip "
+                    "Four times the largest radius of the example paths, in voxels (at least 10): "
+                            + "The largest gap expected between segments. Sets the tip "
                             + "extension distance (enables tip extension)."));
         // VI. Smoothing & Resampling
         if (!Double.isNaN(config.getResampleStep()))

@@ -582,8 +582,7 @@ public final class SNTDoctor {
         if (p.binary()) {
             sb.append(", binary");
         } else {
-            sb.append(String.format(Locale.US, ", SNR %.1f, foreground %.2f%%", p.snr(), 100 * p.foregroundFraction()));
-            if (!Double.isNaN(p.radius())) sb.append(String.format(Locale.US, ", approx. radius %.3g", p.radius()));
+            sb.append(String.format(Locale.US, ", est. SNR %.1f, est. foreground %.2f%%", p.snr(), 100 * p.foregroundFraction()));
         }
         final List<String> tips = new ArrayList<>(p.warnings());
         tips.addAll(p.recommendations());

@@ -69,8 +69,6 @@ public class AutoTraceConfig {
 
     // Source statistics (for reporting)
     private int pathCount;
-    // Values are coarse hints derived from the image alone, not from example paths
-    private boolean probed;
     private int nodeCount;
     private double meanRadius = Double.NaN;
     private double minRadius = Double.NaN;
@@ -203,38 +201,6 @@ public class AutoTraceConfig {
         return config;
     }
 
-    /**
-     * Derives a coarse auto-trace configuration from an image probe, i.e., without example paths. Only the
-     * parameters that can be inferred from the image alone are set (score map scales, background threshold, min.
-     * branch length and bridge distance): the remaining ones keep the tracer's defaults. Configurations derived from
-     * paths ({@link #fromPaths}) are more specific and should be preferred once paths are available.
-     *
-     * @param probe the result of {@link ImageProbe#probe}
-     * @return a new configuration
-     * @throws IllegalArgumentException if probe is null or describes a binary image (to which intensity-based
-     *                                  settings do not apply)
-     */
-    public static AutoTraceConfig fromProbe(final ImageProbe.Result probe) {
-        if (probe == null) throw new IllegalArgumentException("Probe result required");
-        if (probe.binary()) throw new IllegalArgumentException("Intensity-based settings do not apply to binary images");
-        final AutoTraceConfig config = new AutoTraceConfig();
-        config.probed = true;
-        final double avg = avgSpacing(probe.spacing());
-        final double radius = probe.radius();
-        if (!Double.isNaN(radius)) {
-            config.meanRadius = radius;
-            if (probe.scoreMapScales().length > 0) config.scoreMapScales = probe.scoreMapScales().clone();
-            config.minBranchIntensityLength = Math.max(3.0, 0.7 * radius / avg);
-            config.reconnectMaxBridgeDist = Math.max(10, 1.4 * radius / avg * 4);
-        }
-        config.backgroundThreshold = probe.backgroundThreshold();
-        config.recommendations.addAll(probe.recommendations());
-        config.warnings.addAll(probe.warnings());
-        if (Double.isNaN(radius))
-            config.warnings.add("Radius could not be estimated: score map scales are unavailable.");
-        return config;
-    }
-
     // Image-based recommendations and warnings about values that could not be derived. These are advice only
     private void deriveNotes(final RandomAccessibleInterval<?> source, final double[] spacing,
                              final boolean streamed) {
@@ -270,9 +236,6 @@ public class AutoTraceConfig {
             warnings.add("Few example paths/nodes (" + pathCount + " paths, " + nodeCount
                     + " nodes): the learned values may be poorly supported. Select more representative paths.");
     }
-
-    /** @return true if this configuration was estimated from the image alone ({@link #fromProbe}) */
-    public boolean isFromProbe() { return probed; }
 
     /**
      * Adds a warning to be reported along with this configuration.
@@ -372,12 +335,9 @@ public class AutoTraceConfig {
      */
     public String getSummary() {
         final StringBuilder sb = new StringBuilder();
-        if (probed) sb.append("Estimated from the image (no example paths):\n");
-        else sb.append("Derived from ").append(pathCount).append(" path(s), ")
+        sb.append("Derived from ").append(pathCount).append(" path(s), ")
           .append(nodeCount).append(" nodes:\n");
-        if (probed && !Double.isNaN(meanRadius))
-            sb.append("  Approx. radius: ").append(fmt(meanRadius)).append("\n");
-        else if (!Double.isNaN(meanRadius))
+        if (!Double.isNaN(meanRadius))
             sb.append("  Radius: ").append(fmt(minRadius)).append(" – ")
               .append(fmt(maxRadius)).append(" (mean ").append(fmt(meanRadius)).append(")\n");
         if (scoreMapScales != null)
@@ -385,8 +345,6 @@ public class AutoTraceConfig {
         if (!Double.isNaN(meanIntensity))
             sb.append("  Mean intensity: ").append(fmt(meanIntensity))
               .append(" → background threshold: ").append(fmt(backgroundThreshold)).append("\n");
-        if (probed && !Double.isNaN(backgroundThreshold))
-            sb.append("  Background threshold: ").append(fmt(backgroundThreshold)).append("\n");
         if (!Double.isNaN(meanContraction))
             sb.append("  Mean contraction: ").append(fmt(meanContraction))
               .append(" → reconnect min: ").append(fmt(reconnectMinContraction)).append("\n");
