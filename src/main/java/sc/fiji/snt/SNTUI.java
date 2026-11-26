@@ -4179,10 +4179,19 @@ public class SNTUI extends JDialog {
         GuiUtils.MenuItems.addSeparator(menu, "Guided:");
         final JMenuItem jmiGuided = new JMenuItem("Guided Auto-trace...");
         jmiGuided.setIcon(IconFactory.menuIcon(GLYPH.WIZARD));
-        jmiGuided.setToolTipText("Walks through the steps of automated tracing: data check, example paths, training, region, and tracing");
+        jmiGuided.setToolTipText("<HTML>Reconstructs neurons: walks through data check,<br>example paths, training, region, and tracing");
         jmiGuided.putClientProperty("cmdFinder-keywords", "wizard, guide, assistant, start, help, steps");
         jmiGuided.addActionListener(e -> AutoTraceWizard.show(this, plugin));
         menu.add(jmiGuided);
+
+        final JMenuItem jmiDetect = new JMenuItem("Guided Feature Detection...");
+        jmiDetect.setIcon(IconFactory.menuIcon(GLYPH.BINOCULARS));
+        jmiDetect.setToolTipText("<HTML>Finds features: helps to choose the detector for somas, tips, tufts,<br> roots, or "
+                + "swellings/maxima.<br>Detected features are added as seeds (probabilistic detections)");
+        jmiDetect.putClientProperty("cmdFinder-keywords", "wizard, guide, detect, soma, tips, tufts, roots, "
+                + "swellings, boutons, varicosities, maxima, puncta, spines, seeds, probabilistic");
+        jmiDetect.addActionListener(e -> SeedDetectionWizard.show(this, seedManager));
+        menu.add(jmiDetect);
 
         // Interactive: operates on images already loaded in SNT
         GuiUtils.MenuItems.addSeparator(menu, "Interactive Tracing:", "https://imagej.net/plugins/snt/manual#intensity-image");
@@ -4194,6 +4203,13 @@ public class SNTUI extends JDialog {
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiGray);
 
+        final JMenuItem jmiGrayMulti = new JMenuItem("Intensity Image (Multiple Cells)...");
+        jmiGrayMulti.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
+        jmiGrayMulti.setToolTipText("Runs automated tracing on an image with multiple cells");
+        jmiGrayMulti.putClientProperty("cmdFinder-keywords", "grayscale, raw, gwdt");
+        jmiGrayMulti.addActionListener(e -> runAutotracingOnImage(GWDTMultiSomaCmd.class));
+        menu.add(jmiGrayMulti);
+
         final JMenuItem jmiRegion = new JMenuItem("Region (Select in Viewer)...");
         IconFactory.assignIcon(jmiRegion, (plugin.isStreamMode()) ? GLYPH.CROP : GLYPH.STREAM);
         jmiRegion.setEnabled(plugin.isStreamMode());
@@ -4202,13 +4218,6 @@ public class SNTUI extends JDialog {
         jmiRegion.putClientProperty("cmdFinder-keywords", "crop, materialize, box, roi, stream, gwdt");
         jmiRegion.addActionListener(e -> traceRegionInViewer());
         menu.add(jmiRegion);
-
-        final JMenuItem jmiGrayMulti = new JMenuItem("Intensity Image (Multiple Cells)...");
-        jmiGrayMulti.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-        jmiGrayMulti.setToolTipText("Runs automated tracing on an image with multiple cells");
-        jmiGrayMulti.putClientProperty("cmdFinder-keywords", "grayscale, raw, gwdt");
-        jmiGrayMulti.addActionListener(e -> runAutotracingOnImage(GWDTMultiSomaCmd.class));
-        menu.add(jmiGrayMulti);
 
         final JMenuItem jmiBinaryImg = new JMenuItem("Segmented Image...");
         jmiBinaryImg.setIcon(IconFactory.menuIcon('\ue69b', true));
@@ -4220,7 +4229,8 @@ public class SNTUI extends JDialog {
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
         jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.\n"
-                + "Parameters can be tuned visually in a preview.");
+                + "Parameters can be tuned visually in a preview. To add somas as seeds,\n"
+                + "use Guided Feature Detection or the Seeds tab.");
         jmiSoma.putClientProperty("cmdFinder-keywords", "wizard, preview, tune, interactive, parameters");
         jmiSoma.addActionListener(e -> {
             if (plugin.accessToValidImageData())
@@ -4230,10 +4240,10 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
         menu.add(jmiSoma);
-        final JMenuItem jmiSeeded = new JMenuItem("Probabilistic Detections...", IconFactory.menuIcon(GLYPH.MAGNIFIED_LOCATION));
-        jmiSeeded.setToolTipText("Probabilistic (seeded) detections of tips, tufts, swellings, etc. are available "
-                + "from the Seeds tab");
-        jmiSeeded.putClientProperty("cmdFinder-keywords", "counts,markers,bookmarks,big data");
+        final JMenuItem jmiSeeded = new JMenuItem("Detect Features (Advanced)...", IconFactory.menuIcon(GLYPH.SEEDLING));
+        jmiSeeded.setToolTipText("Opens the Seeds tab, from which all detectors (somas, tips,\n"
+                + "tufts, roots, swellings, maxima) can be run directly");
+        jmiSeeded.putClientProperty("cmdFinder-keywords", "probabilistic, markers, big data");
         jmiSeeded.addActionListener(e -> {
             tabbedPane.setSelectedComponent(seedManager);
             seedManager.showDiscoveryHint();

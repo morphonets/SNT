@@ -36,6 +36,7 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconActionableMenuItem;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.plugin.DetectTuftsCmd;
@@ -1293,47 +1294,43 @@ public class SeedManager extends JPanel {
 
     private JPopupMenu createMenu() {
         final JPopupMenu menu = new JPopupMenu();
+        final String hint = "Not sure which detector to use? Try <i>Auto-trace &gt; Guided Feature Detection...</i>";
 
-        GuiUtils.MenuItems.addSeparator(menu, "Create Seeds from Tracings:");
-        JMenuItem jmi = new JMenuItem("Detect Swellings...");
-        jmi.setToolTipText("Detects boutons/varicosities along traced paths from\n" +
-                "radius (and, optionally, intensity) profiles");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectSwellings());
-        jmi = new JMenuItem("Detect Tufts...");
-        jmi.setToolTipText("Detects clusters of nearby terminal branches (tufts)\n" +
-                "in the currently traced structure");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectTufts());
-        jmi = new JMenuItem("Detect Roots...");
-        jmi.setToolTipText("Detects disconnected tracings that start close together,\n" +
-                "as if branching from a shared soma that wasn't imaged");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectRoots());
+        GuiUtils.MenuItems.addSeparator(menu, "Detectors on Traced Paths:");
+        addDetectorItem(menu, "Detect Swellings (From Radii)...", GLYPH.DOTCIRCLE, Detector.SWELLINGS,
+                "Detects boutons/varicosities along traced paths from\n" +
+                        "radius (and, optionally, intensity) profiles. Requires fitted radii", null);
+        addDetectorItem(menu, "Detect Maxima (Around Paths)...", GLYPH.MOUNTAIN, Detector.MAXIMA,
+                "Detects intensity maxima (varicosities, spines, synaptic puncta)\n" +
+                        "in annular cross-sections around traced paths. Requires the image", null);
+        addDetectorItem(menu, "Detect Tufts...", GLYPH.BRANCH_CODE, Detector.TUFTS,
+                "Detects clusters of nearby terminal branches (tufts)\n" +
+                        "in the currently traced structure", null);
+        addDetectorItem(menu, "Detect Roots...", GLYPH.ANCHOR, Detector.ROOTS,
+                "Detects disconnected tracings that start close together,\n" +
+                        "as if branching from a shared soma that wasn't imaged", null);
 
-        GuiUtils.MenuItems.addSeparator(menu, "Extract Seeds from Image:");
-        jmi = new JMenuItem("Detect Maxima...");
-        jmi.setToolTipText("Detects intensity maxima (varicosities, spines, synaptic puncta)\n" +
-                "in annular cross-sections around traced paths");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectMaxima());
-        jmi = new JMenuItem("Detect Somas...");
-        jmi.setToolTipText("Detects cell bodies in the current image, adding one seed per detected soma");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectSomas());
-        jmi = new JMenuItem("Detect Tips... (Interactive Wizard)", IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
-        jmi.setToolTipText("Detects the tips of neurites and other ramified structures in large volumes,\nlearning the"
-                + "parameters from training paths");
-        jmi.putClientProperty("cmdFinder-keywords", "learn parameters, detector, tracing free");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectTips());
-        jmi = new JMenuItem("Detect Tips with Saved Parameters...");
-        jmi.setToolTipText("Detects tips in the whole volume using parameters saved by the Tip Detection Wizard,\n"
-                + "without training paths");
-        jmi.putClientProperty("cmdFinder-keywords", "re-run, repeat, saved, tracing free");
-        menu.add(jmi);
-        jmi.addActionListener(e -> detectTipsWithSavedParameters());
+        GuiUtils.MenuItems.addSeparator(menu, "Detectors on Image:");
+        addDetectorItem(menu, "Detect Somas...", GLYPH.MARKER, Detector.SOMAS,
+                "Detects cell bodies in the current image, adding one seed per detected soma", null);
+        addDetectorItem(menu, "Detect Tips (Learn From Paths)...", GLYPH.CROSSHAIR, Detector.TIPS,
+                "Detects the tips of neurites and other ramified structures in large volumes,\n" +
+                        "learning the parameters from training paths", "detector, tracing free");
+        addDetectorItem(menu, "Detect Tips (Saved Parameters)...", GLYPH.REDO, Detector.TIPS_SAVED,
+                "Detects tips in the whole volume using parameters saved by the tip detection\n" +
+                        "wizard, without training paths", "re-run, repeat, saved, tracing free");
+        // Pointer for users that are unsure about which detector to use
+        GuiUtils.MenuItems.addSeparator(menu, "<HTML><i>" + hint);
         return menu;
+    }
+
+    private void addDetectorItem(final JPopupMenu menu, final String label, final GLYPH icon, final Detector detector,
+                                 final String tooltip, final String keywords) {
+        final JMenuItem jmi = new JMenuItem(label, IconFactory.menuIcon(icon));
+        jmi.setToolTipText(tooltip);
+        if (keywords != null) jmi.putClientProperty("cmdFinder-keywords", keywords);
+        jmi.addActionListener(e -> run(detector));
+        menu.add(jmi);
     }
 
     private JPopupMenu seedTracingMenu() {
@@ -1598,12 +1595,95 @@ public class SeedManager extends JPanel {
         recordComment("Seed Manager: " + recordSuffix);
     }
 
-    private void detectTufts() {
-        runDetectorCmd(DetectTuftsCmd.class);
+    /**
+     * The detectors that add seeds, as offered by this panel's {@code +} menu and by the guided detection wizard
+     */
+    public enum Detector {
+        /** Cell bodies, from the image ({@link SomaDetectorCmd}) */
+        SOMAS(true, false),
+        /** Tips of ramified structures, with parameters learned from training paths ({@link TipDetectionWizardCmd}) */
+        TIPS(true, false),
+        /** Tips, with saved parameters ({@link TipDetectionSavedCmd}) */
+        TIPS_SAVED(true, false),
+        /** Clusters of nearby terminal branches ({@link DetectTuftsCmd}) */
+        TUFTS(false, true),
+        /** Disconnected tracings that start close together ({@link RootDetectorCmd}) */
+        ROOTS(false, true),
+        /** Swellings from radius profiles of paths ({@link AlongPathDetectorCmd}) */
+        SWELLINGS(false, true),
+        /** Intensity maxima around paths ({@link PeripathDetectorCmd}) */
+        MAXIMA(true, true);
+
+        final boolean needsImage;
+        final boolean needsPaths;
+
+        Detector(final boolean needsImage, final boolean needsPaths) {
+            this.needsImage = needsImage;
+            this.needsPaths = needsPaths;
+        }
+
+        /** @return whether this detector operates on the image */
+        public boolean needsImage() {
+            return needsImage;
+        }
+
+        /** @return whether this detector operates on traced paths */
+        public boolean needsPaths() {
+            return needsPaths;
+        }
     }
 
-    private void detectRoots() {
-        runDetectorCmd(RootDetectorCmd.class);
+    /**
+     * Checks whether a detector can run in the current state of the session, without any prompts
+     *
+     * @param detector the detector
+     * @return null if the detector can run, otherwise a message describing what is missing
+     */
+    public String requirementProblem(final Detector detector) {
+        if (detector.needsImage && !snt.accessToValidImageData())
+            return "No valid image data available: this detector requires an image to be loaded.";
+        if (!detector.needsPaths) return null;
+        final List<Path> paths = sntui.getPathManager().getSelectedPaths(true);
+        if (paths == null || paths.isEmpty()) return "There are no traced paths to scan.";
+        // NB: a non-destructive fit ("Keep original path(s)" in the Fit Radii dialog, the default)
+        // never puts radii on the path itself - only on its getFitted() flavor (see PathFitter#applyFit()).
+        // Checking hasRadii() alone here would wrongly reject paths that AlongPathDetectorCmd's own
+        // init() would happily pick up via its identical fitted-flavor fallback
+        if (detector == Detector.SWELLINGS
+                && paths.stream().noneMatch(p -> p.hasRadii() || (p.getFitted() != null && p.getFitted().hasRadii()))) {
+            return "Swelling detection requires paths with fitted radii. Please fit radii first (Refine> menu).";
+        }
+        return null;
+    }
+
+    /**
+     * Runs a detector, after notifying the user of unmet requirements (see {@link #requirementProblem(Detector)}).
+     * Detectors that operate on traced paths scan the ones selected in the Path Manager or, if none is selected,
+     * all of them. Swellings and maxima are pre-set to be added as seeds, so that the harvester only prompts for the
+     * detection settings that matter here
+     *
+     * @param detector the detector
+     */
+    public void run(final Detector detector) {
+        final String problem = requirementProblem(detector);
+        if (problem != null) {
+            sntui.error(problem);
+            return;
+        }
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        switch (detector) {
+            case SOMAS -> cs.run(SomaDetectorCmd.class, true, "scopeChoice", SomaDetectorCmd.SCOPE_ALL,
+                    "outputChoice", SomaDetectorCmd.OUTPUT_SEEDS, "HEADER", "");
+            case TIPS -> cs.run(TipDetectionWizardCmd.class, true);
+            case TIPS_SAVED -> cs.run(TipDetectionSavedCmd.class, true);
+            case TUFTS -> runDetectorCmd(DetectTuftsCmd.class);
+            case ROOTS -> runDetectorCmd(RootDetectorCmd.class);
+            case SWELLINGS -> cs.run(AlongPathDetectorCmd.class, true, "paths",
+                    sntui.getPathManager().getSelectedPaths(true), "outputChoice", AlongPathDetectorCmd.OUTPUT_SEEDS);
+            case MAXIMA -> cs.run(PeripathDetectorCmd.class, true, "paths",
+                    sntui.getPathManager().getSelectedPaths(true), "outputChoice", PeripathDetectorCmd.OUTPUT_SEEDS);
+        }
     }
 
     private void runDetectorCmd(final Class<? extends CommonDynamicCmd> cmdClass) {
@@ -1617,77 +1697,6 @@ public class SeedManager extends JPanel {
         }
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(cmdClass, true, "trees", trees);
-    }
-
-    /**
-     * Thin wrapper around {@link AlongPathDetectorCmd}: runs it with {@code paths}/{@code outputChoice}
-     * pre-resolved to the currently selected (or, if none selected, all) traced paths and "add as seed"
-     * (see {@link AlongPathDetectorCmd#OUTPUT_SEEDS}), so the harvester only prompts for the detection
-     * settings that actually matter here (swelling factor, intensity threshold, etc.) rather than the
-     * full command's output-format picker.
-     */
-    private void detectSwellings() {
-        final List<Path> paths = sntui.getPathManager().getSelectedPaths(true);
-        if (paths == null || paths.isEmpty()) {
-            sntui.error("There are no traced paths to scan.");
-            return;
-        }
-        // NB: a non-destructive fit ("Keep original path(s)" in the Fit Radii dialog, the default)
-        // never puts radii on the path itself - only on its getFitted() flavor (see PathFitter#applyFit()).
-        // Checking hasRadii() alone here would wrongly reject paths that AlongPathDetectorCmd's own
-        // init() would happily pick up via its identical fitted-flavor fallback
-        if (paths.stream().noneMatch(p -> p.hasRadii() || (p.getFitted() != null && p.getFitted().hasRadii()))) {
-            sntui.error("Swelling detection requires paths with fitted radii.\n"
-                    + "Please fit radii first (Refine> menu).");
-            return;
-        }
-        final CommandService cs = getCommandService();
-        if (cs != null) cs.run(AlongPathDetectorCmd.class, true,
-                "paths", paths, "outputChoice", AlongPathDetectorCmd.OUTPUT_SEEDS);
-    }
-
-    private void detectMaxima() {
-        if (!snt.accessToValidImageData()) {
-            sntui.error("Maxima detection requires valid image data to be loaded.");
-            return;
-        }
-        final List<Path> paths = sntui.getPathManager().getSelectedPaths(true);
-        if (paths == null || paths.isEmpty()) {
-            sntui.error("There are no traced paths to scan.");
-            return;
-        }
-        final CommandService cs = getCommandService();
-        if (cs != null) cs.run(PeripathDetectorCmd.class, true,
-                "paths", paths, "outputChoice", PeripathDetectorCmd.OUTPUT_SEEDS);
-    }
-
-    private void detectTips() {
-        if (!snt.accessToValidImageData()) {
-            sntui.error("No valid image data available.");
-            return;
-        }
-        final CommandService cs = getCommandService();
-        if (cs != null) cs.run(TipDetectionWizardCmd.class, true);
-    }
-
-    private void detectTipsWithSavedParameters() {
-        if (!snt.accessToValidImageData()) {
-            sntui.error("No valid image data available.");
-            return;
-        }
-        final CommandService cs = getCommandService();
-        if (cs != null) cs.run(TipDetectionSavedCmd.class, true);
-    }
-
-    private void detectSomas() {
-        if (!snt.accessToValidImageData()) {
-            sntui.error("No valid image data available.");
-            return;
-        }
-        final CommandService cs = getCommandService();
-        if (cs != null) cs.run(SomaDetectorCmd.class, true,
-                "scopeChoice", SomaDetectorCmd.SCOPE_ALL, "outputChoice", SomaDetectorCmd.OUTPUT_SEEDS,
-                "HEADER", "");
     }
 
     private File getSessionDir() {

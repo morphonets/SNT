@@ -48,6 +48,7 @@ public class IconFactory {
         ALIGN_LEFT('\uf036', true), //
         ALIGN_CENTER('\uf037', true), //
         ALIGN_RIGHT('\uf038', true), //
+        ANCHOR('\uf13d', true), //
         ATLAS('\uf558', true), //
         ARROWS_LR('\uf0ec', true), //
         ARROWS_LR_TO_LINE('\ue4ba', true), //
@@ -171,6 +172,7 @@ public class IconFactory {
         MINUS('\uf146', false), //
         NAVIGATE('\uf14e', false), //
         MOVE('\uf0b2', true), //
+        MOUNTAIN('\uf6fc', true), //
         NEWSPAPER('\uf1ea', false), //
         NEXT('\uf358', false), //
         OPEN_FOLDER('\uf07c', false), //
