@@ -28,9 +28,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Function;
@@ -704,6 +706,76 @@ public class NodeStatistics <T extends PointInImage> {
             }
         }
         return result;
+    }
+
+    /**
+     * Matches points across partitions (e.g., channels): the points of the first partition are the references, and
+     * each is grouped with the closest unmatched point of every other partition that lies within the threshold. A
+     * point is used at most once.
+     *
+     * @param points           the points
+     * @param threshold        the maximum distance for points to be matched (same units as the points)
+     * @param partitionKey     assigns each point to a partition (e.g., its channel). The first partition found
+     *                         provides the references. Points of the same partition are never matched together
+     * @param compatibilityKey optional function (may be null): only points with equal keys are matched (e.g., the
+     *                         frame)
+     * @param minMembers       the minimum number of points of a group (2 for matches between two partitions)
+     * @param <T>              the type of point
+     * @return the groups, with the reference point first, in the order of the references
+     */
+    public static <T extends SNTPoint> List<List<T>> matchAcrossPartitions(
+            final Collection<T> points, final double threshold, final Function<? super T, ?> partitionKey,
+            final Function<? super T, ?> compatibilityKey, final int minMembers) {
+        final Map<Object, List<T>> partitions = new LinkedHashMap<>();
+        for (final T p : points) partitions.computeIfAbsent(partitionKey.apply(p), k -> new ArrayList<>()).add(p);
+        final List<List<T>> result = new ArrayList<>();
+        if (!(threshold > 0) || partitions.size() < 2) return result;
+        final List<List<T>> lists = new ArrayList<>(partitions.values());
+        final Set<T> consumed = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        final double thresholdSq = threshold * threshold;
+        for (final T ref : lists.getFirst()) {
+            if (consumed.contains(ref)) continue;
+            final Object refKey = (compatibilityKey == null) ? null : compatibilityKey.apply(ref);
+            final List<T> group = new ArrayList<>();
+            group.add(ref);
+            for (int i = 1; i < lists.size(); i++) {
+                T closest = null;
+                double closestSq = Double.MAX_VALUE;
+                for (final T other : lists.get(i)) {
+                    if (consumed.contains(other)) continue;
+                    if (compatibilityKey != null && !Objects.equals(refKey, compatibilityKey.apply(other))) continue;
+                    final double dx = ref.getX() - other.getX();
+                    final double dy = ref.getY() - other.getY();
+                    final double dz = ref.getZ() - other.getZ();
+                    final double dSq = dx * dx + dy * dy + dz * dz;
+                    if (dSq <= thresholdSq && dSq < closestSq) {
+                        closestSq = dSq;
+                        closest = other;
+                    }
+                }
+                if (closest != null) group.add(closest);
+            }
+            if (group.size() >= minMembers) {
+                consumed.addAll(group);
+                result.add(group);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * @param points the points (at least one)
+     * @return the centroid [x, y, z] of the points
+     */
+    public static double[] centroid(final Collection<? extends SNTPoint> points) {
+        final double[] c = new double[3];
+        for (final SNTPoint p : points) {
+            c[0] += p.getX();
+            c[1] += p.getY();
+            c[2] += p.getZ();
+        }
+        for (int i = 0; i < 3; i++) c[i] /= points.size();
+        return c;
     }
 
     /** Agglomerative centroid-linkage clustering, see clusterByProximity() */

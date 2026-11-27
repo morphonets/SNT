@@ -491,6 +491,14 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Edit selected seed(s)");
         jmi.addActionListener(e -> editSelected());
         menu.add(jmi);
+        jmi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        jmi.setToolTipText("Remove selected seed(s) from the overlay");
+        jmi.addActionListener(e -> deleteSelected());
+        menu.add(jmi);
+        GuiUtils.MenuItems.addSeparator(menu, "Adjust:");
+        menu.add(getScaleConfidenceMenu());
+        menu.add(getScaleRadiusMenu());
+        GuiUtils.MenuItems.addSeparator(menu, "Combine:");
         jmi = new JMenuItem("Merge by Distance...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
         jmi.setToolTipText("Merges nearby seeds, replacing them with centroids");
         jmi.addActionListener(e -> mergeSeeds());
@@ -499,17 +507,16 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Replaces the selected seeds (same channel and frame) with their centroid");
         jmi.addActionListener(e -> mergeSelectedSeeds());
         menu.add(jmi);
-        menu.add(getScaleConfidenceMenu());
-        menu.add(getScaleRadiusMenu());
+        jmi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+        jmi.setToolTipText("<HTML>Adds a seed at the centroid of seeds from different channels that lie close "
+                + "together<br>(same frame), e.g., maxima detected in each channel of a double label");
+        jmi.addActionListener(e -> colocalizeSeeds());
+        menu.add(jmi);
+        GuiUtils.MenuItems.addSeparator(menu, "Analyze:");
         jmi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
         jmi.setToolTipText("Histogram of nearest-neighbor distances of the selected seeds (all listed seeds if "
                 + "none is selected). Helps spot multiple hits on the same spot");
         jmi.addActionListener(e -> showNNDistribution());
-        menu.add(jmi);
-        menu.addSeparator();
-        jmi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-        jmi.setToolTipText("Remove selected seed(s) from the overlay");
-        jmi.addActionListener( e -> deleteSelected());
         menu.add(jmi);
         GuiUtils.MenuItems.addSeparator(menu, "Seed Reviews:");
         menu.add(buildSendToCurationSubmenu());
@@ -557,10 +564,10 @@ public class SeedManager extends JPanel {
      * Installs (or moves) the color-swatch renderer onto the column whose
      * value drives the active color encoding:
      * <ul>
-     *   <li>CONFIDENCE → "Conf" column (model index 3)</li>
-     *   <li>TYPE       → "Type" column (model index 5)</li>
-     *   <li>SOURCE     → "Source" column (model index 6)</li>
-     *   <li>INDEX      → "X" column (model index 0; INDEX has no semantic
+     *   <li>CONFIDENCE → "Conf" column</li>
+     *   <li>TYPE       → "Type" column</li>
+     *   <li>SOURCE     → "Source" column</li>
+     *   <li>INDEX      → "X" column (INDEX has no semantic
      *       anchor column, so this is the stable fallback)</li>
      * </ul>
      * Idempotent: if the swatch is already on the right column, this is a
@@ -589,14 +596,12 @@ public class SeedManager extends JPanel {
 
     /** Maps a color mode to the model-index of its encoding column. */
     private static int colorEncodingModelIndex(final SeedOverlay.ColorMode mode) {
-        // Indices mirror SeedTableModel.COLUMN_NAMES_NO_STATUS layout:
-        // {"X","Y","Z","Conf","Radius","Type","Source"}.
-        if (mode == null) return 0;
+        if (mode == null) return SeedTableModel.COL_X;
         return switch (mode) {
-            case CONFIDENCE -> 3; // Conf
-            case TYPE -> 5;       // Type
-            case SOURCE -> 6;     // Source
-            case INDEX -> 0;      // X (fallback)
+            case CONFIDENCE -> SeedTableModel.COL_CONFIDENCE;
+            case TYPE -> SeedTableModel.COL_TYPE;
+            case SOURCE -> SeedTableModel.COL_SOURCE;
+            case INDEX -> SeedTableModel.COL_X; // fallback
         };
     }
 
@@ -1552,6 +1557,55 @@ public class SeedManager extends JPanel {
             return;
         }
         applyMerge(allConsumed, allMerged, "merge(" + threshold + ")");
+    }
+
+    /**
+     * Adds a seed at the centroid of seeds from different channels that lie close together (same frame).
+     * Colocalized seeds are tagged as such, so that they can be filtered by type. The originals are kept or
+     * replaced, as chosen by the user
+     */
+    private void colocalizeSeeds() {
+        if (noSeedsError()) return;
+        final List<SeedPoint> candidates = getSelectedSeedsOrAllVisibleIfNoneSelected().stream()
+                .filter(s -> s.channel != SeedPoint.CT_UNSET).toList();
+        if (candidates.stream().mapToInt(s -> s.channel).distinct().count() < 2) {
+            sntui.error("Colocalization requires seeds from at least 2 channels (see the C column).");
+            return;
+        }
+        final String[] choices = {"Keep originals and add centroids", "Replace originals with centroids"};
+        final Object[] input = sntui.guiUtils.getChoiceAndDouble(
+                "<HTML>Max. distance between colocalized seeds (physical units):", "Colocalize Seeds",
+                choices, choices[0], 5.0);
+        if (input == null) return;
+        final double threshold = (Double) input[1];
+        if (!(threshold > 0)) return;
+        final boolean replace = choices[1].equals(input[0]);
+        final List<SeedPoint> colocalized = new ArrayList<>();
+        final Set<SeedPoint> consumed = new HashSet<>();
+        for (final List<SeedPoint> group : NodeStatistics.matchAcrossPartitions(candidates, threshold,
+                s -> s.channel, s -> s.frame, 2)) {
+            colocalized.add(colocalizedSeed(group));
+            consumed.addAll(group);
+        }
+        if (colocalized.isEmpty()) {
+            sntui.error("No seeds colocalize within the specified distance.");
+            return;
+        }
+        if (replace) overlay.removeAll(consumed);
+        overlay.addAll(colocalized);
+        sntui.showStatus(colocalized.size() + " colocalized seed(s) added", true);
+        recordComment("Seed Manager: colocalize(" + threshold + ")");
+    }
+
+    /** Seed at the centroid of a group from different channels: channel unset, source lists the channels */
+    private SeedPoint colocalizedSeed(final List<SeedPoint> group) {
+        final double[] c = NodeStatistics.centroid(group);
+        final double conf = group.stream().mapToDouble(s -> s.confidence).min().orElse(1d);
+        final double radius = group.stream().mapToDouble(s -> s.radius).average().orElse(0d);
+        final String channels = group.stream().mapToInt(s -> s.channel).distinct().sorted()
+                .mapToObj(ch -> "C" + ch).collect(java.util.stream.Collectors.joining("+"));
+        return new SeedPoint(c[0], c[1], c[2], conf, radius, SeedPoint.CT_UNSET, group.getFirst().frame,
+                "colocalized", channels);
     }
 
     /** Merges the explicitly selected seeds (no distance criterion) */

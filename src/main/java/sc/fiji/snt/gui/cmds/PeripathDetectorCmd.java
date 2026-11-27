@@ -371,8 +371,10 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
                 for (int i = 0; i < results.size(); i++) {
                     final Detection d = results.get(i);
                     final double radius = d.path.getNodeRadius(d.nodeIndex);
+                    // CT of the image that was scanned (not of the path): seeds detected in different
+                    // channels must be distinguishable, e.g., to colocalize them
                     newSeeds.add(new SeedPoint(d.x, d.y, d.z, confidences[i], radius,
-                            d.path.getChannel(), d.path.getFrame(), "maximum", "peripath-detector"));
+                            channel, snt.getFrame(), "maximum", "peripath-detector"));
                 }
                 // addAll() fires SeedOverlay's listeners once, not once per detection: with results
                 // in the thousands, add() in a loop meant a full viewer-side resync (and a

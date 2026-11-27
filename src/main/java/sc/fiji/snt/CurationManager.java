@@ -279,8 +279,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             navigateToWarning(selected.getFirst());
         });
         popup.add(goToLocationItem);
-        popup.addSeparator();
-
         final JMenuItem copyItem = new JMenuItem("Copy Issue Description", IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
         copyItem.addActionListener(e -> {
             final List<PlausibilityCheck.Warning> toCopy = tableModel.getSelectedWarnings(warningsTable, true);
@@ -304,7 +302,20 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             GuiUtils.Text.copyToClipboard(sb.toString().strip());
         });
         popup.add(copyItem);
+        // Opens the documentation page anchored to the relevant check
+        final JMenuItem explainItem = new JMenuItem("Help on Issue...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
+        explainItem.addActionListener(e -> {
+            final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
+            if (warnings.size() != 1) {
+                sntui.error("Please re-run after selecting a single issue.");
+                return;
+            }
+            final String anchor = getDocAnchor(warnings.getFirst().checkName());
+            GuiUtils.openURL("https://imagej.net/plugins/snt/curation" + anchor);
+        });
+        popup.add(explainItem);
 
+        GuiUtils.MenuItems.addSeparator(popup, "Dismiss:");
         final JMenuItem deleteSelectedItem = new JMenuItem("Delete Selected", IconFactory.menuIcon(IconFactory.GLYPH.DELETE));
         deleteSelectedItem.addActionListener(e -> {
             final List<PlausibilityCheck.Warning> toDelete = tableModel.getSelectedWarnings(warningsTable, false);
@@ -336,26 +347,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             refreshTableHeader();
         });
         popup.add(discardTypeItem);
-        // Explain issue: open documentation page anchored to the relevant check
-        final JMenuItem explainItem = new JMenuItem("Help on Issue...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION_CIRCLE));
-        explainItem.addActionListener(e -> {
-            final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
-            if (warnings.size() != 1) {
-                sntui.error("Please re-run after selecting a single issue.");
-                return;
-            }
-            final String anchor = getDocAnchor(warnings.getFirst().checkName());
-            GuiUtils.openURL("https://imagej.net/plugins/snt/curation" + anchor);
-        });
-        popup.add(explainItem);
-        popup.addSeparator();
+
         final JMenuItem clearItem = new JMenuItem("Clear All Issues", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         clearItem.addActionListener(e -> {
             tableModel.setWarnings(List.of());
             refreshTableHeader();
         });
         popup.add(clearItem);
-        popup.addSeparator();
+
+        GuiUtils.MenuItems.addSeparator(popup, "Table Controls:");
         return popup;
     }
 

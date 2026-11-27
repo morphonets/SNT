@@ -56,13 +56,15 @@ public class SeedTableModel extends AbstractTableModel {
     public static final int COL_X = 0;
     public static final int COL_Y = 1;
     public static final int COL_Z = 2;
-    public static final int COL_CONFIDENCE = 3;
-    public static final int COL_RADIUS = 4;
-    public static final int COL_TYPE = 5;
-    public static final int COL_SOURCE = 6;
+    public static final int COL_CHANNEL = 3;
+    public static final int COL_FRAME = 4;
+    public static final int COL_CONFIDENCE = 5;
+    public static final int COL_RADIUS = 6;
+    public static final int COL_TYPE = 7;
+    public static final int COL_SOURCE = 8;
 
     private static final String[] COLUMN_NAMES = {
-            "X", "Y", "Z", "Conf", "Radius", "Type", "Source"};
+            "X", "Y", "Z", "C", "T", "Conf", "Radius", "Type", "Source"};
 
     private final SeedOverlay overlay;
     private final SeedOverlay.SeedOverlayListener listener;
@@ -125,6 +127,7 @@ public class SeedTableModel extends AbstractTableModel {
         return switch (col) {
             case COL_X, COL_Y, COL_Z, COL_CONFIDENCE, COL_RADIUS -> Double.class;
             case COL_TYPE, COL_SOURCE -> String.class;
+            case COL_CHANNEL, COL_FRAME -> Integer.class;
             default -> Object.class;
         };
     }
@@ -141,6 +144,9 @@ public class SeedTableModel extends AbstractTableModel {
             case COL_RADIUS -> s.radius;
             case COL_TYPE -> s.type;
             case COL_SOURCE -> s.source;
+            // Unset: empty cell
+            case COL_CHANNEL -> (s.channel == SeedPoint.CT_UNSET) ? null : s.channel;
+            case COL_FRAME -> (s.frame == SeedPoint.CT_UNSET) ? null : s.frame;
             default -> null;
         };
     }
