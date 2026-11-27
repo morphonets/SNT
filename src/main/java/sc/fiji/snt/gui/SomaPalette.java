@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
+import ij.gui.Line;
 import ij.gui.Overlay;
 import ij.gui.Roi;
 import ij.gui.StackWindow;
@@ -37,19 +38,16 @@ import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.BigDataUtils;
 import sc.fiji.snt.util.ImgUtils;
 
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSlider;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
+import javax.swing.*;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.Panel;
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -76,7 +74,12 @@ public class SomaPalette extends WizardPalette {
     private static final String SOMA_ROI = "soma";
     // Somata smaller than this (preview pixels) are not realistic: avoids spurious detections out of the box
     private static final double DEFAULT_MIN_RADIUS_PX = 5;
+    // User ROIs (solid) and detections (dashed, cyan) must be told apart even if both are ovals
+    private static final String USER_ROI = "soma-user";
     private static final Color OVAL_COLOR = Color.CYAN;
+    private static final Color USER_ROI_COLOR = Color.MAGENTA;
+    private static final BasicStroke DETECTION_STROKE = new BasicStroke(1.5f, BasicStroke.CAP_BUTT,
+            BasicStroke.JOIN_MITER, 10f, new float[]{6f, 4f}, 0f);
 
     /**
      * Detection parameters, in calibrated units
@@ -397,7 +400,10 @@ public class SomaPalette extends WizardPalette {
     protected void beforeDismiss() {
         generation.incrementAndGet();
         ImagePlus.removeImageListener(sliceListener);
-        if (window != null) window.stopDebounce();
+        if (window != null) {
+            window.stopDebounce();
+            window.stopCapture();
+        }
     }
 
     @Override
@@ -445,7 +451,8 @@ public class SomaPalette extends WizardPalette {
         private final JLabel statusLabel = new JLabel(" ");
         private JPanel planePanel;
         private JButton applyButton;
-        private JButton roiButton;
+        private JToggleButton roiButton;
+        private MouseAdapter captureListener;
         private JButton moreButton;
         private final Timer debounce;
         private boolean loading;
@@ -594,15 +601,20 @@ public class SomaPalette extends WizardPalette {
             apply.setToolTipText("Sets these parameters in the Detect Soma(s) prompt");
             apply.addActionListener(e -> commit());
             final JButton more = paletteOptions.getOptionsButton(pm -> {
+                final JMenuItem clear = new JMenuItem("Clear ROIs", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+                clear.setToolTipText("Removes the ROIs drawn on the image (overlay)");
+                clear.addActionListener(e -> clearUserRois());
+                pm.add(clear);
                 paletteOptions.addHelpItem(pm, helpHtml(), this);
                 paletteOptions.addTourItem(pm, this::startTour);
             });
             more.setFocusable(false);
-            roiButton = new JButton("From ROIs");
+            roiButton = new JToggleButton("From ROIs");
             roiButton.setFocusable(false);
-            roiButton.setToolTipText("<html>Sets min. radius and min. distance from oval ROIs drawn around somata<br>"
-                    + "(the current selection, or ROIs in the image overlay)");
-            roiButton.addActionListener(e -> fromRois());
+            roiButton.setToolTipText("<html>Sets min. radius and min. distance from ovals, rectangles or<br>"
+                    + "lines (diameters) drawn on somata. While pressed, each ROI you draw is kept<br>"
+                    + "(in the overlay): no need to hold Shift or press B. Parameters are set when released");
+            roiButton.addActionListener(e -> setCapturing(roiButton.isSelected()));
             applyButton = apply;
             moreButton = more;
             buttons.add(roiButton);
@@ -689,31 +701,130 @@ public class SomaPalette extends WizardPalette {
             if (generation == SomaPalette.this.generation.get()) statusLabel.setText("Detecting...");
         }
 
-        // Min. radius and distance from the oval ROIs the user has drawn (selection and/or overlay)
+        // ROI types usable to measure somata: ovals and rectangles (bounding boxes), and straight lines (diameters)
+        private boolean isAccepted(final Roi r) {
+            if (r instanceof Line l) return Math.hypot(l.x2d - l.x1d, l.y2d - l.y1d) >= 2; // ignores stray clicks
+            final java.awt.geom.Rectangle2D b = r.getFloatBounds();
+            return (r.getType() == Roi.OVAL || r.getType() == Roi.RECTANGLE) && b.getWidth() >= 2
+                    && b.getHeight() >= 2;
+        }
+
+        // {radius, x, y} of the soma marked by an accepted ROI, in calibrated units
+        private double[] measure(final Roi r) {
+            if (r instanceof Line l) {
+                return new double[]{0.5 * Math.hypot((l.x2d - l.x1d) * spacing[0], (l.y2d - l.y1d) * spacing[1]),
+                        0.5 * (l.x1d + l.x2d) * spacing[0], 0.5 * (l.y1d + l.y2d) * spacing[1]};
+            }
+            final java.awt.geom.Rectangle2D b = r.getFloatBounds();
+            return new double[]{0.5 * Math.sqrt(b.getWidth() * spacing[0] * b.getHeight() * spacing[1]),
+                    b.getCenterX() * spacing[0], b.getCenterY() * spacing[1]};
+        }
+
+        // While on, every ROI the user completes on the image is moved to the overlay and the parameters updated.
+        // Turning it off sets the parameters from all the ROIs gathered
+        private void setCapturing(final boolean on) {
+            stopCapture();
+            if (!on) {
+                if (hasUserRois()) fromRois();
+                return;
+            }
+            // RoiListener cannot be used: it reports MODIFIED on every mouse move while a ROI is being drawn, and
+            // never reports completion of ovals
+            captureListener = new MouseAdapter() {
+                @Override
+                public void mouseReleased(final MouseEvent e) {
+                    SwingUtilities.invokeLater(() -> captureSelection());
+                }
+            };
+            paletteImage.getCanvas().addMouseListener(captureListener);
+            captureSelection(); // the current selection, if any
+            showCaptureStatus();
+        }
+
+        // Detection is held until capture is turned off
+        private void showCaptureStatus() {
+            int n = 0;
+            final Overlay ov = paletteImage.getOverlay();
+            if (ov != null) {
+                for (final Roi r : ov.toArray())
+                    if (isUserRoi(r)) n++;
+            }
+            statusLabel.setForeground(infoColor);
+            statusLabel.setText("Drawing ROIs: " + n + " so far. Toggle off From ROIs to set parameters");
+        }
+
+        void stopCapture() {
+            if (captureListener != null && paletteImage.getCanvas() != null)
+                paletteImage.getCanvas().removeMouseListener(captureListener);
+            captureListener = null;
+        }
+
+        // ROIs gathered so far: any overlay item that is not a detection or the MIP (includes those added with B)
+        private boolean isUserRoi(final Roi r) {
+            return !SOMA_ROI.equals(r.getName()) && !PaletteOptions.MIP_OVERLAY_NAME.equals(r.getName());
+        }
+
+        private boolean hasUserRois() {
+            final Overlay ov = paletteImage.getOverlay();
+            if (ov == null) return false;
+            for (final Roi r : ov.toArray())
+                if (isUserRoi(r)) return true;
+            return false;
+        }
+
+        private void captureSelection() {
+            final Roi sel = paletteImage.getRoi();
+            if (sel == null || !isAccepted(sel)) return;
+            final Roi roi = (Roi) sel.clone();
+            roi.setName(USER_ROI);
+            roi.setStrokeColor(USER_ROI_COLOR);
+            roi.setStrokeWidth(1.5);
+            // Pin to the plane it was drawn on, unless on the (all depths) projection
+            if (paletteImage.getNSlices() > 1 && !mipCheck.isSelected()) roi.setPosition(paletteImage.getCurrentSlice());
+            Overlay ov = paletteImage.getOverlay();
+            if (ov == null) ov = new Overlay();
+            ov.add(roi);
+            paletteImage.setOverlay(ov);
+            paletteImage.deleteRoi();
+            showCaptureStatus();
+        }
+
+        private void clearUserRois() {
+            final Overlay old = paletteImage.getOverlay();
+            if (old == null) return;
+            final Overlay ov = new Overlay();
+            for (final Roi r : old.toArray()) {
+                if (!isUserRoi(r)) ov.add(r);
+            }
+            paletteImage.setOverlay(ov);
+            statusLabel.setForeground(infoColor);
+            statusLabel.setText(summary);
+        }
+
+        // Min. radius and distance from the ROIs the user has drawn (selection and/or overlay)
         private void fromRois() {
-            final java.util.List<Roi> ovals = new ArrayList<>();
+            final List<Roi> ovals = new ArrayList<>();
             final Roi sel = paletteImage.getRoi();
             if (sel != null) ovals.add(sel);
             final Overlay ov = paletteImage.getOverlay();
             if (ov != null) {
                 for (final Roi r : ov.toArray()) {
-                    if (!SOMA_ROI.equals(r.getName()) && !PaletteOptions.MIP_OVERLAY_NAME.equals(r.getName()))
-                        ovals.add(r);
+                    if (isUserRoi(r)) ovals.add(r);
                 }
             }
-            ovals.removeIf(r -> r.getType() != Roi.OVAL);
+            ovals.removeIf(r -> !isAccepted(r));
             if (ovals.isEmpty()) {
                 statusLabel.setForeground(GuiUtils.Colors.errorColor());
-                statusLabel.setText("Draw oval ROIs around somata first");
+                statusLabel.setText("Draw ROIs (ovals, rectangles or lines) around somata first");
                 return;
             }
             double minRadius = Double.MAX_VALUE;
             final double[][] centers = new double[ovals.size()][2];
             for (int i = 0; i < centers.length; i++) {
-                final java.awt.geom.Rectangle2D b = ovals.get(i).getFloatBounds();
-                minRadius = Math.min(minRadius, 0.5 * Math.sqrt(b.getWidth() * spacing[0] * b.getHeight() * spacing[1]));
-                centers[i][0] = b.getCenterX() * spacing[0];
-                centers[i][1] = b.getCenterY() * spacing[1];
+                final double[] m = measure(ovals.get(i));
+                minRadius = Math.min(minRadius, m[0]);
+                centers[i][0] = m[1];
+                centers[i][1] = m[2];
             }
             // Margins: the smallest soma drawn, and the closest pair, must be retained
             final double radius = 0.75 * minRadius;
@@ -747,7 +858,7 @@ public class SomaPalette extends WizardPalette {
                     final Roi roi = r.toRoi(SomaUtils.OUTPUT_CIRCLE);
                     roi.setName(SOMA_ROI);
                     roi.setStrokeColor(OVAL_COLOR);
-                    roi.setStrokeWidth(1.5);
+                    roi.setStroke(DETECTION_STROKE);
                     ov.add(roi);
                 }
             }
@@ -823,7 +934,8 @@ public class SomaPalette extends WizardPalette {
                     group, order++);
             CalloutManager.add(roiButton, CalloutManager.AUTO, "<b>From ROIs</b><br>"
                     + "If the sliders are too slow or hard to tune (e.g., many candidate somata),<br>" +
-                    "draw oval ROIs around a few somata and press this button: <i>Min. radius</i><br>" +
+                    "press this button and draw ovals, rectangles or lines (diameters)<br>" +
+                    "across a few somata: <i>Min. radius</i><br>" +
                     "and <i>Min. distance</i> are set from their sizes and spacing.", group, order++);
             CalloutManager.add(applyButton, CalloutManager.AUTO, "<b>Apply</b><br>"
                     + "Sets these parameters in the <i>Detect Soma(s)</i> prompt.", group, order++);
@@ -845,8 +957,10 @@ public class SomaPalette extends WizardPalette {
                     + "<li><b>Min. distance</b>: of two detections closer than this, only the strongest is kept</li>"
                     + "</ul><p>To measure somata, draw ROIs on the preview and press <b>M</b> (ImageJ's "
                     + "<i>Measure</i>): use the radii and distances to set <i>Min. radius</i> and <i>Min. distance</i>. "
-                    + "Or draw oval ROIs around a few somata and press <i>From ROIs</i> to set them automatically "
-                    + "(useful if the sliders are slow, e.g., for images with many candidate somata).</p>"
+                    + "Or press <i>From ROIs</i> and draw ovals, rectangles (bounding boxes) or straight lines "
+                    + "(diameters) across a few somata: each is kept (solid magenta) and the parameters are set automatically (useful if the sliders are slow, e.g., for images "
+                    + "with many candidate somata). Detections are dashed. <i>Clear ROIs</i> (in the options menu) "
+                    + "discards them.</p>"
                     + "<p>For streamed data the preview is read from a coarse resolution level, which avoids "
                     + "loading the whole volume. Values are in calibrated units and also apply to the full "
                     + "resolution data. <i>Apply</i> sets the parameters in the <i>Detect Soma(s)</i> prompt. The expected "
